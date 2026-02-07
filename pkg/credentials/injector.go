@@ -2,7 +2,9 @@ package credentials
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -206,7 +208,17 @@ func (inj *Injector) prepareFile(cred *Credential, cfg InjectionConfig, result *
 	content := cred.Value
 	switch cfg.Format {
 	case "json":
-		content = fmt.Sprintf(`{"value":"%s","type":"%s","name":"%s"}`, cred.Value, cred.Type, cred.Name)
+		// Use proper JSON marshaling to ensure correct escaping
+		jsonData := map[string]string{
+			"value": cred.Value,
+			"type":  cred.Type,
+			"name":  cred.Name,
+		}
+		jsonBytes, err := json.Marshal(jsonData)
+		if err != nil {
+			return types.WrapError(types.ErrCodeInternal, "failed to marshal credential to JSON", err)
+		}
+		content = string(jsonBytes)
 	case "env":
 		content = fmt.Sprintf("%s=%s\n", strings.ToUpper(cred.Name), cred.Value)
 	case "raw", "":
@@ -245,12 +257,28 @@ func (inj *Injector) prepareFile(cred *Credential, cfg InjectionConfig, result *
 	return nil
 }
 
-// filepathWithBase joins base and path safely
+// filepathWithBase joins base and path safely, preventing path traversal
 func filepathWithBase(base, path string) string {
+	// Remove leading slash from path
 	if strings.HasPrefix(path, "/") {
 		path = path[1:]
 	}
-	return fmt.Sprintf("%s/%s", strings.TrimSuffix(base, "/"), path)
+	
+	// Use filepath.Join for proper path handling
+	fullPath := filepath.Join(base, path)
+	
+	// Clean the path to remove any .. or . components
+	fullPath = filepath.Clean(fullPath)
+	
+	// Ensure the final path is still within the base directory
+	// by checking if it starts with the cleaned base path
+	cleanBase := filepath.Clean(base)
+	if !strings.HasPrefix(fullPath, cleanBase) {
+		// Path traversal attempt detected - return safe path
+		return filepath.Join(cleanBase, filepath.Base(path))
+	}
+	
+	return fullPath
 }
 
 // ValidateConfig validates an injection configuration

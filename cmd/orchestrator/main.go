@@ -214,7 +214,11 @@ func main() {
 
 	// Execute the command
 	if err := rootCmd.Execute(); err != nil {
-		rootLog.Error("Command execution failed", "error", err)
+		if rootLog != nil {
+			rootLog.Error("Command execution failed", "error", err)
+		} else {
+			fmt.Fprintln(os.Stderr, "Command execution failed:", err)
+		}
 		os.Exit(1)
 	}
 

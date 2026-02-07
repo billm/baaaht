@@ -438,22 +438,14 @@ func Global() *Bus {
 	if globalBus == nil {
 		log, err := logger.NewDefault()
 		if err != nil {
-			// Return a basic bus without logging
-			globalBus = &Bus{
-				subscriptions: make(map[types.ID]*types.EventSubscription),
-				handlerGroups: make(map[types.EventType]map[types.ID]*types.EventSubscription),
-				logger:        nil,
-				closed:        false,
-				publishCh:     make(chan *publishRequest, 1000),
-				closeCh:       make(chan struct{}),
-			}
-		} else {
-			bus, err := New(log)
-			if err != nil {
-				panic(fmt.Sprintf("failed to create global event bus: %v", err))
-			}
-			globalBus = bus
+			// Panic if we can't create a logger - this is a critical failure
+			panic(fmt.Sprintf("failed to create default logger for global event bus: %v", err))
 		}
+		bus, err := New(log)
+		if err != nil {
+			panic(fmt.Sprintf("failed to create global event bus: %v", err))
+		}
+		globalBus = bus
 	}
 	return globalBus
 }

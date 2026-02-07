@@ -32,6 +32,7 @@ type Logger struct {
 	logger *slog.Logger
 	mu     sync.RWMutex
 	level  Level
+	closer io.Closer // File handle for closing when logging to a file
 }
 
 // New creates a new logger with the specified configuration
@@ -44,6 +45,7 @@ func New(cfg config.LoggingConfig) (*Logger, error) {
 
 	// Determine the output writer
 	var writer io.Writer
+	var closer io.Closer
 	switch cfg.Output {
 	case "stdout":
 		writer = os.Stdout
@@ -61,6 +63,7 @@ func New(cfg config.LoggingConfig) (*Logger, error) {
 			return nil, fmt.Errorf("failed to open log file: %w", err)
 		}
 		writer = file
+		closer = file // Store the file handle for closing later
 	}
 
 	// Create the handler options
@@ -85,6 +88,7 @@ func New(cfg config.LoggingConfig) (*Logger, error) {
 	return &Logger{
 		logger: sl,
 		level:  level,
+		closer: closer,
 	}, nil
 }
 
@@ -226,10 +230,12 @@ func (l *Logger) Close() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	// Note: We can't easily access the underlying writer from slog's
-	// built-in handlers. This is a limitation of the current implementation.
-	// In production, you might want to track the writer separately to
-	// properly close file handles.
+	if l.closer != nil {
+		if err := l.closer.Close(); err != nil {
+			return fmt.Errorf("failed to close log file: %w", err)
+		}
+		l.closer = nil
+	}
 	return nil
 }
 

@@ -33,11 +33,12 @@ type Socket struct {
 // connection represents an active socket connection
 type connection struct {
 	net.Conn
-	containerID types.ID
-	sessionID   types.ID
+	mu            sync.Mutex
+	containerID   types.ID
+	sessionID     types.ID
 	authenticated bool
-	createdAt    time.Time
-	lastActive   time.Time
+	createdAt     time.Time
+	lastActive    time.Time
 }
 
 // NewSocket creates a new Unix domain socket for IPC
@@ -57,6 +58,12 @@ func NewSocket(path string, cfg SocketConfig, log *logger.Logger) (*Socket, erro
 		}
 	}
 
+	// Validate and set default buffer size
+	bufferSize := cfg.BufferSize
+	if bufferSize <= 0 {
+		bufferSize = 4096 // Default 4KB buffer
+	}
+
 	s := &Socket{
 		path:       path,
 		conns:      make(map[string]*connection),
@@ -65,7 +72,7 @@ func NewSocket(path string, cfg SocketConfig, log *logger.Logger) (*Socket, erro
 		acceptCh:   make(chan net.Conn, 100),
 		closeCh:    make(chan struct{}),
 		maxConns:   cfg.MaxConnections,
-		bufferSize: cfg.BufferSize,
+		bufferSize: bufferSize,
 		timeout:    cfg.Timeout,
 		enableAuth: cfg.EnableAuth,
 	}
@@ -197,14 +204,13 @@ func (s *Socket) handleConnection(netConn net.Conn) {
 
 // Send sends a message to a specific container connection
 func (s *Socket) Send(ctx context.Context, containerID types.ID, data []byte) error {
+	// Find the connection under read lock, make a copy of the reference
 	s.mu.RLock()
-	defer s.mu.RUnlock()
-
 	if s.closed {
+		s.mu.RUnlock()
 		return types.NewError(types.ErrCodeUnavailable, "socket is closed")
 	}
 
-	// Find the connection for this container
 	var targetConn *connection
 	for _, conn := range s.conns {
 		if conn.containerID == containerID {
@@ -212,13 +218,11 @@ func (s *Socket) Send(ctx context.Context, containerID types.ID, data []byte) er
 			break
 		}
 	}
+	s.mu.RUnlock()
 
 	if targetConn == nil {
 		return types.NewError(types.ErrCodeNotFound, fmt.Sprintf("connection not found for container: %s", containerID))
 	}
-
-	// Update last active
-	targetConn.lastActive = time.Now()
 
 	// Set write deadline
 	if s.timeout > 0 {
@@ -227,41 +231,56 @@ func (s *Socket) Send(ctx context.Context, containerID types.ID, data []byte) er
 		}
 	}
 
-	// Write data
+	// Write data (blocking I/O without holding socket mutex)
 	_, err := targetConn.Conn.Write(data)
 	if err != nil {
 		return types.WrapError(types.ErrCodeInternal, "failed to write to connection", err)
 	}
+
+	// Update last active under connection's own mutex
+	targetConn.mu.Lock()
+	targetConn.lastActive = time.Now()
+	targetConn.mu.Unlock()
 
 	return nil
 }
 
 // Broadcast sends a message to all connections
 func (s *Socket) Broadcast(ctx context.Context, data []byte) error {
+	// Snapshot connections under read lock
 	s.mu.RLock()
-	defer s.mu.RUnlock()
-
 	if s.closed {
+		s.mu.RUnlock()
 		return types.NewError(types.ErrCodeUnavailable, "socket is closed")
 	}
 
-	var errs []error
-	for connID, conn := range s.conns {
-		// Update last active
-		conn.lastActive = time.Now()
+	// Create a snapshot of connections
+	connSnapshot := make([]*connection, 0, len(s.conns))
+	for _, conn := range s.conns {
+		connSnapshot = append(connSnapshot, conn)
+	}
+	s.mu.RUnlock()
 
+	// Write to connections without holding the socket mutex
+	var errs []error
+	for _, conn := range connSnapshot {
 		// Set write deadline
 		if s.timeout > 0 {
 			if err := conn.Conn.SetWriteDeadline(time.Now().Add(s.timeout)); err != nil {
-				s.logger.Error("Failed to set write deadline", "conn_id", connID, "error", err)
+				s.logger.Error("Failed to set write deadline", "container_id", conn.containerID, "error", err)
 				continue
 			}
 		}
 
 		// Write data
 		if _, err := conn.Conn.Write(data); err != nil {
-			s.logger.Error("Failed to write to connection", "conn_id", connID, "error", err)
+			s.logger.Error("Failed to write to connection", "container_id", conn.containerID, "error", err)
 			errs = append(errs, err)
+		} else {
+			// Update last active under connection's own mutex
+			conn.mu.Lock()
+			conn.lastActive = time.Now()
+			conn.mu.Unlock()
 		}
 	}
 
@@ -299,9 +318,9 @@ func (s *Socket) Receive(ctx context.Context, connID string) ([]byte, error) {
 	}
 
 	// Update last active
-	s.mu.Lock()
+	conn.mu.Lock()
 	conn.lastActive = time.Now()
-	s.mu.Unlock()
+	conn.mu.Unlock()
 
 	return buf[:n], nil
 }
