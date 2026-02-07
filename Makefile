@@ -1,24 +1,28 @@
-# Orchestrator Makefile
+# Baaaht Monorepo Makefile
 
-.PHONY: all build test clean lint docker-build docker-run help
+.PHONY: all build test clean lint docker-build docker-run help build-orchestrator
 
 # Variables
-BINARY_NAME=orchestrator
 BUILD_DIR=bin
 DOCKER_IMAGE=baaaht/orchestrator
 DOCKER_TAG=latest
 
+# Available tools (binaries to build)
+TOOLS=orchestrator
+
 # Go build flags
 GO_FLAGS=-v
-GO_BUILD_FLAGS=$(GO_FLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)
 
 all: build
 
-## build: Build the orchestrator binary
-build:
-	@echo "Building $(BINARY_NAME)..."
+## build: Build all tool binaries
+build: $(TOOLS)
+
+## build-orchestrator: Build the orchestrator binary
+orchestrator:
+	@echo "Building orchestrator..."
 	@mkdir -p $(BUILD_DIR)
-	go build $(GO_BUILD_FLAGS) main.go
+	go build $(GO_FLAGS) -o $(BUILD_DIR)/orchestrator ./cmd/orchestrator
 
 ## test: Run all tests
 test:
@@ -64,7 +68,7 @@ mod-tidy:
 ## docker-build: Build Docker image
 docker-build:
 	@echo "Building Docker image..."
-	docker build -t $(DOCKER_IMAGE):$(DOCKER_TAG) .
+	docker build -t $(DOCKER_IMAGE):$(DOCKER_TAG) -f Dockerfile .
 
 ## docker-run: Run Docker container
 docker-run:

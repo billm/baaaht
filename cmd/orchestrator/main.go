@@ -1,4 +1,4 @@
-package cmd
+package main
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 	"github.com/baaaht/orchestrator/internal/config"
 	"github.com/baaaht/orchestrator/internal/logger"
 	"github.com/baaaht/orchestrator/pkg/orchestrator"
-	"github.com/baaaht/orchestrator/pkg/types"
 	"github.com/spf13/cobra"
 )
 
@@ -178,16 +177,7 @@ func waitForShutdown() {
 	_ = shutdown.ShutdownAndWait(context.Background(), "signal received")
 }
 
-// Execute adds all child commands to the root command and sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the rootCmd.
-func Execute() {
-	if err := rootCmd.Execute(); err != nil {
-		rootLog.Error("Command execution failed", "error", err)
-		os.Exit(1)
-	}
-}
-
-func init() {
+func main() {
 	// Config file flag
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "",
 		"Config file path (default: use environment variables)")
@@ -213,4 +203,13 @@ func init() {
 	// Version flag
 	rootCmd.Flags().BoolVar(&versionFlag, "version", false,
 		"Show version information")
+
+	// Execute the command
+	if err := rootCmd.Execute(); err != nil {
+		rootLog.Error("Command execution failed", "error", err)
+		os.Exit(1)
+	}
+
+	// Ensure clean exit
+	os.Exit(0)
 }

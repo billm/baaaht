@@ -35,11 +35,14 @@ The Orchestrator is the foundation of the entire baaaht platform. It provides:
 
 ## Project Structure
 
+This is a monorepo containing multiple baaaht tools. Each tool has its own directory under `cmd/`.
+
 ```
 .
-├── main.go                    # Application entry point
-├── cmd/                       # CLI commands
-├── pkg/                       # Public packages
+├── cmd/                       # CLI tools (one per binary)
+│   └── orchestrator/          # Orchestrator tool
+│       └── main.go            # Orchestrator entry point
+├── pkg/                       # Public packages (shared across tools)
 │   ├── container/             # Container lifecycle management
 │   ├── events/                # Event routing system
 │   ├── session/               # Session state management
@@ -52,9 +55,12 @@ The Orchestrator is the foundation of the entire baaaht platform. It provides:
 ├── internal/                  # Private packages
 │   ├── config/                # Configuration management
 │   └── logger/                # Structured logging
-└── tests/                     # Integration and E2E tests
-    ├── integration/
-    └── e2e/
+├── tests/                     # Integration and E2E tests
+│   ├── integration/
+│   └── e2e/
+├── Makefile                   # Build automation
+├── go.mod                     # Go module definition
+└── README.md                  # This file
 ```
 
 ## Building
@@ -71,11 +77,14 @@ The Orchestrator is the foundation of the entire baaaht platform. It provides:
 # Install dependencies
 go mod download
 
-# Build the binary
-go build -o bin/orchestrator main.go
+# Build the orchestrator binary
+go build -o bin/orchestrator ./cmd/orchestrator
 
-# Or use Make
+# Or use Make (builds all tools)
 make build
+
+# Build specific tool
+make orchestrator
 ```
 
 ### Docker build
