@@ -266,21 +266,33 @@ func filepathWithBase(base, path string) (string, error) {
 	if strings.HasPrefix(path, "/") {
 		path = path[1:]
 	}
-	
-	// Use filepath.Join for proper path handling
-	fullPath := filepath.Join(base, path)
-	
-	// Clean the path to remove any .. or . components
-	fullPath = filepath.Clean(fullPath)
-	
-	// Ensure the final path is still within the base directory
-	// by checking if it starts with the cleaned base path
-	cleanBase := filepath.Clean(base)
-	if !strings.HasPrefix(fullPath, cleanBase) {
+
+	// Resolve the base directory to an absolute, cleaned path
+	cleanBase, err := filepath.Abs(filepath.Clean(base))
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve base path: %w", err)
+	}
+
+	// Join base and path for proper path handling
+	joined := filepath.Join(cleanBase, path)
+
+	// Resolve the full path to an absolute, cleaned path
+	fullPath, err := filepath.Abs(filepath.Clean(joined))
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve full path: %w", err)
+	}
+
+	// Ensure the final path is still within the base directory using
+	// a boundary-aware relative path check
+	rel, err := filepath.Rel(cleanBase, fullPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to compute relative path: %w", err)
+	}
+
+	if filepath.IsAbs(rel) || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		// Path traversal attempt detected - return error
 		return "", fmt.Errorf("path traversal attempt detected: %s escapes base directory %s", path, base)
 	}
-	
 	return fullPath, nil
 }
 
