@@ -356,7 +356,7 @@ func ShutdownOnContextCancel(orch *Orchestrator, ctx context.Context, log *logge
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), sm.shutdownTimeout)
 		defer cancel()
 		if err := sm.ShutdownAndWait(shutdownCtx, reason); err != nil {
-			log.Error("Context-based shutdown failed", "error", err)
+			sm.logger.Error("Context-based shutdown failed", "error", err)
 		}
 	}()
 
