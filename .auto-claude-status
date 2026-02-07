@@ -3,14 +3,14 @@
   "spec": "001-orchestration-core",
   "state": "building",
   "subtasks": {
-    "completed": 5,
+    "completed": 6,
     "total": 21,
     "in_progress": 0,
     "failed": 0
   },
   "phase": {
     "current": "Container Lifecycle Management",
-    "id": "phase-2-container",
+    "id": null,
     "total": 4
   },
   "workers": {
@@ -18,8 +18,8 @@
     "max": 1
   },
   "session": {
-    "number": 6,
+    "number": 7,
     "started_at": "2026-02-07T10:46:27.063531"
   },
-  "last_update": "2026-02-07T19:01:00.000000"
+  "last_update": "2026-02-07T20:00:00.000000"
 }
