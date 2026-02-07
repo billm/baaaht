@@ -91,7 +91,7 @@ func runOrchestrator(cmd *cobra.Command, args []string) error {
 	orch = result.Orchestrator
 
 	rootLog.Info("Orchestrator initialized successfully",
-		"duration", result.Duration.String(),
+		"duration", result.Duration(),
 		"version", result.Version)
 
 	// Create shutdown manager

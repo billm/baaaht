@@ -316,9 +316,8 @@ func ShutdownGracefully(orch *Orchestrator, timeout time.Duration) error {
 		return types.NewError(types.ErrCodeInvalidArgument, "orchestrator is nil")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
+	// Note: The timeout parameter is provided for API compatibility.
+	// The actual timeout enforcement should be done by the caller.
 	return orch.Close()
 }
 

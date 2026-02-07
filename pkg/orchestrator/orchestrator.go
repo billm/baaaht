@@ -549,10 +549,9 @@ func (o *Orchestrator) Stats(ctx context.Context) map[string]interface{} {
 	if o.eventBus != nil {
 		busStats := o.eventBus.Stats()
 		stats["event_bus"] = map[string]int{
-			"subscriptions": busStats.SubscriptionCount,
-			"events_published": busStats.EventsPublished,
-			"events_processed": busStats.EventsProcessed,
-			"errors": busStats.ErrorCount,
+			"total_subscriptions": busStats.TotalSubscriptions,
+			"active_subscriptions": busStats.ActiveSubscriptions,
+			"pending_events": busStats.PendingEvents,
 		}
 	}
 
@@ -560,9 +559,11 @@ func (o *Orchestrator) Stats(ctx context.Context) map[string]interface{} {
 	if o.eventRouter != nil {
 		routerStats := o.eventRouter.Stats()
 		stats["event_router"] = map[string]int{
-			"routes": routerStats.RouteCount,
-			"events_routed": routerStats.EventsRouted,
-			"errors": routerStats.ErrorCount,
+			"total_routes": routerStats.TotalRoutes,
+			"exact_routes": routerStats.ExactRoutes,
+			"wildcard_routes": routerStats.WildcardRoutes,
+			"active_routes": routerStats.ActiveRoutes,
+			"inactive_routes": routerStats.InactiveRoutes,
 		}
 	}
 
@@ -570,9 +571,9 @@ func (o *Orchestrator) Stats(ctx context.Context) map[string]interface{} {
 	if o.ipcBroker != nil {
 		brokerStats := o.ipcBroker.Stats()
 		stats["ipc"] = map[string]int{
-			"messages_sent": brokerStats.MessagesSent,
-			"messages_received": brokerStats.MessagesReceived,
-			"messages_failed": brokerStats.MessagesFailed,
+			"messages_sent": int(brokerStats.MessagesSent),
+			"messages_received": int(brokerStats.MessagesReceived),
+			"messages_failed": int(brokerStats.MessagesFailed),
 			"active_handlers": brokerStats.ActiveHandlers,
 		}
 	}

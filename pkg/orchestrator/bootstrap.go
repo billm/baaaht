@@ -103,7 +103,7 @@ func Bootstrap(ctx context.Context, cfg BootstrapConfig) (*BootstrapResult, erro
 		unhealthy := false
 		for subsystem, status := range health {
 			if status != types.Healthy {
-				orch.Logger().Error("Subsystem health check failed",
+				orch.logger.Error("Subsystem health check failed",
 					"subsystem", subsystem,
 					"status", status)
 				unhealthy = true
@@ -117,7 +117,7 @@ func Bootstrap(ctx context.Context, cfg BootstrapConfig) (*BootstrapResult, erro
 		}
 	}
 
-	orch.Logger().Info("Orchestrator bootstrapped successfully",
+	orch.logger.Info("Orchestrator bootstrapped successfully",
 		"version", cfg.Version,
 		"duration", time.Since(startedAt))
 
