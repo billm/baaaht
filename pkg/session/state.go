@@ -165,11 +165,11 @@ func (s *SessionWithStateMachine) Transition(target types.SessionState) error {
 	}
 
 	s.session.State = target
-	s.session.UpdatedAt = types.Timestamp(time.Now())
+		s.session.UpdatedAt = types.NewTimestampFromTime(time.Now())
 
 	// Set closed timestamp when transitioning to closed
 	if target == types.SessionStateClosed {
-		now := types.Timestamp(time.Now())
+		now := types.NewTimestampFromTime(time.Now())
 		s.session.ClosedAt = &now
 	}
 

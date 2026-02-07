@@ -695,7 +695,7 @@ func TestClose(t *testing.T) {
 func TestGlobalStore(t *testing.T) {
 	// Reset global store
 	globalStore = nil
-	globalOnce = sync.Once{}
+	storeGlobalOnce = sync.Once{}
 
 	store1 := Global()
 	store2 := Global()

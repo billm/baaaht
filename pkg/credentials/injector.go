@@ -387,13 +387,13 @@ func (inj *Injector) IsClosed() bool {
 // Global injector instance
 var (
 	globalInjector *Injector
-	globalOnce     sync.Once
+	injectorGlobalOnce     sync.Once
 )
 
 // InitGlobalInjector initializes the global credential injector
 func InitGlobalInjector(log *logger.Logger) error {
 	var initErr error
-	globalOnce.Do(func() {
+	injectorGlobalOnce.Do(func() {
 		injector, err := NewDefault(log)
 		if err != nil {
 			initErr = err
@@ -421,5 +421,5 @@ func GlobalInjector() *Injector {
 // SetGlobalInjector sets the global credential injector instance
 func SetGlobalInjector(inj *Injector) {
 	globalInjector = inj
-	globalOnce = sync.Once{}
+	injectorGlobalOnce = sync.Once{}
 }

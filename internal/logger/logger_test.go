@@ -1,10 +1,10 @@
 package logger
 
 import (
-	"bytes"
 	"encoding/json"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/billm/baaaht/orchestrator/internal/config"
@@ -96,7 +96,7 @@ func TestLoggerLevels(t *testing.T) {
 		Format: "json",
 		Output: "stdout",
 	}
-	logger, err := New(cfg)
+	_, err := New(cfg)
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -128,7 +128,6 @@ func TestLoggerLevels(t *testing.T) {
 
 func TestLoggerOutput(t *testing.T) {
 	// Test with stdout (buffered)
-	var buf bytes.Buffer
 	cfg := config.LoggingConfig{
 		Level:  "info",
 		Format: "json",

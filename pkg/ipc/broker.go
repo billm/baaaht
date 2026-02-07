@@ -137,7 +137,7 @@ func (b *Broker) Send(ctx context.Context, msg *types.IPCMessage) error {
 
 	// Set timestamp if not set
 	if msg.Timestamp.IsZero() {
-		msg.Timestamp = types.Timestamp(time.Now())
+		msg.Timestamp = types.NewTimestampFromTime(time.Now())
 	}
 
 	// Generate ID if not set
@@ -194,7 +194,7 @@ func (b *Broker) Broadcast(ctx context.Context, msg *types.IPCMessage) error {
 
 	// Set timestamp if not set
 	if msg.Timestamp.IsZero() {
-		msg.Timestamp = types.Timestamp(time.Now())
+		msg.Timestamp = types.NewTimestampFromTime(time.Now())
 	}
 
 	// Generate ID if not set

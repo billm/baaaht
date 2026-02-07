@@ -12,7 +12,7 @@ import (
 	"github.com/billm/baaaht/orchestrator/internal/logger"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 
-	"github.com/docker/docker/api/types"
+	dockertypes "github.com/docker/docker/api/types"
 )
 
 // Monitor handles container monitoring operations (health checks, stats, logs)
@@ -190,7 +190,7 @@ func (m *Monitor) Stats(ctx context.Context, containerID string) (*types.Contain
 	}
 	defer stats.Body.Close()
 
-	var dockerStats types.StatsJSON
+	var dockerStats dockertypes.StatsJSON
 	if err := json.NewDecoder(stats.Body).Decode(&dockerStats); err != nil {
 		return nil, types.WrapError(types.ErrCodeInternal, "failed to decode container stats", err)
 	}
@@ -399,11 +399,11 @@ func (m *Monitor) LogsLines(ctx context.Context, cfg LogsConfig) ([]types.Contai
 }
 
 // EventsStream returns a stream of container events
-func (m *Monitor) EventsStream(ctx context.Context, containerID string) (<-chan types.ContainerEvent, <-chan error) {
+func (m *Monitor) EventsStream(ctx context.Context, containerID string) (<-chan dockertypes.ContainerEvent, <-chan error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	eventCh := make(chan types.ContainerEvent, 10)
+	eventCh := make(chan dockertypes.ContainerEvent, 10)
 	errCh := make(chan error, 1)
 
 	go func() {
@@ -456,7 +456,7 @@ func (m *Monitor) EventsStream(ctx context.Context, containerID string) (<-chan 
 					return
 				}
 
-				containerEvent := types.ContainerEvent{
+				containerEvent := dockertypes.ContainerEvent{
 					ContainerID: types.ID(containerID),
 					Timestamp:   types.NewTimestampFromTime(time.Unix(event.Time, 0)),
 					Action:      event.Action,
@@ -477,7 +477,7 @@ func (m *Monitor) EventsStream(ctx context.Context, containerID string) (<-chan 
 }
 
 // parseStats parses Docker stats into our ResourceUsage format
-func (m *Monitor) parseStats(stats *types.StatsJSON) types.ResourceUsage {
+func (m *Monitor) parseStats(stats *dockertypes.StatsJSON) types.ResourceUsage {
 	usage := types.ResourceUsage{}
 
 	// Calculate CPU percentage

@@ -186,7 +186,7 @@ func (c *Client) Info(ctx context.Context) (*types.DockerInfo, error) {
 		if err == nil {
 			return &types.DockerInfo{
 				ServerVersion:     info.ServerVersion,
-				APIVersion:       info.APIVersion,
+				APIVersion:       "", // Use GetAPIVersion() for this
 				OS:               info.OperatingSystem,
 				KernelVersion:    info.KernelVersion,
 				Architecture:     info.Architecture,

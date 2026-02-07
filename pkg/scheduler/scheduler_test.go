@@ -638,7 +638,7 @@ func TestSchedulerListTasks(t *testing.T) {
 	filter := &TaskFilter{
 		Status: &highPriority,
 	}
-	filtered, err := s.ListTasks(ctx, filter)
+	_, err = s.ListTasks(ctx, filter)
 	if err != nil {
 		t.Fatalf("Failed to filter tasks: %v", err)
 	}

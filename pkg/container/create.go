@@ -11,7 +11,7 @@ import (
 	"github.com/billm/baaaht/orchestrator/internal/logger"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 
-	"github.com/docker/docker/api/types"
+	dockertypes "github.com/docker/docker/api/types"
 	containertypes "github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/network"
@@ -174,7 +174,7 @@ func (c *Creator) pullImage(ctx context.Context, image string, timeout time.Dura
 	timeoutCtx, cancel := context.WithTimeout(ctx, pullTimeout)
 	defer cancel()
 
-	reader, err := c.client.cli.ImagePull(timeoutCtx, image, types.ImagePullOptions{})
+	reader, err := c.client.cli.ImagePull(timeoutCtx, image, dockertypes.ImagePullOptions{})
 	if err != nil {
 		return types.WrapError(types.ErrCodeUnavailable, "failed to pull image", err)
 	}
@@ -221,7 +221,7 @@ func (c *Creator) imageExists(ctx context.Context, image string) (bool, error) {
 	filter := filters.NewArgs()
 	filter.Add("reference", image)
 
-	images, err := c.client.cli.ImageList(timeoutCtx, types.ImageListOptions{
+	images, err := c.client.cli.ImageList(timeoutCtx, dockertypes.ImageListOptions{
 		Filters: filter,
 	})
 	if err != nil {

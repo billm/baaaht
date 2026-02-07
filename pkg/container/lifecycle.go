@@ -9,7 +9,7 @@ import (
 	"github.com/billm/baaaht/orchestrator/internal/logger"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 
-	"github.com/docker/docker/api/types"
+	dockertypes "github.com/docker/docker/api/types"
 )
 
 // LifecycleManager handles container lifecycle operations (start, stop, restart, destroy)
@@ -60,7 +60,7 @@ func (l *LifecycleManager) Start(ctx context.Context, cfg StartConfig) error {
 	timeoutCtx, cancel := l.client.WithTimeout(ctx)
 	defer cancel()
 
-	if err := l.client.cli.ContainerStart(timeoutCtx, cfg.ContainerID, types.ContainerStartOptions{}); err != nil {
+	if err := l.client.cli.ContainerStart(timeoutCtx, cfg.ContainerID, dockertypes.ContainerStartOptions{}); err != nil {
 		return types.WrapError(types.ErrCodeInternal, "failed to start container", err)
 	}
 
@@ -179,7 +179,7 @@ func (l *LifecycleManager) Destroy(ctx context.Context, cfg DestroyConfig) error
 	timeoutCtx, cancel := l.client.WithTimeout(ctx)
 	defer cancel()
 
-	options := types.ContainerRemoveOptions{
+	options := dockertypes.ContainerRemoveOptions{
 		Force:         cfg.Force,
 		RemoveVolumes: cfg.RemoveVolumes,
 	}
@@ -389,7 +389,7 @@ func (l *LifecycleManager) start(ctx context.Context, cfg StartConfig) error {
 	timeoutCtx, cancel := l.client.WithTimeout(ctx)
 	defer cancel()
 
-	if err := l.client.cli.ContainerStart(timeoutCtx, cfg.ContainerID, types.ContainerStartOptions{}); err != nil {
+	if err := l.client.cli.ContainerStart(timeoutCtx, cfg.ContainerID, dockertypes.ContainerStartOptions{}); err != nil {
 		return types.WrapError(types.ErrCodeInternal, "failed to start container", err)
 	}
 
@@ -426,7 +426,7 @@ func (l *LifecycleManager) destroy(ctx context.Context, cfg DestroyConfig) error
 	timeoutCtx, cancel := l.client.WithTimeout(ctx)
 	defer cancel()
 
-	options := types.ContainerRemoveOptions{
+	options := dockertypes.ContainerRemoveOptions{
 		Force:         cfg.Force,
 		RemoveVolumes: cfg.RemoveVolumes,
 	}

@@ -61,8 +61,8 @@ type Store struct {
 	closed      bool
 }
 
-// New creates a new credential store with the specified configuration
-func New(cfg config.CredentialsConfig, log *logger.Logger) (*Store, error) {
+// NewStore creates a new credential store with the specified configuration
+func NewStore(cfg config.CredentialsConfig, log *logger.Logger) (*Store, error) {
 	if log == nil {
 		var err error
 		log, err = logger.NewDefault()
@@ -112,10 +112,10 @@ func New(cfg config.CredentialsConfig, log *logger.Logger) (*Store, error) {
 	return store, nil
 }
 
-// NewDefault creates a new credential store with default configuration
-func NewDefault(log *logger.Logger) (*Store, error) {
+// NewDefaultStore creates a new credential store with default configuration
+func NewDefaultStore(log *logger.Logger) (*Store, error) {
 	cfg := config.DefaultCredentialsConfig()
-	return New(cfg, log)
+	return NewStore(cfg, log)
 }
 
 // encrypt encrypts a plaintext value using AES-GCM
@@ -619,14 +619,14 @@ func getOrCreateEncryptionKey(storePath string) ([]byte, error) {
 // Global store instance
 var (
 	globalStore *Store
-	globalOnce  sync.Once
+	storeGlobalOnce  sync.Once
 )
 
 // InitGlobal initializes the global credential store
 func InitGlobal(cfg config.CredentialsConfig, log *logger.Logger) error {
 	var initErr error
-	globalOnce.Do(func() {
-		store, err := New(cfg, log)
+	storeGlobalOnce.Do(func() {
+		store, err := NewStore(cfg, log)
 		if err != nil {
 			initErr = err
 			return
@@ -640,7 +640,7 @@ func InitGlobal(cfg config.CredentialsConfig, log *logger.Logger) error {
 func Global() *Store {
 	if globalStore == nil {
 		// Initialize with default settings if not already initialized
-		store, err := NewDefault(nil)
+		store, err := NewDefaultStore(nil)
 		if err != nil {
 			// Return a closed store on error
 			return &Store{closed: true}
@@ -653,5 +653,5 @@ func Global() *Store {
 // SetGlobal sets the global credential store instance
 func SetGlobal(s *Store) {
 	globalStore = s
-	globalOnce = sync.Once{}
+	storeGlobalOnce = sync.Once{}
 }

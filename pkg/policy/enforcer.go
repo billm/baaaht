@@ -3,7 +3,6 @@ package policy
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"sync"
 
@@ -202,22 +201,22 @@ func (e *Enforcer) ValidateContainerConfig(ctx context.Context, sessionID types.
 
 // validateQuotas validates resource quotas
 func (e *Enforcer) validateQuotas(policy *Policy, config types.ContainerConfig, result *ValidationResult) {
-	if config.Resources.NanoCPUs != nil {
-		if policy.Quotas.MaxCPUs != nil && *config.Resources.NanoCPUs > *policy.Quotas.MaxCPUs {
+	if config.Resources.NanoCPUs > 0 {
+		if policy.Quotas.MaxCPUs != nil && config.Resources.NanoCPUs > *policy.Quotas.MaxCPUs {
 			violation := Violation{
 				Rule:     "quota.cpu.max",
 				Message:  fmt.Sprintf("CPU quota exceeds maximum: requested %.2f, maximum %.2f",
-					float64(*config.Resources.NanoCPUs)/1e9, float64(*policy.Quotas.MaxCPUs)/1e9),
+					float64(config.Resources.NanoCPUs)/1e9, float64(*policy.Quotas.MaxCPUs)/1e9),
 				Severity:  "error",
 				Component: "quota",
 			}
 			result.Violations = append(result.Violations, violation)
 		}
-		if policy.Quotas.MinCPUs != nil && *config.Resources.NanoCPUs < *policy.Quotas.MinCPUs {
+		if policy.Quotas.MinCPUs != nil && config.Resources.NanoCPUs < *policy.Quotas.MinCPUs {
 			violation := Violation{
 				Rule:     "quota.cpu.min",
 				Message:  fmt.Sprintf("CPU quota below minimum: requested %.2f, minimum %.2f",
-					float64(*config.Resources.NanoCPUs)/1e9, float64(*policy.Quotas.MinCPUs)/1e9),
+					float64(config.Resources.NanoCPUs)/1e9, float64(*policy.Quotas.MinCPUs)/1e9),
 				Severity:  "warning",
 				Component: "quota",
 			}
@@ -225,22 +224,22 @@ func (e *Enforcer) validateQuotas(policy *Policy, config types.ContainerConfig, 
 		}
 	}
 
-	if config.Resources.MemoryBytes != nil {
-		if policy.Quotas.MaxMemory != nil && *config.Resources.MemoryBytes > *policy.Quotas.MaxMemory {
+	if config.Resources.MemoryBytes > 0 {
+		if policy.Quotas.MaxMemory != nil && config.Resources.MemoryBytes > *policy.Quotas.MaxMemory {
 			violation := Violation{
 				Rule:     "quota.memory.max",
 				Message:  fmt.Sprintf("memory quota exceeds maximum: requested %d, maximum %d",
-					*config.Resources.MemoryBytes, *policy.Quotas.MaxMemory),
+					config.Resources.MemoryBytes, *policy.Quotas.MaxMemory),
 				Severity:  "error",
 				Component: "quota",
 			}
 			result.Violations = append(result.Violations, violation)
 		}
-		if policy.Quotas.MinMemory != nil && *config.Resources.MemoryBytes < *policy.Quotas.MinMemory {
+		if policy.Quotas.MinMemory != nil && config.Resources.MemoryBytes < *policy.Quotas.MinMemory {
 			violation := Violation{
 				Rule:     "quota.memory.min",
 				Message:  fmt.Sprintf("memory quota below minimum: requested %d, minimum %d",
-					*config.Resources.MemoryBytes, *policy.Quotas.MinMemory),
+					config.Resources.MemoryBytes, *policy.Quotas.MinMemory),
 				Severity:  "warning",
 				Component: "quota",
 			}
@@ -248,12 +247,12 @@ func (e *Enforcer) validateQuotas(policy *Policy, config types.ContainerConfig, 
 		}
 	}
 
-	if config.Resources.MemorySwap != nil && policy.Quotas.MaxMemorySwap != nil {
-		if *config.Resources.MemorySwap > *policy.Quotas.MaxMemorySwap && *policy.Quotas.MaxMemorySwap != -1 {
+	if config.Resources.MemorySwap > 0 && policy.Quotas.MaxMemorySwap != nil {
+		if config.Resources.MemorySwap > *policy.Quotas.MaxMemorySwap && *policy.Quotas.MaxMemorySwap != -1 {
 			violation := Violation{
 				Rule:     "quota.memory_swap.max",
 				Message:  fmt.Sprintf("memory swap quota exceeds maximum: requested %d, maximum %d",
-					*config.Resources.MemorySwap, *policy.Quotas.MaxMemorySwap),
+					config.Resources.MemorySwap, *policy.Quotas.MaxMemorySwap),
 				Severity:  "error",
 				Component: "quota",
 			}
@@ -562,13 +561,11 @@ func (e *Enforcer) EnforceContainerConfig(ctx context.Context, sessionID types.I
 	enforced := config
 
 	// Apply default quotas if not set
-	if enforced.Resources.NanoCPUs == nil && policy.Quotas.MaxCPUs != nil {
-		maxCPUs := *policy.Quotas.MaxCPUs
-		enforced.Resources.NanoCPUs = &maxCPUs
+	if enforced.Resources.NanoCPUs == 0 && policy.Quotas.MaxCPUs != nil {
+		enforced.Resources.NanoCPUs = *policy.Quotas.MaxCPUs
 	}
-	if enforced.Resources.MemoryBytes == nil && policy.Quotas.MaxMemory != nil {
-		maxMemory := *policy.Quotas.MaxMemory
-		enforced.Resources.MemoryBytes = &maxMemory
+	if enforced.Resources.MemoryBytes == 0 && policy.Quotas.MaxMemory != nil {
+		enforced.Resources.MemoryBytes = *policy.Quotas.MaxMemory
 	}
 	if enforced.Resources.PidsLimit == nil && policy.Quotas.MaxPids != nil {
 		maxPids := *policy.Quotas.MaxPids

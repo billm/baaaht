@@ -49,7 +49,7 @@ func New(cfg config.SessionConfig, log *logger.Logger) (*Manager, error) {
 	m.logger.Info("Session manager initialized",
 		"max_sessions", cfg.MaxSessions,
 		"idle_timeout", cfg.IdleTimeout.String(),
-		"max_duration", cfg.MaxDuration.String())
+		"timeout", cfg.Timeout.String())
 
 	return m, nil
 }
@@ -77,7 +77,7 @@ func (m *Manager) Create(ctx context.Context, metadata types.SessionMetadata, se
 	// Generate session ID
 	sessionID := types.GenerateID()
 
-	now := types.Timestamp(time.Now())
+	now := types.NewTimestampFromTime(time.Now())
 
 	// Calculate expiration
 	var expiresAt *types.Timestamp
@@ -96,8 +96,7 @@ func (m *Manager) Create(ctx context.Context, metadata types.SessionMetadata, se
 		ExpiresAt: expiresAt,
 		Metadata:  metadata,
 		Context: types.SessionContext{
-			Preferences: sessionCfg.Preferences,
-			Config:      sessionCfg,
+			Config: sessionCfg,
 		},
 		Containers: []types.ID{},
 	}
@@ -190,14 +189,14 @@ func (m *Manager) Update(ctx context.Context, sessionID types.ID, metadata types
 
 	session := sessionWithSM.Session()
 	session.Metadata = metadata
-	session.UpdatedAt = types.Timestamp(time.Now())
+	session.UpdatedAt = types.NewTimestampFromTime(time.Now())
 
 	m.logger.Debug("Session updated", "session_id", sessionID, "name", metadata.Name)
 	return nil
 }
 
-// Close transitions a session to closing state
-func (m *Manager) Close(ctx context.Context, sessionID types.ID) error {
+// CloseSession transitions a session to closing state
+func (m *Manager) CloseSession(ctx context.Context, sessionID types.ID) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -289,7 +288,7 @@ func (m *Manager) AddContainer(ctx context.Context, sessionID, containerID types
 	}
 
 	session.Containers = append(session.Containers, containerID)
-	session.UpdatedAt = types.Timestamp(time.Now())
+	session.UpdatedAt = types.NewTimestampFromTime(time.Now())
 
 	m.logger.Debug("Container added to session",
 		"session_id", sessionID,
@@ -330,7 +329,7 @@ func (m *Manager) RemoveContainer(ctx context.Context, sessionID, containerID ty
 	}
 
 	session.Containers = newContainers
-	session.UpdatedAt = types.Timestamp(time.Now())
+	session.UpdatedAt = types.NewTimestampFromTime(time.Now())
 
 	m.logger.Debug("Container removed from session",
 		"session_id", sessionID,
@@ -365,11 +364,11 @@ func (m *Manager) AddMessage(ctx context.Context, sessionID types.ID, message ty
 		message.ID = types.GenerateID()
 	}
 	if message.Timestamp.IsZero() {
-		message.Timestamp = types.Timestamp(time.Now())
+		message.Timestamp = types.NewTimestampFromTime(time.Now())
 	}
 
 	session.Context.Messages = append(session.Context.Messages, message)
-	session.UpdatedAt = types.Timestamp(time.Now())
+	session.UpdatedAt = types.NewTimestampFromTime(time.Now())
 
 	// Transition from idle to active when a message is added
 	if sessionWithSM.CurrentState() == types.SessionStateIdle {
@@ -423,7 +422,7 @@ func (m *Manager) GetStats(ctx context.Context, sessionID types.ID) (*types.Sess
 		ContainerCount:  len(session.Containers),
 		TaskCount:       len(session.Context.TaskHistory),
 		DurationSeconds: int64(time.Since(session.CreatedAt.Time).Seconds()),
-		Timestamp:       types.Timestamp(time.Now()),
+		Timestamp:       types.NewTimestampFromTime(time.Now()),
 	}
 
 	return stats, nil
@@ -560,37 +559,37 @@ func (m *Manager) matchesFilter(session *types.Session, filter *types.SessionFil
 
 // copySession creates a shallow copy of a session
 func (m *Manager) copySession(session *types.Session) *types.Session {
-	copy := *session
+	copied := *session
 
 	// Copy slices
 	if session.Containers != nil {
-		copy.Containers = make([]types.ID, len(session.Containers))
-		copy(copy.Containers, session.Containers)
+		copied.Containers = make([]types.ID, len(session.Containers))
+		copy(copied.Containers, session.Containers)
 	}
 
 	if session.Context.Messages != nil {
-		copy.Context.Messages = make([]types.Message, len(session.Context.Messages))
-		copy(copy.Context.Messages, session.Context.Messages)
+		copied.Context.Messages = make([]types.Message, len(session.Context.Messages))
+		copy(copied.Context.Messages, session.Context.Messages)
 	}
 
 	if session.Context.TaskHistory != nil {
-		copy.Context.TaskHistory = make([]types.ID, len(session.Context.TaskHistory))
-		copy(copy.Context.TaskHistory, session.Context.TaskHistory)
+		copied.Context.TaskHistory = make([]types.ID, len(session.Context.TaskHistory))
+		copy(copied.Context.TaskHistory, session.Context.TaskHistory)
 	}
 
 	if session.Metadata.Tags != nil {
-		copy.Metadata.Tags = make([]string, len(session.Metadata.Tags))
-		copy(copy.Metadata.Tags, session.Metadata.Tags)
+		copied.Metadata.Tags = make([]string, len(session.Metadata.Tags))
+		copy(copied.Metadata.Tags, session.Metadata.Tags)
 	}
 
 	if session.Metadata.Labels != nil {
-		copy.Metadata.Labels = make(map[string]string)
+		copied.Metadata.Labels = make(map[string]string)
 		for k, v := range session.Metadata.Labels {
-			copy.Metadata.Labels[k] = v
+			copied.Metadata.Labels[k] = v
 		}
 	}
 
-	return &copy
+	return &copied
 }
 
 // GetActiveContainerIDs returns all container IDs across all active sessions

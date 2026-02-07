@@ -281,7 +281,7 @@ func (o *Orchestrator) initPolicyEnforcer(ctx context.Context) error {
 func (o *Orchestrator) initCredentialStore(ctx context.Context) error {
 	o.logger.Debug("Initializing credential store")
 
-	store, err := credentials.New(o.cfg.Credentials, o.logger)
+	store, err := credentials.NewStore(o.cfg.Credentials, o.logger)
 	if err != nil {
 		return err
 	}

@@ -260,12 +260,12 @@ func (p *Policy) Validate() error {
 
 	// Validate image patterns
 	for _, pattern := range p.Images.AllowedImages {
-		if _, err := parseImagePattern(pattern); err != nil {
+		if _, _, _, err := parseImagePattern(pattern); err != nil {
 			return fmt.Errorf("invalid allowed image pattern %q: %w", pattern, err)
 		}
 	}
 	for _, pattern := range p.Images.DeniedImages {
-		if _, err := parseImagePattern(pattern); err != nil {
+		if _, _, _, err := parseImagePattern(pattern); err != nil {
 			return fmt.Errorf("invalid denied image pattern %q: %w", pattern, err)
 		}
 	}

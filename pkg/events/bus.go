@@ -76,7 +76,7 @@ func (b *Bus) Subscribe(ctx context.Context, filter types.EventFilter, handler t
 		Filter:  filter,
 		Handler: handler,
 		Active:  true,
-		CreatedAt: types.Timestamp(time.Now()),
+		CreatedAt: types.NewTimestampFromTime(time.Now()),
 	}
 
 	// Store subscription
@@ -172,7 +172,7 @@ func (b *Bus) Publish(ctx context.Context, event types.Event) error {
 		event.ID = types.GenerateID()
 	}
 	if event.Timestamp.IsZero() {
-		event.Timestamp = types.Timestamp(time.Now())
+			event.Timestamp = types.NewTimestampFromTime(time.Now())
 	}
 
 	// Send to publish worker
@@ -200,7 +200,7 @@ func (b *Bus) PublishSync(ctx context.Context, event types.Event) error {
 		event.ID = types.GenerateID()
 	}
 	if event.Timestamp.IsZero() {
-		event.Timestamp = types.Timestamp(time.Now())
+			event.Timestamp = types.NewTimestampFromTime(time.Now())
 	}
 
 	return b.dispatchEvent(ctx, event)
@@ -348,10 +348,10 @@ func (b *Bus) matchesFilter(event types.Event, filter types.EventFilter) bool {
 	}
 
 	// Check time range
-	if filter.StartTime != nil && event.Timestamp < *filter.StartTime {
+	if filter.StartTime != nil && event.Timestamp.Time.Before(filter.StartTime.Time) {
 		return false
 	}
-	if filter.EndTime != nil && event.Timestamp > *filter.EndTime {
+	if filter.EndTime != nil && event.Timestamp.Time.After(filter.EndTime.Time) {
 		return false
 	}
 
