@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/baaaht/orchestrator/pkg/types"
+	"github.com/billm/baaaht/orchestrator/pkg/types"
 )
 
 // Config represents the complete configuration for the orchestrator

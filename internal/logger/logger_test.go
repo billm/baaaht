@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/baaaht/orchestrator/internal/config"
+	"github.com/billm/baaaht/orchestrator/internal/config"
 )
 
 func TestNewLogger(t *testing.T) {

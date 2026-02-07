@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/baaaht/orchestrator/pkg/types"
+	"github.com/billm/baaaht/orchestrator/pkg/types"
 )
 
 // TaskStatus represents the current status of a task

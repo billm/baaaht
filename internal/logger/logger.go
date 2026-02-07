@@ -9,7 +9,7 @@ import (
 
 	"log/slog"
 
-	"github.com/baaaht/orchestrator/internal/config"
+	"github.com/billm/baaaht/orchestrator/internal/config"
 )
 
 // Level represents the log level
@@ -186,12 +186,11 @@ func (l *Logger) SetLevel(level Level) {
 	defer l.mu.Unlock()
 	l.level = level
 
-	// Update the handler's level if it's a Leveler
-	if h, ok := l.logger.Handler().(*slog.JSONHandler); ok {
-		// We need to recreate the handler with the new level
-		opts := &slog.HandlerOptions{Level: slog.Level(level)}
-		l.logger = slog.New(h.Handler())
-	}
+	// Note: slog handlers have their level set at creation time.
+	// We store the level here for GetLevel() and Enabled() checks,
+	// but the actual filtering is done by the handler.
+	// For a true dynamic level change, you would need to recreate
+	// the entire logger with a new handler.
 }
 
 // GetLevel returns the current log level
@@ -227,13 +226,10 @@ func (l *Logger) Close() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	// Check if the handler is writing to a file
-	// and close it if necessary
-	if h, ok := l.logger.Handler().(*slog.JSONHandler); ok {
-		// We can't easily access the underlying writer from slog
-		// This is a limitation of the current implementation
-		// In production, you might want to track the writer separately
-	}
+	// Note: We can't easily access the underlying writer from slog's
+	// built-in handlers. This is a limitation of the current implementation.
+	// In production, you might want to track the writer separately to
+	// properly close file handles.
 	return nil
 }
 

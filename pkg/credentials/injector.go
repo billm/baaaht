@@ -6,8 +6,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/baaaht/orchestrator/internal/logger"
-	"github.com/baaaht/orchestrator/pkg/types"
+	"github.com/billm/baaaht/orchestrator/internal/logger"
+	"github.com/billm/baaaht/orchestrator/pkg/types"
 )
 
 // InjectionMethod defines how credentials are injected into containers

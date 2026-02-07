@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/baaaht/orchestrator/internal/config"
-	"github.com/baaaht/orchestrator/internal/logger"
-	"github.com/baaaht/orchestrator/pkg/types"
+	"github.com/billm/baaaht/orchestrator/internal/config"
+	"github.com/billm/baaaht/orchestrator/internal/logger"
+	"github.com/billm/baaaht/orchestrator/pkg/types"
 )
 
 // createTestStore creates a test credential store
