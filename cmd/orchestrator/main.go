@@ -101,15 +101,15 @@ func runOrchestrator(cmd *cobra.Command, args []string) error {
 		rootLog,
 	)
 
-	// Start signal handling
-	shutdown.Start()
-	rootLog.Info("Orchestrator is running. Press Ctrl+C to stop.")
-
 	// Add shutdown hook for graceful cleanup
 	shutdown.AddHook(func(ctx context.Context) error {
 		rootLog.Info("Executing shutdown hook")
 		return nil
 	})
+
+	// Start signal handling
+	shutdown.Start()
+	rootLog.Info("Orchestrator is running. Press Ctrl+C to stop.")
 
 	// Wait for shutdown signal
 	waitForShutdown()
@@ -175,14 +175,14 @@ func getDefaultConfigPath() string {
 	return "~/.config/baaaht/config.yaml"
 }
 
-// waitForShutdown blocks until a shutdown signal is received
+// waitForShutdown blocks until a shutdown signal is received and shutdown completes
 func waitForShutdown() {
 	if shutdown == nil {
 		return
 	}
 
-	// This will block until Shutdown is called
-	_ = shutdown.ShutdownAndWait(context.Background(), "signal received")
+	// Block until shutdown is completed (triggered by signal handler)
+	_ = shutdown.WaitCompletion(context.Background())
 }
 
 func main() {

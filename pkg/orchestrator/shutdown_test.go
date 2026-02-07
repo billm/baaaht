@@ -572,6 +572,160 @@ func TestShutdownManagerHookPanic(t *testing.T) {
 	}
 }
 
+// TestShutdownManagerStartDoesNotTriggerShutdown verifies that calling Start()
+// does NOT initiate shutdown — the manager should remain in Running state.
+// This catches the bug where waitForShutdown() called ShutdownAndWait() (which
+// initiates shutdown) instead of WaitCompletion() (which only waits).
+func TestShutdownManagerStartDoesNotTriggerShutdown(t *testing.T) {
+	orch := createTestOrchestratorForShutdown(t)
+	defer orch.Close()
+
+	sm := NewShutdownManager(orch, 5*time.Second, orch.logger)
+
+	// Register a hook so we can detect if shutdown runs
+	hookCalled := make(chan struct{}, 1)
+	sm.AddHook(func(ctx context.Context) error {
+		hookCalled <- struct{}{}
+		return nil
+	})
+
+	// Start signal handling — this should NOT trigger shutdown
+	sm.Start()
+	defer sm.Stop()
+
+	// Give it some time — if Start() triggers shutdown, it would happen quickly
+	time.Sleep(200 * time.Millisecond)
+
+	// Verify state is still Running
+	if sm.State() != ShutdownStateRunning {
+		t.Errorf("expected state %s after Start(), got %s", ShutdownStateRunning, sm.State())
+	}
+
+	if sm.IsShuttingDown() {
+		t.Error("shutdown manager should not be shutting down after Start()")
+	}
+
+	if sm.IsComplete() {
+		t.Error("shutdown manager should not be complete after Start()")
+	}
+
+	// Verify hooks were NOT called
+	select {
+	case <-hookCalled:
+		t.Error("shutdown hook should not have been called after Start()")
+	default:
+		// Good — no hook was called
+	}
+}
+
+// TestShutdownManagerWaitCompletionBlocksUntilSignal verifies that WaitCompletion
+// blocks after Start() and only returns when shutdown is actually triggered.
+// This mirrors the expected main.go lifecycle pattern.
+func TestShutdownManagerWaitCompletionBlocksUntilSignal(t *testing.T) {
+	orch := createTestOrchestratorForShutdown(t)
+	defer orch.Close()
+
+	sm := NewShutdownManager(orch, 5*time.Second, orch.logger)
+	sm.Start()
+
+	waitReturned := make(chan error, 1)
+
+	// WaitCompletion should block until shutdown is triggered
+	go func() {
+		waitReturned <- sm.WaitCompletion(context.Background())
+	}()
+
+	// Verify WaitCompletion is still blocking after 200ms
+	select {
+	case <-waitReturned:
+		t.Fatal("WaitCompletion returned immediately — should block until shutdown is triggered")
+	case <-time.After(200 * time.Millisecond):
+		// Good — WaitCompletion is blocking as expected
+	}
+
+	// Now trigger shutdown explicitly
+	go func() {
+		_ = sm.Shutdown(context.Background(), "test trigger")
+	}()
+
+	// WaitCompletion should now return
+	select {
+	case err := <-waitReturned:
+		if err != nil {
+			t.Errorf("WaitCompletion returned error: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("WaitCompletion did not return after shutdown was triggered")
+	}
+
+	if !sm.IsComplete() {
+		t.Error("expected shutdown to be complete")
+	}
+}
+
+// TestShutdownManagerMainLifecyclePattern tests the exact pattern used in main.go:
+// Start() -> WaitCompletion() -> Stop(), verifying it only completes on signal.
+func TestShutdownManagerMainLifecyclePattern(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping lifecycle pattern test in short mode")
+	}
+
+	orch := createTestOrchestratorForShutdown(t)
+	defer orch.Close()
+
+	sm := NewShutdownManager(orch, 5*time.Second, orch.logger)
+
+	// Add hooks before Start (mirrors the fixed main.go order)
+	hookExecuted := false
+	sm.AddHook(func(ctx context.Context) error {
+		hookExecuted = true
+		return nil
+	})
+
+	sm.Start()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		// This mirrors waitForShutdown() in main.go
+		_ = sm.WaitCompletion(context.Background())
+		sm.Stop()
+	}()
+
+	// Confirm it's still blocking
+	select {
+	case <-done:
+		t.Fatal("lifecycle completed without a signal — this is the original bug")
+	case <-time.After(200 * time.Millisecond):
+		// Expected: still running
+	}
+
+	// Simulate SIGTERM
+	process, err := os.FindProcess(os.Getpid())
+	if err != nil {
+		t.Fatalf("failed to find process: %v", err)
+	}
+	if err := process.Signal(syscall.SIGTERM); err != nil {
+		t.Fatalf("failed to send SIGTERM: %v", err)
+	}
+
+	// Should complete now
+	select {
+	case <-done:
+		// Success
+	case <-time.After(10 * time.Second):
+		t.Fatal("lifecycle did not complete after SIGTERM")
+	}
+
+	if !sm.IsComplete() {
+		t.Error("expected shutdown to be complete")
+	}
+
+	if !hookExecuted {
+		t.Error("expected shutdown hook to be executed")
+	}
+}
+
 // Benchmark tests
 
 func BenchmarkShutdownManagerNew(b *testing.B) {

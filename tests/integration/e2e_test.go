@@ -629,3 +629,101 @@ func TestE2EOrchestratorMultipleSessions(t *testing.T) {
 
 	t.Log("Multiple sessions test passed")
 }
+
+// TestE2EOrchestratorWaitForSignalLifecycle tests the exact lifecycle pattern from main.go:
+// bootstrap -> Start() -> WaitCompletion() -> Stop(). Verifies that Start() does NOT
+// trigger an immediate shutdown and WaitCompletion blocks until a real signal arrives.
+// This would have caught the original bug where waitForShutdown() called ShutdownAndWait()
+// (initiating shutdown) instead of WaitCompletion() (waiting for shutdown).
+func TestE2EOrchestratorWaitForSignalLifecycle(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping E2E test in short mode")
+	}
+
+	// Check if Docker is available
+	if err := container.CheckEnvironment(); err != nil {
+		t.Skip("Docker not available:", err)
+	}
+
+	ctx := context.Background()
+	log, err := logger.New(config.DefaultLoggingConfig())
+	require.NoError(t, err)
+
+	t.Log("=== Testing main.go lifecycle: Start() should not trigger shutdown ===")
+
+	cfg := loadTestConfig(t)
+
+	bootstrapCfg := orchestrator.BootstrapConfig{
+		Config:            *cfg,
+		Logger:            log,
+		Version:           "test-e2e-lifecycle-1.0.0",
+		ShutdownTimeout:   10 * time.Second,
+		EnableHealthCheck: false,
+	}
+
+	result, err := orchestrator.Bootstrap(ctx, bootstrapCfg)
+	require.NoError(t, err)
+	orch := result.Orchestrator
+
+	// Create shutdown manager (mirrors main.go)
+	shutdownMgr := orchestrator.NewShutdownManager(orch, 10*time.Second, log)
+
+	// Buffer size 2: hooks run in both pre-shutdown and post-shutdown phases
+	hookExecuted := make(chan struct{}, 2)
+	shutdownMgr.AddHook(func(ctx context.Context) error {
+		hookExecuted <- struct{}{}
+		return nil
+	})
+
+	// Start signal handling (mirrors main.go)
+	shutdownMgr.Start()
+
+	// WaitCompletion in a goroutine (mirrors waitForShutdown in main.go)
+	lifecycleDone := make(chan struct{})
+	go func() {
+		defer close(lifecycleDone)
+		_ = shutdownMgr.WaitCompletion(context.Background())
+		shutdownMgr.Stop()
+	}()
+
+	// KEY ASSERTION: After Start(), the orchestrator should still be running
+	// If this fails, it means Start() or WaitCompletion() is triggering immediate shutdown
+	time.Sleep(500 * time.Millisecond)
+
+	assert.Equal(t, orchestrator.ShutdownStateRunning, shutdownMgr.State(),
+		"Orchestrator should still be in Running state after Start()")
+	assert.False(t, shutdownMgr.IsShuttingDown(),
+		"Orchestrator should not be shutting down after Start()")
+	assert.True(t, orch.IsStarted(),
+		"Orchestrator should still be started")
+
+	select {
+	case <-lifecycleDone:
+		t.Fatal("Lifecycle completed without signal — this is the immediate-shutdown bug")
+	default:
+		t.Log("Good: orchestrator is still running after 500ms")
+	}
+
+	select {
+	case <-hookExecuted:
+		t.Fatal("Shutdown hook fired without signal — shutdown was triggered prematurely")
+	default:
+		t.Log("Good: no shutdown hooks have fired")
+	}
+
+	// Now trigger shutdown explicitly to clean up
+	t.Log("Triggering shutdown to clean up...")
+	go func() {
+		_ = shutdownMgr.Shutdown(context.Background(), "test cleanup")
+	}()
+
+	select {
+	case <-lifecycleDone:
+		t.Log("Lifecycle completed after explicit shutdown trigger")
+	case <-time.After(10 * time.Second):
+		t.Fatal("Lifecycle did not complete after shutdown trigger")
+	}
+
+	assert.True(t, shutdownMgr.IsComplete(), "Shutdown should be complete")
+	t.Log("Lifecycle pattern test passed")
+}
