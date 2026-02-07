@@ -288,7 +288,7 @@ func TestManagerClose(t *testing.T) {
 	sessionID := createTestSession(t, manager)
 
 	// Close session
-	err := manager.Close(ctx, sessionID)
+	err := manager.CloseSession(ctx, sessionID)
 	if err != nil {
 		t.Fatalf("failed to close session: %v", err)
 	}
@@ -304,7 +304,7 @@ func TestManagerClose(t *testing.T) {
 	}
 
 	// Close again should be idempotent
-	err = manager.Close(ctx, sessionID)
+	err = manager.CloseSession(ctx, sessionID)
 	if err != nil {
 		t.Errorf("close should be idempotent, got error: %v", err)
 	}
@@ -330,7 +330,7 @@ func TestManagerDelete(t *testing.T) {
 	}
 
 	// Close the session
-	_ = manager.Close(ctx, sessionID)
+	_ = manager.CloseSession(ctx, sessionID)
 
 	// Transition to closed state
 	session, _ := manager.Get(ctx, sessionID)
@@ -590,7 +590,7 @@ func TestManagerValidateSession(t *testing.T) {
 	}
 
 	// Close session
-	_ = manager.Close(ctx, sessionID)
+	_ = manager.CloseSession(ctx, sessionID)
 
 	// Validate closed session (should fail)
 	err = manager.ValidateSession(ctx, sessionID)
@@ -758,8 +758,8 @@ func TestSessionWithStateMachine(t *testing.T) {
 		ID:      types.GenerateID(),
 		State:   types.SessionStateInitializing,
 		Status:  types.StatusStarting,
-		CreatedAt: types.Timestamp(time.Now()),
-		UpdatedAt: types.Timestamp(time.Now()),
+		CreatedAt: types.NewTimestampFromTime(time.Now()),
+		UpdatedAt: types.NewTimestampFromTime(time.Now()),
 	}
 
 	sws := NewSessionWithStateMachine(session)

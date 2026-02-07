@@ -28,7 +28,7 @@ func createTestStore(t *testing.T) *Store {
 	cfg := config.DefaultCredentialsConfig()
 	cfg.StorePath = filepath.Join(tmpDir, "credentials.json")
 
-	store, err := New(cfg, log)
+	store, err := NewStore(cfg, log)
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
 	}
@@ -56,7 +56,7 @@ func TestNewStoreNilLogger(t *testing.T) {
 	cfg := config.DefaultCredentialsConfig()
 	cfg.StorePath = filepath.Join(tmpDir, "credentials.json")
 
-	store, err := New(cfg, nil)
+	store, err := NewStore(cfg, nil)
 	if err != nil {
 		t.Fatalf("failed to create store with nil logger: %v", err)
 	}
@@ -576,7 +576,7 @@ func TestEncryptionDisabled(t *testing.T) {
 	cfg.StorePath = filepath.Join(tmpDir, "credentials.json")
 
 	log, _ := logger.NewDefault()
-	store, err := New(cfg, log)
+	store, err := NewStore(cfg, log)
 	if err != nil {
 		t.Fatalf("failed to create store: %v", err)
 	}
@@ -621,7 +621,7 @@ func TestStorePersistence(t *testing.T) {
 	}
 
 	// Create store and store a credential
-	store1, err := New(cfg, log)
+	store1, err := NewStore(cfg, log)
 	if err != nil {
 		t.Fatalf("failed to create first store: %v", err)
 	}
@@ -637,7 +637,7 @@ func TestStorePersistence(t *testing.T) {
 	}
 
 	// Create a new store and verify the credential persists
-	store2, err := New(cfg, log)
+	store2, err := NewStore(cfg, log)
 	if err != nil {
 		t.Fatalf("failed to create second store: %v", err)
 	}
@@ -758,7 +758,7 @@ func BenchmarkStoreOperations(b *testing.B) {
 	cfg := config.DefaultCredentialsConfig()
 	cfg.StorePath = filepath.Join(tmpDir, "credentials.json")
 
-	store, err := New(cfg, log)
+	store, err := NewStore(cfg, log)
 	if err != nil {
 		b.Fatalf("failed to create store: %v", err)
 	}
@@ -786,7 +786,7 @@ func BenchmarkGetOperation(b *testing.B) {
 	cfg := config.DefaultCredentialsConfig()
 	cfg.StorePath = filepath.Join(tmpDir, "credentials.json")
 
-	store, err := New(cfg, log)
+	store, err := NewStore(cfg, log)
 	if err != nil {
 		b.Fatalf("failed to create store: %v", err)
 	}

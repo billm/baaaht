@@ -5,8 +5,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-
-	"github.com/billm/baaaht/orchestrator/pkg/types"
 )
 
 // EnforcementMode defines how policies are enforced
