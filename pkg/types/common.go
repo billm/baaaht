@@ -1,6 +1,10 @@
 package types
 
-import "time"
+import (
+	"crypto/rand"
+	"encoding/hex"
+	"time"
+)
 
 // Status represents the operational status of components
 type Status string
@@ -44,6 +48,18 @@ func (i ID) IsEmpty() bool {
 	return string(i) == ""
 }
 
+// GenerateID generates a new unique identifier
+func GenerateID() ID {
+	b := make([]byte, 16)
+	// Note: In a real scenario, handle the error properly
+	// For now, we'll use time-based fallback if rand fails
+	if _, err := rand.Read(b); err == nil {
+		return ID(hex.EncodeToString(b))
+	}
+	// Fallback to time-based ID
+	return ID(hex.EncodeToString([]byte(time.Now().String())))
+}
+
 // Timestamp represents a point in time
 type Timestamp struct {
 	time.Time
@@ -57,6 +73,11 @@ func NewTimestamp() Timestamp {
 // NewTimestampFromTime creates a new timestamp from a time.Time
 func NewTimestampFromTime(t time.Time) Timestamp {
 	return Timestamp{Time: t}
+}
+
+// IsZero returns true if the timestamp is zero
+func (t Timestamp) IsZero() bool {
+	return t.Time.IsZero()
 }
 
 // Error represents an error with additional context
@@ -101,8 +122,12 @@ const (
 	ErrCodeNotFound         = "NOT_FOUND"
 	ErrCodeAlreadyExists    = "ALREADY_EXISTS"
 	ErrCodeInvalidArgument  = "INVALID_ARGUMENT"
+	ErrCodeInvalid          = "INVALID"
 	ErrCodePermissionDenied = "PERMISSION_DENIED"
 	ErrCodeInternal         = "INTERNAL"
 	ErrCodeUnavailable      = "UNAVAILABLE"
 	ErrCodeTimeout          = "TIMEOUT"
+	ErrCodeCanceled         = "CANCELED"
+	ErrCodeHandlerFailed    = "HANDLER_FAILED"
+	ErrCodePartialFailure   = "PARTIAL_FAILURE"
 )
