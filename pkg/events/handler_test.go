@@ -11,8 +11,13 @@ import (
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 )
 
+// testHelper is an interface that both *testing.T and *testing.B implement
+type testHelper interface {
+	Fatalf(format string, args ...interface{})
+}
+
 // setupTestHandlerLogger creates a logger for handler tests
-func setupTestHandlerLogger(t *testing.T) (*logger.Logger, context.Context) {
+func setupTestHandlerLogger(t testHelper) (*logger.Logger, context.Context) {
 	log, err := logger.NewDefault()
 	if err != nil {
 		t.Fatalf("Failed to create logger: %v", err)

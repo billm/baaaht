@@ -286,9 +286,33 @@ func (s *Store) GetByName(ctx context.Context, name string) (*Credential, error)
 
 	for _, cred := range s.credentials {
 		if cred.Name == name {
-			// Release read lock before calling Get
-			s.mu.RUnlock()
-			return s.Get(ctx, cred.ID)
+			// Check if credential is expired
+			if cred.IsExpired() {
+				return nil, types.NewError(types.ErrCodePermission, "credential has expired")
+			}
+
+			// Decrypt directly without nested Get call
+			decrypted, err := s.decrypt(cred.Value)
+			if err != nil {
+				return nil, types.WrapError(types.ErrCodeInternal, "failed to decrypt credential", err)
+			}
+
+			// Update access statistics asynchronously
+			go s.updateAccessStats(cred.ID)
+
+			return &Credential{
+				ID:          cred.ID,
+				Name:        cred.Name,
+				Type:        cred.Type,
+				Value:       decrypted,
+				Metadata:    cred.Metadata,
+				CreatedAt:   cred.CreatedAt,
+				UpdatedAt:   cred.UpdatedAt,
+				ExpiresAt:   cred.ExpiresAt,
+				LastUsedAt:  cred.LastUsedAt,
+				AccessCount: cred.AccessCount,
+				Tags:        cred.Tags,
+			}, nil
 		}
 	}
 

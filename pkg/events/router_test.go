@@ -6,7 +6,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/billm/baaaht/orchestrator/internal/logger"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
@@ -14,11 +13,12 @@ import (
 
 // mockRouteHandler is a test handler that records events
 type mockRouteHandler struct {
-	mu        sync.Mutex
-	events    []types.Event
-	callCount int32
-	canHandle bool
-	handleFn  func(context.Context, types.Event) error
+	mu          sync.Mutex
+	events      []types.Event
+	callCount   int32
+	canHandle   bool
+	canHandleFn func(types.EventType) bool
+	handleFn    func(context.Context, types.Event) error
 }
 
 func newMockRouteHandler() *mockRouteHandler {
@@ -42,6 +42,9 @@ func (m *mockRouteHandler) Handle(ctx context.Context, event types.Event) error 
 }
 
 func (m *mockRouteHandler) CanHandle(eventType types.EventType) bool {
+	if m.canHandleFn != nil {
+		return m.canHandleFn(eventType)
+	}
 	return m.canHandle
 }
 
@@ -667,7 +670,7 @@ func TestRouterCanHandleFilter(t *testing.T) {
 	handler := newMockRouteHandler()
 
 	// Make handler only handle container events
-	handler.canHandle = func(eventType types.EventType) bool {
+	handler.canHandleFn = func(eventType types.EventType) bool {
 		return eventType == types.EventTypeContainerCreated
 	}
 

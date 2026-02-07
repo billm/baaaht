@@ -3,7 +3,6 @@ package integration
 import (
 	"context"
 	"fmt"
-	"os"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -11,8 +10,8 @@ import (
 	"github.com/billm/baaaht/orchestrator/internal/config"
 	"github.com/billm/baaaht/orchestrator/internal/logger"
 	"github.com/billm/baaaht/orchestrator/pkg/container"
-	"github.com/billm/baaaht/orchestrator/pkg/events"
 	"github.com/billm/baaaht/orchestrator/pkg/orchestrator"
+	"github.com/billm/baaaht/orchestrator/pkg/scheduler"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 
 	"github.com/stretchr/testify/assert"
@@ -56,12 +55,12 @@ func TestE2EOrchestratorWorkflow(t *testing.T) {
 	require.True(t, result.IsSuccessful(), "Bootstrap should be successful")
 
 	orch := result.Orchestrator
-	t.Logf("Orchestrator bootstrapped successfully in %v", result.Duration)
+	t.Logf("Orchestrator bootstrapped successfully in %v", result.Duration())
 
 	// Ensure cleanup
 	t.Cleanup(func() {
 		t.Log("=== Step 6: Shutting down orchestrator ===")
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		_, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
 		if err := orch.Close(); err != nil {
@@ -163,7 +162,7 @@ func TestE2EOrchestratorWorkflow(t *testing.T) {
 	status, err := lifecycleMgr.Status(ctx, containerID)
 	require.NoError(t, err, "Failed to get container status")
 	require.Equal(t, types.ContainerStateRunning, status, "Container should be running")
-	isRunning := lifecycleMgr.IsRunning(ctx, containerID)
+	isRunning, _ := lifecycleMgr.IsRunning(ctx, containerID)
 	require.True(t, isRunning, "Container should be running")
 
 	// Step 4: Send event through IPC (event bus)
@@ -193,10 +192,11 @@ func TestE2EOrchestratorWorkflow(t *testing.T) {
 	t.Logf("Subscribed to events: %s", subID)
 
 	// Publish a test event
+	containerIDTyped := types.ID(containerID)
 	testEvent := types.Event{
 		Type:      types.EventTypeContainerStarted,
 		Source:    "e2e-test",
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 		Data: map[string]interface{}{
 			"container_id": containerID,
 			"container_name": containerName,
@@ -204,7 +204,7 @@ func TestE2EOrchestratorWorkflow(t *testing.T) {
 		},
 		Metadata: types.EventMetadata{
 			SessionID:   &sessionID,
-			ContainerID: &containerID,
+			ContainerID: &containerIDTyped,
 			Priority:    types.PriorityNormal,
 		},
 	}
@@ -221,7 +221,7 @@ func TestE2EOrchestratorWorkflow(t *testing.T) {
 	assert.Greater(t, receivedCount, int32(0), "At least one event should have been received")
 
 	// Unsubscribe from events
-	err = eventBus.Unsubscribe(ctx, subID)
+	err = eventBus.Unsubscribe(subID)
 	require.NoError(t, err, "Failed to unsubscribe")
 
 	// Step 5: Verify container is monitored
@@ -246,16 +246,16 @@ func TestE2EOrchestratorWorkflow(t *testing.T) {
 	require.NotNil(t, stats, "Container stats should not be nil")
 
 	t.Logf("Container stats: cpu=%.2f%%, memory=%d bytes, pids=%d",
-		stats.CPUPercent, stats.MemoryUsage, stats.PidsCount)
+		stats.Resources.CPUPercent, stats.Resources.MemoryUsage, stats.Resources.PidsCount)
 
 	// Verify we got some stats (may be zero for idle container)
-	assert.GreaterOrEqual(t, stats.PidsCount, int64(1), "Container should have at least 1 PID")
+	assert.GreaterOrEqual(t, stats.Resources.PidsCount, int64(1), "Container should have at least 1 PID")
 
 	// Get orchestrator stats
-	orchStats := orch.Stats()
+	orchStats := orch.Stats(ctx)
 	require.NotNil(t, orchStats, "Orchestrator stats should not be nil")
 
-	t.Logf("Orchestrator stats: %s", orchStats.String())
+	t.Logf("Orchestrator stats: %+v", orchStats)
 
 	// Verify session is tracked in session manager
 	sessions, err := sessionMgr.List(ctx, nil)
@@ -271,18 +271,19 @@ func TestE2EOrchestratorWorkflow(t *testing.T) {
 	// Test scheduler (submit a simple task)
 	t.Log("=== Step 5b: Testing scheduler ===")
 
-	scheduler := orch.Scheduler()
-	require.NotNil(t, scheduler, "Scheduler should not be nil")
+	sched := orch.Scheduler()
+	require.NotNil(t, sched, "Scheduler should not be nil")
 
 	taskExecuted := make(chan struct{}, 1)
 
-	taskHandler := func(ctx context.Context) error {
+	taskHandler := func(ctx context.Context, task *scheduler.Task) error {
 		t.Log("Task executed successfully")
 		close(taskExecuted)
 		return nil
 	}
 
-	taskID, err := scheduler.Submit(ctx, "e2e-test-task", taskHandler)
+	// Submit task with name option
+	taskID, err := scheduler.Submit(ctx, taskHandler, scheduler.WithTaskName("e2e-test-task"))
 	require.NoError(t, err, "Failed to submit task")
 	require.NotEmpty(t, taskID, "Task ID should not be empty")
 	t.Logf("Task submitted: %s", taskID)
@@ -296,16 +297,17 @@ func TestE2EOrchestratorWorkflow(t *testing.T) {
 	}
 
 	// Verify task stats
-	taskStats := scheduler.Stats()
-	t.Logf("Scheduler stats: %s", taskStats.String())
+	taskStats := sched.Stats()
+	t.Logf("Scheduler stats: %+v", taskStats)
 	assert.Greater(t, taskStats.TotalTasks, int64(0), "At least one task should have been submitted")
 
 	// Stop the container
 	t.Log("=== Step 5c: Stopping container ===")
+	timeout := 10 * time.Second
 	stopCfg := container.StopConfig{
 		ContainerID: containerID,
 		Name:        containerName,
-		Timeout:     10 * time.Second,
+		Timeout:     &timeout,
 	}
 
 	err = lifecycleMgr.Stop(ctx, stopCfg)
@@ -406,9 +408,6 @@ func TestE2EOrchestratorGracefulShutdown(t *testing.T) {
 	t.Log("Shutting down orchestrator with active container...")
 
 	// Close should handle cleanup gracefully even with active containers
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-
 	startTime := time.Now()
 	err = orch.Close()
 	elapsed := time.Since(startTime)

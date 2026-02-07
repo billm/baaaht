@@ -560,7 +560,7 @@ func TestManagerStats(t *testing.T) {
 
 	// Create some sessions
 	sessionID2 := createTestSession(t, manager)
-	sessionID1 := createTestSession(t, manager)
+	_ = createTestSession(t, manager)
 
 	// Close one session
 	_ = manager.Close()

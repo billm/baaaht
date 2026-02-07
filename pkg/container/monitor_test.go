@@ -1,13 +1,15 @@
 package container
 
 import (
-	"context"
 	"io"
 	"testing"
 	"time"
 
 	"github.com/billm/baaaht/orchestrator/internal/logger"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
+
+	dockertypes "github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 )
 
 // TestNewMonitor tests creating a new monitor
@@ -351,7 +353,7 @@ func TestParseStats(t *testing.T) {
 	monitor, _ := NewMonitor(client, log)
 
 	t.Run("empty stats", func(t *testing.T) {
-		stats := &types.StatsJSON{}
+		stats := &dockertypes.StatsJSON{}
 		usage := monitor.parseStats(stats)
 
 		if usage.CPUPercent != 0 {
@@ -363,19 +365,21 @@ func TestParseStats(t *testing.T) {
 	})
 
 	t.Run("stats with CPU data", func(t *testing.T) {
-		stats := &types.StatsJSON{
-			CPUStats: types.CPUStats{
-				CPUUsage: types.CPUUsage{
-					TotalUsage: 2000,
-					PercpuUsage: []uint64{1000, 1000},
+		stats := &dockertypes.StatsJSON{
+			Stats: container.Stats{
+				CPUStats: container.CPUStats{
+					CPUUsage: container.CPUUsage{
+						TotalUsage: 2000,
+						PercpuUsage: []uint64{1000, 1000},
+					},
+					SystemUsage: 10000,
 				},
-				SystemUsage: 10000,
-			},
-			PreCPUStats: types.CPUStats{
-				CPUUsage: types.CPUUsage{
-					TotalUsage: 1000,
+				PreCPUStats: container.CPUStats{
+					CPUUsage: container.CPUUsage{
+						TotalUsage: 1000,
+					},
+					SystemUsage: 5000,
 				},
-				SystemUsage: 5000,
 			},
 		}
 
@@ -387,10 +391,12 @@ func TestParseStats(t *testing.T) {
 	})
 
 	t.Run("stats with memory data", func(t *testing.T) {
-		stats := &types.StatsJSON{
-			MemoryStats: types.MemoryStats{
-				Usage: 1024 * 1024 * 100, // 100MB
-				Limit: 1024 * 1024 * 1000, // 1GB
+		stats := &dockertypes.StatsJSON{
+			Stats: container.Stats{
+				MemoryStats: container.MemoryStats{
+					Usage: 1024 * 1024 * 100, // 100MB
+					Limit: 1024 * 1024 * 1000, // 1GB
+				},
 			},
 		}
 
@@ -408,8 +414,8 @@ func TestParseStats(t *testing.T) {
 	})
 
 	t.Run("stats with network data", func(t *testing.T) {
-		stats := &types.StatsJSON{
-			Networks: map[string]types.NetworkStats{
+		stats := &dockertypes.StatsJSON{
+			Networks: map[string]container.NetworkStats{
 				"eth0": {
 					RxBytes: 1024,
 					TxBytes: 2048,
@@ -428,9 +434,11 @@ func TestParseStats(t *testing.T) {
 	})
 
 	t.Run("stats with PIDs", func(t *testing.T) {
-		stats := &types.StatsJSON{
-			PidsStats: types.PidsStats{
-				Current: 42,
+		stats := &dockertypes.StatsJSON{
+			Stats: container.Stats{
+				PidsStats: container.PidsStats{
+					Current: 42,
+				},
 			},
 		}
 
@@ -475,7 +483,7 @@ func TestHealthCheckResult(t *testing.T) {
 
 // TestContainerEvent tests the container event structure
 func TestContainerEvent(t *testing.T) {
-	event := types.ContainerEvent{
+	event := ContainerEvent{
 		ContainerID: types.NewID("test-container"),
 		Timestamp:   types.NewTimestampFromTime(time.Now()),
 		Action:      "start",
@@ -516,26 +524,28 @@ func BenchmarkParseStats(b *testing.B) {
 	client := &Client{}
 	monitor, _ := NewMonitor(client, log)
 
-	stats := &types.StatsJSON{
-		CPUStats: types.CPUStats{
-			CPUUsage: types.CPUUsage{
-				TotalUsage: 2000,
-				PercpuUsage: []uint64{1000, 1000},
+	stats := &dockertypes.StatsJSON{
+		Stats: container.Stats{
+			CPUStats: container.CPUStats{
+				CPUUsage: container.CPUUsage{
+					TotalUsage: 2000,
+					PercpuUsage: []uint64{1000, 1000},
+				},
+				SystemUsage: 10000,
 			},
-			SystemUsage: 10000,
-		},
-		PreCPUStats: types.CPUStats{
-			CPUUsage: types.CPUUsage{
-				TotalUsage: 1000,
+			PreCPUStats: container.CPUStats{
+				CPUUsage: container.CPUUsage{
+					TotalUsage: 1000,
+				},
+				SystemUsage: 5000,
 			},
-			SystemUsage: 5000,
-		},
-		MemoryStats: types.MemoryStats{
-			Usage: 1024 * 1024 * 100,
-			Limit: 1024 * 1024 * 1000,
-		},
-		PidsStats: types.PidsStats{
-			Current: 42,
+			MemoryStats: container.MemoryStats{
+				Usage: 1024 * 1024 * 100,
+				Limit: 1024 * 1024 * 1000,
+			},
+			PidsStats: container.PidsStats{
+				Current: 42,
+			},
 		},
 	}
 

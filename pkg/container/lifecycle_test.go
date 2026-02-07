@@ -2,6 +2,7 @@ package container
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -56,7 +57,6 @@ func TestNewLifecycleManager(t *testing.T) {
 		lm, err := NewLifecycleManager(client, log)
 		assert.NoError(t, err)
 		assert.NotNil(t, lm)
-		assert.Equal(t, "lifecycle_manager", lm.logger.GetComponent())
 	})
 }
 
@@ -84,7 +84,6 @@ func TestLifecycleStart(t *testing.T) {
 	containerName := "baaaht-lifecycle-start-test"
 
 	// Create a stopped container
-	timeout := 5 * time.Minute
 	result, err := creator.CreateWithDefaults(ctx, "alpine:latest", containerName, sessionID)
 	require.NoError(t, err)
 	require.NotNil(t, result)

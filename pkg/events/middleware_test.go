@@ -11,7 +11,7 @@ import (
 )
 
 // setupTestMiddlewareLogger creates a logger for middleware tests
-func setupTestMiddlewareLogger(t *testing.T) (*logger.Logger, context.Context) {
+func setupTestMiddlewareLogger(t testHelper) (*logger.Logger, context.Context) {
 	log, err := logger.NewDefault()
 	if err != nil {
 		t.Fatalf("Failed to create logger: %v", err)

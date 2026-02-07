@@ -13,8 +13,14 @@ import (
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 )
 
+// testHelper is an interface that both *testing.T and *testing.B implement
+type testHelper interface {
+	Helper()
+	Fatalf(format string, args ...interface{})
+}
+
 // helper function to create a test orchestrator
-func createTestOrchestratorForShutdown(t *testing.T) *Orchestrator {
+func createTestOrchestratorForShutdown(t testHelper) *Orchestrator {
 	t.Helper()
 
 	cfg, err := config.Load()

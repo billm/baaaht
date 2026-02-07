@@ -14,11 +14,12 @@ import (
 
 // mockEventHandler is a test handler that records events
 type mockEventHandler struct {
-	mu        sync.Mutex
-	events    []types.Event
-	callCount int32
-	canHandle bool
-	handleFn  func(context.Context, types.Event) error
+	mu          sync.Mutex
+	events      []types.Event
+	callCount   int32
+	canHandle   bool
+	canHandleFn func(types.EventType) bool
+	handleFn    func(context.Context, types.Event) error
 }
 
 func newMockEventHandler() *mockEventHandler {
@@ -42,6 +43,9 @@ func (m *mockEventHandler) Handle(ctx context.Context, event types.Event) error 
 }
 
 func (m *mockEventHandler) CanHandle(eventType types.EventType) bool {
+	if m.canHandleFn != nil {
+		return m.canHandleFn(eventType)
+	}
 	return m.canHandle
 }
 
@@ -629,7 +633,7 @@ func TestCanHandleFilter(t *testing.T) {
 	handler := newMockEventHandler()
 
 	// Make handler only handle container events
-	handler.canHandle = func(eventType types.EventType) bool {
+	handler.canHandleFn = func(eventType types.EventType) bool {
 		return eventType == types.EventTypeContainerCreated
 	}
 

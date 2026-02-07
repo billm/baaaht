@@ -9,6 +9,7 @@ import (
 	"github.com/billm/baaaht/orchestrator/internal/logger"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 
+	"github.com/docker/docker/api/types/container"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -499,7 +500,7 @@ func TestCreatorIntegration(t *testing.T) {
 			// Clean up the container
 			timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 			defer cancel()
-			_ = client.Client().ContainerRemove(timeoutCtx, result.ContainerID, types.ContainerRemoveOptions{
+			_ = client.Client().ContainerRemove(timeoutCtx, result.ContainerID, container.RemoveOptions{
 				Force: true,
 			})
 		})
@@ -526,7 +527,7 @@ func TestCreatorIntegration(t *testing.T) {
 			// Clean up the container
 			timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 			defer cancel()
-			_ = client.Client().ContainerRemove(timeoutCtx, result.ContainerID, types.ContainerRemoveOptions{
+			_ = client.Client().ContainerRemove(timeoutCtx, result.ContainerID, container.RemoveOptions{
 				Force: true,
 			})
 		})
