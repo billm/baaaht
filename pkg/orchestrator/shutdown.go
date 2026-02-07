@@ -319,14 +319,16 @@ func (sm *ShutdownManager) getStartTime() time.Time {
 	return time.Now()
 }
 
-// ShutdownGracefully shuts down the orchestrator gracefully with a timeout
+// ShutdownGracefully initiates a graceful shutdown of the orchestrator.
+//
+// Note: The timeout parameter is kept for API compatibility only and is not
+// enforced by this helper. Callers are responsible for enforcing any timeout
+// semantics themselves (for example, by using contexts or external
+// coordination).
 func ShutdownGracefully(orch *Orchestrator, timeout time.Duration) error {
 	if orch == nil {
 		return types.NewError(types.ErrCodeInvalidArgument, "orchestrator is nil")
 	}
-
-	// Note: The timeout parameter is provided for API compatibility.
-	// The actual timeout enforcement should be done by the caller.
 	return orch.Close()
 }
 
