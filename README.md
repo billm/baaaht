@@ -67,7 +67,7 @@ This is a monorepo containing multiple baaaht tools. Each tool has its own direc
 
 ### Prerequisites
 
-- Go 1.21 or later
+- Go 1.24 or later
 - Docker running locally
 - Make (optional)
 
