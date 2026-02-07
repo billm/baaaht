@@ -14,18 +14,18 @@ import (
 
 var (
 	// CLI flags
-	cfgFile      string
-	logLevel     string
-	logFormat    string
-	logOutput    string
-	dockerHost   string
-	apiHost      string
-	apiPort      int
-	versionFlag  bool
+	cfgFile     string
+	logLevel    string
+	logFormat   string
+	logOutput   string
+	dockerHost  string
+	apiHost     string
+	apiPort     int
+	versionFlag bool
 
 	// Global variables
-	rootLog *logger.Logger
-	orch    *orchestrator.Orchestrator
+	rootLog  *logger.Logger
+	orch     *orchestrator.Orchestrator
 	shutdown *orchestrator.ShutdownManager
 )
 
@@ -73,11 +73,11 @@ func runOrchestrator(cmd *cobra.Command, args []string) error {
 
 	// Create bootstrap config
 	bootstrapCfg := orchestrator.BootstrapConfig{
-		Config:            *cfg,
-		Logger:            rootLog,
-		Version:           orchestrator.DefaultVersion,
-		ShutdownTimeout:   cfg.Orchestrator.ShutdownTimeout,
-		EnableHealthCheck: true,
+		Config:              *cfg,
+		Logger:              rootLog,
+		Version:             orchestrator.DefaultVersion,
+		ShutdownTimeout:     cfg.Orchestrator.ShutdownTimeout,
+		EnableHealthCheck:   true,
 		HealthCheckInterval: 30 * time.Second,
 	}
 
