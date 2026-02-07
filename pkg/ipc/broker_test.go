@@ -3,6 +3,7 @@ package ipc
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -793,5 +794,221 @@ func BenchmarkMessageMarshal(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, _ = json.Marshal(msg)
+	}
+}
+
+// TestBrokerConcurrentSend tests concurrent message sends
+// Note: This test validates that Send operations don't cause race conditions
+// even when they fail (e.g., no connection exists)
+func TestBrokerConcurrentSend(t *testing.T) {
+	broker, _ := createTestBroker(t)
+	defer broker.Close()
+
+	err := broker.Start(context.Background())
+	if err != nil {
+		t.Fatalf("Failed to start broker: %v", err)
+	}
+
+	// Number of concurrent goroutines
+	numGoroutines := 50
+	messagesPerGoroutine := 20
+
+	var wg sync.WaitGroup
+
+	// Start concurrent sends (they will fail because no connections exist,
+	// but we're testing for race conditions, not success)
+	for i := 0; i < numGoroutines; i++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			for j := 0; j < messagesPerGoroutine; j++ {
+				source := types.GenerateID()
+				target := types.GenerateID()
+				msg := createTestMessage(source, target)
+				msg.Metadata.SessionID = types.GenerateID()
+
+				_ = broker.Send(context.Background(), msg)
+			}
+		}(i)
+	}
+
+	wg.Wait()
+
+	// If we reach here without panics or race detector errors, the test passes
+}
+
+// TestBrokerConcurrentSessionHistory tests concurrent session message storage
+func TestBrokerConcurrentSessionHistory(t *testing.T) {
+	broker, _ := createTestBroker(t)
+	defer broker.Close()
+
+	// Use a shared session ID for all messages
+	sessionID := types.GenerateID()
+
+	numGoroutines := 20
+	messagesPerGoroutine := 50
+
+	var wg sync.WaitGroup
+
+	// Concurrent direct stores (bypassing Send, like the existing TestBrokerGetSessionMessages does)
+	for i := 0; i < numGoroutines; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < messagesPerGoroutine; j++ {
+				source := types.GenerateID()
+				target := types.GenerateID()
+				msg := createTestMessage(source, target)
+				msg.Metadata.SessionID = sessionID
+
+				// Store directly (with lock held)
+				broker.mu.Lock()
+				broker.storeMessage(msg)
+				broker.mu.Unlock()
+			}
+		}()
+	}
+
+	// Concurrent reads of session messages
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 100; j++ {
+				_, _ = broker.GetSessionMessages(context.Background(), sessionID)
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	// Verify final message count
+	messages, err := broker.GetSessionMessages(context.Background(), sessionID)
+	if err != nil {
+		t.Fatalf("Failed to get session messages: %v", err)
+	}
+	expectedCount := numGoroutines * messagesPerGoroutine
+	if len(messages) > 1000 {
+		// History is capped at 1000 messages
+		if len(messages) != 1000 {
+			t.Errorf("Expected 1000 messages (capped), got %d", len(messages))
+		}
+	} else {
+		if len(messages) != expectedCount {
+			t.Errorf("Expected %d messages, got %d", expectedCount, len(messages))
+		}
+	}
+}
+
+// TestBrokerConcurrentHandlerRegistration tests concurrent handler registration/unregistration
+func TestBrokerConcurrentHandlerRegistration(t *testing.T) {
+	broker, _ := createTestBroker(t)
+	defer broker.Close()
+
+	numGoroutines := 20
+	handlersPerGoroutine := 10
+
+	var wg sync.WaitGroup
+	handlerFunc := MessageHandlerFunc(func(ctx context.Context, msg *types.IPCMessage) error {
+		return nil
+	})
+
+	// Concurrent registration
+	for i := 0; i < numGoroutines; i++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			for j := 0; j < handlersPerGoroutine; j++ {
+				msgType := fmt.Sprintf("test_type_%d_%d", id, j)
+				_ = broker.RegisterHandler(msgType, handlerFunc)
+			}
+		}(i)
+	}
+
+	wg.Wait()
+
+	// Verify handler count
+	stats := broker.Stats()
+	expectedHandlers := numGoroutines * handlersPerGoroutine
+	if stats.ActiveHandlers != expectedHandlers {
+		t.Errorf("Expected %d active handlers, got %d", expectedHandlers, stats.ActiveHandlers)
+	}
+
+	// Concurrent unregistration
+	for i := 0; i < numGoroutines; i++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			for j := 0; j < handlersPerGoroutine; j++ {
+				msgType := fmt.Sprintf("test_type_%d_%d", id, j)
+				_ = broker.UnregisterHandler(msgType)
+			}
+		}(i)
+	}
+
+	wg.Wait()
+
+	// Verify all handlers are unregistered
+	stats = broker.Stats()
+	if stats.ActiveHandlers != 0 {
+		t.Errorf("Expected 0 active handlers, got %d", stats.ActiveHandlers)
+	}
+}
+
+// TestBrokerConcurrentClearSessionMessages tests concurrent session message clearing
+func TestBrokerConcurrentClearSessionMessages(t *testing.T) {
+	broker, _ := createTestBroker(t)
+	defer broker.Close()
+
+	// Create multiple sessions with messages (stored directly, not via Send)
+	numSessions := 20
+	sessionIDs := make([]types.ID, numSessions)
+	for i := 0; i < numSessions; i++ {
+		sessionID := types.GenerateID()
+		sessionIDs[i] = sessionID
+
+		// Add some messages to each session directly
+		for j := 0; j < 10; j++ {
+			msg := createTestMessage(types.GenerateID(), types.GenerateID())
+			msg.Metadata.SessionID = sessionID
+			broker.mu.Lock()
+			broker.storeMessage(msg)
+			broker.mu.Unlock()
+		}
+	}
+
+	// Verify messages exist
+	for _, sessionID := range sessionIDs {
+		messages, err := broker.GetSessionMessages(context.Background(), sessionID)
+		if err != nil {
+			t.Fatalf("Failed to get session messages: %v", err)
+		}
+		if len(messages) != 10 {
+			t.Errorf("Expected 10 messages for session %s, got %d", sessionID, len(messages))
+		}
+	}
+
+	var wg sync.WaitGroup
+
+	// Concurrent clearing of different sessions
+	for _, sessionID := range sessionIDs {
+		wg.Add(1)
+		go func(sid types.ID) {
+			defer wg.Done()
+			_ = broker.ClearSessionMessages(context.Background(), sid)
+		}(sessionID)
+	}
+
+	wg.Wait()
+
+	// Verify all sessions are cleared
+	for _, sessionID := range sessionIDs {
+		messages, err := broker.GetSessionMessages(context.Background(), sessionID)
+		if err != nil {
+			t.Fatalf("Failed to get session messages: %v", err)
+		}
+		if len(messages) != 0 {
+			t.Errorf("Expected 0 messages for session %s after clearing, got %d", sessionID, len(messages))
+		}
 	}
 }
