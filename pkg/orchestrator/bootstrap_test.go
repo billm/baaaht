@@ -286,11 +286,12 @@ func TestWaitForReadyTimeout(t *testing.T) {
 
 func TestGlobalOrchestrator(t *testing.T) {
 	// Save and restore original global state
+	// Note: sync.Once cannot be copied, so we only save the orchestrator
 	originalOrch := globalOrchestrator
-	originalOnce := globalOnce
 	defer func() {
 		globalOrchestrator = originalOrch
-		globalOnce = originalOnce
+		// Reset sync.Once to prevent test pollution
+		globalOnce = sync.Once{}
 	}()
 
 	// Reset global state
