@@ -126,3 +126,16 @@ type ContainerFilter struct {
 	Status     *Status          `json:"status,omitempty"`
 	Label      map[string]string `json:"label,omitempty"`
 }
+
+// DockerInfo represents information about the Docker daemon
+type DockerInfo struct {
+	ServerVersion     string `json:"server_version"`
+	APIVersion        string `json:"api_version"`
+	OS                string `json:"os"`
+	KernelVersion     string `json:"kernel_version"`
+	Architecture      string `json:"architecture"`
+	NCPU              int    `json:"ncpu"`
+	Memory            int64  `json:"memory"`
+	ContainerCount    int    `json:"container_count"`
+	RunningContainers int    `json:"running_containers"`
+}
