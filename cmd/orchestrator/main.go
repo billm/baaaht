@@ -167,6 +167,14 @@ func loadConfig() (*config.Config, error) {
 	return cfg, nil
 }
 
+// getDefaultConfigPath returns the default config file path
+func getDefaultConfigPath() string {
+	if path, err := config.GetDefaultConfigPath(); err == nil {
+		return path
+	}
+	return "~/.config/baaaht/config.yaml"
+}
+
 // waitForShutdown blocks until a shutdown signal is received
 func waitForShutdown() {
 	if shutdown == nil {
@@ -180,7 +188,7 @@ func waitForShutdown() {
 func main() {
 	// Config file flag
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "",
-		"Config file path (default: use environment variables)")
+		"Config file path (default: ~/.config/baaaht/config.yaml)")
 
 	// Logging flags
 	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "",

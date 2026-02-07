@@ -1,6 +1,29 @@
 package config
 
-import "time"
+import (
+	"os"
+	"path/filepath"
+	"time"
+)
+
+// GetConfigDir returns the baaaht configuration directory
+// Uses ~/.config/baaaht/ on Unix systems
+func GetConfigDir() (string, error) {
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(configDir, "baaaht"), nil
+}
+
+// GetDefaultConfigPath returns the default config file path
+func GetDefaultConfigPath() (string, error) {
+	configDir, err := GetConfigDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(configDir, "config.yaml"), nil
+}
 
 const (
 	// Environment variable names
@@ -56,10 +79,10 @@ const (
 	DefaultSchedulerWorkers   = 2
 
 	// Default Credentials settings
-	DefaultCredStorePath = "/var/lib/baaaht/credentials"
+	DefaultCredStorePath = ""  // Will be set to ~/.config/baaaht/credentials via getConfigDir()
 
 	// Default Policy settings
-	DefaultPolicyConfigPath = "/etc/baaaht/policies.yaml"
+	DefaultPolicyConfigPath = ""  // Will be set to ~/.config/baaaht/policies.yaml via getConfigDir()
 
 	// Default Metrics settings
 	DefaultMetricsEnabled = false
@@ -119,13 +142,17 @@ func DefaultLoggingConfig() LoggingConfig {
 
 // DefaultSessionConfig returns the default session configuration
 func DefaultSessionConfig() SessionConfig {
+	storagePath := "/var/lib/baaaht/sessions" // fallback
+	if configDir, err := GetConfigDir(); err == nil {
+		storagePath = filepath.Join(configDir, "sessions")
+	}
 	return SessionConfig{
 		Timeout:            DefaultSessionTimeout,
 		MaxSessions:        DefaultMaxSessions,
 		CleanupInterval:    5 * time.Minute,
 		IdleTimeout:        10 * time.Minute,
 		PersistenceEnabled: false,
-		StoragePath:        "/var/lib/baaaht/sessions",
+		StoragePath:        storagePath,
 	}
 }
 
@@ -167,8 +194,12 @@ func DefaultSchedulerConfig() SchedulerConfig {
 
 // DefaultCredentialsConfig returns the default credentials configuration
 func DefaultCredentialsConfig() CredentialsConfig {
+	storePath := "/var/lib/baaaht/credentials" // fallback
+	if configDir, err := GetConfigDir(); err == nil {
+		storePath = filepath.Join(configDir, "credentials")
+	}
 	return CredentialsConfig{
-		StorePath:          DefaultCredStorePath,
+		StorePath:          storePath,
 		EncryptionEnabled:  true,
 		KeyRotationDays:    90,
 		MaxCredentialAge:   365, // days
@@ -177,8 +208,12 @@ func DefaultCredentialsConfig() CredentialsConfig {
 
 // DefaultPolicyConfig returns the default policy configuration
 func DefaultPolicyConfig() PolicyConfig {
+	configPath := "/etc/baaaht/policies.yaml" // fallback
+	if configDir, err := GetConfigDir(); err == nil {
+		configPath = filepath.Join(configDir, "policies.yaml")
+	}
 	return PolicyConfig{
-		ConfigPath:         DefaultPolicyConfigPath,
+		ConfigPath:         configPath,
 		ReloadOnChanges:    true,
 		ReloadInterval:     1 * time.Minute,
 		EnforcementMode:    "strict",
