@@ -3,6 +3,7 @@ package integration
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -17,6 +18,42 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// loadTestConfig loads config and overrides paths that require root to use temp dirs
+func loadTestConfig(t *testing.T) *config.Config {
+	t.Helper()
+	cfg, err := config.Load()
+	require.NoError(t, err, "Failed to load config")
+
+	tmpDir := t.TempDir()
+	cfg.Credentials.StorePath = filepath.Join(tmpDir, "credentials")
+	cfg.Session.StoragePath = filepath.Join(tmpDir, "sessions")
+	cfg.IPC.SocketPath = filepath.Join(tmpDir, "ipc.sock")
+	return cfg
+}
+
+// createLongRunningContainer creates a container that stays alive (sleep 300)
+func createLongRunningContainer(t *testing.T, ctx context.Context, creator *container.Creator, name string, sessionID types.ID) *container.CreateResult {
+	t.Helper()
+	cfg := container.CreateConfig{
+		Config: types.ContainerConfig{
+			Image:   "alpine:latest",
+			Command: []string{"sleep", "300"},
+			Env:     make(map[string]string),
+			Labels:  make(map[string]string),
+		},
+		Name:        name,
+		SessionID:   sessionID,
+		AutoPull:    true,
+		PullTimeout: 5 * time.Minute,
+	}
+	cfg.Config.Labels["baaaht.session_id"] = sessionID.String()
+	cfg.Config.Labels["baaaht.managed"] = "true"
+
+	result, err := creator.Create(ctx, cfg)
+	require.NoError(t, err, "Failed to create container")
+	return result
+}
 
 // TestE2EOrchestratorWorkflow performs an end-to-end test of the complete orchestrator workflow
 func TestE2EOrchestratorWorkflow(t *testing.T) {
@@ -36,16 +73,15 @@ func TestE2EOrchestratorWorkflow(t *testing.T) {
 	// Step 1: Bootstrap orchestrator (start orchestrator)
 	t.Log("=== Step 1: Bootstrapping orchestrator ===")
 
-	cfg, err := config.Load()
-	require.NoError(t, err, "Failed to load config")
+	cfg := loadTestConfig(t)
 
 	// Disable health checks for faster testing
 	bootstrapCfg := orchestrator.BootstrapConfig{
-		Config:            *cfg,
-		Logger:            log,
-		Version:           "test-e2e-1.0.0",
-		ShutdownTimeout:   30 * time.Second,
-		EnableHealthCheck: false,
+		Config:              *cfg,
+		Logger:              log,
+		Version:             "test-e2e-1.0.0",
+		ShutdownTimeout:     30 * time.Second,
+		EnableHealthCheck:   false,
 		HealthCheckInterval: 30 * time.Second,
 	}
 
@@ -123,8 +159,7 @@ func TestE2EOrchestratorWorkflow(t *testing.T) {
 
 	t.Logf("Creating container: %s", containerName)
 
-	createResult, err := creator.CreateWithDefaults(ctx, "alpine:latest", containerName, sessionID)
-	require.NoError(t, err, "Failed to create container")
+	createResult := createLongRunningContainer(t, ctx, creator, containerName, sessionID)
 	require.NotNil(t, createResult, "Create result should not be nil")
 	require.NotEmpty(t, createResult.ContainerID, "Container ID should not be empty")
 
@@ -148,9 +183,9 @@ func TestE2EOrchestratorWorkflow(t *testing.T) {
 	t.Cleanup(func() {
 		t.Log("Cleaning up container...")
 		destroyCfg := container.DestroyConfig{
-			ContainerID: containerID,
-			Name:        containerName,
-			Force:       true,
+			ContainerID:   containerID,
+			Name:          containerName,
+			Force:         true,
 			RemoveVolumes: true,
 		}
 		if err := lifecycleMgr.Destroy(ctx, destroyCfg); err != nil {
@@ -198,9 +233,9 @@ func TestE2EOrchestratorWorkflow(t *testing.T) {
 		Source:    "e2e-test",
 		Timestamp: types.NewTimestampFromTime(time.Now()),
 		Data: map[string]interface{}{
-			"container_id": containerID,
+			"container_id":   containerID,
 			"container_name": containerName,
-			"session_id":   sessionID,
+			"session_id":     sessionID,
 		},
 		Metadata: types.EventMetadata{
 			SessionID:   &sessionID,
@@ -283,7 +318,7 @@ func TestE2EOrchestratorWorkflow(t *testing.T) {
 	}
 
 	// Submit task with name option
-	taskID, err := scheduler.Submit(ctx, taskHandler, scheduler.WithTaskName("e2e-test-task"))
+	taskID, err := sched.Submit(ctx, taskHandler, scheduler.WithTaskName("e2e-test-task"))
 	require.NoError(t, err, "Failed to submit task")
 	require.NotEmpty(t, taskID, "Task ID should not be empty")
 	t.Logf("Task submitted: %s", taskID)
@@ -349,8 +384,7 @@ func TestE2EOrchestratorGracefulShutdown(t *testing.T) {
 
 	t.Log("=== Testing graceful shutdown with active containers ===")
 
-	cfg, err := config.Load()
-	require.NoError(t, err)
+	cfg := loadTestConfig(t)
 
 	bootstrapCfg := orchestrator.BootstrapConfig{
 		Config:            *cfg,
@@ -380,8 +414,7 @@ func TestE2EOrchestratorGracefulShutdown(t *testing.T) {
 	require.NoError(t, err)
 
 	containerName := fmt.Sprintf("baaaht-shutdown-test-%d", time.Now().Unix())
-	createResult, err := creator.CreateWithDefaults(ctx, "alpine:latest", containerName, sessionID)
-	require.NoError(t, err)
+	createResult := createLongRunningContainer(t, ctx, creator, containerName, sessionID)
 
 	lifecycleMgr, err := container.NewLifecycleManager(dockerClient, log)
 	require.NoError(t, err)
@@ -440,8 +473,7 @@ func TestE2EOrchestratorWithShutdownManager(t *testing.T) {
 
 	t.Log("=== Testing orchestrator with shutdown manager ===")
 
-	cfg, err := config.Load()
-	require.NoError(t, err)
+	cfg := loadTestConfig(t)
 
 	bootstrapCfg := orchestrator.BootstrapConfig{
 		Config:            *cfg,
@@ -482,8 +514,7 @@ func TestE2EOrchestratorWithShutdownManager(t *testing.T) {
 	require.NoError(t, err)
 
 	containerName := fmt.Sprintf("baaaht-shutdownmgr-%d", time.Now().Unix())
-	createResult, err := creator.CreateWithDefaults(ctx, "alpine:latest", containerName, sessionID)
-	require.NoError(t, err)
+	createResult := createLongRunningContainer(t, ctx, creator, containerName, sessionID)
 
 	// Cleanup
 	defer func() {
@@ -538,8 +569,7 @@ func TestE2EOrchestratorMultipleSessions(t *testing.T) {
 
 	t.Log("=== Testing multiple concurrent sessions ===")
 
-	cfg, err := config.Load()
-	require.NoError(t, err)
+	cfg := loadTestConfig(t)
 
 	bootstrapCfg := orchestrator.BootstrapConfig{
 		Config:            *cfg,
@@ -568,7 +598,7 @@ func TestE2EOrchestratorMultipleSessions(t *testing.T) {
 			Name:    fmt.Sprintf("multi-session-%d", i),
 			OwnerID: "e2e-test-user",
 			Labels: map[string]string{
-				"test":   "multi",
+				"test":  "multi",
 				"index": fmt.Sprintf("%d", i),
 			},
 		}
@@ -599,4 +629,3 @@ func TestE2EOrchestratorMultipleSessions(t *testing.T) {
 
 	t.Log("Multiple sessions test passed")
 }
-

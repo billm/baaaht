@@ -1,11 +1,11 @@
 {
   "active": true,
   "spec": "001-orchestration-core",
-  "state": "building",
+  "state": "complete",
   "subtasks": {
-    "completed": 16,
+    "completed": 21,
     "total": 21,
-    "in_progress": 1,
+    "in_progress": 0,
     "failed": 0
   },
   "phase": {
@@ -18,8 +18,8 @@
     "max": 1
   },
   "session": {
-    "number": 18,
+    "number": 22,
     "started_at": "2026-02-07T10:46:27.063531"
   },
-  "last_update": "2026-02-07T12:02:30.355403"
+  "last_update": "2026-02-07T12:19:09.484911"
 }

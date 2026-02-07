@@ -13,6 +13,34 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// createLongRunningContainer creates a container with "sleep 300" to ensure it stays alive
+// for the duration of the test. Use this instead of CreateWithDefaults when testing
+// lifecycle operations that require the container to be running.
+func createLongRunningContainer(ctx context.Context, t *testing.T, creator *Creator, image, name string, sessionID types.ID) *CreateResult {
+	t.Helper()
+	cfg := CreateConfig{
+		Config: types.ContainerConfig{
+			Image:   image,
+			Command: []string{"sleep", "300"},
+			Env:     make(map[string]string),
+			Labels: map[string]string{
+				"baaaht.session_id": sessionID.String(),
+				"baaaht.managed":    "true",
+			},
+			Mounts:    []types.Mount{},
+			Ports:     []types.PortBinding{},
+			Resources: types.ResourceLimits{},
+		},
+		Name:        name,
+		SessionID:   sessionID,
+		AutoPull:    true,
+		PullTimeout: 5 * time.Minute,
+	}
+	result, err := creator.Create(ctx, cfg)
+	require.NoError(t, err)
+	return result
+}
+
 func TestNewLifecycleManager(t *testing.T) {
 	t.Run("create with nil client", func(t *testing.T) {
 		lm, err := NewLifecycleManager(nil, nil)
@@ -83,10 +111,8 @@ func TestLifecycleStart(t *testing.T) {
 	sessionID := types.NewID("test-session")
 	containerName := "baaaht-lifecycle-start-test"
 
-	// Create a stopped container
-	result, err := creator.CreateWithDefaults(ctx, "alpine:latest", containerName, sessionID)
-	require.NoError(t, err)
-	require.NotNil(t, result)
+	// Create a container with a long-running command so it stays alive
+	result := createLongRunningContainer(ctx, t, creator, "alpine:latest", containerName, sessionID)
 
 	// Ensure cleanup
 	defer func() {
@@ -167,9 +193,8 @@ func TestLifecycleStop(t *testing.T) {
 	sessionID := types.NewID("test-session")
 	containerName := "baaaht-lifecycle-stop-test"
 
-	// Create and start a container
-	result, err := creator.CreateWithDefaults(ctx, "alpine:latest", containerName, sessionID)
-	require.NoError(t, err)
+	// Create and start a container with a long-running command
+	result := createLongRunningContainer(ctx, t, creator, "alpine:latest", containerName, sessionID)
 
 	// Start the container
 	err = lm.Start(ctx, StartConfig{ContainerID: result.ContainerID})
@@ -250,9 +275,8 @@ func TestLifecycleRestart(t *testing.T) {
 	sessionID := types.NewID("test-session")
 	containerName := "baaaht-lifecycle-restart-test"
 
-	// Create and start a container
-	result, err := creator.CreateWithDefaults(ctx, "alpine:latest", containerName, sessionID)
-	require.NoError(t, err)
+	// Create and start a container with a long-running command
+	result := createLongRunningContainer(ctx, t, creator, "alpine:latest", containerName, sessionID)
 
 	err = lm.Start(ctx, StartConfig{ContainerID: result.ContainerID})
 	require.NoError(t, err)
@@ -344,11 +368,10 @@ func TestLifecycleDestroy(t *testing.T) {
 	t.Run("destroy running container with force", func(t *testing.T) {
 		containerName := "baaaht-lifecycle-destroy-running-test"
 
-		// Create and start a container
-		result, err := creator.CreateWithDefaults(ctx, "alpine:latest", containerName, sessionID)
-		require.NoError(t, err)
+		// Create and start a container with a long-running command
+		result := createLongRunningContainer(ctx, t, creator, "alpine:latest", containerName, sessionID)
 
-		err = lm.Start(ctx, StartConfig{ContainerID: result.ContainerID})
+		err := lm.Start(ctx, StartConfig{ContainerID: result.ContainerID})
 		require.NoError(t, err)
 
 		// Destroy it with force
@@ -394,9 +417,8 @@ func TestLifecycleStopAndDestroy(t *testing.T) {
 	sessionID := types.NewID("test-session")
 	containerName := "baaaht-lifecycle-stop-destroy-test"
 
-	// Create and start a container
-	result, err := creator.CreateWithDefaults(ctx, "alpine:latest", containerName, sessionID)
-	require.NoError(t, err)
+	// Create and start a container with a long-running command
+	result := createLongRunningContainer(ctx, t, creator, "alpine:latest", containerName, sessionID)
 
 	err = lm.Start(ctx, StartConfig{ContainerID: result.ContainerID})
 	require.NoError(t, err)
@@ -411,11 +433,10 @@ func TestLifecycleStopAndDestroy(t *testing.T) {
 	})
 
 	t.Run("stop and destroy with custom timeout", func(t *testing.T) {
-		// Create another container
-		result2, err := creator.CreateWithDefaults(ctx, "alpine:latest", containerName+"-2", sessionID)
-		require.NoError(t, err)
+		// Create another container with a long-running command
+		result2 := createLongRunningContainer(ctx, t, creator, "alpine:latest", containerName+"-2", sessionID)
 
-		err = lm.Start(ctx, StartConfig{ContainerID: result2.ContainerID})
+		err := lm.Start(ctx, StartConfig{ContainerID: result2.ContainerID})
 		require.NoError(t, err)
 
 		timeout := 5 * time.Second
@@ -451,9 +472,8 @@ func TestLifecyclePauseUnpause(t *testing.T) {
 	sessionID := types.NewID("test-session")
 	containerName := "baaaht-lifecycle-pause-test"
 
-	// Create and start a container
-	result, err := creator.CreateWithDefaults(ctx, "alpine:latest", containerName, sessionID)
-	require.NoError(t, err)
+	// Create and start a container with a long-running command
+	result := createLongRunningContainer(ctx, t, creator, "alpine:latest", containerName, sessionID)
 
 	err = lm.Start(ctx, StartConfig{ContainerID: result.ContainerID})
 	require.NoError(t, err)
@@ -526,9 +546,8 @@ func TestLifecycleStatus(t *testing.T) {
 	sessionID := types.NewID("test-session")
 	containerName := "baaaht-lifecycle-status-test"
 
-	// Create a container
-	result, err := creator.CreateWithDefaults(ctx, "alpine:latest", containerName, sessionID)
-	require.NoError(t, err)
+	// Create a container with a long-running command
+	result := createLongRunningContainer(ctx, t, creator, "alpine:latest", containerName, sessionID)
 
 	// Ensure cleanup
 	defer func() {
@@ -595,11 +614,9 @@ func TestLifecycleKill(t *testing.T) {
 	containerName := "baaaht-lifecycle-kill-test"
 
 	// Create a long-running container
-	result, err := creator.CreateWithDefaults(ctx, "alpine:latest", containerName, sessionID)
-	require.NoError(t, err)
+	result := createLongRunningContainer(ctx, t, creator, "alpine:latest", containerName, sessionID)
 
-	// Start container with sleep command to keep it running
-	// We need to use the Docker client directly for this
+	// Start container
 	err = lm.Start(ctx, StartConfig{ContainerID: result.ContainerID})
 	require.NoError(t, err)
 
@@ -691,10 +708,9 @@ func TestLifecycleWait(t *testing.T) {
 
 	t.Run("wait with context timeout", func(t *testing.T) {
 		// Create a long-running container
-		result, err := creator.CreateWithDefaults(ctx, "alpine:latest", containerName+"-2", sessionID)
-		require.NoError(t, err)
+		result := createLongRunningContainer(ctx, t, creator, "alpine:latest", containerName+"-2", sessionID)
 
-		err = lm.Start(ctx, StartConfig{ContainerID: result.ContainerID})
+		err := lm.Start(ctx, StartConfig{ContainerID: result.ContainerID})
 		require.NoError(t, err)
 
 		// Ensure cleanup
@@ -759,11 +775,29 @@ func TestLifecycleConcurrentOperations(t *testing.T) {
 	ctx := context.Background()
 	sessionID := types.NewID("test-session")
 
-	// Create multiple containers
+	// Create multiple containers with a sleep command to keep them running
 	containers := make([]string, 3)
 	for i := 0; i < 3; i++ {
 		name := fmt.Sprintf("baaaht-concurrent-test-%d", i)
-		result, err := creator.CreateWithDefaults(ctx, "alpine:latest", name, sessionID)
+		cfg := CreateConfig{
+			Config: types.ContainerConfig{
+				Image:   "alpine:latest",
+				Command: []string{"sleep", "60"},
+				Env:     make(map[string]string),
+				Labels: map[string]string{
+					"baaaht.session_id": sessionID.String(),
+					"baaaht.managed":    "true",
+				},
+				Mounts:    []types.Mount{},
+				Ports:     []types.PortBinding{},
+				Resources: types.ResourceLimits{},
+			},
+			Name:        name,
+			SessionID:   sessionID,
+			AutoPull:    true,
+			PullTimeout: 5 * time.Minute,
+		}
+		result, err := creator.Create(ctx, cfg)
 		require.NoError(t, err)
 		containers[i] = result.ContainerID
 

@@ -8,3 +8,13 @@
 .worktrees/
 .security-key
 logs/security/
+
+# Go test binaries
+*.test
+
+# Go build output
+bin/
+
+# Go coverage
+coverage.out
+coverage.html

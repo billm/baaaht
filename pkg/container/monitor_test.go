@@ -24,7 +24,7 @@ func TestNewMonitor(t *testing.T) {
 		{
 			name:      "valid client and logger",
 			client:    &Client{},
-			log:       &logger.Logger{},
+			log:       func() *logger.Logger { l, _ := logger.NewDefault(); return l }(),
 			wantError: false,
 		},
 		{

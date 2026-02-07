@@ -21,17 +21,17 @@ import (
 
 // Credential represents a stored credential with metadata
 type Credential struct {
-	ID          string                 `json:"id"`
-	Name        string                 `json:"name"`
-	Type        string                 `json:"type"`        // e.g., "api_key", "token", "password"
-	Value       string                 `json:"value"`       // encrypted value
-	Metadata    map[string]string      `json:"metadata"`
-	CreatedAt   time.Time              `json:"created_at"`
-	UpdatedAt   time.Time              `json:"updated_at"`
-	ExpiresAt   time.Time              `json:"expires_at"`
-	LastUsedAt  time.Time              `json:"last_used_at"`
-	AccessCount int                    `json:"access_count"`
-	Tags        []string               `json:"tags"`
+	ID          string            `json:"id"`
+	Name        string            `json:"name"`
+	Type        string            `json:"type"`  // e.g., "api_key", "token", "password"
+	Value       string            `json:"value"` // encrypted value
+	Metadata    map[string]string `json:"metadata"`
+	CreatedAt   time.Time         `json:"created_at"`
+	UpdatedAt   time.Time         `json:"updated_at"`
+	ExpiresAt   time.Time         `json:"expires_at"`
+	LastUsedAt  time.Time         `json:"last_used_at"`
+	AccessCount int               `json:"access_count"`
+	Tags        []string          `json:"tags"`
 }
 
 // IsExpired returns true if the credential has expired
@@ -52,13 +52,13 @@ func (c *Credential) IsExpiring(within time.Duration) bool {
 
 // Store manages secure credential storage with encryption
 type Store struct {
-	credentials map[string]*Credential
-	mu          sync.RWMutex
-	cfg         config.CredentialsConfig
-	logger      *logger.Logger
+	credentials   map[string]*Credential
+	mu            sync.RWMutex
+	cfg           config.CredentialsConfig
+	logger        *logger.Logger
 	encryptionKey []byte
-	gcm         cipher.AEAD
-	closed      bool
+	gcm           cipher.AEAD
+	closed        bool
 }
 
 // NewStore creates a new credential store with the specified configuration
@@ -642,8 +642,8 @@ func getOrCreateEncryptionKey(storePath string) ([]byte, error) {
 
 // Global store instance
 var (
-	globalStore *Store
-	storeGlobalOnce  sync.Once
+	globalStore     *Store
+	storeGlobalOnce sync.Once
 )
 
 // InitGlobal initializes the global credential store
@@ -666,8 +666,9 @@ func Global() *Store {
 		// Initialize with default settings if not already initialized
 		store, err := NewDefaultStore(nil)
 		if err != nil {
-			// Return a closed store on error
-			return &Store{closed: true}
+			// Return a closed store on error, but cache it as the singleton
+			globalStore = &Store{closed: true}
+			return globalStore
 		}
 		globalStore = store
 	}

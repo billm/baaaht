@@ -182,8 +182,8 @@ func TestShutdownManagerHooks(t *testing.T) {
 	mu.Lock()
 	defer mu.Unlock()
 
-	if len(executedHooks) != 3 {
-		t.Errorf("expected 3 hooks executed, got %d", len(executedHooks))
+	if len(executedHooks) != 6 {
+		t.Errorf("expected 6 hooks executed (3 hooks x 2 phases), got %d", len(executedHooks))
 	}
 }
 
@@ -499,7 +499,7 @@ func TestShutdownManagerConcurrentShutdown(t *testing.T) {
 	sm.Start()
 
 	var wg sync.WaitGroup
-	errors := make(chan error, 3)
+	results := make(chan error, 3)
 
 	// Try to trigger shutdown from multiple goroutines
 	for i := 0; i < 3; i++ {
@@ -508,23 +508,18 @@ func TestShutdownManagerConcurrentShutdown(t *testing.T) {
 			defer wg.Done()
 			ctx := context.Background()
 			err := sm.Shutdown(ctx, "concurrent")
-			if err != nil {
-				errors <- err
-			}
+			results <- err // always send result (nil or error)
 		}(i)
 	}
 
 	wg.Wait()
-	close(errors)
+	close(results)
 
 	// Should have at least one success and some failures
 	successCount := 0
-	failureCount := 0
-	for err := range errors {
+	for err := range results {
 		if err == nil {
 			successCount++
-		} else {
-			failureCount++
 		}
 	}
 

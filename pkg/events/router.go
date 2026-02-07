@@ -13,22 +13,22 @@ import (
 // Router implements topic-based event routing
 // Topics use hierarchical patterns like "container.created" or "container.*"
 type Router struct {
-	mu         sync.RWMutex
-	routes     map[string]*routeEntry        // topic pattern -> route entry
-	wildcards  map[string][]*routeEntry       // prefix -> entries with wildcards
-	logger     *logger.Logger
-	closed     bool
+	mu          sync.RWMutex
+	routes      map[string]*routeEntry   // topic pattern -> route entry
+	wildcards   map[string][]*routeEntry // prefix -> entries with wildcards
+	logger      *logger.Logger
+	closed      bool
 	nextRouteID types.ID
 }
 
 // routeEntry represents a single route registration
 type routeEntry struct {
-	ID         types.ID
-	Pattern    string
-	Handler    types.EventHandler
-	Active     bool
-	Metadata   map[string]string
-	Priority   int
+	ID       types.ID
+	Pattern  string
+	Handler  types.EventHandler
+	Active   bool
+	Metadata map[string]string
+	Priority int
 }
 
 // NewRouter creates a new event router
@@ -346,12 +346,12 @@ func (r *Router) validatePattern(pattern string) error {
 
 	// Check for empty segments
 	parts := strings.Split(pattern, ".")
-	for _, part := range parts {
+	for i, part := range parts {
 		if part == "" {
 			return fmt.Errorf("pattern has empty segment: %s", pattern)
 		}
-		if part == "*" && len(parts) > 1 {
-			// Only "*" alone or "prefix.*" are valid
+		if part == "*" && i < len(parts)-1 {
+			// Wildcard must be the last segment
 			return fmt.Errorf("invalid wildcard position: %s", pattern)
 		}
 	}
@@ -519,11 +519,11 @@ func (r *Router) Stats() RouterStats {
 	}
 
 	return RouterStats{
-		TotalRoutes:      exactCount + wildcardCount,
-		ExactRoutes:      exactCount,
-		WildcardRoutes:   wildcardCount,
-		ActiveRoutes:     activeCount,
-		InactiveRoutes:   (exactCount + wildcardCount) - activeCount,
+		TotalRoutes:    exactCount + wildcardCount,
+		ExactRoutes:    exactCount,
+		WildcardRoutes: wildcardCount,
+		ActiveRoutes:   activeCount,
+		InactiveRoutes: (exactCount + wildcardCount) - activeCount,
 	}
 }
 
@@ -543,11 +543,11 @@ func (r *Router) Close() error {
 
 // RouteInfo contains information about a route
 type RouteInfo struct {
-	ID       types.ID            `json:"id"`
-	Pattern  string              `json:"pattern"`
-	Active   bool                `json:"active"`
-	Priority int                 `json:"priority"`
-	Metadata map[string]string   `json:"metadata,omitempty"`
+	ID       types.ID          `json:"id"`
+	Pattern  string            `json:"pattern"`
+	Active   bool              `json:"active"`
+	Priority int               `json:"priority"`
+	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
 // RouterStats contains statistics about the router

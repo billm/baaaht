@@ -433,8 +433,12 @@ func TestSchedulerTaskTimeout(t *testing.T) {
 	ctx := context.Background()
 
 	handler := func(ctx context.Context, task *Task) error {
-		time.Sleep(10 * time.Second)
-		return nil
+		select {
+		case <-time.After(10 * time.Second):
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
 
 	// Submit with short timeout
@@ -752,11 +756,14 @@ func TestSchedulerPriorityExecution(t *testing.T) {
 
 	ctx := context.Background()
 
+	var mu sync.Mutex
 	var executionOrder []string
 
 	handler := func(name string) TaskHandler {
 		return func(ctx context.Context, task *Task) error {
+			mu.Lock()
 			executionOrder = append(executionOrder, name)
+			mu.Unlock()
 			return nil
 		}
 	}
@@ -769,9 +776,13 @@ func TestSchedulerPriorityExecution(t *testing.T) {
 	// Wait for all tasks to complete
 	time.Sleep(500 * time.Millisecond)
 
+	mu.Lock()
+	orderLen := len(executionOrder)
+	mu.Unlock()
+
 	// Should execute in order: high, normal, low (not submission order)
-	if len(executionOrder) != 3 {
-		t.Fatalf("Expected 3 executed tasks, got %d", len(executionOrder))
+	if orderLen != 3 {
+		t.Fatalf("Expected 3 executed tasks, got %d", orderLen)
 	}
 
 	// Note: The exact order depends on implementation details

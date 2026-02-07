@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -38,29 +39,33 @@ func New(cfg config.DockerConfig, log *logger.Logger) (*Client, error) {
 		}
 	}
 
-	// Create HTTP client with timeout
-	httpClient := &http.Client{
-		Timeout: cfg.Timeout,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: !cfg.TLSVerify,
-			},
-			DialContext: (&net.Dialer{
-				Timeout:   cfg.Timeout,
-				KeepAlive: 30 * time.Second,
-			}).DialContext,
-			MaxIdleConns:          10,
-			IdleConnTimeout:       30 * time.Second,
-			TLSHandshakeTimeout:   10 * time.Second,
-			ExpectContinueTimeout: 1 * time.Second,
-		},
-	}
-
 	// Build Docker client options
 	opts := []client.Opt{
 		client.WithHost(cfg.Host),
 		client.WithAPIVersionNegotiation(),
-		client.WithHTTPClient(httpClient),
+	}
+
+	// Only use a custom HTTP client for TCP/HTTPS connections.
+	// For Unix sockets, the Docker SDK handles transport internally.
+	var httpClient *http.Client
+	if !strings.HasPrefix(cfg.Host, "unix://") {
+		httpClient = &http.Client{
+			Timeout: cfg.Timeout,
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: !cfg.TLSVerify,
+				},
+				DialContext: (&net.Dialer{
+					Timeout:   cfg.Timeout,
+					KeepAlive: 30 * time.Second,
+				}).DialContext,
+				MaxIdleConns:          10,
+				IdleConnTimeout:       30 * time.Second,
+				TLSHandshakeTimeout:   10 * time.Second,
+				ExpectContinueTimeout: 1 * time.Second,
+			},
+		}
+		opts = append(opts, client.WithHTTPClient(httpClient))
 	}
 
 	// Configure TLS if certificates are provided
@@ -186,13 +191,13 @@ func (c *Client) Info(ctx context.Context) (*types.DockerInfo, error) {
 		if err == nil {
 			return &types.DockerInfo{
 				ServerVersion:     info.ServerVersion,
-				APIVersion:       "", // Use GetAPIVersion() for this
-				OS:               info.OperatingSystem,
-				KernelVersion:    info.KernelVersion,
-				Architecture:     info.Architecture,
-				NCPU:             info.NCPU,
-				Memory:           info.MemTotal,
-				ContainerCount:   info.Containers,
+				APIVersion:        c.cli.ClientVersion(),
+				OS:                info.OperatingSystem,
+				KernelVersion:     info.KernelVersion,
+				Architecture:      info.Architecture,
+				NCPU:              info.NCPU,
+				Memory:            info.MemTotal,
+				ContainerCount:    info.Containers,
 				RunningContainers: info.ContainersRunning,
 			}, nil
 		}
@@ -293,7 +298,11 @@ func (c *Client) Reconnect(ctx context.Context) error {
 	opts := []client.Opt{
 		client.WithHost(c.cfg.Host),
 		client.WithAPIVersionNegotiation(),
-		client.WithHTTPClient(c.httpClient),
+	}
+
+	// Only use custom HTTP client for non-Unix socket connections
+	if c.httpClient != nil {
+		opts = append(opts, client.WithHTTPClient(c.httpClient))
 	}
 
 	if c.cfg.TLSCert != "" || c.cfg.TLSKey != "" || c.cfg.TLSCACert != "" {
@@ -312,8 +321,9 @@ func (c *Client) Reconnect(ctx context.Context) error {
 	c.cli = cli
 	c.closed = false
 
-	// Verify connection
-	if err := c.Ping(ctx); err != nil {
+	// Verify connection - call underlying client directly to avoid deadlock
+	// since we already hold c.mu.Lock()
+	if _, err := c.cli.Ping(ctx); err != nil {
 		return types.WrapError(types.ErrCodeUnavailable, "failed to verify connection after reconnect", err)
 	}
 
@@ -378,6 +388,18 @@ func CheckEnvironment() error {
 		if _, err := os.Stat("/var/run/docker.sock"); os.IsNotExist(err) {
 			return types.NewError(types.ErrCodeUnavailable, "Docker daemon socket not found at /var/run/docker.sock")
 		}
+	}
+	// Verify the daemon is actually responding
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		return types.WrapError(types.ErrCodeUnavailable, "failed to create Docker client", err)
+	}
+	defer cli.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	_, err = cli.Ping(ctx)
+	if err != nil {
+		return types.WrapError(types.ErrCodeUnavailable, "Docker daemon is not responding", err)
 	}
 	return nil
 }

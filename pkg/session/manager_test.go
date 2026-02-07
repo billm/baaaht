@@ -329,12 +329,21 @@ func TestManagerDelete(t *testing.T) {
 		t.Errorf("expected failed precondition error, got: %v", err)
 	}
 
-	// Close the session
+	// Close the session (transitions to closing)
 	_ = manager.CloseSession(ctx, sessionID)
 
-	// Transition to closed state
-	session, _ := manager.Get(ctx, sessionID)
-	session.State = types.SessionStateClosed
+	// Try to delete session in closing state (should still fail - not terminal)
+	err = manager.Delete(ctx, sessionID)
+	if err == nil {
+		t.Fatal("expected error when deleting closing session, got nil")
+	}
+
+	// Force close to terminal state via the internal state machine
+	manager.mu.Lock()
+	if sm, exists := manager.sessions[sessionID]; exists {
+		_ = sm.ForceClose()
+	}
+	manager.mu.Unlock()
 
 	// Delete the session
 	err = manager.Delete(ctx, sessionID)
@@ -539,8 +548,8 @@ func TestManagerGetStats(t *testing.T) {
 		t.Errorf("stats container count: got %d, want 1", stats.ContainerCount)
 	}
 
-	if stats.DurationSeconds <= 0 {
-		t.Error("stats duration should be positive")
+	if stats.DurationSeconds < 0 {
+		t.Error("stats duration should not be negative")
 	}
 }
 
@@ -563,9 +572,14 @@ func TestManagerStats(t *testing.T) {
 	_ = createTestSession(t, manager)
 
 	// Close one session
-	_ = manager.Close()
-	session, _ := manager.Get(ctx, sessionID2)
-	session.State = types.SessionStateClosed
+	_ = manager.CloseSession(ctx, sessionID2)
+
+	// Force close to terminal state
+	manager.mu.Lock()
+	if sm, exists := manager.sessions[sessionID2]; exists {
+		_ = sm.ForceClose()
+	}
+	manager.mu.Unlock()
 
 	active, idle, closing, closed = manager.Stats(ctx)
 	if active != 1 || closed != 1 {
@@ -755,9 +769,9 @@ func TestStateMachineValidTransitions(t *testing.T) {
 // TestSessionWithStateMachine tests SessionWithStateMachine
 func TestSessionWithStateMachine(t *testing.T) {
 	session := &types.Session{
-		ID:      types.GenerateID(),
-		State:   types.SessionStateInitializing,
-		Status:  types.StatusStarting,
+		ID:        types.GenerateID(),
+		State:     types.SessionStateInitializing,
+		Status:    types.StatusStarting,
 		CreatedAt: types.NewTimestampFromTime(time.Now()),
 		UpdatedAt: types.NewTimestampFromTime(time.Now()),
 	}

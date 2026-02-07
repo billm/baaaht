@@ -410,7 +410,7 @@ func TestEnrichmentMiddlewareCustom(t *testing.T) {
 
 	mw.SetCustomEnrichment(func(event types.Event) map[string]interface{} {
 		return map[string]interface{}{
-			"event_type_prefix": string(event.Type)[:5],
+			"event_type_prefix": string(event.Type)[:4],
 		}
 	})
 

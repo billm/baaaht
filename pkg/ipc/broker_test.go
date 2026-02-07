@@ -47,11 +47,11 @@ func createTestBroker(t *testing.T) (*Broker, string) {
 // Helper function to create a test message
 func createTestMessage(source, target types.ID) *types.IPCMessage {
 	return &types.IPCMessage{
-		ID:        types.GenerateID(),
-		Source:    source,
-		Target:    target,
-		Type:      "test",
-		Payload:   []byte("test payload"),
+		ID:      types.GenerateID(),
+		Source:  source,
+		Target:  target,
+		Type:    "test",
+		Payload: []byte("test payload"),
 		Metadata: types.IPCMetadata{
 			SessionID: types.GenerateID(),
 		},
@@ -147,7 +147,7 @@ func TestBrokerSendValidation(t *testing.T) {
 				Payload:   []byte("test"),
 				Timestamp: types.NewTimestampFromTime(time.Now()),
 			},
-			wantErr: false,
+			wantErr: true, // valid message but no connection exists, so Send fails
 		},
 		{
 			name: "empty source",
@@ -278,12 +278,15 @@ func TestBrokerReceive(t *testing.T) {
 		t.Fatalf("Failed to start broker: %v", err)
 	}
 
+	var mu sync.Mutex
 	handlerCalled := false
 	var receivedMsg *types.IPCMessage
 
 	handler := MessageHandlerFunc(func(ctx context.Context, msg *types.IPCMessage) error {
+		mu.Lock()
 		handlerCalled = true
 		receivedMsg = msg
+		mu.Unlock()
 		return nil
 	})
 
@@ -309,16 +312,21 @@ func TestBrokerReceive(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Verify handler was called
-	if !handlerCalled {
+	mu.Lock()
+	called := handlerCalled
+	recvMsg := receivedMsg
+	mu.Unlock()
+
+	if !called {
 		t.Error("Handler was not called")
 	}
 
-	if receivedMsg == nil {
+	if recvMsg == nil {
 		t.Fatal("Received message is nil")
 	}
 
-	if receivedMsg.ID != msg.ID {
-		t.Errorf("Expected message ID %s, got %s", msg.ID, receivedMsg.ID)
+	if recvMsg.ID != msg.ID {
+		t.Errorf("Expected message ID %s, got %s", msg.ID, recvMsg.ID)
 	}
 
 	stats := broker.Stats()
@@ -541,7 +549,7 @@ func TestSocketNew(t *testing.T) {
 	socketPath := filepath.Join(tmpDir, "test-socket.sock")
 
 	cfg := SocketConfig{
-		Path:          socketPath,
+		Path:           socketPath,
 		MaxConnections: 10,
 		BufferSize:     4096,
 		Timeout:        5 * time.Second,
@@ -573,7 +581,7 @@ func TestSocketListen(t *testing.T) {
 	socketPath := filepath.Join(tmpDir, "test-socket.sock")
 
 	cfg := SocketConfig{
-		Path:          socketPath,
+		Path:           socketPath,
 		MaxConnections: 10,
 		BufferSize:     4096,
 		Timeout:        5 * time.Second,
@@ -607,7 +615,7 @@ func TestSocketStats(t *testing.T) {
 	socketPath := filepath.Join(tmpDir, "test-socket.sock")
 
 	cfg := SocketConfig{
-		Path:          socketPath,
+		Path:           socketPath,
 		MaxConnections: 10,
 		BufferSize:     4096,
 		Timeout:        5 * time.Second,
@@ -640,7 +648,7 @@ func TestSocketAuthenticate(t *testing.T) {
 	socketPath := filepath.Join(tmpDir, "test-socket.sock")
 
 	cfg := SocketConfig{
-		Path:          socketPath,
+		Path:           socketPath,
 		MaxConnections: 10,
 		BufferSize:     4096,
 		Timeout:        5 * time.Second,

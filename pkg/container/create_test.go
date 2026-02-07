@@ -3,6 +3,7 @@ package container
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -160,8 +161,8 @@ func TestConvertEnvMap(t *testing.T) {
 		{
 			name: "multiple env vars",
 			env: map[string]string{
-				"FOO":   "bar",
-				"BAZ":   "qux",
+				"FOO":    "bar",
+				"BAZ":    "qux",
 				"NUMBER": "123",
 			},
 			want: []string{"FOO=bar", "BAZ=qux", "NUMBER=123"},
@@ -169,7 +170,7 @@ func TestConvertEnvMap(t *testing.T) {
 		{
 			name: "env var with special characters",
 			env: map[string]string{
-				"PATH": "/usr/bin:/bin",
+				"PATH":      "/usr/bin:/bin",
 				"MULTILINE": "line1\nline2",
 			},
 			want: []string{"PATH=/usr/bin:/bin", "MULTILINE=line1\nline2"},
@@ -211,7 +212,7 @@ func TestConvertLabels(t *testing.T) {
 			name: "with custom labels",
 			labels: map[string]string{
 				"custom.label": "value",
-				"another": "test",
+				"another":      "test",
 			},
 			container: name,
 			session:   sessionID,
@@ -300,7 +301,7 @@ func TestConvertMounts(t *testing.T) {
 			got := convertMounts(tt.mounts)
 
 			if tt.want == 0 {
-				assert.Nil(t, got)
+				assert.Empty(t, got)
 			} else {
 				assert.Len(t, got, tt.want)
 				for i, m := range tt.mounts {
@@ -375,7 +376,7 @@ func TestConvertPortBindings(t *testing.T) {
 			got := convertPortBindings(tt.ports)
 
 			if tt.want == 0 {
-				assert.Nil(t, got)
+				assert.Empty(t, got)
 			} else {
 				assert.Len(t, got, tt.want)
 			}
@@ -387,7 +388,7 @@ func TestConvertRestartPolicy(t *testing.T) {
 	tests := []struct {
 		name   string
 		policy types.RestartPolicy
-		want   string
+		want   container.RestartPolicyMode
 	}{
 		{
 			name: "always restart",
@@ -395,7 +396,7 @@ func TestConvertRestartPolicy(t *testing.T) {
 				Name:              "always",
 				MaximumRetryCount: 0,
 			},
-			want: "always",
+			want: container.RestartPolicyAlways,
 		},
 		{
 			name: "unless stopped",
@@ -403,7 +404,7 @@ func TestConvertRestartPolicy(t *testing.T) {
 				Name:              "unless-stopped",
 				MaximumRetryCount: 0,
 			},
-			want: "unless-stopped",
+			want: container.RestartPolicyUnlessStopped,
 		},
 		{
 			name: "on failure",
@@ -411,7 +412,7 @@ func TestConvertRestartPolicy(t *testing.T) {
 				Name:              "on-failure",
 				MaximumRetryCount: 5,
 			},
-			want: "on-failure",
+			want: container.RestartPolicyOnFailure,
 		},
 		{
 			name: "no restart",
@@ -419,7 +420,7 @@ func TestConvertRestartPolicy(t *testing.T) {
 				Name:              "no",
 				MaximumRetryCount: 0,
 			},
-			want: "no",
+			want: container.RestartPolicyDisabled,
 		},
 		{
 			name: "empty policy defaults to no",
@@ -427,7 +428,7 @@ func TestConvertRestartPolicy(t *testing.T) {
 				Name:              "",
 				MaximumRetryCount: 0,
 			},
-			want: "no",
+			want: container.RestartPolicyDisabled,
 		},
 	}
 
@@ -480,15 +481,15 @@ func TestCreatorIntegration(t *testing.T) {
 		// Create container with a minimal Alpine image
 		cfg := CreateConfig{
 			Config: types.ContainerConfig{
-				Image: "alpine:latest",
+				Image:   "alpine:latest",
 				Command: []string{"sh", "-c", "echo 'hello' && sleep 1"},
 				Labels: map[string]string{
 					"test": "integration",
 				},
 			},
-			Name:       containerName,
-			SessionID:  sessionID,
-			AutoPull:   true,
+			Name:        containerName,
+			SessionID:   sessionID,
+			AutoPull:    true,
 			PullTimeout: 2 * time.Minute,
 		}
 
@@ -508,7 +509,7 @@ func TestCreatorIntegration(t *testing.T) {
 		// Verify container was created
 		containerJSON, err := client.Client().ContainerInspect(ctx, result.ContainerID)
 		require.NoError(t, err)
-		assert.Equal(t, containerName, containerJSON.Name)
+		assert.Equal(t, containerName, strings.TrimPrefix(containerJSON.Name, "/"))
 		assert.Equal(t, sessionID.String(), containerJSON.Config.Labels["baaaht.session_id"])
 		assert.Equal(t, "true", containerJSON.Config.Labels["baaaht.managed"])
 
@@ -535,7 +536,7 @@ func TestCreatorIntegration(t *testing.T) {
 		// Verify container was created with defaults
 		containerJSON, err := client.Client().ContainerInspect(ctx, result.ContainerID)
 		require.NoError(t, err)
-		assert.Equal(t, containerName, containerJSON.Name)
+		assert.Equal(t, containerName, strings.TrimPrefix(containerJSON.Name, "/"))
 		assert.Equal(t, sessionID.String(), containerJSON.Config.Labels["baaaht.session_id"])
 
 		t.Logf("Container created with defaults: %s", result.ContainerID)

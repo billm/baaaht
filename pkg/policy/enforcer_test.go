@@ -205,15 +205,15 @@ func TestValidateContainerConfigQuotas(t *testing.T) {
 	sessionID := types.GenerateID()
 
 	tests := []struct {
-		name        string
-		config      types.ContainerConfig
-		wantAllowed bool
+		name          string
+		config        types.ContainerConfig
+		wantAllowed   bool
 		wantViolation string
 	}{
 		{
 			name: "valid quotas",
 			config: types.ContainerConfig{
-				Image: "nginx:latest",
+				Image: "nginx:1.21",
 				Resources: types.ResourceLimits{
 					NanoCPUs:    1000000000, // 1 CPU
 					MemoryBytes: 1073741824, // 1GB
@@ -224,34 +224,34 @@ func TestValidateContainerConfigQuotas(t *testing.T) {
 		{
 			name: "CPU exceeds maximum",
 			config: types.ContainerConfig{
-				Image: "nginx:latest",
+				Image: "nginx:1.21",
 				Resources: types.ResourceLimits{
 					NanoCPUs: 8000000000, // 8 CPUs
 				},
 			},
-			wantAllowed:  false,
+			wantAllowed:   false,
 			wantViolation: "quota.cpu.max",
 		},
 		{
 			name: "memory exceeds maximum",
 			config: types.ContainerConfig{
-				Image: "nginx:latest",
+				Image: "nginx:1.21",
 				Resources: types.ResourceLimits{
 					MemoryBytes: 17179869184, // 16GB
 				},
 			},
-			wantAllowed:  false,
+			wantAllowed:   false,
 			wantViolation: "quota.memory.max",
 		},
 		{
 			name: "PIDs exceeds maximum",
 			config: types.ContainerConfig{
-				Image: "nginx:latest",
+				Image: "nginx:1.21",
 				Resources: types.ResourceLimits{
 					PidsLimit: int64Ptr(2048),
 				},
 			},
-			wantAllowed:  false,
+			wantAllowed:   false,
 			wantViolation: "quota.pids.max",
 		},
 	}
@@ -303,15 +303,15 @@ func TestValidateContainerConfigMounts(t *testing.T) {
 	}
 
 	tests := []struct {
-		name        string
-		config      types.ContainerConfig
-		wantAllowed bool
+		name          string
+		config        types.ContainerConfig
+		wantAllowed   bool
 		wantViolation string
 	}{
 		{
 			name: "allowed bind mount",
 			config: types.ContainerConfig{
-				Image: "nginx:latest",
+				Image: "nginx:1.21",
 				Mounts: []types.Mount{
 					{
 						Type:   types.MountTypeBind,
@@ -325,7 +325,7 @@ func TestValidateContainerConfigMounts(t *testing.T) {
 		{
 			name: "denied bind mount",
 			config: types.ContainerConfig{
-				Image: "nginx:latest",
+				Image: "nginx:1.21",
 				Mounts: []types.Mount{
 					{
 						Type:   types.MountTypeBind,
@@ -334,13 +334,13 @@ func TestValidateContainerConfigMounts(t *testing.T) {
 					},
 				},
 			},
-			wantAllowed:  false,
+			wantAllowed:   false,
 			wantViolation: "mount.bind.source_not_allowed",
 		},
 		{
 			name: "bind mount disabled",
 			config: types.ContainerConfig{
-				Image: "nginx:latest",
+				Image: "nginx:1.21",
 				Mounts: []types.Mount{
 					{
 						Type:   types.MountTypeBind,
@@ -349,7 +349,7 @@ func TestValidateContainerConfigMounts(t *testing.T) {
 					},
 				},
 			},
-			wantAllowed:  false,
+			wantAllowed:   false,
 			wantViolation: "mount.bind.disabled",
 		},
 	}
@@ -407,9 +407,9 @@ func TestValidateContainerConfigImage(t *testing.T) {
 	}
 
 	tests := []struct {
-		name        string
-		image       string
-		wantAllowed bool
+		name          string
+		image         string
+		wantAllowed   bool
 		wantViolation string
 	}{
 		{
@@ -483,7 +483,7 @@ func TestEnforceContainerConfig(t *testing.T) {
 	sessionID := types.GenerateID()
 
 	config := types.ContainerConfig{
-		Image: "nginx:1.21",
+		Image:     "nginx:1.21",
 		Resources: types.ResourceLimits{
 			// No quotas set
 		},

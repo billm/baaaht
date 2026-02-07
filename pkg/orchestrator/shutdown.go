@@ -271,6 +271,15 @@ func (sm *ShutdownManager) executeHooks(ctx context.Context, phase string) error
 
 		func() {
 			defer cancel()
+			defer func() {
+				if r := recover(); r != nil {
+					sm.logger.Error("Shutdown hook panicked",
+						"phase", phase,
+						"hook", hookName,
+						"panic", fmt.Sprintf("%v", r))
+					errors = append(errors, fmt.Errorf("hook panicked: %v", r))
+				}
+			}()
 			if err := hook(hookCtx); err != nil {
 				sm.logger.Error("Shutdown hook failed",
 					"phase", phase,

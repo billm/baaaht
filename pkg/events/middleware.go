@@ -51,7 +51,7 @@ func (m *FilterMiddleware) Process(ctx context.Context, event types.Event) (type
 
 // TypeFilterMiddleware filters events by type
 type TypeFilterMiddleware struct {
-	logger    *logger.Logger
+	logger       *logger.Logger
 	allowedTypes map[types.EventType]bool
 }
 
@@ -107,9 +107,9 @@ func (m *TypeFilterMiddleware) RemoveAllowedType(eventType types.EventType) {
 
 // SourceFilterMiddleware filters events by source
 type SourceFilterMiddleware struct {
-	logger          *logger.Logger
-	allowedSources  map[string]bool
-	blockedSources  map[string]bool
+	logger         *logger.Logger
+	allowedSources map[string]bool
+	blockedSources map[string]bool
 }
 
 // NewSourceFilterMiddleware creates a new source filter middleware
@@ -142,8 +142,8 @@ func (m *SourceFilterMiddleware) Process(ctx context.Context, event types.Event)
 			fmt.Sprintf("event source %s is blocked", source))
 	}
 
-	// If allowed sources configured, check them
-	if len(m.allowedSources) > 0 && !m.allowedSources[source] {
+	// If allowed sources configured and no blocked sources, check whitelist
+	if len(m.allowedSources) > 0 && len(m.blockedSources) == 0 && !m.allowedSources[source] {
 		m.logger.Debug("Event source not in allowed list",
 			"source", source,
 			"event_id", event.ID)
@@ -176,8 +176,8 @@ func (m *SourceFilterMiddleware) RemoveBlockedSource(source string) {
 
 // TransformMiddleware transforms events
 type TransformMiddleware struct {
-	logger     *logger.Logger
-	transform  func(types.Event) types.Event
+	logger    *logger.Logger
+	transform func(types.Event) types.Event
 }
 
 // NewTransformMiddleware creates a new transform middleware
@@ -305,12 +305,12 @@ func (m *EnrichmentMiddleware) SetCustomEnrichment(fn func(types.Event) map[stri
 
 // ValidationMiddleware validates events
 type ValidationMiddleware struct {
-	logger            *logger.Logger
-	requireID         bool
-	requireType       bool
-	requireSource     bool
-	requireTimestamp  bool
-	customValidators  []func(types.Event) error
+	logger           *logger.Logger
+	requireID        bool
+	requireType      bool
+	requireSource    bool
+	requireTimestamp bool
+	customValidators []func(types.Event) error
 }
 
 // NewValidationMiddleware creates a new validation middleware
@@ -401,11 +401,11 @@ func (m *ValidationMiddleware) AddValidator(validator func(types.Event) error) {
 
 // RateLimitMiddleware rate limits events
 type RateLimitMiddleware struct {
-	logger      *logger.Logger
-	maxEvents   int
-	window      time.Duration
-	events      []time.Time
-	mu          chan struct{} // Used as a mutex
+	logger    *logger.Logger
+	maxEvents int
+	window    time.Duration
+	events    []time.Time
+	mu        chan struct{} // Used as a mutex
 }
 
 // NewRateLimitMiddleware creates a new rate limit middleware
@@ -486,10 +486,10 @@ func (m *RateLimitMiddleware) GetEventCount() int {
 
 // DeduplicationMiddleware deduplicates events
 type DeduplicationMiddleware struct {
-	logger        *logger.Logger
-	seenEvents    map[string]time.Time
-	ttl           time.Duration
-	mu            chan struct{} // Used as a mutex
+	logger     *logger.Logger
+	seenEvents map[string]time.Time
+	ttl        time.Duration
+	mu         chan struct{} // Used as a mutex
 }
 
 // NewDeduplicationMiddleware creates a new deduplication middleware

@@ -25,16 +25,17 @@ type Scheduler struct {
 	taskCount    int64
 	successCount int64
 	failureCount int64
+	allTasks     map[types.ID]*Task
 }
 
 // worker represents a single worker in the worker pool
 type worker struct {
-	id         int
-	scheduler  *Scheduler
-	taskChan   chan *Task
-	quitChan   chan struct{}
-	working    atomic.Bool
-	currentMu  sync.RWMutex
+	id          int
+	scheduler   *Scheduler
+	taskChan    chan *Task
+	quitChan    chan struct{}
+	working     atomic.Bool
+	currentMu   sync.RWMutex
 	currentTask *Task
 }
 
@@ -63,6 +64,7 @@ func New(cfg config.SchedulerConfig, log *logger.Logger) (*Scheduler, error) {
 		logger:    log.With("component", "scheduler"),
 		closed:    false,
 		taskCount: 0,
+		allTasks:  make(map[types.ID]*Task),
 	}
 
 	// Create context for cancellation
@@ -132,6 +134,9 @@ func (s *Scheduler) Submit(ctx context.Context, handler TaskHandler, opts ...Tas
 	if err := s.queue.Enqueue(task); err != nil {
 		return "", types.WrapError(types.ErrCodeInternal, "failed to enqueue task", err)
 	}
+
+	// Track task in the persistent registry
+	s.allTasks[task.ID] = task
 
 	atomic.AddInt64(&s.taskCount, 1)
 
@@ -250,24 +255,10 @@ func (s *Scheduler) GetTask(ctx context.Context, taskID types.ID) (*Task, error)
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	if s.closed && !s.isTaskInQueue(taskID) {
-		return nil, types.NewError(types.ErrCodeUnavailable, "scheduler is closed")
-	}
-
-	// Check queue first
-	task, err := s.queue.Get(taskID)
-	if err == nil {
+	// Check persistent task registry first
+	task, exists := s.allTasks[taskID]
+	if exists {
 		return task, nil
-	}
-
-	// Check running tasks
-	for _, w := range s.workers {
-		w.currentMu.RLock()
-		if w.currentTask != nil && w.currentTask.ID == taskID {
-			w.currentMu.RUnlock()
-			return w.currentTask, nil
-		}
-		w.currentMu.RUnlock()
 	}
 
 	return nil, types.NewError(types.ErrCodeNotFound, "task not found: "+taskID.String())
@@ -275,8 +266,8 @@ func (s *Scheduler) GetTask(ctx context.Context, taskID types.ID) (*Task, error)
 
 // isTaskInQueue checks if a task is still in the queue
 func (s *Scheduler) isTaskInQueue(taskID types.ID) bool {
-	task, err := s.queue.Get(taskID)
-	return err == nil && task != nil
+	task, exists := s.allTasks[taskID]
+	return exists && task != nil
 }
 
 // ListTasks returns all tasks matching the filter
@@ -290,20 +281,11 @@ func (s *Scheduler) ListTasks(ctx context.Context, filter *TaskFilter) ([]*Task,
 
 	var result []*Task
 
-	// Add queued tasks
-	for _, task := range s.queue.List() {
+	// Use allTasks for comprehensive listing
+	for _, task := range s.allTasks {
 		if s.matchesFilter(task, filter) {
 			result = append(result, task)
 		}
-	}
-
-	// Add running tasks
-	for _, w := range s.workers {
-		w.currentMu.RLock()
-		if w.currentTask != nil && s.matchesFilter(w.currentTask, filter) {
-			result = append(result, w.currentTask)
-		}
-		w.currentMu.RUnlock()
 	}
 
 	return result, nil
@@ -343,13 +325,13 @@ func (s *Scheduler) Stats() SchedulerStats {
 	defer s.mu.RUnlock()
 
 	stats := SchedulerStats{
-		TotalTasks:     atomic.LoadInt64(&s.taskCount),
-		SuccessCount:   atomic.LoadInt64(&s.successCount),
-		FailureCount:   atomic.LoadInt64(&s.failureCount),
-		QueueSize:      s.queue.Size(),
-		WorkerCount:    len(s.workers),
-		ActiveWorkers:  0,
-		QueueStats:     s.queue.Stats(),
+		TotalTasks:    atomic.LoadInt64(&s.taskCount),
+		SuccessCount:  atomic.LoadInt64(&s.successCount),
+		FailureCount:  atomic.LoadInt64(&s.failureCount),
+		QueueSize:     s.queue.Size(),
+		WorkerCount:   len(s.workers),
+		ActiveWorkers: 0,
+		QueueStats:    s.queue.Stats(),
 	}
 
 	for _, w := range s.workers {
@@ -599,13 +581,13 @@ func WithTaskMaxRetries(maxRetries int) TaskOption {
 
 // SchedulerStats represents statistics about the scheduler
 type SchedulerStats struct {
-	TotalTasks    int64       `json:"total_tasks"`
-	SuccessCount  int64       `json:"success_count"`
-	FailureCount  int64       `json:"failure_count"`
-	QueueSize     int         `json:"queue_size"`
-	WorkerCount   int         `json:"worker_count"`
-	ActiveWorkers int         `json:"active_workers"`
-	QueueStats    QueueStats  `json:"queue_stats"`
+	TotalTasks    int64      `json:"total_tasks"`
+	SuccessCount  int64      `json:"success_count"`
+	FailureCount  int64      `json:"failure_count"`
+	QueueSize     int        `json:"queue_size"`
+	WorkerCount   int        `json:"worker_count"`
+	ActiveWorkers int        `json:"active_workers"`
+	QueueStats    QueueStats `json:"queue_stats"`
 }
 
 // TaskFilter defines filters for querying tasks

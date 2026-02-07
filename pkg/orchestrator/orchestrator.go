@@ -27,20 +27,20 @@ type Orchestrator struct {
 	closed bool
 
 	// Core subsystems
-	dockerClient *container.Client
-	sessionMgr   *session.Manager
-	eventBus     *events.Bus
-	eventRouter  *events.Router
-	ipcBroker    *ipc.Broker
+	dockerClient   *container.Client
+	sessionMgr     *session.Manager
+	eventBus       *events.Bus
+	eventRouter    *events.Router
+	ipcBroker      *ipc.Broker
 	policyEnforcer *policy.Enforcer
-	credStore    *credentials.Store
-	scheduler    *scheduler.Scheduler
+	credStore      *credentials.Store
+	scheduler      *scheduler.Scheduler
 
 	// Lifecycle management
-	started      bool
-	shutdownCtx  context.Context
+	started        bool
+	shutdownCtx    context.Context
 	shutdownCancel context.CancelFunc
-	wg           sync.WaitGroup
+	wg             sync.WaitGroup
 }
 
 // New creates a new Orchestrator with the specified configuration
@@ -62,11 +62,11 @@ func New(cfg config.Config, log *logger.Logger) (*Orchestrator, error) {
 	shutdownCtx, shutdownCancel := context.WithCancel(context.Background())
 
 	o := &Orchestrator{
-		cfg:           cfg,
-		logger:        log.With("component", "orchestrator"),
-		closed:        false,
-		started:       false,
-		shutdownCtx:   shutdownCtx,
+		cfg:            cfg,
+		logger:         log.With("component", "orchestrator"),
+		closed:         false,
+		started:        false,
+		shutdownCtx:    shutdownCtx,
 		shutdownCancel: shutdownCancel,
 	}
 
@@ -315,10 +315,14 @@ func (o *Orchestrator) Close() error {
 		return nil
 	}
 
-	o.logger.Info("Closing orchestrator")
+	if o.logger != nil {
+		o.logger.Info("Closing orchestrator")
+	}
 
 	// Signal shutdown
-	o.shutdownCancel()
+	if o.shutdownCancel != nil {
+		o.shutdownCancel()
+	}
 
 	// Close subsystems in reverse order
 	if o.scheduler != nil {
@@ -370,7 +374,10 @@ func (o *Orchestrator) Close() error {
 	}
 
 	o.closed = true
-	o.logger.Info("Orchestrator closed")
+	o.started = false
+	if o.logger != nil {
+		o.logger.Info("Orchestrator closed")
+	}
 
 	return nil
 }
@@ -549,9 +556,9 @@ func (o *Orchestrator) Stats(ctx context.Context) map[string]interface{} {
 	if o.eventBus != nil {
 		busStats := o.eventBus.Stats()
 		stats["event_bus"] = map[string]int{
-			"total_subscriptions": busStats.TotalSubscriptions,
+			"total_subscriptions":  busStats.TotalSubscriptions,
 			"active_subscriptions": busStats.ActiveSubscriptions,
-			"pending_events": busStats.PendingEvents,
+			"pending_events":       busStats.PendingEvents,
 		}
 	}
 
@@ -559,10 +566,10 @@ func (o *Orchestrator) Stats(ctx context.Context) map[string]interface{} {
 	if o.eventRouter != nil {
 		routerStats := o.eventRouter.Stats()
 		stats["event_router"] = map[string]int{
-			"total_routes": routerStats.TotalRoutes,
-			"exact_routes": routerStats.ExactRoutes,
+			"total_routes":    routerStats.TotalRoutes,
+			"exact_routes":    routerStats.ExactRoutes,
 			"wildcard_routes": routerStats.WildcardRoutes,
-			"active_routes": routerStats.ActiveRoutes,
+			"active_routes":   routerStats.ActiveRoutes,
 			"inactive_routes": routerStats.InactiveRoutes,
 		}
 	}
@@ -571,10 +578,10 @@ func (o *Orchestrator) Stats(ctx context.Context) map[string]interface{} {
 	if o.ipcBroker != nil {
 		brokerStats := o.ipcBroker.Stats()
 		stats["ipc"] = map[string]int{
-			"messages_sent": int(brokerStats.MessagesSent),
+			"messages_sent":     int(brokerStats.MessagesSent),
 			"messages_received": int(brokerStats.MessagesReceived),
-			"messages_failed": int(brokerStats.MessagesFailed),
-			"active_handlers": brokerStats.ActiveHandlers,
+			"messages_failed":   int(brokerStats.MessagesFailed),
+			"active_handlers":   brokerStats.ActiveHandlers,
 		}
 	}
 

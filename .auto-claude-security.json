@@ -127,28 +127,84 @@
     "zip",
     "zsh"
   ],
-  "stack_commands": [],
-  "script_commands": [],
-  "custom_commands": [],
+  "stack_commands": [
+    "ar",
+    "clang",
+    "clang++",
+    "cmake",
+    "dive",
+    "docker",
+    "docker-buildx",
+    "docker-compose",
+    "dockerfile",
+    "g++",
+    "gcc",
+    "go",
+    "go-outline",
+    "gocode",
+    "gofmt",
+    "golint",
+    "gopls",
+    "gotests",
+    "ld",
+    "make",
+    "meson",
+    "ninja",
+    "nm",
+    "objdump",
+    "strip"
+  ],
+  "script_commands": [
+    "make"
+  ],
+  "custom_commands": [
+    "go",
+    "gofmt",
+    "golint",
+    "gopls",
+    "gotests",
+    "make"
+  ],
   "detected_stack": {
-    "languages": [],
-    "package_managers": [],
+    "languages": [
+      "go",
+      "c"
+    ],
+    "package_managers": [
+      "go_mod"
+    ],
     "frameworks": [],
     "databases": [],
-    "infrastructure": [],
+    "infrastructure": [
+      "docker"
+    ],
     "cloud_providers": [],
     "code_quality_tools": [],
     "version_managers": []
   },
   "custom_scripts": {
     "npm_scripts": [],
-    "make_targets": [],
+    "make_targets": [
+      "all",
+      "build",
+      "orchestrator",
+      "test",
+      "test-unit",
+      "test-integration",
+      "clean",
+      "lint",
+      "fmt",
+      "mod-tidy",
+      "docker-build",
+      "docker-run",
+      "deps",
+      "help"
+    ],
     "poetry_scripts": [],
     "cargo_aliases": [],
     "shell_scripts": []
   },
-  "project_dir": "/Users/billm/workspace/baaaht",
-  "created_at": "2026-02-07T10:21:33.157872",
-  "project_hash": "de9a0b787fc46b4bddc1703fc3324960",
-  "inherited_from": "/Users/billm/workspace/baaaht"
+  "project_dir": "/Users/billm/workspace/baaaht/.auto-claude/worktrees/tasks/001-orchestration-core",
+  "created_at": "2026-02-07T13:45:50.592534",
+  "project_hash": "384aad1572f9b47e5de33d9572066e95"
 }

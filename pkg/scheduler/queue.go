@@ -32,22 +32,22 @@ const (
 
 // Task represents a unit of work to be executed
 type Task struct {
-	ID          types.ID            `json:"id"`
-	Name        string              `json:"name"`
-	Handler     TaskHandler         `json:"-"`
-	Priority    TaskPriority        `json:"priority"`
-	Context     context.Context     `json:"-"`
-	SessionID   *types.ID           `json:"session_id,omitempty"`
+	ID          types.ID               `json:"id"`
+	Name        string                 `json:"name"`
+	Handler     TaskHandler            `json:"-"`
+	Priority    TaskPriority           `json:"priority"`
+	Context     context.Context        `json:"-"`
+	SessionID   *types.ID              `json:"session_id,omitempty"`
 	Metadata    map[string]interface{} `json:"metadata,omitempty"`
-	Status      TaskStatus          `json:"status"`
-	CreatedAt   types.Timestamp     `json:"created_at"`
-	StartedAt   *types.Timestamp    `json:"started_at,omitempty"`
-	CompletedAt *types.Timestamp    `json:"completed_at,omitempty"`
-	Error       string              `json:"error,omitempty"`
-	Retries     int                 `json:"retries"`
-	MaxRetries  int                 `json:"max_retries"`
-	Timeout     time.Duration       `json:"timeout"`
-	mu          sync.RWMutex       `json:"-"`
+	Status      TaskStatus             `json:"status"`
+	CreatedAt   types.Timestamp        `json:"created_at"`
+	StartedAt   *types.Timestamp       `json:"started_at,omitempty"`
+	CompletedAt *types.Timestamp       `json:"completed_at,omitempty"`
+	Error       string                 `json:"error,omitempty"`
+	Retries     int                    `json:"retries"`
+	MaxRetries  int                    `json:"max_retries"`
+	Timeout     time.Duration          `json:"timeout"`
+	mu          sync.RWMutex           `json:"-"`
 }
 
 // TaskHandler is a function that executes a task
@@ -55,12 +55,12 @@ type TaskHandler func(ctx context.Context, task *Task) error
 
 // TaskResult represents the result of a task execution
 type TaskResult struct {
-	TaskID     types.ID     `json:"task_id"`
-	Status     TaskStatus   `json:"status"`
-	Error      error        `json:"error,omitempty"`
+	TaskID     types.ID        `json:"task_id"`
+	Status     TaskStatus      `json:"status"`
+	Error      error           `json:"error,omitempty"`
 	StartedAt  types.Timestamp `json:"started_at"`
 	FinishedAt types.Timestamp `json:"finished_at"`
-	Duration   time.Duration `json:"duration"`
+	Duration   time.Duration   `json:"duration"`
 }
 
 // priorityQueue implements heap.Interface for priority-based task queue
@@ -161,11 +161,12 @@ func (q *Queue) Dequeue(ctx context.Context) (*Task, error) {
 	for {
 		q.mu.Lock()
 		task, err := q.tryDequeue()
+		closed := q.closed
 		q.mu.Unlock()
 
 		if err != nil {
 			// If queue is empty but not closed, wait for notification
-			if types.IsErrCode(err, types.ErrCodeResourceExhausted) && !q.closed {
+			if types.IsErrCode(err, types.ErrCodeResourceExhausted) && !closed {
 				select {
 				case <-q.notifyChan:
 					continue
@@ -372,8 +373,8 @@ func (q *Queue) Stats() QueueStats {
 
 // QueueStats represents statistics about the queue
 type QueueStats struct {
-	Size     int                      `json:"size"`
-	MaxSize  int                      `json:"max_size"`
-	Closed   bool                     `json:"closed"`
-	Priority map[TaskPriority]int     `json:"priority,omitempty"`
+	Size     int                  `json:"size"`
+	MaxSize  int                  `json:"max_size"`
+	Closed   bool                 `json:"closed"`
+	Priority map[TaskPriority]int `json:"priority,omitempty"`
 }
