@@ -171,7 +171,7 @@ func (s *Scheduler) WaitForResult(ctx context.Context, taskID types.ID) (*TaskRe
 			status := task.Status
 			var taskErr error
 			if task.Error != "" {
-				taskErr = fmt.Errorf(task.Error)
+				taskErr = fmt.Errorf("%s", task.Error)
 			}
 			startedAt := task.StartedAt
 			completedAt := task.CompletedAt

@@ -37,14 +37,14 @@ func TestFilterMiddleware(t *testing.T) {
 	event1 := types.Event{
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	// Event that doesn't pass filter
 	event2 := types.Event{
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerStopped,
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	result, err := mw.Process(ctx, event1)
@@ -94,14 +94,14 @@ func TestTypeFilterMiddleware(t *testing.T) {
 	event1 := types.Event{
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	// Not allowed event
 	event2 := types.Event{
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerStopped,
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	result, err := mw.Process(ctx, event1)
@@ -134,7 +134,7 @@ func TestTypeFilterMiddlewareEmpty(t *testing.T) {
 	event := types.Event{
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	result, err := mw.Process(ctx, event)
@@ -158,7 +158,7 @@ func TestTypeFilterMiddlewareAddRemove(t *testing.T) {
 	event := types.Event{
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerStarted,
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	// Should be blocked initially
@@ -207,7 +207,7 @@ func TestSourceFilterMiddleware(t *testing.T) {
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
 		Source:    "trusted-source",
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	// Blocked source event
@@ -215,7 +215,7 @@ func TestSourceFilterMiddleware(t *testing.T) {
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
 		Source:    "malicious-source",
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	// Unknown source event (should pass when no restriction)
@@ -223,7 +223,7 @@ func TestSourceFilterMiddleware(t *testing.T) {
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
 		Source:    "unknown-source",
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	result, err := mw.Process(ctx, event1)
@@ -266,7 +266,7 @@ func TestSourceFilterMiddlewareRestricted(t *testing.T) {
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
 		Source:    "trusted-source",
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	// Unknown source event
@@ -274,7 +274,7 @@ func TestSourceFilterMiddlewareRestricted(t *testing.T) {
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
 		Source:    "unknown-source",
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	result, err := mw.Process(ctx, event1)
@@ -310,7 +310,7 @@ func TestTransformMiddleware(t *testing.T) {
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
 		Source:    "original",
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	result, err := mw.Process(ctx, event)
@@ -353,7 +353,7 @@ func TestEnrichmentMiddleware(t *testing.T) {
 	event := types.Event{
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 		Data:      make(map[string]interface{}),
 	}
 
@@ -385,7 +385,7 @@ func TestEnrichmentMiddlewareWithTimestamp(t *testing.T) {
 	event := types.Event{
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 		Data:      make(map[string]interface{}),
 	}
 
@@ -417,7 +417,7 @@ func TestEnrichmentMiddlewareCustom(t *testing.T) {
 	event := types.Event{
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 		Data:      make(map[string]interface{}),
 	}
 
@@ -444,7 +444,7 @@ func TestValidationMiddleware(t *testing.T) {
 	event := types.Event{
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	result, err := mw.Process(ctx, event)
@@ -458,7 +458,7 @@ func TestValidationMiddleware(t *testing.T) {
 	// Invalid event - missing ID
 	invalidEvent := types.Event{
 		Type:      types.EventTypeContainerCreated,
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	_, err = mw.Process(ctx, invalidEvent)
@@ -492,7 +492,7 @@ func TestValidationMiddlewareCustom(t *testing.T) {
 	event := types.Event{
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	_, err = mw.Process(ctx, event)
@@ -551,7 +551,7 @@ func TestRateLimitMiddleware(t *testing.T) {
 	event := types.Event{
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	// Should allow 5 events
@@ -588,7 +588,7 @@ func TestRateLimitMiddlewareWindow(t *testing.T) {
 	event := types.Event{
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	// Use up the limit
@@ -630,7 +630,7 @@ func TestDeduplicationMiddleware(t *testing.T) {
 	event := types.Event{
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	// First event should pass
@@ -665,7 +665,7 @@ func TestDeduplicationMiddlewareExpiry(t *testing.T) {
 	event := types.Event{
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	// First event should pass
@@ -705,7 +705,7 @@ func TestDeduplicationMiddlewareClear(t *testing.T) {
 	event := types.Event{
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	// First event should pass
@@ -755,7 +755,7 @@ func TestMiddlewareChain(t *testing.T) {
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
 		Source:    "original",
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 		Data:      make(map[string]interface{}),
 	}
 
@@ -794,7 +794,7 @@ func TestMiddlewareChainStopOnError(t *testing.T) {
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
 		Source:    "blocked",
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 		Data:      make(map[string]interface{}),
 	}
 
@@ -835,7 +835,7 @@ func TestMiddlewareChainAdd(t *testing.T) {
 	event := types.Event{
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 		Data:      make(map[string]interface{}),
 	}
 
@@ -861,7 +861,7 @@ func BenchmarkMiddlewareChain(b *testing.B) {
 	event := types.Event{
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 		Data:      make(map[string]interface{}),
 	}
 
@@ -885,7 +885,7 @@ func BenchmarkFilterMiddleware(b *testing.B) {
 	event := types.Event{
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	b.ResetTimer()
@@ -905,7 +905,7 @@ func BenchmarkEnrichmentMiddleware(b *testing.B) {
 	event := types.Event{
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 		Data:      make(map[string]interface{}),
 	}
 
@@ -925,7 +925,7 @@ func BenchmarkValidationMiddleware(b *testing.B) {
 	event := types.Event{
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	b.ResetTimer()

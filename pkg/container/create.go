@@ -2,6 +2,7 @@ package container
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
@@ -11,12 +12,12 @@ import (
 	"github.com/billm/baaaht/orchestrator/internal/logger"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 
-	dockertypes "github.com/docker/docker/api/types"
-	containertypes "github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/api/types/image"
+	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/api/types/strslice"
-	"github.com/docker/docker/pkg/jsonmessage"
 	"github.com/docker/go-connections/nat"
 )
 
@@ -163,8 +164,8 @@ func (c *Creator) PullImage(ctx context.Context, image string, timeout time.Dura
 }
 
 // pullImage is the internal implementation of image pulling
-func (c *Creator) pullImage(ctx context.Context, image string, timeout time.Duration) error {
-	c.logger.Info("Pulling image", "image", image)
+func (c *Creator) pullImage(ctx context.Context, imageRef string, timeout time.Duration) error {
+	c.logger.Info("Pulling image", "image", imageRef)
 
 	pullTimeout := timeout
 	if pullTimeout == 0 {
@@ -174,16 +175,20 @@ func (c *Creator) pullImage(ctx context.Context, image string, timeout time.Dura
 	timeoutCtx, cancel := context.WithTimeout(ctx, pullTimeout)
 	defer cancel()
 
-	reader, err := c.client.cli.ImagePull(timeoutCtx, image, dockertypes.ImagePullOptions{})
+	reader, err := c.client.cli.ImagePull(timeoutCtx, imageRef, image.PullOptions{})
 	if err != nil {
 		return types.WrapError(types.ErrCodeUnavailable, "failed to pull image", err)
 	}
 	defer reader.Close()
 
 	// Parse and log pull progress
-	decoder := jsonmessage.NewJSONDecoder(reader)
+	decoder := json.NewDecoder(reader)
 	for {
-		var jm jsonmessage.JSONMessage
+		var jm struct {
+			ID     string `json:"id"`
+			Status string `json:"status"`
+			Error  string `json:"error,omitempty"`
+		}
 		if err := decoder.Decode(&jm); err != nil {
 			if err == io.EOF {
 				break
@@ -191,8 +196,8 @@ func (c *Creator) pullImage(ctx context.Context, image string, timeout time.Dura
 			return types.WrapError(types.ErrCodeInternal, "failed to decode pull progress", err)
 		}
 
-		if jm.Error != nil {
-			return types.WrapError(types.ErrCodeInternal, "image pull error", jm.Error)
+		if jm.Error != "" {
+			return types.NewError(types.ErrCodeInternal, "image pull error: "+jm.Error)
 		}
 
 		// Log progress updates
@@ -201,7 +206,7 @@ func (c *Creator) pullImage(ctx context.Context, image string, timeout time.Dura
 		}
 	}
 
-	c.logger.Info("Image pulled successfully", "image", image)
+	c.logger.Info("Image pulled successfully", "image", imageRef)
 	return nil
 }
 
@@ -213,15 +218,15 @@ func (c *Creator) ImageExists(ctx context.Context, image string) (bool, error) {
 }
 
 // imageExists is the internal implementation of image existence check
-func (c *Creator) imageExists(ctx context.Context, image string) (bool, error) {
+func (c *Creator) imageExists(ctx context.Context, imageRef string) (bool, error) {
 	timeoutCtx, cancel := c.client.WithTimeout(ctx)
 	defer cancel()
 
 	// List images with a filter for the specific image
 	filter := filters.NewArgs()
-	filter.Add("reference", image)
+	filter.Add("reference", imageRef)
 
-	images, err := c.client.cli.ImageList(timeoutCtx, dockertypes.ImageListOptions{
+	images, err := c.client.cli.ImageList(timeoutCtx, image.ListOptions{
 		Filters: filter,
 	})
 	if err != nil {
@@ -247,12 +252,12 @@ func (c *Creator) validateConfig(cfg CreateConfig) error {
 
 // convertConfig converts our ContainerConfig to Docker API types
 func (c *Creator) convertConfig(cfg types.ContainerConfig, name string, sessionID types.ID) (
-	*containertypes.Config,
-	*containertypes.HostConfig,
+	*container.Config,
+	*container.HostConfig,
 	*network.NetworkingConfig,
 	error) {
 	// Build container config
-	containerConfig := &containertypes.Config{
+	containerConfig := &container.Config{
 		Image:        cfg.Image,
 		Cmd:          strslice.StrSlice(cfg.Command),
 		ArgsEscaped:  true,
@@ -262,7 +267,6 @@ func (c *Creator) convertConfig(cfg types.ContainerConfig, name string, sessionI
 		StopSignal:   "SIGTERM",
 		Tty:          false,
 		OpenStdin:    false,
-		ReadOnlyRootfs: cfg.ReadOnlyRootfs,
 	}
 
 	// Convert Args to Entrypoint if needed (for OCI compatibility)
@@ -271,10 +275,10 @@ func (c *Creator) convertConfig(cfg types.ContainerConfig, name string, sessionI
 	}
 
 	// Build host config
-	hostConfig := &containertypes.HostConfig{
+	hostConfig := &container.HostConfig{
 		Mounts:         convertMounts(cfg.Mounts),
 		PortBindings:   convertPortBindings(cfg.Ports),
-		NetworkMode:    containertypes.NetworkMode(cfg.NetworkMode),
+		NetworkMode:    container.NetworkMode(cfg.NetworkMode),
 		AutoRemove:     cfg.RemoveOnStop,
 		RestartPolicy:  convertRestartPolicy(cfg.RestartPolicy),
 		ReadonlyRootfs: cfg.ReadOnlyRootfs,
@@ -282,7 +286,7 @@ func (c *Creator) convertConfig(cfg types.ContainerConfig, name string, sessionI
 
 	// Configure resource limits
 	if cfg.Resources.NanoCPUs > 0 || cfg.Resources.MemoryBytes > 0 {
-		hostConfig.Resources = containertypes.Resources{
+		hostConfig.Resources = container.Resources{
 			NanoCPUs:   cfg.Resources.NanoCPUs,
 			Memory:     cfg.Resources.MemoryBytes,
 			MemorySwap: cfg.Resources.MemorySwap,
@@ -335,18 +339,18 @@ func convertLabels(labels map[string]string, name string, sessionID types.ID) ma
 }
 
 // convertMounts converts our Mount type to Docker API mount type
-func convertMounts(mounts []types.Mount) []containertypes.MountPoint {
+func convertMounts(mounts []types.Mount) []mount.Mount {
 	if mounts == nil {
 		return nil
 	}
 
-	result := make([]containertypes.MountPoint, 0, len(mounts))
+	result := make([]mount.Mount, 0, len(mounts))
 	for _, m := range mounts {
-		result = append(result, containertypes.MountPoint{
-			Type:        containertypes.MountType(string(m.Type)),
-			Source:      m.Source,
-			Target:      m.Target,
-			ReadOnly:    m.ReadOnly,
+		result = append(result, mount.Mount{
+			Type:     mount.Type(string(m.Type)),
+			Source:   m.Source,
+			Target:   m.Target,
+			ReadOnly: m.ReadOnly,
 		})
 	}
 	return result
@@ -388,28 +392,28 @@ func convertPortBindings(ports []types.PortBinding) nat.PortMap {
 }
 
 // convertRestartPolicy converts our RestartPolicy to Docker API type
-func convertRestartPolicy(rp types.RestartPolicy) containertypes.RestartPolicy {
+func convertRestartPolicy(rp types.RestartPolicy) container.RestartPolicy {
 	var maxRetries int
 	if rp.MaximumRetryCount > 0 {
-		maxRetries = rp.MaximumRetryCount
+		maxRetries = int(rp.MaximumRetryCount)
 	}
 
 	// Docker restart policy names
-	var name string
+	var name container.RestartPolicyMode
 	switch strings.ToLower(rp.Name) {
 	case "no", "":
-		name = "no"
+		name = container.RestartPolicyDisabled
 	case "always":
-		name = "always"
+		name = container.RestartPolicyAlways
 	case "unless-stopped":
-		name = "unless-stopped"
+		name = container.RestartPolicyUnlessStopped
 	case "on-failure":
-		name = "on-failure"
+		name = container.RestartPolicyOnFailure
 	default:
-		name = "no"
+		name = container.RestartPolicyDisabled
 	}
 
-	return containertypes.RestartPolicy{
+	return container.RestartPolicy{
 		Name:              name,
 		MaximumRetryCount: maxRetries,
 	}

@@ -3,7 +3,6 @@ package credentials
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"sync"
 	"testing"

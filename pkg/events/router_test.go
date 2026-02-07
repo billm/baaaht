@@ -658,8 +658,8 @@ func TestRouterStats(t *testing.T) {
 	}
 }
 
-// TestCanHandleFilter tests the CanHandle filter in routing
-func TestCanHandleFilter(t *testing.T) {
+// TestRouterCanHandleFilter tests the CanHandle filter in routing
+func TestRouterCanHandleFilter(t *testing.T) {
 	router, _ := setupTestRouter(t)
 	defer router.Close()
 
@@ -703,8 +703,8 @@ func TestCanHandleFilter(t *testing.T) {
 	}
 }
 
-// TestHandlerError tests error handling in route handlers
-func TestHandlerError(t *testing.T) {
+// TestRouterHandlerError tests error handling in route handlers
+func TestRouterHandlerError(t *testing.T) {
 	router, _ := setupTestRouter(t)
 	defer router.Close()
 

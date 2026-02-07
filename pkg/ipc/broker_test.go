@@ -55,7 +55,7 @@ func createTestMessage(source, target types.ID) *types.IPCMessage {
 		Metadata: types.IPCMetadata{
 			SessionID: types.GenerateID(),
 		},
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 }
 
@@ -124,10 +124,6 @@ func TestBrokerSend(t *testing.T) {
 	if err == nil {
 		t.Log("Send completed (no connection exists, which is expected)")
 	}
-
-	stats := broker.Stats()
-	// Message count may be 0 or 1 depending on when the error occurs
-	// The important thing is that validation passed
 }
 
 func TestBrokerSendValidation(t *testing.T) {
@@ -149,7 +145,7 @@ func TestBrokerSendValidation(t *testing.T) {
 				Target:    types.GenerateID(),
 				Type:      "test",
 				Payload:   []byte("test"),
-				Timestamp: types.Timestamp(time.Now()),
+				Timestamp: types.NewTimestampFromTime(time.Now()),
 			},
 			wantErr: false,
 		},
@@ -161,7 +157,7 @@ func TestBrokerSendValidation(t *testing.T) {
 				Target:    types.GenerateID(),
 				Type:      "test",
 				Payload:   []byte("test"),
-				Timestamp: types.Timestamp(time.Now()),
+				Timestamp: types.NewTimestampFromTime(time.Now()),
 			},
 			wantErr: true,
 		},
@@ -173,7 +169,7 @@ func TestBrokerSendValidation(t *testing.T) {
 				Target:    "",
 				Type:      "test",
 				Payload:   []byte("test"),
-				Timestamp: types.Timestamp(time.Now()),
+				Timestamp: types.NewTimestampFromTime(time.Now()),
 			},
 			wantErr: true,
 		},
@@ -185,7 +181,7 @@ func TestBrokerSendValidation(t *testing.T) {
 				Target:    types.GenerateID(),
 				Type:      "",
 				Payload:   []byte("test"),
-				Timestamp: types.Timestamp(time.Now()),
+				Timestamp: types.NewTimestampFromTime(time.Now()),
 			},
 			wantErr: true,
 		},
@@ -210,9 +206,7 @@ func TestBrokerRegisterHandler(t *testing.T) {
 		t.Fatalf("Failed to start broker: %v", err)
 	}
 
-	handlerCalled := false
 	handler := MessageHandlerFunc(func(ctx context.Context, msg *types.IPCMessage) error {
-		handlerCalled = true
 		return nil
 	})
 

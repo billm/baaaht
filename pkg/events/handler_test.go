@@ -44,7 +44,7 @@ func TestNewHandlerChain(t *testing.T) {
 	event := types.Event{
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	if err := chain.Handle(ctx, event); err != nil {
@@ -117,7 +117,7 @@ func TestHandlerChainAddHandler(t *testing.T) {
 	event := types.Event{
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	if err := chain.Handle(ctx, event); err != nil {
@@ -151,7 +151,7 @@ func TestHandlerChainRemoveHandler(t *testing.T) {
 	event := types.Event{
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	if err := chain.Handle(ctx, event); err != nil {
@@ -187,7 +187,7 @@ func TestHandlerChainError(t *testing.T) {
 	event := types.Event{
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	err = chain.Handle(ctx, event)
@@ -218,7 +218,7 @@ func TestAsyncHandler(t *testing.T) {
 	event := types.Event{
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	if err := asyncHandler.Handle(ctx, event); err != nil {
@@ -251,7 +251,7 @@ func TestAsyncHandlerTimeout(t *testing.T) {
 	event := types.Event{
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	err = asyncHandler.Handle(ctx, event)
@@ -286,7 +286,7 @@ func TestRetryHandler(t *testing.T) {
 	event := types.Event{
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	if err := retryHandler.Handle(ctx, event); err != nil {
@@ -317,7 +317,7 @@ func TestRetryHandlerNonRetryable(t *testing.T) {
 	event := types.Event{
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	err = retryHandler.Handle(ctx, event)
@@ -349,7 +349,7 @@ func TestRetryHandlerMaxRetries(t *testing.T) {
 	event := types.Event{
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	err = retryHandler.Handle(ctx, event)
@@ -375,7 +375,7 @@ func TestTimeoutHandler(t *testing.T) {
 	event := types.Event{
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	if err := timeoutHandler.Handle(ctx, event); err != nil {
@@ -405,7 +405,7 @@ func TestTimeoutHandlerTimeout(t *testing.T) {
 	event := types.Event{
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	err = timeoutHandler.Handle(ctx, event)
@@ -432,7 +432,7 @@ func TestLoggingHandler(t *testing.T) {
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
 		Source:    "test-source",
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	if err := loggingHandler.Handle(ctx, event); err != nil {
@@ -463,7 +463,7 @@ func TestLoggingHandlerError(t *testing.T) {
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
 		Source:    "test-source",
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	err = loggingHandler.Handle(ctx, event)
@@ -496,14 +496,14 @@ func TestFilterHandler(t *testing.T) {
 	event1 := types.Event{
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	// Event that doesn't pass filter
 	event2 := types.Event{
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerStopped,
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	if err := filterHandler.Handle(ctx, event1); err != nil {
@@ -535,7 +535,7 @@ func TestBufferedHandler(t *testing.T) {
 		event := types.Event{
 			ID:        types.GenerateID(),
 			Type:      types.EventTypeContainerCreated,
-			Timestamp: types.Timestamp(time.Now()),
+			Timestamp: types.NewTimestampFromTime(time.Now()),
 		}
 		if err := bufferedHandler.Handle(ctx, event); err != nil {
 			t.Errorf("Failed to handle event %d: %v", i, err)
@@ -579,7 +579,7 @@ func TestBufferedHandlerAutoFlush(t *testing.T) {
 		event := types.Event{
 			ID:        types.GenerateID(),
 			Type:      types.EventTypeContainerCreated,
-			Timestamp: types.Timestamp(time.Now()),
+			Timestamp: types.NewTimestampFromTime(time.Now()),
 		}
 		if err := bufferedHandler.Handle(ctx, event); err != nil {
 			t.Errorf("Failed to handle event %d: %v", i, err)
@@ -609,7 +609,7 @@ func TestBufferedHandlerPeriodicFlush(t *testing.T) {
 	event := types.Event{
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	if err := bufferedHandler.Handle(ctx, event); err != nil {
@@ -743,7 +743,7 @@ func BenchmarkHandlerChain(b *testing.B) {
 	event := types.Event{
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	b.ResetTimer()
@@ -766,7 +766,7 @@ func BenchmarkRetryHandler(b *testing.B) {
 	event := types.Event{
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	b.ResetTimer()
@@ -789,7 +789,7 @@ func BenchmarkTimeoutHandler(b *testing.B) {
 	event := types.Event{
 		ID:        types.GenerateID(),
 		Type:      types.EventTypeContainerCreated,
-		Timestamp: types.Timestamp(time.Now()),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
 	}
 
 	b.ResetTimer()

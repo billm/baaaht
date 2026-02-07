@@ -3,7 +3,6 @@ package policy
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/billm/baaaht/orchestrator/internal/config"
 	"github.com/billm/baaaht/orchestrator/internal/logger"
@@ -216,8 +215,8 @@ func TestValidateContainerConfigQuotas(t *testing.T) {
 			config: types.ContainerConfig{
 				Image: "nginx:latest",
 				Resources: types.ResourceLimits{
-					NanoCPUs:    int64Ptr(1000000000), // 1 CPU
-					MemoryBytes: int64Ptr(1073741824), // 1GB
+					NanoCPUs:    1000000000, // 1 CPU
+					MemoryBytes: 1073741824, // 1GB
 				},
 			},
 			wantAllowed: true,
@@ -227,7 +226,7 @@ func TestValidateContainerConfigQuotas(t *testing.T) {
 			config: types.ContainerConfig{
 				Image: "nginx:latest",
 				Resources: types.ResourceLimits{
-					NanoCPUs: int64Ptr(8000000000), // 8 CPUs
+					NanoCPUs: 8000000000, // 8 CPUs
 				},
 			},
 			wantAllowed:  false,
@@ -238,7 +237,7 @@ func TestValidateContainerConfigQuotas(t *testing.T) {
 			config: types.ContainerConfig{
 				Image: "nginx:latest",
 				Resources: types.ResourceLimits{
-					MemoryBytes: int64Ptr(17179869184), // 16GB
+					MemoryBytes: 17179869184, // 16GB
 				},
 			},
 			wantAllowed:  false,
@@ -496,10 +495,10 @@ func TestEnforceContainerConfig(t *testing.T) {
 	}
 
 	// Should have default quotas applied
-	if enforced.Resources.NanoCPUs == nil {
+	if enforced.Resources.NanoCPUs == 0 {
 		t.Error("expected NanoCPUs to be set")
 	}
-	if enforced.Resources.MemoryBytes == nil {
+	if enforced.Resources.MemoryBytes == 0 {
 		t.Error("expected MemoryBytes to be set")
 	}
 	if enforced.Resources.PidsLimit == nil {
@@ -527,7 +526,7 @@ func TestEnforcementModePermissive(t *testing.T) {
 	config := types.ContainerConfig{
 		Image: "nginx:latest",
 		Resources: types.ResourceLimits{
-			NanoCPUs: int64Ptr(8000000000), // 8 CPUs - exceeds max
+			NanoCPUs: 8000000000, // 8 CPUs - exceeds max
 		},
 	}
 
@@ -565,7 +564,7 @@ func TestEnforcementModeDisabled(t *testing.T) {
 	config := types.ContainerConfig{
 		Image: "anything:anything",
 		Resources: types.ResourceLimits{
-			NanoCPUs: int64Ptr(999999999999), // Way over limit
+			NanoCPUs: 999999999999, // Way over limit
 		},
 	}
 
@@ -851,8 +850,8 @@ func BenchmarkValidateConfig(b *testing.B) {
 	config := types.ContainerConfig{
 		Image: "nginx:1.21",
 		Resources: types.ResourceLimits{
-			NanoCPUs:    int64Ptr(1000000000),
-			MemoryBytes: int64Ptr(1073741824),
+			NanoCPUs:    1000000000,
+			MemoryBytes: 1073741824,
 		},
 		Mounts: []types.Mount{
 			{

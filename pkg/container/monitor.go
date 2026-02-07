@@ -13,6 +13,9 @@ import (
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 
 	dockertypes "github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/events"
+	"github.com/docker/docker/api/types/filters"
 )
 
 // Monitor handles container monitoring operations (health checks, stats, logs)
@@ -284,7 +287,7 @@ func (m *Monitor) Logs(ctx context.Context, cfg LogsConfig) (io.ReadCloser, erro
 
 	timeoutCtx, cancel := m.client.WithTimeout(ctx)
 
-	options := types.ContainerLogsOptions{
+	options := container.LogsOptions{
 		ShowStdout: cfg.Stdout,
 		ShowStderr: cfg.Stderr,
 		Follow:     cfg.Follow,
@@ -399,79 +402,18 @@ func (m *Monitor) LogsLines(ctx context.Context, cfg LogsConfig) ([]types.Contai
 }
 
 // EventsStream returns a stream of container events
-func (m *Monitor) EventsStream(ctx context.Context, containerID string) (<-chan dockertypes.ContainerEvent, <-chan error) {
+func (m *Monitor) EventsStream(ctx context.Context, containerID string) (<-chan events.Message, <-chan error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	eventCh := make(chan dockertypes.ContainerEvent, 10)
-	errCh := make(chan error, 1)
+	// Build filters for the specific container
+	filterArgs := filters.NewArgs()
+	filterArgs.Add("container", containerID)
 
-	go func() {
-		defer close(eventCh)
-		defer close(errCh)
-
-		timeoutCtx, cancel := m.client.WithTimeout(ctx)
-		defer cancel()
-
-		// Build filters for the specific container
-		filters := map[string][]string{
-			"container": {containerID},
-			"event": {
-				"create",
-				"start",
-				"stop",
-				"die",
-				"destroy",
-				"pause",
-				"unpause",
-				"restart",
-				"oom",
-				"health_status",
-			},
-		}
-
-		eventsReader, err := m.client.cli.Events(timeoutCtx, types.EventsOptions{
-			Filters: filters,
-		})
-		if err != nil {
-			errCh <- types.WrapError(types.ErrCodeInternal, "failed to stream events", err)
-			return
-		}
-		defer eventsReader.Close()
-
-		decoder := json.NewDecoder(eventsReader)
-
-		for {
-			select {
-			case <-ctx.Done():
-				errCh <- ctx.Err()
-				return
-			default:
-				var event types.EventsMessage
-				if err := decoder.Decode(&event); err != nil {
-					if err == io.EOF {
-						return
-					}
-					errCh <- types.WrapError(types.ErrCodeInternal, "failed to decode event", err)
-					return
-				}
-
-				containerEvent := dockertypes.ContainerEvent{
-					ContainerID: types.ID(containerID),
-					Timestamp:   types.NewTimestampFromTime(time.Unix(event.Time, 0)),
-					Action:      event.Action,
-					Actor: event.Actor.ID,
-				}
-
-				select {
-				case eventCh <- containerEvent:
-				case <-ctx.Done():
-					errCh <- ctx.Err()
-					return
-				}
-			}
-		}
-	}()
+	// The Docker Events API already returns channels
+	eventCh, errCh := m.client.cli.Events(ctx, events.ListOptions{
+		Filters: filterArgs,
+	})
 
 	return eventCh, errCh
 }

@@ -9,7 +9,7 @@ import (
 	"github.com/billm/baaaht/orchestrator/internal/logger"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 
-	dockertypes "github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 )
 
 // LifecycleManager handles container lifecycle operations (start, stop, restart, destroy)
@@ -60,7 +60,7 @@ func (l *LifecycleManager) Start(ctx context.Context, cfg StartConfig) error {
 	timeoutCtx, cancel := l.client.WithTimeout(ctx)
 	defer cancel()
 
-	if err := l.client.cli.ContainerStart(timeoutCtx, cfg.ContainerID, dockertypes.ContainerStartOptions{}); err != nil {
+	if err := l.client.cli.ContainerStart(timeoutCtx, cfg.ContainerID, container.StartOptions{}); err != nil {
 		return types.WrapError(types.ErrCodeInternal, "failed to start container", err)
 	}
 
@@ -96,12 +96,14 @@ func (l *LifecycleManager) Stop(ctx context.Context, cfg StopConfig) error {
 	defer cancel()
 
 	// Default timeout is 10 seconds if not specified
-	timeout := 10 * time.Second
+	timeoutSeconds := 10
 	if cfg.Timeout != nil {
-		timeout = *cfg.Timeout
+		timeoutSeconds = int((*cfg.Timeout).Seconds())
 	}
 
-	if err := l.client.cli.ContainerStop(timeoutCtx, cfg.ContainerID, &timeout); err != nil {
+	if err := l.client.cli.ContainerStop(timeoutCtx, cfg.ContainerID, container.StopOptions{
+		Timeout: &timeoutSeconds,
+	}); err != nil {
 		return types.WrapError(types.ErrCodeInternal, "failed to stop container", err)
 	}
 
@@ -137,12 +139,14 @@ func (l *LifecycleManager) Restart(ctx context.Context, cfg RestartConfig) error
 	defer cancel()
 
 	// Default timeout is 10 seconds if not specified
-	timeout := 10 * time.Second
+	timeoutSeconds := 10
 	if cfg.Timeout != nil {
-		timeout = *cfg.Timeout
+		timeoutSeconds = int((*cfg.Timeout).Seconds())
 	}
 
-	if err := l.client.cli.ContainerRestart(timeoutCtx, cfg.ContainerID, &timeout); err != nil {
+	if err := l.client.cli.ContainerRestart(timeoutCtx, cfg.ContainerID, container.StopOptions{
+		Timeout: &timeoutSeconds,
+	}); err != nil {
 		return types.WrapError(types.ErrCodeInternal, "failed to restart container", err)
 	}
 
@@ -179,7 +183,7 @@ func (l *LifecycleManager) Destroy(ctx context.Context, cfg DestroyConfig) error
 	timeoutCtx, cancel := l.client.WithTimeout(ctx)
 	defer cancel()
 
-	options := dockertypes.ContainerRemoveOptions{
+	options := container.RemoveOptions{
 		Force:         cfg.Force,
 		RemoveVolumes: cfg.RemoveVolumes,
 	}
@@ -389,7 +393,7 @@ func (l *LifecycleManager) start(ctx context.Context, cfg StartConfig) error {
 	timeoutCtx, cancel := l.client.WithTimeout(ctx)
 	defer cancel()
 
-	if err := l.client.cli.ContainerStart(timeoutCtx, cfg.ContainerID, dockertypes.ContainerStartOptions{}); err != nil {
+	if err := l.client.cli.ContainerStart(timeoutCtx, cfg.ContainerID, container.StartOptions{}); err != nil {
 		return types.WrapError(types.ErrCodeInternal, "failed to start container", err)
 	}
 
@@ -405,12 +409,14 @@ func (l *LifecycleManager) stop(ctx context.Context, cfg StopConfig) error {
 	timeoutCtx, cancel := l.client.WithTimeout(ctx)
 	defer cancel()
 
-	timeout := 10 * time.Second
+	timeoutSeconds := 10
 	if cfg.Timeout != nil {
-		timeout = *cfg.Timeout
+		timeoutSeconds = int((*cfg.Timeout).Seconds())
 	}
 
-	if err := l.client.cli.ContainerStop(timeoutCtx, cfg.ContainerID, &timeout); err != nil {
+	if err := l.client.cli.ContainerStop(timeoutCtx, cfg.ContainerID, container.StopOptions{
+		Timeout: &timeoutSeconds,
+	}); err != nil {
 		return types.WrapError(types.ErrCodeInternal, "failed to stop container", err)
 	}
 
@@ -426,7 +432,7 @@ func (l *LifecycleManager) destroy(ctx context.Context, cfg DestroyConfig) error
 	timeoutCtx, cancel := l.client.WithTimeout(ctx)
 	defer cancel()
 
-	options := dockertypes.ContainerRemoveOptions{
+	options := container.RemoveOptions{
 		Force:         cfg.Force,
 		RemoveVolumes: cfg.RemoveVolumes,
 	}

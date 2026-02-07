@@ -196,9 +196,9 @@ func TestManagerList(t *testing.T) {
 	}
 
 	// Create sessions
-	sessionID1 := createTestSessionWithOwner(t, manager, "user-1")
-	sessionID2 := createTestSessionWithOwner(t, manager, "user-2")
-	_ = createTestSessionWithOwner(t, manager, "user-1")
+	createTestSessionWithOwner(t, manager, "user-1")
+	createTestSessionWithOwner(t, manager, "user-2")
+	createTestSessionWithOwner(t, manager, "user-1")
 
 	// List all sessions
 	sessions, err = manager.List(ctx, nil)
@@ -559,11 +559,11 @@ func TestManagerStats(t *testing.T) {
 	}
 
 	// Create some sessions
-	sessionID1 := createTestSession(t, manager)
 	sessionID2 := createTestSession(t, manager)
+	sessionID1 := createTestSession(t, manager)
 
 	// Close one session
-	_ = manager.Close(ctx, sessionID2)
+	_ = manager.Close()
 	session, _ := manager.Get(ctx, sessionID2)
 	session.State = types.SessionStateClosed
 
@@ -902,7 +902,16 @@ func BenchmarkManagerAddMessage(b *testing.B) {
 	defer manager.Close()
 
 	ctx := context.Background()
-	sessionID := createTestSession(b, manager)
+	metadata := types.SessionMetadata{
+		Name:    "test-session",
+		OwnerID: "user-123",
+	}
+	sessionCfg := types.SessionConfig{}
+
+	sessionID, err := manager.Create(ctx, metadata, sessionCfg)
+	if err != nil {
+		b.Fatalf("failed to create test session: %v", err)
+	}
 
 	message := types.Message{
 		Role:    types.MessageRoleUser,
