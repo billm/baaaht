@@ -117,12 +117,29 @@ func WrapError(code, message string, err error) *Error {
 	}
 }
 
+// IsErrCode checks if an error has a specific error code
+func IsErrCode(err error, code string) bool {
+	if e, ok := err.(*Error); ok {
+		return e.Code == code
+	}
+	return false
+}
+
+// GetErrorCode returns the error code from an error
+func GetErrorCode(err error) string {
+	if e, ok := err.(*Error); ok {
+		return e.Code
+	}
+	return ""
+}
+
 // Common error codes
 const (
 	ErrCodeNotFound         = "NOT_FOUND"
 	ErrCodeAlreadyExists    = "ALREADY_EXISTS"
 	ErrCodeInvalidArgument  = "INVALID_ARGUMENT"
 	ErrCodeInvalid          = "INVALID"
+	ErrCodePermission       = "PERMISSION"
 	ErrCodePermissionDenied = "PERMISSION_DENIED"
 	ErrCodeInternal         = "INTERNAL"
 	ErrCodeUnavailable      = "UNAVAILABLE"
@@ -130,4 +147,7 @@ const (
 	ErrCodeCanceled         = "CANCELED"
 	ErrCodeHandlerFailed    = "HANDLER_FAILED"
 	ErrCodePartialFailure   = "PARTIAL_FAILURE"
+	ErrCodeFiltered         = "FILTERED"
+	ErrCodeRateLimited      = "RATE_LIMITED"
+	ErrCodeDuplicate        = "DUPLICATE"
 )
