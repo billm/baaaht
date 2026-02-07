@@ -156,7 +156,7 @@ func (sm *ShutdownManager) Shutdown(ctx context.Context, reason string) error {
 	sm.setState(ShutdownStateComplete)
 	close(sm.completionChan)
 
-	sm.logger.Info("Shutdown complete", "reason", reason, "duration", time.Since(sm.getStartTime()))
+	sm.logger.Info("Shutdown complete", "reason", reason)
 
 	return nil
 }
