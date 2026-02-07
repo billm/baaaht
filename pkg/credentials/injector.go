@@ -202,7 +202,10 @@ func (inj *Injector) prepareFile(cred *Credential, cfg InjectionConfig, result *
 	}
 
 	// Full path for the file
-	fullPath := filepathWithBase(mountPath, filePath)
+	fullPath, err := filepathWithBase(mountPath, filePath)
+	if err != nil {
+		return types.WrapError(types.ErrCodeInvalidArgument, "invalid file path", err)
+	}
 
 	// Format the content based on the format setting
 	content := cred.Value
@@ -258,7 +261,7 @@ func (inj *Injector) prepareFile(cred *Credential, cfg InjectionConfig, result *
 }
 
 // filepathWithBase joins base and path safely, preventing path traversal
-func filepathWithBase(base, path string) string {
+func filepathWithBase(base, path string) (string, error) {
 	// Remove leading slash from path
 	if strings.HasPrefix(path, "/") {
 		path = path[1:]
@@ -274,11 +277,11 @@ func filepathWithBase(base, path string) string {
 	// by checking if it starts with the cleaned base path
 	cleanBase := filepath.Clean(base)
 	if !strings.HasPrefix(fullPath, cleanBase) {
-		// Path traversal attempt detected - return safe path
-		return filepath.Join(cleanBase, filepath.Base(path))
+		// Path traversal attempt detected - return error
+		return "", fmt.Errorf("path traversal attempt detected: %s escapes base directory %s", path, base)
 	}
 	
-	return fullPath
+	return fullPath, nil
 }
 
 // ValidateConfig validates an injection configuration

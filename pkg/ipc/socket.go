@@ -12,6 +12,11 @@ import (
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 )
 
+const (
+	// DefaultBufferSize is the default buffer size for socket I/O operations
+	DefaultBufferSize = 4096
+)
+
 // Socket represents a Unix domain socket for IPC communication
 type Socket struct {
 	path        string
@@ -61,7 +66,7 @@ func NewSocket(path string, cfg SocketConfig, log *logger.Logger) (*Socket, erro
 	// Validate and set default buffer size
 	bufferSize := cfg.BufferSize
 	if bufferSize <= 0 {
-		bufferSize = 4096 // Default 4KB buffer
+		bufferSize = DefaultBufferSize
 	}
 
 	s := &Socket{
