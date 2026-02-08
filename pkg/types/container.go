@@ -139,3 +139,27 @@ type DockerInfo struct {
 	ContainerCount    int    `json:"container_count"`
 	RunningContainers int    `json:"running_containers"`
 }
+
+// RuntimeType represents the type of container runtime
+type RuntimeType string
+
+const (
+	RuntimeTypeDocker          RuntimeType = "docker"
+	RuntimeTypeAppleContainers RuntimeType = "apple"
+	RuntimeTypeAuto            RuntimeType = "auto"
+)
+
+// RuntimeInfo represents metadata about a container runtime
+type RuntimeInfo struct {
+	Type         RuntimeType `json:"type"`
+	Name         string      `json:"name"`
+	Version      string      `json:"version"`
+	APIVersion   string      `json:"api_version,omitempty"`
+	Platform     string      `json:"platform"`
+	Architecture string      `json:"architecture,omitempty"`
+	Capabilities []string    `json:"capabilities,omitempty"`
+	// Available indicates if the runtime is currently available and functional
+	Available bool `json:"available"`
+	// Endpoint is the runtime endpoint (e.g., Docker daemon socket)
+	Endpoint string `json:"endpoint,omitempty"`
+}
