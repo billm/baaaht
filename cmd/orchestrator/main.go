@@ -24,9 +24,10 @@ var (
 	versionFlag bool
 
 	// Global variables
-	rootLog  *logger.Logger
-	orch     *orchestrator.Orchestrator
-	shutdown *orchestrator.ShutdownManager
+	rootLog   *logger.Logger
+	orch      *orchestrator.Orchestrator
+	shutdown  *orchestrator.ShutdownManager
+	cfgReloader *config.Reloader
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -101,9 +102,35 @@ func runOrchestrator(cmd *cobra.Command, args []string) error {
 		rootLog,
 	)
 
+	// Get config path for reloader
+	configPath := cfgFile
+	if configPath == "" {
+		configPath = getDefaultConfigPath()
+	}
+
+	// Create and start config reloader
+	cfgReloader = config.NewReloader(configPath, cfg)
+	cfgReloader.AddCallback(func(ctx context.Context, newConfig *config.Config) error {
+		rootLog.Info("Configuration reloaded, applying to orchestrator")
+		if err := orch.UpdateConfig(*newConfig); err != nil {
+			rootLog.Error("Failed to apply reloaded configuration", "error", err)
+			return err
+		}
+		rootLog.Info("Successfully applied reloaded configuration")
+		return nil
+	})
+	cfgReloader.Start()
+	rootLog.Info("Config reloader started, send SIGHUP to reload configuration",
+		"config_path", configPath)
+
 	// Add shutdown hook for graceful cleanup
 	shutdown.AddHook(func(ctx context.Context) error {
 		rootLog.Info("Executing shutdown hook")
+		// Stop config reloader
+		if cfgReloader != nil {
+			cfgReloader.Stop()
+			rootLog.Info("Config reloader stopped")
+		}
 		return nil
 	})
 
