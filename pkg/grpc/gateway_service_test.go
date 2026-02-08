@@ -11,6 +11,7 @@ import (
 
 	"github.com/billm/baaaht/orchestrator/internal/logger"
 	"github.com/billm/baaaht/orchestrator/pkg/events"
+	"github.com/billm/baaaht/orchestrator/pkg/ipc"
 	"github.com/billm/baaaht/orchestrator/pkg/session"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 	"github.com/billm/baaaht/orchestrator/proto"
@@ -20,6 +21,7 @@ import (
 type mockGatewayServiceDeps struct {
 	mgr *session.Manager
 	bus *events.Bus
+	broker *ipc.Broker
 }
 
 func (m *mockGatewayServiceDeps) SessionManager() *session.Manager {
@@ -28,6 +30,10 @@ func (m *mockGatewayServiceDeps) SessionManager() *session.Manager {
 
 func (m *mockGatewayServiceDeps) EventBus() *events.Bus {
 	return m.bus
+}
+
+func (m *mockGatewayServiceDeps) IPCBroker() *ipc.Broker {
+	return m.broker // Can be nil for tests
 }
 
 func setupGatewayService(t *testing.T) (*GatewayService, *mockGatewayServiceDeps, context.Context) {

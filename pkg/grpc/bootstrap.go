@@ -9,6 +9,7 @@ import (
 	"github.com/billm/baaaht/orchestrator/internal/config"
 	"github.com/billm/baaaht/orchestrator/internal/logger"
 	"github.com/billm/baaaht/orchestrator/pkg/events"
+	"github.com/billm/baaaht/orchestrator/pkg/ipc"
 	"github.com/billm/baaaht/orchestrator/pkg/session"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 	"github.com/billm/baaaht/orchestrator/proto"
@@ -39,6 +40,7 @@ type BootstrapConfig struct {
 	Logger              *logger.Logger
 	SessionManager      *session.Manager
 	EventBus            *events.Bus
+	IPCBroker           *ipc.Broker
 	Version             string
 	ShutdownTimeout     time.Duration
 	EnableHealthCheck   bool
@@ -135,6 +137,7 @@ func Bootstrap(ctx context.Context, cfg BootstrapConfig) (*BootstrapResult, erro
 	deps := &serviceDependencies{
 		sessionManager: cfg.SessionManager,
 		eventBus:       cfg.EventBus,
+		ipcBroker:      cfg.IPCBroker,
 	}
 
 	// Create and register OrchestratorService
@@ -150,7 +153,7 @@ func Bootstrap(ctx context.Context, cfg BootstrapConfig) (*BootstrapResult, erro
 	health.SetServingStatus("orchestrator", grpc_health.HealthCheckResponse_SERVING)
 
 	// Create and register AgentService
-	agentSvc := NewAgentService(log)
+	agentSvc := NewAgentService(deps, log)
 	if err := server.RegisterService(&proto.AgentService_ServiceDesc, agentSvc); err != nil {
 		result.Error = types.WrapError(types.ErrCodeInternal, "failed to register agent service", err)
 		// Cleanup on failure
@@ -405,10 +408,11 @@ func (r *BootstrapResult) Duration() time.Duration {
 	return time.Since(r.StartedAt)
 }
 
-// serviceDependencies implements ServiceDependencies interface
+// serviceDependencies implements ServiceDependencies, GatewayServiceDependencies, and AgentServiceDependencies interfaces
 type serviceDependencies struct {
 	sessionManager *session.Manager
 	eventBus       *events.Bus
+	ipcBroker      *ipc.Broker
 }
 
 func (d *serviceDependencies) SessionManager() *session.Manager {
@@ -419,6 +423,10 @@ func (d *serviceDependencies) EventBus() *events.Bus {
 	return d.eventBus
 }
 
+func (d *serviceDependencies) IPCBroker() *ipc.Broker {
+	return d.ipcBroker
+}
+
 // validateDependencies validates that all required dependencies are provided
 func validateDependencies(cfg BootstrapConfig) error {
 	if cfg.SessionManager == nil {
@@ -427,5 +435,6 @@ func validateDependencies(cfg BootstrapConfig) error {
 	if cfg.EventBus == nil {
 		return types.NewError(types.ErrCodeInvalidArgument, "event bus is required")
 	}
+	// IPC Broker is optional for now
 	return nil
 }

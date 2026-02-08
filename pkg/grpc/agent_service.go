@@ -10,9 +10,15 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/billm/baaaht/orchestrator/internal/logger"
+	"github.com/billm/baaaht/orchestrator/pkg/events"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 	"github.com/billm/baaaht/orchestrator/proto"
 )
+
+// AgentServiceDependencies represents the agent service dependencies
+type AgentServiceDependencies interface {
+	EventBus() *events.Bus
+}
 
 // AgentInfo holds information about a registered agent
 type AgentInfo struct {
@@ -219,6 +225,7 @@ func (r *AgentRegistry) ListTasks(agentID string) []*TaskInfo {
 // AgentService implements the gRPC AgentService interface
 type AgentService struct {
 	proto.UnimplementedAgentServiceServer
+	deps     AgentServiceDependencies
 	registry *AgentRegistry
 	logger   *logger.Logger
 	mu       sync.RWMutex
@@ -228,7 +235,7 @@ type AgentService struct {
 }
 
 // NewAgentService creates a new agent service
-func NewAgentService(log *logger.Logger) *AgentService {
+func NewAgentService(deps AgentServiceDependencies, log *logger.Logger) *AgentService {
 	if log == nil {
 		var err error
 		log, err = logger.NewDefault()
@@ -238,6 +245,7 @@ func NewAgentService(log *logger.Logger) *AgentService {
 	}
 
 	return &AgentService{
+		deps:     deps,
 		registry: NewAgentRegistry(log),
 		logger:   log.With("component", "agent_service"),
 		streams:  make(map[interface{}]context.CancelFunc),
@@ -286,6 +294,29 @@ func (s *AgentService) Register(ctx context.Context, req *proto.RegisterRequest)
 
 	s.logger.Info("Agent registered", "agent_id", agentID, "name", req.Name)
 
+	// Publish event to event bus
+	if s.deps != nil {
+		bus := s.deps.EventBus()
+		if bus != nil {
+			event := types.Event{
+				Type:      "agent.registered",
+				Source:    "agent.grpc",
+				Timestamp: types.NewTimestamp(),
+				Metadata: types.EventMetadata{
+					Priority: types.PriorityNormal,
+				},
+				Data: map[string]interface{}{
+					"agent_id": agentID,
+					"name":     req.Name,
+					"type":     req.Type.String(),
+				},
+			}
+			if err := bus.Publish(ctx, event); err != nil {
+				s.logger.Warn("Failed to publish agent registered event", "error", err)
+			}
+		}
+	}
+
 	return &proto.RegisterResponse{
 		AgentId:          agentID,
 		Agent:            s.agentInfoToProto(agent),
@@ -312,6 +343,28 @@ func (s *AgentService) Unregister(ctx context.Context, req *proto.UnregisterRequ
 	}
 
 	s.logger.Info("Agent unregistered", "agent_id", req.AgentId, "reason", req.Reason)
+
+	// Publish event to event bus
+	if s.deps != nil {
+		bus := s.deps.EventBus()
+		if bus != nil {
+			event := types.Event{
+				Type:      "agent.unregistered",
+				Source:    "agent.grpc",
+				Timestamp: types.NewTimestamp(),
+				Metadata: types.EventMetadata{
+					Priority: types.PriorityNormal,
+				},
+				Data: map[string]interface{}{
+					"agent_id": req.AgentId,
+					"reason":   req.Reason,
+				},
+			}
+			if err := bus.Publish(ctx, event); err != nil {
+				s.logger.Warn("Failed to publish agent unregistered event", "error", err)
+			}
+		}
+	}
 
 	return &proto.UnregisterResponse{
 		Success: true,
@@ -376,6 +429,30 @@ func (s *AgentService) ExecuteTask(ctx context.Context, req *proto.ExecuteTaskRe
 	}
 
 	s.logger.Info("Task created", "task_id", task.ID, "agent_id", req.AgentId)
+
+	// Publish event to event bus
+	if s.deps != nil {
+		bus := s.deps.EventBus()
+		if bus != nil {
+			event := types.Event{
+				Type:      "task.created",
+				Source:    "agent.grpc",
+				Timestamp: types.NewTimestamp(),
+				Metadata: types.EventMetadata{
+					Priority: types.PriorityNormal,
+				},
+				Data: map[string]interface{}{
+					"task_id":   task.ID,
+					"agent_id":  req.AgentId,
+					"session_id": req.SessionId,
+					"type":      req.Type.String(),
+				},
+			}
+			if err := bus.Publish(ctx, event); err != nil {
+				s.logger.Warn("Failed to publish task created event", "error", err)
+			}
+		}
+	}
 
 	return &proto.ExecuteTaskResponse{
 		TaskId: task.ID,

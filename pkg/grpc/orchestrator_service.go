@@ -12,6 +12,7 @@ import (
 
 	"github.com/billm/baaaht/orchestrator/internal/logger"
 	"github.com/billm/baaaht/orchestrator/pkg/events"
+	"github.com/billm/baaaht/orchestrator/pkg/ipc"
 	"github.com/billm/baaaht/orchestrator/pkg/session"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 	"github.com/billm/baaaht/orchestrator/proto"
@@ -21,6 +22,7 @@ import (
 type ServiceDependencies interface {
 	SessionManager() *session.Manager
 	EventBus() *events.Bus
+	IPCBroker() *ipc.Broker
 }
 
 // OrchestratorService implements the gRPC OrchestratorService interface
@@ -84,6 +86,28 @@ func (s *OrchestratorService) CreateSession(ctx context.Context, req *proto.Crea
 	}
 
 	s.logger.Info("Session created", "session_id", sessionID, "name", metadata.Name)
+
+	// Publish event to event bus
+	bus := s.deps.EventBus()
+	if bus != nil {
+		event := types.Event{
+			Type:      "session.created",
+			Source:    "orchestrator.grpc",
+			Timestamp: types.NewTimestamp(),
+			Metadata: types.EventMetadata{
+				SessionID: &sessionID,
+				Priority:  types.PriorityNormal,
+			},
+			Data: map[string]interface{}{
+				"session_id": string(sessionID),
+				"name":       metadata.Name,
+				"owner_id":   metadata.OwnerID,
+			},
+		}
+		if err := bus.Publish(ctx, event); err != nil {
+			s.logger.Warn("Failed to publish session created event", "error", err)
+		}
+	}
 
 	return &proto.CreateSessionResponse{
 		SessionId: string(sessionID),
@@ -211,6 +235,28 @@ func (s *OrchestratorService) CloseSession(ctx context.Context, req *proto.Close
 
 	s.logger.Info("Session closed", "session_id", sessionID, "reason", req.Reason)
 
+	// Publish event to event bus
+	bus := s.deps.EventBus()
+	if bus != nil {
+		event := types.Event{
+			Type:      "session.closed",
+			Source:    "orchestrator.grpc",
+			Timestamp: types.NewTimestamp(),
+			Metadata: types.EventMetadata{
+				SessionID: &sessionID,
+				Priority:  types.PriorityNormal,
+			},
+			Data: map[string]interface{}{
+				"session_id": string(sessionID),
+				"reason":     req.Reason,
+				"state":      string(sessionStateToProto(sess.State)),
+			},
+		}
+		if err := bus.Publish(ctx, event); err != nil {
+			s.logger.Warn("Failed to publish session closed event", "error", err)
+		}
+	}
+
 	return &proto.CloseSessionResponse{
 		SessionId: string(sessionID),
 		State:     sessionStateToProto(sess.State),
@@ -247,6 +293,28 @@ func (s *OrchestratorService) SendMessage(ctx context.Context, req *proto.SendMe
 	}
 
 	s.logger.Debug("Message sent", "session_id", sessionID, "message_id", message.ID)
+
+	// Publish event to event bus
+	bus := s.deps.EventBus()
+	if bus != nil {
+		event := types.Event{
+			Type:      "message.sent",
+			Source:    "orchestrator.grpc",
+			Timestamp: types.NewTimestamp(),
+			Metadata: types.EventMetadata{
+				SessionID: &sessionID,
+				Priority:  types.PriorityNormal,
+			},
+			Data: map[string]interface{}{
+				"message_id": string(message.ID),
+				"role":       string(messageRoleToProto(message.Role)),
+				"session_id": string(sessionID),
+			},
+		}
+		if err := bus.Publish(ctx, event); err != nil {
+			s.logger.Warn("Failed to publish message sent event", "error", err)
+		}
+	}
 
 	return &proto.SendMessageResponse{
 		MessageId: string(message.ID),

@@ -10,8 +10,16 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/billm/baaaht/orchestrator/internal/logger"
+	"github.com/billm/baaaht/orchestrator/pkg/events"
 	"github.com/billm/baaaht/orchestrator/proto"
 )
+
+// mockAgentServiceDeps implements AgentServiceDependencies for testing
+type mockAgentServiceDeps struct{}
+
+func (m *mockAgentServiceDeps) EventBus() *events.Bus {
+	return nil // Event bus is optional for tests
+}
 
 // Test helper to create a test service
 func newTestAgentService(t *testing.T) *AgentService {
@@ -19,7 +27,7 @@ func newTestAgentService(t *testing.T) *AgentService {
 	if err != nil {
 		t.Fatalf("Failed to create logger: %v", err)
 	}
-	return NewAgentService(log)
+	return NewAgentService(&mockAgentServiceDeps{}, log)
 }
 
 // =============================================================================

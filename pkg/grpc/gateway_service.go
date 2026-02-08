@@ -11,6 +11,7 @@ import (
 
 	"github.com/billm/baaaht/orchestrator/internal/logger"
 	"github.com/billm/baaaht/orchestrator/pkg/events"
+	"github.com/billm/baaaht/orchestrator/pkg/ipc"
 	"github.com/billm/baaaht/orchestrator/pkg/session"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 	"github.com/billm/baaaht/orchestrator/proto"
@@ -20,6 +21,7 @@ import (
 type GatewayServiceDependencies interface {
 	SessionManager() *session.Manager
 	EventBus() *events.Bus
+	IPCBroker() *ipc.Broker
 }
 
 // GatewaySessionInfo holds information about a gateway session
@@ -268,6 +270,29 @@ func (s *GatewayService) CreateGatewaySession(ctx context.Context, req *proto.Cr
 
 	s.logger.Info("Gateway session created", "session_id", gatewaySessionID, "name", req.Metadata.Name)
 
+	// Publish event to event bus
+	bus := s.deps.EventBus()
+	if bus != nil {
+		event := types.Event{
+			Type:      "gateway.session.created",
+			Source:    "gateway.grpc",
+			Timestamp: types.NewTimestamp(),
+			Metadata: types.EventMetadata{
+				SessionID: &orchSessionID,
+				Priority:  types.PriorityNormal,
+			},
+			Data: map[string]interface{}{
+				"gateway_session_id": gatewaySessionID,
+				"orch_session_id":     string(orchSessionID),
+				"name":                req.Metadata.Name,
+				"user_id":             req.Metadata.UserId,
+			},
+		}
+		if err := bus.Publish(ctx, event); err != nil {
+			s.logger.Warn("Failed to publish gateway session created event", "error", err)
+		}
+	}
+
 	// Get the orchestrator session
 	orchSession, err := mgr.Get(ctx, orchSessionID)
 	if err != nil {
@@ -468,6 +493,28 @@ func (s *GatewayService) CloseGatewaySession(ctx context.Context, req *proto.Clo
 	}
 
 	s.logger.Info("Gateway session closed", "session_id", req.SessionId, "reason", req.Reason)
+
+	// Publish event to event bus
+	bus := s.deps.EventBus()
+	if bus != nil {
+		event := types.Event{
+			Type:      "gateway.session.closed",
+			Source:    "gateway.grpc",
+			Timestamp: types.NewTimestamp(),
+			Metadata: types.EventMetadata{
+				SessionID: &orchSessionID,
+				Priority:  types.PriorityNormal,
+			},
+			Data: map[string]interface{}{
+				"gateway_session_id": req.SessionId,
+				"orch_session_id":     string(orchSessionID),
+				"reason":              req.Reason,
+			},
+		}
+		if err := bus.Publish(ctx, event); err != nil {
+			s.logger.Warn("Failed to publish gateway session closed event", "error", err)
+		}
+	}
 
 	return &proto.CloseGatewaySessionResponse{
 		SessionId: req.SessionId,

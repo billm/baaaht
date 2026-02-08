@@ -13,6 +13,7 @@ import (
 	"github.com/billm/baaaht/orchestrator/internal/config"
 	"github.com/billm/baaaht/orchestrator/internal/logger"
 	"github.com/billm/baaaht/orchestrator/pkg/events"
+	"github.com/billm/baaaht/orchestrator/pkg/ipc"
 	"github.com/billm/baaaht/orchestrator/pkg/session"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 	"github.com/billm/baaaht/orchestrator/proto"
@@ -22,6 +23,7 @@ import (
 type mockServer struct {
 	sessionMgr *session.Manager
 	eventBus   *events.Bus
+	ipcBroker  *ipc.Broker
 }
 
 func (m *mockServer) SessionManager() *session.Manager {
@@ -30,6 +32,10 @@ func (m *mockServer) SessionManager() *session.Manager {
 
 func (m *mockServer) EventBus() *events.Bus {
 	return m.eventBus
+}
+
+func (m *mockServer) IPCBroker() *ipc.Broker {
+	return m.ipcBroker // Can be nil for tests
 }
 
 // setupTestServer creates a test server with initialized dependencies
