@@ -342,12 +342,14 @@ func (c *Client) String() string {
 
 // Global client instance
 var (
-	globalClient *Client
-	globalOnce   sync.Once
+	globalClient    *Client
+	globalClientMu  sync.RWMutex
+	globalOnce      sync.Once
 
 	// Global runtime instance (new pattern using factory)
-	globalRuntime Runtime
-	globalRuntimeOnce sync.Once
+	globalRuntime      Runtime
+	globalRuntimeMu    sync.RWMutex
+	globalRuntimeOnce  sync.Once
 )
 
 // InitGlobal initializes the global Docker client with the specified configuration
@@ -368,22 +370,38 @@ func InitGlobal(cfg config.DockerConfig, log *logger.Logger) error {
 // Global returns the global Docker client instance
 // This function is kept for backward compatibility
 func Global() *Client {
-	if globalClient == nil {
-		// Initialize with default settings if not already initialized
-		cli, err := NewDefault(nil)
-		if err != nil {
-			// Return a closed client on error
-			return &Client{closed: true}
-		}
-		globalClient = cli
+	globalClientMu.RLock()
+	if globalClient != nil {
+		client := globalClient
+		globalClientMu.RUnlock()
+		return client
 	}
+	globalClientMu.RUnlock()
+
+	// Initialize with default settings if not already initialized
+	globalClientMu.Lock()
+	defer globalClientMu.Unlock()
+
+	// Double-check after acquiring write lock
+	if globalClient != nil {
+		return globalClient
+	}
+
+	cli, err := NewDefault(nil)
+	if err != nil {
+		// Return a closed client on error
+		return &Client{closed: true}
+	}
+	globalClient = cli
 	return globalClient
 }
 
 // SetGlobal sets the global Docker client instance
 func SetGlobal(c *Client) {
+	globalClientMu.Lock()
 	globalClient = c
 	globalOnce = sync.Once{}
+	globalClientMu.Unlock()
 }
 
 // InitGlobalRuntime initializes the global runtime using the runtime factory
@@ -421,23 +439,39 @@ func InitGlobalRuntimeDefault(ctx context.Context) error {
 // GlobalRuntime returns the global Runtime instance
 // If not yet initialized, it will create one with auto-detection
 func GlobalRuntime() Runtime {
-	if globalRuntime == nil {
-		// Initialize with auto-detection if not already initialized
-		ctx := context.Background()
-		rt, err := NewRuntimeDefault(ctx)
-		if err != nil {
-			// Return a mock runtime that always returns errors
-			return &errorRuntime{err: err}
-		}
-		globalRuntime = rt
+	globalRuntimeMu.RLock()
+	if globalRuntime != nil {
+		runtime := globalRuntime
+		globalRuntimeMu.RUnlock()
+		return runtime
 	}
+	globalRuntimeMu.RUnlock()
+
+	// Initialize with auto-detection if not already initialized
+	globalRuntimeMu.Lock()
+	defer globalRuntimeMu.Unlock()
+
+	// Double-check after acquiring write lock
+	if globalRuntime != nil {
+		return globalRuntime
+	}
+
+	ctx := context.Background()
+	rt, err := NewRuntimeDefault(ctx)
+	if err != nil {
+		// Return a mock runtime that always returns errors
+		return &errorRuntime{err: err}
+	}
+	globalRuntime = rt
 	return globalRuntime
 }
 
 // SetGlobalRuntime sets the global Runtime instance
 func SetGlobalRuntime(rt Runtime) {
+	globalRuntimeMu.Lock()
 	globalRuntime = rt
 	globalRuntimeOnce = sync.Once{}
+	globalRuntimeMu.Unlock()
 }
 
 // GlobalClient returns the global Docker client from the runtime
