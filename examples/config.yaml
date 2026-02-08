@@ -43,7 +43,7 @@ docker:
 
   # Docker API version to use
   # Default: 1.44
-  api_version: 1.44
+  api_version: "1.44"
 
   # Timeout for Docker API operations
   # Format: Go duration string (e.g., 30s, 5m, 1h)
