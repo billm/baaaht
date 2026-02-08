@@ -6,6 +6,16 @@ import (
 	"time"
 )
 
+// testConfigPath is an override for the default config path used in testing
+// If set, GetDefaultConfigPath will return this value instead of the standard path
+var testConfigPath string
+
+// SetTestConfigPath sets a custom config path for testing purposes
+// This should only be called from tests
+func SetTestConfigPath(path string) {
+	testConfigPath = path
+}
+
 // GetConfigDir returns the baaaht configuration directory
 // Uses ~/.config/baaaht/ on Unix systems
 func GetConfigDir() (string, error) {
@@ -18,6 +28,11 @@ func GetConfigDir() (string, error) {
 
 // GetDefaultConfigPath returns the default config file path
 func GetDefaultConfigPath() (string, error) {
+	// If test config path is set, use it
+	if testConfigPath != "" {
+		return testConfigPath, nil
+	}
+
 	configDir, err := GetConfigDir()
 	if err != nil {
 		return "", err

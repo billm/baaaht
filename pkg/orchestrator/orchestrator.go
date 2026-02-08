@@ -403,6 +403,37 @@ func (o *Orchestrator) Config() config.Config {
 	return o.cfg
 }
 
+// UpdateConfig updates the orchestrator's configuration
+// This is typically called when configuration is reloaded via SIGHUP
+func (o *Orchestrator) UpdateConfig(cfg config.Config) error {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+
+	if o.closed {
+		return types.NewError(types.ErrCodeUnavailable, "orchestrator is closed")
+	}
+
+	// Validate the new configuration
+	if err := cfg.Validate(); err != nil {
+		return types.WrapError(types.ErrCodeInvalidArgument, "invalid configuration", err)
+	}
+
+	oldCfg := o.cfg
+	o.cfg = cfg
+
+	o.logger.Info("Configuration updated",
+		"docker_host", cfg.Docker.Host,
+		"max_sessions", cfg.Session.MaxSessions,
+		"scheduler_workers", cfg.Scheduler.Workers)
+
+	// TODO: Notify subsystems of configuration changes
+	// For now, subsystems will use the new config on next operation
+	// that reads from o.cfg
+
+	_ = oldCfg // Avoid unused variable warning
+	return nil
+}
+
 // DockerClient returns the Docker client
 func (o *Orchestrator) DockerClient() *container.Client {
 	o.mu.RLock()
