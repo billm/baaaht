@@ -3,6 +3,7 @@ package integration
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -602,9 +603,12 @@ func TestRuntimeConcurrentAccess(t *testing.T) {
 		const numRuntimes = 3
 		runtimes := make([]container.Runtime, numRuntimes)
 		errors := make([]error, numRuntimes)
+		var wg sync.WaitGroup
 
 		for i := 0; i < numRuntimes; i++ {
+			wg.Add(1)
 			go func(idx int) {
+				defer wg.Done()
 				cfg := container.RuntimeConfig{
 					Type:    string(types.RuntimeTypeDocker),
 					Logger:  log,
@@ -615,8 +619,7 @@ func TestRuntimeConcurrentAccess(t *testing.T) {
 		}
 
 		// Wait for all goroutines to complete
-		// Give them time to finish
-		time.Sleep(5 * time.Second)
+		wg.Wait()
 
 		// Verify all runtimes were created successfully
 		for i := 0; i < numRuntimes; i++ {
