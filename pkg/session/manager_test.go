@@ -58,6 +58,60 @@ func TestNewDefaultManager(t *testing.T) {
 	}
 }
 
+// TestNewManagerWithPersistence tests creating a manager with persistence enabled
+func TestNewManagerWithPersistence(t *testing.T) {
+	log, err := logger.NewDefault()
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
+
+	cfg := config.DefaultSessionConfig()
+	cfg.PersistenceEnabled = true
+
+	manager, err := New(cfg, log)
+	if err != nil {
+		t.Fatalf("failed to create manager with persistence: %v", err)
+	}
+	defer manager.Close()
+
+	if manager == nil {
+		t.Fatal("manager is nil")
+	}
+
+	if manager.store == nil {
+		t.Fatal("expected store to be initialized when persistence is enabled")
+	}
+
+	if !manager.store.IsEnabled() {
+		t.Fatal("expected store to have persistence enabled")
+	}
+}
+
+// TestNewManagerWithoutPersistence tests creating a manager with persistence disabled
+func TestNewManagerWithoutPersistence(t *testing.T) {
+	log, err := logger.NewDefault()
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
+
+	cfg := config.DefaultSessionConfig()
+	cfg.PersistenceEnabled = false
+
+	manager, err := New(cfg, log)
+	if err != nil {
+		t.Fatalf("failed to create manager without persistence: %v", err)
+	}
+	defer manager.Close()
+
+	if manager == nil {
+		t.Fatal("manager is nil")
+	}
+
+	if manager.store != nil {
+		t.Fatal("expected store to be nil when persistence is disabled")
+	}
+}
+
 // TestManagerCreate tests creating a new session
 func TestManagerCreate(t *testing.T) {
 	manager := createTestManager()

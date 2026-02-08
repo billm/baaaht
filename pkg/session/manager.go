@@ -34,11 +34,21 @@ func New(cfg config.SessionConfig, log *logger.Logger) (*Manager, error) {
 		}
 	}
 
+	// Initialize persistence store if enabled
+	var store *Store
+	if cfg.PersistenceEnabled {
+		var err error
+		store, err = NewStore(cfg, log)
+		if err != nil {
+			return nil, types.WrapError(types.ErrCodeInternal, "failed to initialize persistence store", err)
+		}
+	}
+
 	m := &Manager{
 		sessions:        make(map[types.ID]*SessionWithStateMachine),
 		cfg:             cfg,
 		logger:          log.With("component", "session_manager"),
-		store:           nil, // Will be initialized when persistence is integrated
+		store:           store,
 		closed:          false,
 		cleanupInterval: time.Minute,
 		stopCleanup:     make(chan struct{}),
@@ -51,7 +61,8 @@ func New(cfg config.SessionConfig, log *logger.Logger) (*Manager, error) {
 	m.logger.Info("Session manager initialized",
 		"max_sessions", cfg.MaxSessions,
 		"idle_timeout", cfg.IdleTimeout.String(),
-		"timeout", cfg.Timeout.String())
+		"timeout", cfg.Timeout.String(),
+		"persistence_enabled", cfg.PersistenceEnabled)
 
 	return m, nil
 }
@@ -450,6 +461,13 @@ func (m *Manager) Close() error {
 			_ = sessionWithSM.ForceClose()
 			session.Status = types.StatusStopped
 			m.logger.Info("Session force closed during manager shutdown", "session_id", sessionID)
+		}
+	}
+
+	// Close persistence store if initialized
+	if m.store != nil {
+		if err := m.store.Close(); err != nil {
+			m.logger.Warn("Failed to close persistence store", "error", err)
 		}
 	}
 
