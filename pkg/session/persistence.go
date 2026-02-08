@@ -161,6 +161,84 @@ func (s *Store) unmarshalMessage(data []byte) (PersistedMessage, error) {
 	return msg, nil
 }
 
+// AppendMessage appends a message to the session file with atomic write
+func (s *Store) AppendMessage(ctx context.Context, ownerID, sessionID string, msg types.Message) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.closed {
+		return types.NewError(types.ErrCodeUnavailable, "persistence store is closed")
+	}
+
+	if !s.cfg.PersistenceEnabled {
+		return nil // Silently skip if persistence is disabled
+	}
+
+	// Ensure user directory exists
+	if err := s.ensureUserDir(ownerID); err != nil {
+		return err
+	}
+
+	sessionFile := s.getSessionFilePath(ownerID, sessionID)
+
+	// Convert message to persisted format
+	persistedMsg := toPersistedMessage(msg)
+
+	// Marshal message to JSONL
+	data, err := s.marshalMessage(persistedMsg)
+	if err != nil {
+		return err
+	}
+
+	// Atomic write: create temp file, copy existing content, append new message, then rename
+	tmpPath := sessionFile + ".tmp"
+
+	// Open temp file for writing
+	tmpFile, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, DefaultFilePermissions)
+	if err != nil {
+		return types.WrapError(types.ErrCodeInternal, "failed to create temp file", err)
+	}
+
+	// Copy existing content if file exists
+	if _, err := os.Stat(sessionFile); err == nil {
+		srcFile, err := os.Open(sessionFile)
+		if err != nil {
+			tmpFile.Close()
+			os.Remove(tmpPath)
+			return types.WrapError(types.ErrCodeInternal, "failed to open session file", err)
+		}
+
+		if _, err := tmpFile.ReadFrom(srcFile); err != nil {
+			srcFile.Close()
+			tmpFile.Close()
+			os.Remove(tmpPath)
+			return types.WrapError(types.ErrCodeInternal, "failed to copy existing content", err)
+		}
+		srcFile.Close()
+	}
+
+	// Append new message
+	if _, err := tmpFile.Write(data); err != nil {
+		tmpFile.Close()
+		os.Remove(tmpPath)
+		return types.WrapError(types.ErrCodeInternal, "failed to write message", err)
+	}
+
+	if err := tmpFile.Close(); err != nil {
+		os.Remove(tmpPath)
+		return types.WrapError(types.ErrCodeInternal, "failed to close temp file", err)
+	}
+
+	// Atomic rename
+	if err := os.Rename(tmpPath, sessionFile); err != nil {
+		os.Remove(tmpPath)
+		return types.WrapError(types.ErrCodeInternal, "failed to rename session file", err)
+	}
+
+	s.logger.Debug("Message appended to session", "owner_id", ownerID, "session_id", sessionID, "message_id", msg.ID.String())
+	return nil
+}
+
 // IsEnabled returns true if persistence is enabled
 func (s *Store) IsEnabled() bool {
 	return s.cfg.PersistenceEnabled

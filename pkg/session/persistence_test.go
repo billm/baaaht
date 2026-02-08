@@ -2,6 +2,8 @@ package session
 
 import (
 	"context"
+	"encoding/json"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -24,6 +26,7 @@ func createTestStore(t *testing.T) *Store {
 	tmpDir := t.TempDir()
 	cfg := config.DefaultSessionConfig()
 	cfg.StoragePath = filepath.Join(tmpDir, "sessions")
+	cfg.PersistenceEnabled = true
 
 	store, err := NewStore(cfg, log)
 	if err != nil {
@@ -298,6 +301,203 @@ func TestMarshalUnmarshalMessage(t *testing.T) {
 	}
 }
 
+// TestAppendMessage tests appending a message to a session file
+func TestAppendMessage(t *testing.T) {
+	store := createTestStore(t)
+	defer store.Close()
+
+	ctx := context.Background()
+	ownerID := "user123"
+	sessionID := "session456"
+
+	// Create a test message
+	msg := types.Message{
+		ID:        types.GenerateID(),
+		Timestamp: types.NewTimestamp(),
+		Role:      types.MessageRoleUser,
+		Content:   "Hello, world!",
+		Metadata: types.MessageMetadata{
+			Extra: map[string]string{
+				"key": "value",
+			},
+		},
+	}
+
+	// Append the message
+	if err := store.AppendMessage(ctx, ownerID, sessionID, msg); err != nil {
+		t.Fatalf("failed to append message: %v", err)
+	}
+
+	// Verify the file was created
+	sessionFile := store.getSessionFilePath(ownerID, sessionID)
+	if _, err := os.Stat(sessionFile); os.IsNotExist(err) {
+		t.Fatal("session file was not created")
+	}
+
+	// Read the file and verify content
+	data, err := os.ReadFile(sessionFile)
+	if err != nil {
+		t.Fatalf("failed to read session file: %v", err)
+	}
+
+	// Verify it's valid JSONL
+	lines := countLines(data)
+	if lines != 1 {
+		t.Errorf("expected 1 line in file, got %d", lines)
+	}
+
+	// Unmarshal and verify message
+	var persistedMsg PersistedMessage
+	if err := json.Unmarshal(data, &persistedMsg); err != nil {
+		t.Fatalf("failed to unmarshal message: %v", err)
+	}
+
+	if persistedMsg.ID != msg.ID.String() {
+		t.Errorf("expected ID %s, got %s", msg.ID.String(), persistedMsg.ID)
+	}
+
+	if persistedMsg.Content != msg.Content {
+		t.Errorf("expected content %s, got %s", msg.Content, persistedMsg.Content)
+	}
+
+	if persistedMsg.Role != msg.Role {
+		t.Errorf("expected role %s, got %s", msg.Role, persistedMsg.Role)
+	}
+}
+
+// TestAppendMessageMultiple tests appending multiple messages
+func TestAppendMessageMultiple(t *testing.T) {
+	store := createTestStore(t)
+	defer store.Close()
+
+	ctx := context.Background()
+	ownerID := "user123"
+	sessionID := "session456"
+
+	messages := []types.Message{
+		{
+			ID:        types.GenerateID(),
+			Timestamp: types.NewTimestamp(),
+			Role:      types.MessageRoleUser,
+			Content:   "First message",
+		},
+		{
+			ID:        types.GenerateID(),
+			Timestamp: types.NewTimestamp(),
+			Role:      types.MessageRoleAssistant,
+			Content:   "Second message",
+		},
+		{
+			ID:        types.GenerateID(),
+			Timestamp: types.NewTimestamp(),
+			Role:      types.MessageRoleUser,
+			Content:   "Third message",
+		},
+	}
+
+	// Append all messages
+	for i, msg := range messages {
+		if err := store.AppendMessage(ctx, ownerID, sessionID, msg); err != nil {
+			t.Fatalf("failed to append message %d: %v", i, err)
+		}
+	}
+
+	// Verify file has 3 lines
+	sessionFile := store.getSessionFilePath(ownerID, sessionID)
+	data, err := os.ReadFile(sessionFile)
+	if err != nil {
+		t.Fatalf("failed to read session file: %v", err)
+	}
+
+	lines := countLines(data)
+	if lines != 3 {
+		t.Errorf("expected 3 lines in file, got %d", lines)
+	}
+
+	// Verify each message
+	var persistedMsg PersistedMessage
+	lineNum := 0
+	for _, line := range splitLines(data) {
+		if len(line) == 0 {
+			continue
+		}
+		if err := json.Unmarshal(line, &persistedMsg); err != nil {
+			t.Fatalf("failed to unmarshal message at line %d: %v", lineNum, err)
+		}
+		if persistedMsg.Content != messages[lineNum].Content {
+			t.Errorf("line %d: expected content %s, got %s", lineNum, messages[lineNum].Content, persistedMsg.Content)
+		}
+		lineNum++
+	}
+}
+
+// TestAppendMessageWhenClosed tests appending when store is closed
+func TestAppendMessageWhenClosed(t *testing.T) {
+	store := createTestStore(t)
+
+	ctx := context.Background()
+	ownerID := "user123"
+	sessionID := "session456"
+
+	msg := types.Message{
+		ID:        types.GenerateID(),
+		Timestamp: types.NewTimestamp(),
+		Role:      types.MessageRoleUser,
+		Content:   "Hello",
+	}
+
+	// Close the store
+	if err := store.Close(); err != nil {
+		t.Fatalf("failed to close store: %v", err)
+	}
+
+	// Try to append - should fail
+	if err := store.AppendMessage(ctx, ownerID, sessionID, msg); err == nil {
+		t.Error("expected error when appending to closed store, got nil")
+	}
+}
+
+// TestAppendMessageWhenDisabled tests appending when persistence is disabled
+func TestAppendMessageWhenDisabled(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfg := config.DefaultSessionConfig()
+	cfg.StoragePath = filepath.Join(tmpDir, "sessions")
+	cfg.PersistenceEnabled = false
+
+	log, err := logger.NewDefault()
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
+
+	store, err := NewStore(cfg, log)
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	ctx := context.Background()
+	ownerID := "user123"
+	sessionID := "session456"
+
+	msg := types.Message{
+		ID:        types.GenerateID(),
+		Timestamp: types.NewTimestamp(),
+		Role:      types.MessageRoleUser,
+		Content:   "Hello",
+	}
+
+	// Append should succeed silently (no-op)
+	if err := store.AppendMessage(ctx, ownerID, sessionID, msg); err != nil {
+		t.Errorf("expected no error when persistence is disabled, got %v", err)
+	}
+
+	// Verify no file was created
+	sessionFile := store.getSessionFilePath(ownerID, sessionID)
+	if _, err := os.Stat(sessionFile); !os.IsNotExist(err) {
+		t.Error("session file should not exist when persistence is disabled")
+	}
+}
+
 // TestConstants tests the defined constants
 func TestConstants(t *testing.T) {
 	if DefaultFilePermissions != 0600 {
@@ -315,4 +515,31 @@ func TestConstants(t *testing.T) {
 	if LockFileExtension != ".lock" {
 		t.Errorf("expected LockFileExtension .lock, got %s", LockFileExtension)
 	}
+}
+
+// countLines counts the number of lines in data
+func countLines(data []byte) int {
+	count := 0
+	for _, b := range data {
+		if b == '\n' {
+			count++
+		}
+	}
+	return count
+}
+
+// splitLines splits data into lines
+func splitLines(data []byte) [][]byte {
+	lines := [][]byte{}
+	start := 0
+	for i, b := range data {
+		if b == '\n' {
+			lines = append(lines, data[start:i])
+			start = i + 1
+		}
+	}
+	if start < len(data) {
+		lines = append(lines, data[start:])
+	}
+	return lines
 }
