@@ -329,8 +329,8 @@ func (s *Store) LoadMessages(ctx context.Context, ownerID, sessionID string) ([]
 	lock, err := s.acquireReadLock(lockPath)
 	if err != nil {
 		// If lock acquisition fails, return error with context
-		return nil, types.WrapError(types.ErrCodeUnavailable, 
-			fmt.Sprintf("failed to acquire read lock for session file at %s after %s timeout", sessionFile, DefaultLockTimeout), err)
+		return nil, types.WrapError(types.ErrCodeUnavailable,
+			fmt.Sprintf("failed to acquire read lock for session file at %s", sessionFile), err)
 	}
 	defer s.releaseLock(lock)
 
