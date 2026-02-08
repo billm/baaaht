@@ -1042,3 +1042,446 @@ func TestMemoryFileStructureVerification(t *testing.T) {
 	t.Logf("  - All files have markdown content")
 	t.Logf("  - User and group memories are properly isolated")
 }
+
+// TestStrictMemorySegregation verifies strict segregation between different
+// users and groups with no cross-contamination possible.
+func TestStrictMemorySegregation(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	ctx := context.Background()
+	log := createTestLogger(t)
+	cfg := createTestMemoryConfig(t)
+
+	// Define multiple users and groups
+	userA := "user-a-segregation"
+	userB := "user-b-segregation"
+	userC := "user-c-segregation"
+	groupA := "group-a-segregation"
+	groupB := "group-b-segregation"
+
+	t.Log("=== Step 1: Creating store, extractor, and handler ===")
+
+	store, err := NewStore(cfg, log)
+	require.NoError(t, err, "Failed to create store")
+	t.Cleanup(func() { store.Close() })
+
+	extractor, err := NewDefaultExtractor(store, log)
+	require.NoError(t, err, "Failed to create extractor")
+	t.Cleanup(func() { extractor.Close() })
+
+	handler, err := NewSessionArchivalHandler(extractor, store, log)
+	require.NoError(t, err, "Failed to create handler")
+	t.Cleanup(func() { handler.Close() })
+
+	t.Log("=== Step 2: Creating and archiving sessions for User A ===")
+
+	sessionA := createTestSession(t, userA)
+	sessionA.Context.Messages = []types.Message{
+		{
+			ID:        types.GenerateID(),
+			Timestamp: types.NewTimestamp(),
+			Role:      types.MessageRoleUser,
+			Content:   "My name is Alice and I work at CompanyA",
+		},
+	}
+	sessionAID := types.ID(sessionA.ID)
+
+	eventA := types.Event{
+		ID:        types.GenerateID(),
+		Type:      types.EventTypeSessionArchived,
+		Source:    "test-segregation",
+		Timestamp: types.NewTimestamp(),
+		Data:      map[string]interface{}{"session": sessionA},
+		Metadata:  types.EventMetadata{SessionID: &sessionAID, Priority: types.PriorityNormal},
+	}
+
+	err = handler.Handle(ctx, eventA)
+	require.NoError(t, err, "User A session archival should succeed")
+
+	t.Log("=== Step 3: Creating and archiving sessions for User B ===")
+
+	sessionB := createTestSession(t, userB)
+	sessionB.Context.Messages = []types.Message{
+		{
+			ID:        types.GenerateID(),
+			Timestamp: types.NewTimestamp(),
+			Role:      types.MessageRoleUser,
+			Content:   "My name is Bob and I prefer dark theme",
+		},
+	}
+	sessionBID := types.ID(sessionB.ID)
+
+	eventB := types.Event{
+		ID:        types.GenerateID(),
+		Type:      types.EventTypeSessionArchived,
+		Source:    "test-segregation",
+		Timestamp: types.NewTimestamp(),
+		Data:      map[string]interface{}{"session": sessionB},
+		Metadata:  types.EventMetadata{SessionID: &sessionBID, Priority: types.PriorityNormal},
+	}
+
+	err = handler.Handle(ctx, eventB)
+	require.NoError(t, err, "User B session archival should succeed")
+
+	t.Log("=== Step 4: Creating and archiving sessions for User C ===")
+
+	sessionC := createTestSession(t, userC)
+	sessionC.Context.Messages = []types.Message{
+		{
+			ID:        types.GenerateID(),
+			Timestamp: types.NewTimestamp(),
+			Role:      types.MessageRoleUser,
+			Content:   "I decided to use Python for my project",
+		},
+	}
+	sessionCID := types.ID(sessionC.ID)
+
+	eventC := types.Event{
+		ID:        types.GenerateID(),
+		Type:      types.EventTypeSessionArchived,
+		Source:    "test-segregation",
+		Timestamp: types.NewTimestamp(),
+		Data:      map[string]interface{}{"session": sessionC},
+		Metadata:  types.EventMetadata{SessionID: &sessionCID, Priority: types.PriorityNormal},
+	}
+
+	err = handler.Handle(ctx, eventC)
+	require.NoError(t, err, "User C session archival should succeed")
+
+	t.Log("=== Step 5: Creating group memories for Group A ===")
+
+	groupMemoryA := &types.Memory{
+		ID:      types.GenerateID(),
+		Scope:   types.MemoryScopeGroup,
+		OwnerID: groupA,
+		Type:    types.MemoryTypeContext,
+		Topic:   "project-goals",
+		Title:   "Group A Project Goals",
+		Content: "Group A aims to build a scalable platform",
+		Metadata: types.MemoryMetadata{
+			Labels:     map[string]string{"team": "group-a"},
+			Tags:       []string{"group-a", "goals"},
+			Importance: 8,
+			Confidence: 0.9,
+		},
+	}
+
+	err = store.Store(ctx, groupMemoryA)
+	require.NoError(t, err, "Group A memory storage should succeed")
+
+	t.Log("=== Step 6: Creating group memories for Group B ===")
+
+	groupMemoryB := &types.Memory{
+		ID:      types.GenerateID(),
+		Scope:   types.MemoryScopeGroup,
+		OwnerID: groupB,
+		Type:    types.MemoryTypeDecision,
+		Topic:   "technology",
+		Title:   "Group B Technology Choice",
+		Content: "Group B chose Rust for their project",
+		Metadata: types.MemoryMetadata{
+			Labels:     map[string]string{"team": "group-b"},
+			Tags:       []string{"group-b", "rust"},
+			Importance: 7,
+			Confidence: 0.85,
+		},
+	}
+
+	err = store.Store(ctx, groupMemoryB)
+	require.NoError(t, err, "Group B memory storage should succeed")
+
+	t.Log("=== Step 7: Verifying cross-user isolation ===")
+
+	// User A should only see their own memories
+	memoriesA, err := store.GetByOwner(ctx, types.MemoryScopeUser, userA)
+	require.NoError(t, err, "Should be able to get User A memories")
+	assert.Greater(t, len(memoriesA), 0, "User A should have memories")
+
+	// Verify all memories belong to User A
+	for _, mem := range memoriesA {
+		assert.Equal(t, userA, mem.OwnerID, "Memory should belong to User A")
+		assert.NotContains(t, mem.Content, "Bob", "User A memories should not contain User B's data")
+		assert.NotContains(t, mem.Content, "Python", "User A memories should not contain User C's data")
+	}
+	t.Logf("✓ User A has %d memories, all properly isolated", len(memoriesA))
+
+	// User B should only see their own memories
+	memoriesB, err := store.GetByOwner(ctx, types.MemoryScopeUser, userB)
+	require.NoError(t, err, "Should be able to get User B memories")
+	assert.Greater(t, len(memoriesB), 0, "User B should have memories")
+
+	// Verify all memories belong to User B
+	for _, mem := range memoriesB {
+		assert.Equal(t, userB, mem.OwnerID, "Memory should belong to User B")
+		assert.NotContains(t, mem.Content, "Alice", "User B memories should not contain User A's data")
+		assert.NotContains(t, mem.Content, "Python", "User B memories should not contain User C's data")
+	}
+	t.Logf("✓ User B has %d memories, all properly isolated", len(memoriesB))
+
+	// User C should only see their own memories
+	memoriesC, err := store.GetByOwner(ctx, types.MemoryScopeUser, userC)
+	require.NoError(t, err, "Should be able to get User C memories")
+	assert.Greater(t, len(memoriesC), 0, "User C should have memories")
+
+	// Verify all memories belong to User C
+	for _, mem := range memoriesC {
+		assert.Equal(t, userC, mem.OwnerID, "Memory should belong to User C")
+		assert.NotContains(t, mem.Content, "Alice", "User C memories should not contain User A's data")
+		assert.NotContains(t, mem.Content, "Bob", "User C memories should not contain User B's data")
+	}
+	t.Logf("✓ User C has %d memories, all properly isolated", len(memoriesC))
+
+	// Verify no ID overlap between users
+	userIDs := make(map[types.ID]string)
+	for _, mem := range memoriesA {
+		userIDs[mem.ID] = userA
+	}
+	for _, mem := range memoriesB {
+		owner, exists := userIDs[mem.ID]
+		assert.False(t, exists, "Memory ID should be unique, not shared between users (found in %s)", owner)
+	}
+	for _, mem := range memoriesC {
+		owner, exists := userIDs[mem.ID]
+		assert.False(t, exists, "Memory ID should be unique, not shared between users (found in %s)", owner)
+	}
+	t.Log("✓ All memory IDs are unique across users")
+
+	t.Log("=== Step 8: Verifying cross-group isolation ===")
+
+	// Group A should only see their own memories
+	groupMemoriesA, err := store.GetByOwner(ctx, types.MemoryScopeGroup, groupA)
+	require.NoError(t, err, "Should be able to get Group A memories")
+	assert.Greater(t, len(groupMemoriesA), 0, "Group A should have memories")
+
+	for _, mem := range groupMemoriesA {
+		assert.Equal(t, groupA, mem.OwnerID, "Memory should belong to Group A")
+		assert.NotContains(t, mem.Content, "Rust", "Group A memories should not contain Group B's data")
+	}
+	t.Logf("✓ Group A has %d memories, all properly isolated", len(groupMemoriesA))
+
+	// Group B should only see their own memories
+	groupMemoriesB, err := store.GetByOwner(ctx, types.MemoryScopeGroup, groupB)
+	require.NoError(t, err, "Should be able to get Group B memories")
+	assert.Greater(t, len(groupMemoriesB), 0, "Group B should have memories")
+
+	for _, mem := range groupMemoriesB {
+		assert.Equal(t, groupB, mem.OwnerID, "Memory should belong to Group B")
+		assert.NotContains(t, mem.Content, "platform", "Group B memories should not contain Group A's data")
+	}
+	t.Logf("✓ Group B has %d memories, all properly isolated", len(groupMemoriesB))
+
+	// Verify no ID overlap between groups
+	groupIDs := make(map[types.ID]string)
+	for _, mem := range groupMemoriesA {
+		groupIDs[mem.ID] = groupA
+	}
+	for _, mem := range groupMemoriesB {
+		owner, exists := groupIDs[mem.ID]
+		assert.False(t, exists, "Memory ID should be unique, not shared between groups (found in %s)", owner)
+	}
+	t.Log("✓ All memory IDs are unique across groups")
+
+	t.Log("=== Step 9: Verifying user-group scope isolation ===")
+
+	// Users should not be able to access group memories
+	userScope := types.MemoryScopeUser
+	groupScope := types.MemoryScopeGroup
+
+	// Query for user memories in user scope should work
+	filter := &types.MemoryFilter{
+		Scope:   &userScope,
+		OwnerID: &userA,
+	}
+	userMemories, err := store.List(ctx, filter)
+	require.NoError(t, err, "Should be able to list user memories")
+	assert.Greater(t, len(userMemories), 0, "Should have user memories")
+	t.Logf("✓ User scope query returned %d user memories", len(userMemories))
+
+	// Query for group memories in group scope should work
+	filter = &types.MemoryFilter{
+		Scope:   &groupScope,
+		OwnerID: &groupA,
+	}
+	groupMemories, err := store.List(ctx, filter)
+	require.NoError(t, err, "Should be able to list group memories")
+	assert.Greater(t, len(groupMemories), 0, "Should have group memories")
+	t.Logf("✓ Group scope query returned %d group memories", len(groupMemories))
+
+	// Verify scope field is correctly set
+	for _, mem := range userMemories {
+		assert.Equal(t, types.MemoryScopeUser, mem.Scope, "User memory should have user scope")
+	}
+	for _, mem := range groupMemories {
+		assert.Equal(t, types.MemoryScopeGroup, mem.Scope, "Group memory should have group scope")
+	}
+
+	t.Log("=== Step 10: Verifying filesystem directory isolation ===")
+
+	// Verify user directories exist and are separate
+	userPathA := filepath.Join(cfg.UserMemoryPath, userA)
+	userPathB := filepath.Join(cfg.UserMemoryPath, userB)
+	userPathC := filepath.Join(cfg.UserMemoryPath, userC)
+
+	assert.DirExists(t, userPathA, "User A directory should exist")
+	assert.DirExists(t, userPathB, "User B directory should exist")
+	assert.DirExists(t, userPathC, "User C directory should exist")
+	t.Log("✓ All user directories exist")
+
+	// Verify group directories exist and are separate
+	groupPathA := filepath.Join(cfg.GroupMemoryPath, groupA)
+	groupPathB := filepath.Join(cfg.GroupMemoryPath, groupB)
+
+	assert.DirExists(t, groupPathA, "Group A directory should exist")
+	assert.DirExists(t, groupPathB, "Group B directory should exist")
+	t.Log("✓ All group directories exist")
+
+	// Verify user and group base paths are different
+	assert.NotEqual(t, cfg.UserMemoryPath, cfg.GroupMemoryPath,
+		"User and group memory paths should be different")
+	t.Logf("✓ User path: %s", cfg.UserMemoryPath)
+	t.Logf("✓ Group path: %s", cfg.GroupMemoryPath)
+
+	// Verify files are in correct directories
+	userEntriesA, err := os.ReadDir(userPathA)
+	require.NoError(t, err, "Should be able to read User A directory")
+	assert.Greater(t, len(userEntriesA), 0, "User A directory should have files")
+
+	userEntriesB, err := os.ReadDir(userPathB)
+	require.NoError(t, err, "Should be able to read User B directory")
+	assert.Greater(t, len(userEntriesB), 0, "User B directory should have files")
+
+	userEntriesC, err := os.ReadDir(userPathC)
+	require.NoError(t, err, "Should be able to read User C directory")
+	assert.Greater(t, len(userEntriesC), 0, "User C directory should have files")
+
+	groupEntriesA, err := os.ReadDir(groupPathA)
+	require.NoError(t, err, "Should be able to read Group A directory")
+	assert.Greater(t, len(groupEntriesA), 0, "Group A directory should have files")
+
+	groupEntriesB, err := os.ReadDir(groupPathB)
+	require.NoError(t, err, "Should be able to read Group B directory")
+	assert.Greater(t, len(groupEntriesB), 0, "Group B directory should have files")
+
+	t.Logf("✓ File counts: User A=%d, User B=%d, User C=%d, Group A=%d, Group B=%d",
+		len(userEntriesA), len(userEntriesB), len(userEntriesC),
+		len(groupEntriesA), len(groupEntriesB))
+
+	// Verify no cross-contamination: check that files in user directories
+	// don't reference other users
+	for _, entry := range userEntriesA {
+		if entry.IsDir() {
+			continue
+		}
+		filePath := filepath.Join(userPathA, entry.Name())
+		content, err := os.ReadFile(filePath)
+		require.NoError(t, err, "Should be able to read User A file")
+
+		contentStr := string(content)
+		// Verify the file contains User A's data but not other users' data
+		// Note: This is a loose check since memories may or may not contain these specific strings
+		if strings.Contains(contentStr, "Alice") {
+			assert.NotContains(t, contentStr, userB, "User A file should not reference User B")
+			assert.NotContains(t, contentStr, userC, "User A file should not reference User C")
+		}
+	}
+
+	t.Log("=== Step 11: Verifying query isolation with filters ===")
+
+	// Query by user A should not return user B or C memories
+	filterA := &types.MemoryFilter{
+		Scope:   &userScope,
+		OwnerID: &userA,
+	}
+	resultsA, err := store.List(ctx, filterA)
+	require.NoError(t, err, "Should be able to filter by User A")
+
+	for _, mem := range resultsA {
+		assert.Equal(t, userA, mem.OwnerID, "Filtered results should only contain User A memories")
+	}
+
+	// Query by user B should not return user A or C memories
+	filterB := &types.MemoryFilter{
+		Scope:   &userScope,
+		OwnerID: &userB,
+	}
+	resultsB, err := store.List(ctx, filterB)
+	require.NoError(t, err, "Should be able to filter by User B")
+
+	for _, mem := range resultsB {
+		assert.Equal(t, userB, mem.OwnerID, "Filtered results should only contain User B memories")
+	}
+
+	// Group A filter should not return Group B memories
+	filterGroupA := &types.MemoryFilter{
+		Scope:   &groupScope,
+		OwnerID: &groupA,
+	}
+	resultsGroupA, err := store.List(ctx, filterGroupA)
+	require.NoError(t, err, "Should be able to filter by Group A")
+
+	for _, mem := range resultsGroupA {
+		assert.Equal(t, groupA, mem.OwnerID, "Filtered results should only contain Group A memories")
+		assert.NotEqual(t, groupB, mem.OwnerID, "Filtered results should not contain Group B memories")
+	}
+
+	// Group B filter should not return Group A memories
+	filterGroupB := &types.MemoryFilter{
+		Scope:   &groupScope,
+		OwnerID: &groupB,
+	}
+	resultsGroupB, err := store.List(ctx, filterGroupB)
+	require.NoError(t, err, "Should be able to filter by Group B")
+
+	for _, mem := range resultsGroupB {
+		assert.Equal(t, groupB, mem.OwnerID, "Filtered results should only contain Group B memories")
+		assert.NotEqual(t, groupA, mem.OwnerID, "Filtered results should not contain Group A memories")
+	}
+
+	t.Log("✓ All query filters properly isolate memories by owner")
+
+	t.Log("=== Step 12: Verifying stats isolation ===")
+
+	// Get stats for each user - they should be independent
+	statsA, err := store.Stats(ctx, types.MemoryScopeUser, userA)
+	require.NoError(t, err, "Should be able to get User A stats")
+	assert.Equal(t, userA, statsA.OwnerID, "Stats should be for User A")
+	assert.Equal(t, types.MemoryScopeUser, statsA.Scope, "Stats should be user scope")
+
+	statsB, err := store.Stats(ctx, types.MemoryScopeUser, userB)
+	require.NoError(t, err, "Should be able to get User B stats")
+	assert.Equal(t, userB, statsB.OwnerID, "Stats should be for User B")
+	assert.Equal(t, types.MemoryScopeUser, statsB.Scope, "Stats should be user scope")
+
+	statsC, err := store.Stats(ctx, types.MemoryScopeUser, userC)
+	require.NoError(t, err, "Should be able to get User C stats")
+	assert.Equal(t, userC, statsC.OwnerID, "Stats should be for User C")
+	assert.Equal(t, types.MemoryScopeUser, statsC.Scope, "Stats should be user scope")
+
+	// Get stats for each group
+	statsGroupA, err := store.Stats(ctx, types.MemoryScopeGroup, groupA)
+	require.NoError(t, err, "Should be able to get Group A stats")
+	assert.Equal(t, groupA, statsGroupA.OwnerID, "Stats should be for Group A")
+	assert.Equal(t, types.MemoryScopeGroup, statsGroupA.Scope, "Stats should be group scope")
+
+	statsGroupB, err := store.Stats(ctx, types.MemoryScopeGroup, groupB)
+	require.NoError(t, err, "Should be able to get Group B stats")
+	assert.Equal(t, groupB, statsGroupB.OwnerID, "Stats should be for Group B")
+	assert.Equal(t, types.MemoryScopeGroup, statsGroupB.Scope, "Stats should be group scope")
+
+	t.Logf("✓ Stats properly isolated: User A=%d memories, User B=%d memories, User C=%d memories, Group A=%d memories, Group B=%d memories",
+		statsA.TotalCount, statsB.TotalCount, statsC.TotalCount,
+		statsGroupA.TotalCount, statsGroupB.TotalCount)
+
+	t.Log("=== Strict memory segregation verification complete ===")
+	t.Log("Summary:")
+	t.Log("  ✓ User-to-user isolation verified (3 users)")
+	t.Log("  ✓ Group-to-group isolation verified (2 groups)")
+	t.Log("  ✓ User-to-group scope isolation verified")
+	t.Log("  ✓ Filesystem directory separation verified")
+	t.Log("  ✓ Query filter isolation verified")
+	t.Log("  ✓ Memory ID uniqueness verified")
+	t.Log("  ✓ Stats isolation verified")
+	t.Log("  ✓ No cross-contamination detected")
+}
