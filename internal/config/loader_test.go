@@ -418,3 +418,361 @@ orchestrator:
 		}
 	}
 }
+
+func TestEnvVarInterpolation(t *testing.T) {
+	// Set test environment variables
+	tests := []struct {
+		name    string
+		setEnv  map[string]string
+		content string
+		verify  func(t *testing.T, cfg *Config)
+	}{
+		{
+			name: "simple environment variable interpolation",
+			setEnv: map[string]string{
+				"DOCKER_HOST":      "unix:///var/run/docker.sock",
+				"API_SERVER_HOST":  "0.0.0.0",
+				"LOG_LEVEL":        "debug",
+				"CREDENTIALS_PATH": "/tmp/credentials",
+			},
+			content: `
+docker:
+  host: ${DOCKER_HOST}
+  api_version: "1.44"
+  timeout: 30s
+  max_retries: 3
+  retry_delay: 1s
+api_server:
+  host: ${API_SERVER_HOST}
+  port: 8080
+  read_timeout: 30s
+  write_timeout: 30s
+  idle_timeout: 60s
+logging:
+  level: ${LOG_LEVEL}
+  format: json
+  output: stdout
+session:
+  timeout: 30m
+  max_sessions: 100
+  cleanup_interval: 5m
+  idle_timeout: 10m
+event:
+  queue_size: 10000
+  workers: 4
+  buffer_size: 1000
+  timeout: 5s
+  retry_attempts: 3
+  retry_delay: 100ms
+ipc:
+  socket_path: /tmp/baaaht-ipc.sock
+  buffer_size: 65536
+  timeout: 30s
+  max_connections: 100
+scheduler:
+  queue_size: 1000
+  workers: 2
+  max_retries: 3
+  retry_delay: 1s
+  task_timeout: 5m
+  queue_timeout: 1m
+credentials:
+  store_path: ${CREDENTIALS_PATH}
+  encryption_enabled: true
+  key_rotation_days: 90
+  max_credential_age: 365
+policy:
+  config_path: /tmp/policies.yaml
+  enforcement_mode: strict
+  default_quota_cpu: 1000000000
+  default_quota_memory: 1073741824
+metrics:
+  enabled: false
+  port: 9090
+  path: /metrics
+tracing:
+  enabled: false
+  sample_rate: 0.1
+  exporter: stdout
+orchestrator:
+  shutdown_timeout: 30s
+  health_check_interval: 30s
+  graceful_stop_timeout: 10s
+`,
+			verify: func(t *testing.T, cfg *Config) {
+				if cfg.Docker.Host != "unix:///var/run/docker.sock" {
+					t.Errorf("Docker.Host = %v, want unix:///var/run/docker.sock", cfg.Docker.Host)
+				}
+				if cfg.APIServer.Host != "0.0.0.0" {
+					t.Errorf("APIServer.Host = %v, want 0.0.0.0", cfg.APIServer.Host)
+				}
+				if cfg.Logging.Level != "debug" {
+					t.Errorf("Logging.Level = %v, want debug", cfg.Logging.Level)
+				}
+				if cfg.Credentials.StorePath != "/tmp/credentials" {
+					t.Errorf("Credentials.StorePath = %v, want /tmp/credentials", cfg.Credentials.StorePath)
+				}
+			},
+		},
+		{
+			name: "environment variable with default value",
+			setEnv: map[string]string{
+				"DOCKER_HOST": "unix:///var/run/docker.sock",
+				// LOG_LEVEL not set, should use default
+			},
+			content: `
+docker:
+  host: ${DOCKER_HOST}
+  api_version: "1.44"
+  timeout: 30s
+  max_retries: 3
+  retry_delay: 1s
+api_server:
+  host: 0.0.0.0
+  port: 8080
+  read_timeout: 30s
+  write_timeout: 30s
+  idle_timeout: 60s
+logging:
+  level: ${LOG_LEVEL:-info}
+  format: json
+  output: stdout
+session:
+  timeout: 30m
+  max_sessions: 100
+  cleanup_interval: 5m
+  idle_timeout: 10m
+event:
+  queue_size: 10000
+  workers: 4
+  buffer_size: 1000
+  timeout: 5s
+  retry_attempts: 3
+  retry_delay: 100ms
+ipc:
+  socket_path: /tmp/baaaht-ipc.sock
+  buffer_size: 65536
+  timeout: 30s
+  max_connections: 100
+scheduler:
+  queue_size: 1000
+  workers: 2
+  max_retries: 3
+  retry_delay: 1s
+  task_timeout: 5m
+  queue_timeout: 1m
+credentials:
+  store_path: /tmp/credentials
+  encryption_enabled: true
+  key_rotation_days: 90
+  max_credential_age: 365
+policy:
+  config_path: /tmp/policies.yaml
+  enforcement_mode: strict
+  default_quota_cpu: 1000000000
+  default_quota_memory: 1073741824
+metrics:
+  enabled: false
+  port: 9090
+  path: /metrics
+tracing:
+  enabled: false
+  sample_rate: 0.1
+  exporter: stdout
+orchestrator:
+  shutdown_timeout: 30s
+  health_check_interval: 30s
+  graceful_stop_timeout: 10s
+`,
+			verify: func(t *testing.T, cfg *Config) {
+				if cfg.Docker.Host != "unix:///var/run/docker.sock" {
+					t.Errorf("Docker.Host = %v, want unix:///var/run/docker.sock", cfg.Docker.Host)
+				}
+				if cfg.Logging.Level != "info" {
+					t.Errorf("Logging.Level = %v, want info (default)", cfg.Logging.Level)
+				}
+			},
+		},
+		{
+			name: "multiple env vars in single value",
+			setEnv: map[string]string{
+				"PROTOCOL": "unix",
+				"SOCK_PATH": "/var/run/docker.sock",
+			},
+			content: `
+docker:
+  host: ${PROTOCOL}://${SOCK_PATH}
+  api_version: "1.44"
+  timeout: 30s
+  max_retries: 3
+  retry_delay: 1s
+api_server:
+  host: 0.0.0.0
+  port: 8080
+  read_timeout: 30s
+  write_timeout: 30s
+  idle_timeout: 60s
+logging:
+  level: info
+  format: json
+  output: stdout
+session:
+  timeout: 30m
+  max_sessions: 100
+  cleanup_interval: 5m
+  idle_timeout: 10m
+event:
+  queue_size: 10000
+  workers: 4
+  buffer_size: 1000
+  timeout: 5s
+  retry_attempts: 3
+  retry_delay: 100ms
+ipc:
+  socket_path: /tmp/baaaht-ipc.sock
+  buffer_size: 65536
+  timeout: 30s
+  max_connections: 100
+scheduler:
+  queue_size: 1000
+  workers: 2
+  max_retries: 3
+  retry_delay: 1s
+  task_timeout: 5m
+  queue_timeout: 1m
+credentials:
+  store_path: /tmp/credentials
+  encryption_enabled: true
+  key_rotation_days: 90
+  max_credential_age: 365
+policy:
+  config_path: /tmp/policies.yaml
+  enforcement_mode: strict
+  default_quota_cpu: 1000000000
+  default_quota_memory: 1073741824
+metrics:
+  enabled: false
+  port: 9090
+  path: /metrics
+tracing:
+  enabled: false
+  sample_rate: 0.1
+  exporter: stdout
+orchestrator:
+  shutdown_timeout: 30s
+  health_check_interval: 30s
+  graceful_stop_timeout: 10s
+`,
+			verify: func(t *testing.T, cfg *Config) {
+				if cfg.Docker.Host != "unix:///var/run/docker.sock" {
+					t.Errorf("Docker.Host = %v, want unix:///var/run/docker.sock", cfg.Docker.Host)
+				}
+			},
+		},
+		{
+			name: "env var overrides default value",
+			setEnv: map[string]string{
+				"LOG_LEVEL": "warn",
+			},
+			content: `
+docker:
+  host: unix:///var/run/docker.sock
+  api_version: "1.44"
+  timeout: 30s
+  max_retries: 3
+  retry_delay: 1s
+api_server:
+  host: 0.0.0.0
+  port: 8080
+  read_timeout: 30s
+  write_timeout: 30s
+  idle_timeout: 60s
+logging:
+  level: ${LOG_LEVEL:-info}
+  format: json
+  output: stdout
+session:
+  timeout: 30m
+  max_sessions: 100
+  cleanup_interval: 5m
+  idle_timeout: 10m
+event:
+  queue_size: 10000
+  workers: 4
+  buffer_size: 1000
+  timeout: 5s
+  retry_attempts: 3
+  retry_delay: 100ms
+ipc:
+  socket_path: /tmp/baaaht-ipc.sock
+  buffer_size: 65536
+  timeout: 30s
+  max_connections: 100
+scheduler:
+  queue_size: 1000
+  workers: 2
+  max_retries: 3
+  retry_delay: 1s
+  task_timeout: 5m
+  queue_timeout: 1m
+credentials:
+  store_path: /tmp/credentials
+  encryption_enabled: true
+  key_rotation_days: 90
+  max_credential_age: 365
+policy:
+  config_path: /tmp/policies.yaml
+  enforcement_mode: strict
+  default_quota_cpu: 1000000000
+  default_quota_memory: 1073741824
+metrics:
+  enabled: false
+  port: 9090
+  path: /metrics
+tracing:
+  enabled: false
+  sample_rate: 0.1
+  exporter: stdout
+orchestrator:
+  shutdown_timeout: 30s
+  health_check_interval: 30s
+  graceful_stop_timeout: 10s
+`,
+			verify: func(t *testing.T, cfg *Config) {
+				if cfg.Logging.Level != "warn" {
+					t.Errorf("Logging.Level = %v, want warn (env var override)", cfg.Logging.Level)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			configPath := filepath.Join(tmpDir, tt.name+".yaml")
+
+			// Set environment variables for this test
+			for k, v := range tt.setEnv {
+				os.Setenv(k, v)
+			}
+			defer func() {
+				// Clean up environment variables
+				for k := range tt.setEnv {
+					os.Unsetenv(k)
+				}
+			}()
+
+			// Write the config file
+			if err := os.WriteFile(configPath, []byte(tt.content), 0644); err != nil {
+				t.Fatalf("failed to create test config file: %v", err)
+			}
+
+			cfg, err := LoadFromFile(configPath)
+			if err != nil {
+				t.Fatalf("LoadFromFile() error = %v", err)
+			}
+
+			tt.verify(t, cfg)
+		})
+	}
+}
