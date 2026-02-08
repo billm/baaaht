@@ -44,6 +44,22 @@ func NewMonitor(client *Client, log *logger.Logger) (*Monitor, error) {
 	}, nil
 }
 
+// NewMonitorFromRuntime creates a new container monitor from a Runtime interface
+// This allows the Monitor to work with any runtime implementation
+func NewMonitorFromRuntime(runtime Runtime, log *logger.Logger) (*Monitor, error) {
+	if runtime == nil {
+		return nil, types.NewError(types.ErrCodeInvalidArgument, "runtime cannot be nil")
+	}
+
+	// Extract the underlying client from the runtime
+	client, ok := runtime.Client().(*Client)
+	if !ok {
+		return nil, types.NewError(types.ErrCodeInvalidArgument, "runtime does not provide a Docker client")
+	}
+
+	return NewMonitor(client, log)
+}
+
 // HealthCheckResult represents the result of a container health check
 type HealthCheckResult struct {
 	ContainerID string
