@@ -14,6 +14,10 @@ import (
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 )
 
+const (
+	bytesPerKB = 1024 // Bytes per kilobyte for size conversions
+)
+
 // Store manages memory storage with filesystem persistence
 type Store struct {
 	memories map[types.ID]*types.Memory
@@ -435,7 +439,7 @@ func (s *Store) saveToDisk(mem *types.Memory) error {
 
 	// Enforce MaxFileSize configuration (convert KB to bytes)
 	if s.cfg.MaxFileSize > 0 {
-		maxBytes := s.cfg.MaxFileSize * 1024
+		maxBytes := s.cfg.MaxFileSize * bytesPerKB
 		if len(content) > maxBytes {
 			return types.NewError(types.ErrCodeInvalidArgument, 
 				fmt.Sprintf("memory content exceeds maximum file size of %d KB", s.cfg.MaxFileSize))
