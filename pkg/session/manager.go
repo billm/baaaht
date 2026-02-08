@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -680,4 +681,131 @@ func (m *Manager) String() string {
 // GetManagerConfig returns the manager's configuration
 func (m *Manager) GetManagerConfig() config.SessionConfig {
 	return m.cfg
+}
+
+// RestoreSessions restores all sessions from the persistence store
+// This should be called during orchestrator initialization to recover
+// sessions that were active before a restart
+func (m *Manager) RestoreSessions(ctx context.Context) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.closed {
+		return types.NewError(types.ErrCodeUnavailable, "session manager is closed")
+	}
+
+	// If persistence is not enabled or store is not initialized, nothing to restore
+	if m.store == nil || !m.store.IsEnabled() {
+		m.logger.Info("Session persistence not enabled, skipping restore")
+		return nil
+	}
+
+	m.logger.Info("Starting session restoration from persistence store")
+
+	// Get the storage path to scan for user directories
+	cfg := m.store.Config()
+	storagePath := cfg.StoragePath
+
+	// Read all user directories from the storage path
+	userDirs, err := os.ReadDir(storagePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			m.logger.Info("Storage path does not exist, no sessions to restore", "path", storagePath)
+			return nil
+		}
+		return types.WrapError(types.ErrCodeInternal, "failed to read storage directory", err)
+	}
+
+	totalRestored := 0
+	totalErrors := 0
+
+	// Restore sessions for each user
+	for _, userDirEntry := range userDirs {
+		if !userDirEntry.IsDir() {
+			continue
+		}
+
+		ownerID := userDirEntry.Name()
+
+		// List all sessions for this user
+		sessionIDs, err := m.store.ListSessions(ctx, ownerID)
+		if err != nil {
+			m.logger.Error("Failed to list sessions for user during restore",
+				"owner_id", ownerID,
+				"error", err)
+			totalErrors++
+			continue
+		}
+
+		// Restore each session
+		for _, sessionIDStr := range sessionIDs {
+			sessionID := types.ID(sessionIDStr)
+
+			// Skip if session already exists in memory
+			if _, exists := m.sessions[sessionID]; exists {
+				m.logger.Debug("Session already in memory, skipping restore",
+					"session_id", sessionID,
+					"owner_id", ownerID)
+				continue
+			}
+
+			// Load messages from persistence
+			messages, err := m.store.LoadMessages(ctx, ownerID, sessionIDStr)
+			if err != nil {
+				m.logger.Error("Failed to load messages for session during restore",
+					"session_id", sessionID,
+					"owner_id", ownerID,
+					"error", err)
+				totalErrors++
+				continue
+			}
+
+			// Create a restored session with minimal metadata
+			now := types.NewTimestampFromTime(time.Now())
+
+			// Try to determine creation time from first message if available
+			var createdAt types.Timestamp
+			if len(messages) > 0 && !messages[0].Timestamp.IsZero() {
+				createdAt = messages[0].Timestamp
+			} else {
+				createdAt = now
+			}
+
+			session := &types.Session{
+				ID:        sessionID,
+				State:     types.SessionStateIdle, // Restored sessions start in idle state
+				Status:    types.StatusRunning,
+				CreatedAt: createdAt,
+				UpdatedAt: now,
+				Metadata: types.SessionMetadata{
+					OwnerID: ownerID,
+					Name:    fmt.Sprintf("restored-%s", sessionIDStr[:8]),
+				},
+				Context: types.SessionContext{
+					Config:   types.SessionConfig{}, // Use default config
+					Messages: messages,
+				},
+				Containers: []types.ID{},
+			}
+
+			// Wrap with state machine
+			sessionWithSM := NewSessionWithStateMachine(session)
+
+			// Store session
+			m.sessions[sessionID] = sessionWithSM
+
+			totalRestored++
+
+			m.logger.Info("Session restored from persistence",
+				"session_id", sessionID,
+				"owner_id", ownerID,
+				"messages", len(messages))
+		}
+	}
+
+	m.logger.Info("Session restoration completed",
+		"total_restored", totalRestored,
+		"total_errors", totalErrors)
+
+	return nil
 }

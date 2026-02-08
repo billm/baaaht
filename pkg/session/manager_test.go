@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -1173,5 +1174,283 @@ func TestManagerCloseWithPersistence(t *testing.T) {
 	err = manager.Close()
 	if err != nil {
 		t.Errorf("close should be idempotent, got error: %v", err)
+	}
+}
+
+// TestRestoreSessions tests the RestoreSessions method
+func TestRestoreSessions(t *testing.T) {
+	log, err := logger.NewDefault()
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
+
+	// Create a temporary directory for this test
+	tmpDir, err := os.MkdirTemp("", "session-restore-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create a manager with persistence enabled
+	cfg := config.DefaultSessionConfig()
+	cfg.PersistenceEnabled = true
+	cfg.StoragePath = tmpDir
+
+	manager, err := New(cfg, log)
+	if err != nil {
+		t.Fatalf("failed to create manager with persistence: %v", err)
+	}
+
+	ctx := context.Background()
+
+	// Create a session with messages
+	metadata := types.SessionMetadata{
+		Name:    "test-session",
+		OwnerID: "user-123",
+	}
+	sessionCfg := types.SessionConfig{}
+
+	sessionID, err := manager.Create(ctx, metadata, sessionCfg)
+	if err != nil {
+		t.Fatalf("failed to create session: %v", err)
+	}
+
+	// Add messages to the session
+	message := types.Message{
+		Role:    types.MessageRoleUser,
+		Content: "Hello, world!",
+	}
+	err = manager.AddMessage(ctx, sessionID, message)
+	if err != nil {
+		t.Fatalf("failed to add message: %v", err)
+	}
+
+	// Close the first manager
+	err = manager.Close()
+	if err != nil {
+		t.Fatalf("failed to close manager: %v", err)
+	}
+
+	// Create a new manager (simulating restart)
+	manager2, err := New(cfg, log)
+	if err != nil {
+		t.Fatalf("failed to create second manager: %v", err)
+	}
+	defer manager2.Close()
+
+	// Restore sessions from persistence
+	err = manager2.RestoreSessions(ctx)
+	if err != nil {
+		t.Fatalf("failed to restore sessions: %v", err)
+	}
+
+	// Verify session was restored
+	restoredSession, err := manager2.Get(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("failed to get restored session: %v", err)
+	}
+
+	if restoredSession.ID != sessionID {
+		t.Errorf("restored session ID: got %s, want %s", restoredSession.ID, sessionID)
+	}
+
+	if restoredSession.Metadata.OwnerID != "user-123" {
+		t.Errorf("restored session owner ID: got %s, want user-123", restoredSession.Metadata.OwnerID)
+	}
+
+	if len(restoredSession.Context.Messages) != 1 {
+		t.Fatalf("restored session message count: got %d, want 1", len(restoredSession.Context.Messages))
+	}
+
+	if restoredSession.Context.Messages[0].Content != "Hello, world!" {
+		t.Errorf("restored message content: got %s, want 'Hello, world!'", restoredSession.Context.Messages[0].Content)
+	}
+
+	// Restored sessions should be in idle state
+	if restoredSession.State != types.SessionStateIdle {
+		t.Errorf("restored session state: got %s, want %s", restoredSession.State, types.SessionStateIdle)
+	}
+}
+
+// TestRestoreSessionsWithoutPersistence tests restoring when persistence is disabled
+func TestRestoreSessionsWithoutPersistence(t *testing.T) {
+	log, err := logger.NewDefault()
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
+
+	// Create a manager with persistence disabled
+	cfg := config.DefaultSessionConfig()
+	cfg.PersistenceEnabled = false
+
+	manager, err := New(cfg, log)
+	if err != nil {
+		t.Fatalf("failed to create manager: %v", err)
+	}
+	defer manager.Close()
+
+	ctx := context.Background()
+
+	// RestoreSessions should succeed but do nothing
+	err = manager.RestoreSessions(ctx)
+	if err != nil {
+		t.Errorf("RestoreSessions should succeed when persistence is disabled, got error: %v", err)
+	}
+}
+
+// TestRestoreSessionsEmptyStore tests restoring from an empty persistence store
+func TestRestoreSessionsEmptyStore(t *testing.T) {
+	log, err := logger.NewDefault()
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
+
+	// Create a temporary directory for this test
+	tmpDir, err := os.MkdirTemp("", "session-restore-empty-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create a manager with persistence enabled
+	cfg := config.DefaultSessionConfig()
+	cfg.PersistenceEnabled = true
+	cfg.StoragePath = tmpDir
+
+	manager, err := New(cfg, log)
+	if err != nil {
+		t.Fatalf("failed to create manager: %v", err)
+	}
+	defer manager.Close()
+
+	ctx := context.Background()
+
+	// RestoreSessions should succeed even with no persisted sessions
+	err = manager.RestoreSessions(ctx)
+	if err != nil {
+		t.Errorf("RestoreSessions should succeed with empty store, got error: %v", err)
+	}
+
+	// Verify no sessions exist
+	sessions, err := manager.List(ctx, nil)
+	if err != nil {
+		t.Fatalf("failed to list sessions: %v", err)
+	}
+
+	if len(sessions) != 0 {
+		t.Errorf("expected 0 sessions after restore from empty store, got %d", len(sessions))
+	}
+}
+
+// TestRestoreSessionsMultipleUsers tests restoring sessions from multiple users
+func TestRestoreSessionsMultipleUsers(t *testing.T) {
+	log, err := logger.NewDefault()
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
+
+	// Create a temporary directory for this test
+	tmpDir, err := os.MkdirTemp("", "session-restore-multi-user-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create a manager with persistence enabled
+	cfg := config.DefaultSessionConfig()
+	cfg.PersistenceEnabled = true
+	cfg.StoragePath = tmpDir
+
+	manager, err := New(cfg, log)
+	if err != nil {
+		t.Fatalf("failed to create manager: %v", err)
+	}
+
+	ctx := context.Background()
+
+	// Create sessions for multiple users
+	user1SessionID, _ := manager.Create(ctx, types.SessionMetadata{Name: "user1-session", OwnerID: "user-1"}, types.SessionConfig{})
+	user2SessionID, _ := manager.Create(ctx, types.SessionMetadata{Name: "user2-session", OwnerID: "user-2"}, types.SessionConfig{})
+
+	// Add messages to both sessions
+	_ = manager.AddMessage(ctx, user1SessionID, types.Message{Role: types.MessageRoleUser, Content: "User 1 message"})
+	_ = manager.AddMessage(ctx, user2SessionID, types.Message{Role: types.MessageRoleUser, Content: "User 2 message"})
+
+	// Close the first manager
+	_ = manager.Close()
+
+	// Create a new manager and restore
+	manager2, err := New(cfg, log)
+	if err != nil {
+		t.Fatalf("failed to create second manager: %v", err)
+	}
+	defer manager2.Close()
+
+	err = manager2.RestoreSessions(ctx)
+	if err != nil {
+		t.Fatalf("failed to restore sessions: %v", err)
+	}
+
+	// Verify both sessions were restored
+	sessions, err := manager2.List(ctx, nil)
+	if err != nil {
+		t.Fatalf("failed to list sessions: %v", err)
+	}
+
+	if len(sessions) != 2 {
+		t.Errorf("expected 2 sessions after restore, got %d", len(sessions))
+	}
+}
+
+// TestRestoreSessionsDoesNotDuplicate tests that restore doesn't duplicate existing sessions
+func TestRestoreSessionsDoesNotDuplicate(t *testing.T) {
+	log, err := logger.NewDefault()
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
+
+	// Create a temporary directory for this test
+	tmpDir, err := os.MkdirTemp("", "session-restore-no-dup-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create a manager with persistence enabled
+	cfg := config.DefaultSessionConfig()
+	cfg.PersistenceEnabled = true
+	cfg.StoragePath = tmpDir
+
+	manager, err := New(cfg, log)
+	if err != nil {
+		t.Fatalf("failed to create manager: %v", err)
+	}
+
+	ctx := context.Background()
+
+	// Create a session
+	metadata := types.SessionMetadata{
+		Name:    "test-session",
+		OwnerID: "user-123",
+	}
+	sessionID, _ := manager.Create(ctx, metadata, types.SessionConfig{})
+
+	// Add a message
+	_ = manager.AddMessage(ctx, sessionID, types.Message{Role: types.MessageRoleUser, Content: "Hello"})
+
+	// Restore sessions while session is already in memory
+	err = manager.RestoreSessions(ctx)
+	if err != nil {
+		t.Fatalf("failed to restore sessions: %v", err)
+	}
+
+	// Verify session is not duplicated
+	sessions, err := manager.List(ctx, nil)
+	if err != nil {
+		t.Fatalf("failed to list sessions: %v", err)
+	}
+
+	if len(sessions) != 1 {
+		t.Errorf("expected 1 session after restore (not duplicated), got %d", len(sessions))
 	}
 }
