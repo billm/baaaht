@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -402,6 +403,62 @@ func splitLines(data []byte) [][]byte {
 		lines = append(lines, data[start:])
 	}
 	return lines
+}
+
+// ListSessions lists all session IDs for a given owner
+func (s *Store) ListSessions(ctx context.Context, ownerID string) ([]string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if s.closed {
+		return nil, types.NewError(types.ErrCodeUnavailable, "persistence store is closed")
+	}
+
+	if !s.cfg.PersistenceEnabled {
+		// Return empty list if persistence is disabled
+		return []string{}, nil
+	}
+
+	userDir := filepath.Join(s.cfg.StoragePath, ownerID)
+
+	// Check if user directory exists
+	info, err := os.Stat(userDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// No directory for this user, return empty list
+			return []string{}, nil
+		}
+		return nil, types.WrapError(types.ErrCodeInternal, "failed to access user directory", err)
+	}
+
+	if !info.IsDir() {
+		return nil, types.NewError(types.ErrCodeInternal, "user path is not a directory")
+	}
+
+	// Read directory entries
+	entries, err := os.ReadDir(userDir)
+	if err != nil {
+		return nil, types.WrapError(types.ErrCodeInternal, "failed to read user directory", err)
+	}
+
+	// Collect session IDs from .jsonl files
+	sessions := []string{}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		name := entry.Name()
+		// Check if file has .jsonl extension
+		if filepath.Ext(name) == SessionFileExtension {
+			// Remove extension to get session ID
+			sessionID := strings.TrimSuffix(name, SessionFileExtension)
+			sessions = append(sessions, sessionID)
+		}
+	}
+
+	s.logger.Debug("Listed sessions for owner", "owner_id", ownerID, "count", len(sessions))
+	return sessions, nil
 }
 
 // IsEnabled returns true if persistence is enabled

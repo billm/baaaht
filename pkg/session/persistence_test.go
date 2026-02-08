@@ -868,3 +868,237 @@ func countLines(data []byte) int {
 	}
 	return count
 }
+
+// TestListSessions tests listing sessions for a user
+func TestListSessions(t *testing.T) {
+	store := createTestStore(t)
+	defer store.Close()
+
+	ctx := context.Background()
+	ownerID := "user123"
+
+	// Initially, no sessions should exist
+	sessions, err := store.ListSessions(ctx, ownerID)
+	if err != nil {
+		t.Fatalf("failed to list sessions: %v", err)
+	}
+
+	if len(sessions) != 0 {
+		t.Errorf("expected 0 sessions, got %d", len(sessions))
+	}
+
+	// Create some sessions by appending messages
+	sessionIDs := []string{"session1", "session2", "session3"}
+	for _, sessionID := range sessionIDs {
+		msg := types.Message{
+			ID:        types.GenerateID(),
+			Timestamp: types.NewTimestamp(),
+			Role:      types.MessageRoleUser,
+			Content:   fmt.Sprintf("Message for %s", sessionID),
+		}
+		if err := store.AppendMessage(ctx, ownerID, sessionID, msg); err != nil {
+			t.Fatalf("failed to append message for session %s: %v", sessionID, err)
+		}
+	}
+
+	// List sessions again
+	sessions, err = store.ListSessions(ctx, ownerID)
+	if err != nil {
+		t.Fatalf("failed to list sessions: %v", err)
+	}
+
+	if len(sessions) != len(sessionIDs) {
+		t.Errorf("expected %d sessions, got %d", len(sessionIDs), len(sessions))
+	}
+
+	// Verify all session IDs are present
+	sessionMap := make(map[string]bool)
+	for _, sessionID := range sessions {
+		sessionMap[sessionID] = true
+	}
+	for _, expectedID := range sessionIDs {
+		if !sessionMap[expectedID] {
+			t.Errorf("expected session ID %s not found in list", expectedID)
+		}
+	}
+}
+
+// TestListSessionsWhenClosed tests listing when store is closed
+func TestListSessionsWhenClosed(t *testing.T) {
+	store := createTestStore(t)
+
+	ctx := context.Background()
+	ownerID := "user123"
+
+	// Close the store
+	if err := store.Close(); err != nil {
+		t.Fatalf("failed to close store: %v", err)
+	}
+
+	// Try to list - should fail
+	if _, err := store.ListSessions(ctx, ownerID); err == nil {
+		t.Error("expected error when listing from closed store, got nil")
+	}
+}
+
+// TestListSessionsWhenDisabled tests listing when persistence is disabled
+func TestListSessionsWhenDisabled(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfg := config.DefaultSessionConfig()
+	cfg.StoragePath = filepath.Join(tmpDir, "sessions")
+	cfg.PersistenceEnabled = false
+
+	log, err := logger.NewDefault()
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
+
+	store, err := NewStore(cfg, log)
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	ctx := context.Background()
+	ownerID := "user123"
+
+	// List should return empty list when persistence is disabled
+	sessions, err := store.ListSessions(ctx, ownerID)
+	if err != nil {
+		t.Errorf("expected no error when persistence is disabled, got %v", err)
+	}
+
+	if len(sessions) != 0 {
+		t.Errorf("expected 0 sessions when persistence is disabled, got %d", len(sessions))
+	}
+}
+
+// TestListSessionsMultipleUsers tests listing sessions for multiple users
+func TestListSessionsMultipleUsers(t *testing.T) {
+	store := createTestStore(t)
+	defer store.Close()
+
+	ctx := context.Background()
+
+	// Create sessions for multiple users
+	users := map[string][]string{
+		"user1": {"session1", "session2"},
+		"user2": {"session3", "session4", "session5"},
+		"user3": {"session6"},
+	}
+
+	for ownerID, sessionIDs := range users {
+		for _, sessionID := range sessionIDs {
+			msg := types.Message{
+				ID:        types.GenerateID(),
+				Timestamp: types.NewTimestamp(),
+				Role:      types.MessageRoleUser,
+				Content:   fmt.Sprintf("Message for %s/%s", ownerID, sessionID),
+			}
+			if err := store.AppendMessage(ctx, ownerID, sessionID, msg); err != nil {
+				t.Fatalf("failed to append message for %s/%s: %v", ownerID, sessionID, err)
+			}
+		}
+	}
+
+	// Verify each user's sessions
+	for ownerID, expectedSessions := range users {
+		sessions, err := store.ListSessions(ctx, ownerID)
+		if err != nil {
+			t.Fatalf("failed to list sessions for %s: %v", ownerID, err)
+		}
+
+		if len(sessions) != len(expectedSessions) {
+			t.Errorf("user %s: expected %d sessions, got %d", ownerID, len(expectedSessions), len(sessions))
+		}
+
+		// Verify session IDs
+		sessionMap := make(map[string]bool)
+		for _, sessionID := range sessions {
+			sessionMap[sessionID] = true
+		}
+		for _, expectedID := range expectedSessions {
+			if !sessionMap[expectedID] {
+				t.Errorf("user %s: expected session ID %s not found", ownerID, expectedID)
+			}
+		}
+	}
+
+	// Verify non-existent user returns empty list
+	sessions, err := store.ListSessions(ctx, "nonexistent")
+	if err != nil {
+		t.Fatalf("failed to list sessions for nonexistent user: %v", err)
+	}
+
+	if len(sessions) != 0 {
+		t.Errorf("expected 0 sessions for nonexistent user, got %d", len(sessions))
+	}
+}
+
+// TestListSessionsWithNonSessionFiles tests listing sessions when directory contains non-session files
+func TestListSessionsWithNonSessionFiles(t *testing.T) {
+	store := createTestStore(t)
+	defer store.Close()
+
+	ctx := context.Background()
+	ownerID := "user123"
+
+	// Create some session files
+	sessionIDs := []string{"session1", "session2"}
+	for _, sessionID := range sessionIDs {
+		msg := types.Message{
+			ID:        types.GenerateID(),
+			Timestamp: types.NewTimestamp(),
+			Role:      types.MessageRoleUser,
+			Content:   "Test message",
+		}
+		if err := store.AppendMessage(ctx, ownerID, sessionID, msg); err != nil {
+			t.Fatalf("failed to append message: %v", err)
+		}
+	}
+
+	// Create some non-session files in the user directory
+	userDir := filepath.Join(store.cfg.StoragePath, ownerID)
+	otherFiles := []string{"README.txt", "data.json", ".hidden", "backup"}
+	for _, filename := range otherFiles {
+		path := filepath.Join(userDir, filename)
+		if err := os.WriteFile(path, []byte("test content"), DefaultFilePermissions); err != nil {
+			t.Fatalf("failed to create test file %s: %v", filename, err)
+		}
+	}
+
+	// List sessions - should only return .jsonl files
+	sessions, err := store.ListSessions(ctx, ownerID)
+	if err != nil {
+		t.Fatalf("failed to list sessions: %v", err)
+	}
+
+	if len(sessions) != len(sessionIDs) {
+		t.Errorf("expected %d sessions, got %d", len(sessionIDs), len(sessions))
+	}
+
+	// Verify only session files are returned
+	for _, sessionID := range sessions {
+		if sessionID != "session1" && sessionID != "session2" {
+			t.Errorf("unexpected session ID returned: %s", sessionID)
+		}
+	}
+}
+
+// TestListSessionsEmptyOwnerID tests listing sessions with empty owner ID
+func TestListSessionsEmptyOwnerID(t *testing.T) {
+	store := createTestStore(t)
+	defer store.Close()
+
+	ctx := context.Background()
+
+	// Empty owner ID should work (returns sessions for empty string owner)
+	sessions, err := store.ListSessions(ctx, "")
+	if err != nil {
+		t.Fatalf("failed to list sessions with empty owner ID: %v", err)
+	}
+
+	if len(sessions) != 0 {
+		t.Errorf("expected 0 sessions for empty owner ID, got %d", len(sessions))
+	}
+}
