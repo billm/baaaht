@@ -319,7 +319,7 @@
             "command": "go test -v ./tests/integration -run TestRuntime",
             "expected": "Integration tests pass"
           },
-          "status": "pending"
+          "status": "completed"
         }
       ]
     },
