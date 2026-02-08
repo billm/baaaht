@@ -2,7 +2,6 @@ package container
 
 import (
 	"context"
-	"os"
 	"runtime"
 	"time"
 
@@ -45,16 +44,8 @@ func DetectRuntime(ctx context.Context) types.RuntimeType {
 
 // IsDockerAvailable checks if the Docker daemon is running and accessible
 func IsDockerAvailable(ctx context.Context) bool {
-	// Check if DOCKER_HOST is set or if the default socket exists
-	host := os.Getenv("DOCKER_HOST")
-	if host == "" {
-		// Check for default Unix socket
-		if _, err := os.Stat("/var/run/docker.sock"); os.IsNotExist(err) {
-			return false
-		}
-	}
-
-	// Verify the daemon is actually responding
+	// Attempt to create a Docker client and ping it directly
+	// This works with all transport types (unix socket, tcp, named pipes, etc.)
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		return false

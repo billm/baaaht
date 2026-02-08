@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"runtime"
 	"sync"
 	"time"
 
@@ -109,14 +110,18 @@ func (c *AppleClient) Info(ctx context.Context) (*types.DockerInfo, error) {
 	c.mu.RUnlock()
 
 	// Stub implementation - return basic macOS system info
+	// Use actual system values where possible to avoid misleading callers
+	var memStats runtime.MemStats
+	runtime.ReadMemStats(&memStats)
+	
 	return &types.DockerInfo{
 		ServerVersion:     "1.0.0",
 		APIVersion:        "1.0.0",
 		OS:                "darwin",
 		KernelVersion:     "Darwin Kernel",
-		Architecture:      "arm64",
-		NCPU:              8,
-		Memory:            8589934592, // 8GB
+		Architecture:      runtime.GOARCH,
+		NCPU:              runtime.NumCPU(),
+		Memory:            memStats.Sys, // Total memory obtained from the OS
 		ContainerCount:    0,
 		RunningContainers: 0,
 	}, nil
