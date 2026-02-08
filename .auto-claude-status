@@ -1,25 +1,25 @@
 {
   "active": true,
-  "spec": "001-orchestration-core",
-  "state": "complete",
+  "spec": "002-container-runtime-integration",
+  "state": "building",
   "subtasks": {
-    "completed": 21,
-    "total": 21,
-    "in_progress": 0,
+    "completed": 3,
+    "total": 16,
+    "in_progress": 1,
     "failed": 0
   },
   "phase": {
-    "current": "Integration & Main Orchestration",
+    "current": "Refactor Docker to Runtime Interface",
     "id": null,
-    "total": 5
+    "total": 3
   },
   "workers": {
     "active": 0,
     "max": 1
   },
   "session": {
-    "number": 22,
-    "started_at": "2026-02-07T10:46:27.063531"
+    "number": 5,
+    "started_at": "2026-02-07T19:36:58.932136"
   },
-  "last_update": "2026-02-07T12:19:09.484911"
+  "last_update": "2026-02-07T19:48:47.840802"
 }
