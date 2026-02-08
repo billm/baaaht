@@ -693,3 +693,137 @@ func TestClientDefaultConfig(t *testing.T) {
 
 	t.Log("Default configuration applied correctly")
 }
+
+func TestClientReconnect(t *testing.T) {
+	// Create a temporary socket path
+	tmpDir := t.TempDir()
+	socketPath := filepath.Join(tmpDir, "test.sock")
+
+	// Create logger
+	logCfg := config.DefaultLoggingConfig()
+	logCfg.Level = "error"
+	log, err := logger.New(logCfg)
+	if err != nil {
+		t.Fatalf("Failed to create logger: %v", err)
+	}
+
+	// Create and start server
+	serverCfg := ServerConfig{
+		Path:              socketPath,
+		ConnectionTimeout: 5 * time.Second,
+		ShutdownTimeout:   5 * time.Second,
+	}
+	server, err := NewServer(socketPath, serverCfg, log)
+	if err != nil {
+		t.Fatalf("Failed to create server: %v", err)
+	}
+
+	healthServer := &testHealthServer{}
+	grpc_health_v1.RegisterHealthServer(server.GetServer(), healthServer)
+
+	ctx := context.Background()
+	if err := server.Start(ctx); err != nil {
+		t.Fatalf("Failed to start server: %v", err)
+	}
+
+	// Give server time to start
+	time.Sleep(100 * time.Millisecond)
+
+	// Create client with reconnect enabled
+	clientCfg := ClientConfig{
+		DialTimeout:        5 * time.Second,
+		ReconnectInterval:  200 * time.Millisecond,
+		ReconnectMaxAttempts: 0, // Infinite retries
+	}
+	client, err := NewClient(socketPath, clientCfg, log)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+	defer client.Close()
+
+	// Dial the server
+	if err := client.Dial(ctx); err != nil {
+		t.Fatalf("Failed to dial: %v", err)
+	}
+
+	// Verify client is connected
+	if !client.IsConnected() {
+		t.Error("Expected IsConnected to be true after Dial")
+	}
+
+	initialConnectTime := client.Stats().ConnectTime
+
+	// Stop the server to simulate connection failure
+	t.Log("Stopping server to simulate connection failure")
+	server.Stop()
+
+	// Trigger a health check to detect the failure faster
+	// This will cause the connection to enter TransientFailure state
+	_, _ = client.HealthCheck(ctx)
+
+	// Wait for the state change to be detected
+	time.Sleep(500 * time.Millisecond)
+
+	// Verify client detected the failure (connection state should be TransientFailure or Shutdown)
+	state := client.GetState()
+	if state != connectivity.TransientFailure && state != connectivity.Shutdown {
+		t.Logf("Warning: Expected connection state TransientFailure or Shutdown, got %v", state)
+	}
+
+	// Restart the server
+	t.Log("Restarting server")
+	server2, err := NewServer(socketPath, serverCfg, log)
+	if err != nil {
+		t.Fatalf("Failed to recreate server: %v", err)
+	}
+	grpc_health_v1.RegisterHealthServer(server2.GetServer(), healthServer)
+
+	if err := server2.Start(ctx); err != nil {
+		t.Fatalf("Failed to restart server: %v", err)
+	}
+	defer server2.Stop()
+
+	// Give time for server to start and reconnection to happen
+	time.Sleep(100 * time.Millisecond)
+
+	// Wait for client to reconnect (with timeout)
+	reconnectTimeout := time.After(5 * time.Second)
+	reconnected := false
+	for {
+		select {
+		case <-reconnectTimeout:
+			t.Error("Timeout waiting for client to reconnect")
+			goto done
+		default:
+			if client.IsConnected() && client.GetState() == connectivity.Ready {
+				reconnected = true
+				goto done
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
+done:
+
+	// Verify client reconnected
+	if !reconnected {
+		t.Error("Expected client to automatically reconnect after server restart")
+	}
+
+	// Verify connect time changed
+	newConnectTime := client.Stats().ConnectTime
+	if !newConnectTime.After(initialConnectTime) {
+		t.Errorf("Expected connect time to change after reconnection. Initial: %v, New: %v",
+			initialConnectTime, newConnectTime)
+	}
+
+	// Verify we can make RPC calls again
+	resp, err := client.HealthCheck(ctx)
+	if err != nil {
+		t.Errorf("Health check after reconnection failed: %v", err)
+	}
+	if resp.Status != grpc_health_v1.HealthCheckResponse_SERVING {
+		t.Errorf("Expected SERVING status after reconnection, got %v", resp.Status)
+	}
+
+	t.Log("Client successfully reconnected after server restart")
+}

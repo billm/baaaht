@@ -29,22 +29,24 @@ const (
 
 // Client represents a gRPC client with Unix Domain Socket transport
 type Client struct {
-	path               string
-	conn               *grpc.ClientConn
-	logger             *logger.Logger
-	mu                 sync.RWMutex
-	closed             bool
-	dialTimeout        time.Duration
-	rpcTimeout         time.Duration
-	maxRecvMsgSize     int
-	maxSendMsgSize     int
-	dialOptions        []grpc.DialOption
-	stats              ClientStats
-	reconnectInterval  time.Duration
-	reconnectMaxAttempts int
-	reconnectAttempts  int
-	reconnectCancel    context.CancelFunc
-	reconnectWg        sync.WaitGroup
+	path                  string
+	conn                  *grpc.ClientConn
+	logger                *logger.Logger
+	mu                    sync.RWMutex
+	closed                bool
+	dialTimeout           time.Duration
+	rpcTimeout            time.Duration
+	maxRecvMsgSize        int
+	maxSendMsgSize        int
+	dialOptions           []grpc.DialOption
+	stats                 ClientStats
+	reconnectInterval     time.Duration
+	reconnectMaxAttempts  int
+	reconnectAttempts     int
+	reconnectCtx          context.Context
+	reconnectCancel       context.CancelFunc
+	reconnectCloseCh      chan struct{}
+	reconnectWg           sync.WaitGroup
 }
 
 // ClientStats represents client statistics
@@ -109,17 +111,18 @@ func NewClient(path string, cfg ClientConfig, log *logger.Logger) (*Client, erro
 	}
 
 	c := &Client{
-		path:                path,
-		logger:              log.With("component", "grpc_client", "socket_path", path),
-		closed:              false,
-		dialTimeout:         dialTimeout,
-		rpcTimeout:          rpcTimeout,
-		maxRecvMsgSize:      maxRecvSize,
-		maxSendMsgSize:      maxSendSize,
-		dialOptions:         cfg.DialOptions,
-		reconnectInterval:   reconnectInterval,
+		path:                 path,
+		logger:               log.With("component", "grpc_client", "socket_path", path),
+		closed:               false,
+		dialTimeout:          dialTimeout,
+		rpcTimeout:           rpcTimeout,
+		maxRecvMsgSize:       maxRecvSize,
+		maxSendMsgSize:       maxSendSize,
+		dialOptions:          cfg.DialOptions,
+		reconnectInterval:    reconnectInterval,
 		reconnectMaxAttempts: reconnectMaxAttempts,
-		stats:               ClientStats{},
+		reconnectCloseCh:     make(chan struct{}),
+		stats:                ClientStats{},
 	}
 
 	// Build dial options with custom UDS dialer
@@ -200,7 +203,155 @@ func (c *Client) Dial(ctx context.Context) error {
 	c.stats.ReconnectAttempts = 0 // Reset reconnection attempts on successful connect
 	c.mu.Unlock()
 
+	// Start reconnection monitor
+	c.startReconnectMonitor(ctx)
+
 	c.logger.Info("Connected to gRPC server", "path", c.path)
+	return nil
+}
+
+// startReconnectMonitor starts a goroutine that monitors the connection state
+// and automatically reconnects when the connection is lost
+func (c *Client) startReconnectMonitor(ctx context.Context) {
+	c.mu.Lock()
+	if c.reconnectCancel != nil {
+		// Already monitoring
+		c.mu.Unlock()
+		return
+	}
+	// Create a context for the reconnection goroutine
+	reconnectCtx, cancel := context.WithCancel(context.Background())
+	c.reconnectCtx = reconnectCtx
+	c.reconnectCancel = cancel
+	c.mu.Unlock()
+
+	c.reconnectWg.Add(1)
+	go c.reconnectLoop(ctx, reconnectCtx)
+}
+
+// reconnectLoop is the main reconnection monitoring goroutine
+func (c *Client) reconnectLoop(dialCtx, reconnectCtx context.Context) {
+	defer c.reconnectWg.Done()
+
+	c.logger.Debug("Starting reconnection monitor")
+
+	for {
+		// Check if we should stop
+		select {
+		case <-c.reconnectCloseCh:
+			c.logger.Debug("Reconnection monitor stopped via close channel")
+			return
+		case <-reconnectCtx.Done():
+			c.logger.Debug("Reconnection monitor stopped via context cancellation")
+			return
+		default:
+		}
+
+		// Get connection state
+		c.mu.RLock()
+		conn := c.conn
+		closed := c.closed
+		c.mu.RUnlock()
+
+		if closed || conn == nil {
+			// No active connection to monitor, wait
+			select {
+			case <-c.reconnectCloseCh:
+				return
+			case <-reconnectCtx.Done():
+				return
+			case <-time.After(c.reconnectInterval):
+				continue
+			}
+		}
+
+		// Wait for state change with timeout
+		waitCtx, cancel := context.WithTimeout(context.Background(), c.reconnectInterval)
+		conn.WaitForStateChange(waitCtx, conn.GetState())
+		cancel()
+
+		// Check current state
+		state := conn.GetState()
+		c.logger.Debug("Connection state changed", "state", state.String())
+
+		// Check if connection is in a failure state
+		if state == connectivity.TransientFailure || state == connectivity.Shutdown {
+			c.mu.Lock()
+			c.stats.IsConnected = false
+			c.mu.Unlock()
+
+			c.logger.Warn("Connection lost, attempting to reconnect",
+				"state", state,
+				"path", c.path)
+
+			// Attempt reconnection
+			if c.shouldReconnect() {
+				if err := c.reconnect(dialCtx); err != nil {
+					c.logger.Error("Reconnection attempt failed",
+						"attempt", c.reconnectAttempts,
+						"error", err)
+				}
+			} else {
+				c.logger.Error("Max reconnection attempts reached, giving up",
+					"max_attempts", c.reconnectMaxAttempts)
+				return
+			}
+		}
+	}
+}
+
+// shouldReconnect checks if we should attempt another reconnection
+func (c *Client) shouldReconnect() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.reconnectMaxAttempts == 0 {
+		// Infinite retries
+		return true
+	}
+
+	if c.reconnectAttempts >= c.reconnectMaxAttempts {
+		return false
+	}
+
+	c.reconnectAttempts++
+	c.stats.ReconnectAttempts = int64(c.reconnectAttempts)
+	return true
+}
+
+// reconnect attempts to re-establish the connection
+func (c *Client) reconnect(ctx context.Context) error {
+	c.logger.Info("Attempting to reconnect", "attempt", c.reconnectAttempts, "path", c.path)
+
+	// Close existing connection
+	c.mu.Lock()
+	conn := c.conn
+	c.mu.Unlock()
+
+	if conn != nil {
+		if err := conn.Close(); err != nil {
+			c.logger.Warn("Failed to close old connection during reconnect", "error", err)
+		}
+	}
+
+	// Create dial context with timeout
+	dialCtx, cancel := context.WithTimeout(ctx, c.dialTimeout)
+	defer cancel()
+
+	// Dial the server
+	newConn, err := grpc.DialContext(dialCtx, c.path, c.dialOptions...)
+	if err != nil {
+		c.logger.Error("Failed to reconnect to gRPC server", "path", c.path, "error", err)
+		return types.WrapError(types.ErrCodeUnavailable, "failed to reconnect to gRPC server", err)
+	}
+
+	c.mu.Lock()
+	c.conn = newConn
+	c.stats.ConnectTime = time.Now()
+	c.stats.IsConnected = true
+	c.mu.Unlock()
+
+	c.logger.Info("Successfully reconnected to gRPC server", "path", c.path)
 	return nil
 }
 
@@ -214,12 +365,15 @@ func (c *Client) Close() error {
 	c.closed = true
 	c.stats.IsConnected = false
 
-	// Cancel any ongoing reconnection
+	// Cancel any ongoing reconnection context
 	if c.reconnectCancel != nil {
 		c.reconnectCancel()
 		c.reconnectCancel = nil
 	}
 	c.mu.Unlock()
+
+	// Signal reconnection goroutine to stop
+	close(c.reconnectCloseCh)
 
 	// Wait for reconnection goroutine to finish
 	c.reconnectWg.Wait()
