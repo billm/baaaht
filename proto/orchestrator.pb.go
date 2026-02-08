@@ -263,130 +263,6 @@ func (MountType) EnumDescriptor() ([]byte, []int) {
 	return file_proto_orchestrator_proto_rawDescGZIP(), []int{3}
 }
 
-// Status represents the operational status of components
-type Status int32
-
-const (
-	Status_STATUS_UNSPECIFIED Status = 0
-	Status_STATUS_UNKNOWN     Status = 1
-	Status_STATUS_STARTING    Status = 2
-	Status_STATUS_RUNNING     Status = 3
-	Status_STATUS_STOPPING    Status = 4
-	Status_STATUS_STOPPED     Status = 5
-	Status_STATUS_ERROR       Status = 6
-	Status_STATUS_TERMINATED  Status = 7
-)
-
-// Enum value maps for Status.
-var (
-	Status_name = map[int32]string{
-		0: "STATUS_UNSPECIFIED",
-		1: "STATUS_UNKNOWN",
-		2: "STATUS_STARTING",
-		3: "STATUS_RUNNING",
-		4: "STATUS_STOPPING",
-		5: "STATUS_STOPPED",
-		6: "STATUS_ERROR",
-		7: "STATUS_TERMINATED",
-	}
-	Status_value = map[string]int32{
-		"STATUS_UNSPECIFIED": 0,
-		"STATUS_UNKNOWN":     1,
-		"STATUS_STARTING":    2,
-		"STATUS_RUNNING":     3,
-		"STATUS_STOPPING":    4,
-		"STATUS_STOPPED":     5,
-		"STATUS_ERROR":       6,
-		"STATUS_TERMINATED":  7,
-	}
-)
-
-func (x Status) Enum() *Status {
-	p := new(Status)
-	*p = x
-	return p
-}
-
-func (x Status) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (Status) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_orchestrator_proto_enumTypes[4].Descriptor()
-}
-
-func (Status) Type() protoreflect.EnumType {
-	return &file_proto_orchestrator_proto_enumTypes[4]
-}
-
-func (x Status) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use Status.Descriptor instead.
-func (Status) EnumDescriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{4}
-}
-
-// Health represents the health state of a component
-type Health int32
-
-const (
-	Health_HEALTH_UNSPECIFIED Health = 0
-	Health_HEALTH_UNKNOWN     Health = 1
-	Health_HEALTH_HEALTHY     Health = 2
-	Health_HEALTH_UNHEALTHY   Health = 3
-	Health_HEALTH_DEGRADED    Health = 4
-	Health_HEALTH_CHECKING    Health = 5
-)
-
-// Enum value maps for Health.
-var (
-	Health_name = map[int32]string{
-		0: "HEALTH_UNSPECIFIED",
-		1: "HEALTH_UNKNOWN",
-		2: "HEALTH_HEALTHY",
-		3: "HEALTH_UNHEALTHY",
-		4: "HEALTH_DEGRADED",
-		5: "HEALTH_CHECKING",
-	}
-	Health_value = map[string]int32{
-		"HEALTH_UNSPECIFIED": 0,
-		"HEALTH_UNKNOWN":     1,
-		"HEALTH_HEALTHY":     2,
-		"HEALTH_UNHEALTHY":   3,
-		"HEALTH_DEGRADED":    4,
-		"HEALTH_CHECKING":    5,
-	}
-)
-
-func (x Health) Enum() *Health {
-	p := new(Health)
-	*p = x
-	return p
-}
-
-func (x Health) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (Health) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_orchestrator_proto_enumTypes[5].Descriptor()
-}
-
-func (Health) Type() protoreflect.EnumType {
-	return &file_proto_orchestrator_proto_enumTypes[5]
-}
-
-func (x Health) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use Health.Descriptor instead.
-func (Health) EnumDescriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{5}
-}
-
 // EventType represents the type of event
 type EventType int32
 
@@ -466,11 +342,11 @@ func (x EventType) String() string {
 }
 
 func (EventType) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_orchestrator_proto_enumTypes[6].Descriptor()
+	return file_proto_orchestrator_proto_enumTypes[4].Descriptor()
 }
 
 func (EventType) Type() protoreflect.EnumType {
-	return &file_proto_orchestrator_proto_enumTypes[6]
+	return &file_proto_orchestrator_proto_enumTypes[4]
 }
 
 func (x EventType) Number() protoreflect.EnumNumber {
@@ -479,63 +355,7 @@ func (x EventType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use EventType.Descriptor instead.
 func (EventType) EnumDescriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{6}
-}
-
-// Priority represents the priority level of an event
-type Priority int32
-
-const (
-	Priority_PRIORITY_UNSPECIFIED Priority = 0
-	Priority_PRIORITY_LOW         Priority = 1
-	Priority_PRIORITY_NORMAL      Priority = 2
-	Priority_PRIORITY_HIGH        Priority = 3
-	Priority_PRIORITY_CRITICAL    Priority = 4
-)
-
-// Enum value maps for Priority.
-var (
-	Priority_name = map[int32]string{
-		0: "PRIORITY_UNSPECIFIED",
-		1: "PRIORITY_LOW",
-		2: "PRIORITY_NORMAL",
-		3: "PRIORITY_HIGH",
-		4: "PRIORITY_CRITICAL",
-	}
-	Priority_value = map[string]int32{
-		"PRIORITY_UNSPECIFIED": 0,
-		"PRIORITY_LOW":         1,
-		"PRIORITY_NORMAL":      2,
-		"PRIORITY_HIGH":        3,
-		"PRIORITY_CRITICAL":    4,
-	}
-)
-
-func (x Priority) Enum() *Priority {
-	p := new(Priority)
-	*p = x
-	return p
-}
-
-func (x Priority) String() string {
-	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
-}
-
-func (Priority) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_orchestrator_proto_enumTypes[7].Descriptor()
-}
-
-func (Priority) Type() protoreflect.EnumType {
-	return &file_proto_orchestrator_proto_enumTypes[7]
-}
-
-func (x Priority) Number() protoreflect.EnumNumber {
-	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use Priority.Descriptor instead.
-func (Priority) EnumDescriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{7}
+	return file_proto_orchestrator_proto_rawDescGZIP(), []int{4}
 }
 
 // Session represents a user session with conversation context
@@ -543,7 +363,7 @@ type Session struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	State         SessionState           `protobuf:"varint,2,opt,name=state,proto3,enum=orchestrator.v1.SessionState" json:"state,omitempty"`
-	Status        Status                 `protobuf:"varint,3,opt,name=status,proto3,enum=orchestrator.v1.Status" json:"status,omitempty"`
+	Status        Status                 `protobuf:"varint,3,opt,name=status,proto3,enum=common.v1.Status" json:"status,omitempty"`
 	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
 	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"` // Optional
@@ -1201,8 +1021,8 @@ type Container struct {
 	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	Image         string                 `protobuf:"bytes,3,opt,name=image,proto3" json:"image,omitempty"`
 	State         ContainerState         `protobuf:"varint,4,opt,name=state,proto3,enum=orchestrator.v1.ContainerState" json:"state,omitempty"`
-	Status        Status                 `protobuf:"varint,5,opt,name=status,proto3,enum=orchestrator.v1.Status" json:"status,omitempty"`
-	Health        Health                 `protobuf:"varint,6,opt,name=health,proto3,enum=orchestrator.v1.Health" json:"health,omitempty"`
+	Status        Status                 `protobuf:"varint,5,opt,name=status,proto3,enum=common.v1.Status" json:"status,omitempty"`
+	Health        Health                 `protobuf:"varint,6,opt,name=health,proto3,enum=common.v1.Health" json:"health,omitempty"`
 	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	StartedAt     *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"` // Optional
 	ExitedAt      *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=exited_at,json=exitedAt,proto3" json:"exited_at,omitempty"`    // Optional
@@ -1683,184 +1503,6 @@ func (x *RestartPolicy) GetTimeoutNs() int64 {
 	return 0
 }
 
-// ResourceLimits defines resource constraints for a container/session
-type ResourceLimits struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	NanoCpus      int64                  `protobuf:"varint,1,opt,name=nano_cpus,json=nanoCpus,proto3" json:"nano_cpus,omitempty"`          // CPU in 1e-9 units
-	MemoryBytes   int64                  `protobuf:"varint,2,opt,name=memory_bytes,json=memoryBytes,proto3" json:"memory_bytes,omitempty"` // Memory in bytes
-	MemorySwap    int64                  `protobuf:"varint,3,opt,name=memory_swap,json=memorySwap,proto3" json:"memory_swap,omitempty"`    // Memory swap in bytes
-	PidsLimit     int64                  `protobuf:"varint,4,opt,name=pids_limit,json=pidsLimit,proto3" json:"pids_limit,omitempty"`       // Max processes, optional
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ResourceLimits) Reset() {
-	*x = ResourceLimits{}
-	mi := &file_proto_orchestrator_proto_msgTypes[13]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ResourceLimits) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ResourceLimits) ProtoMessage() {}
-
-func (x *ResourceLimits) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[13]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ResourceLimits.ProtoReflect.Descriptor instead.
-func (*ResourceLimits) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{13}
-}
-
-func (x *ResourceLimits) GetNanoCpus() int64 {
-	if x != nil {
-		return x.NanoCpus
-	}
-	return 0
-}
-
-func (x *ResourceLimits) GetMemoryBytes() int64 {
-	if x != nil {
-		return x.MemoryBytes
-	}
-	return 0
-}
-
-func (x *ResourceLimits) GetMemorySwap() int64 {
-	if x != nil {
-		return x.MemorySwap
-	}
-	return 0
-}
-
-func (x *ResourceLimits) GetPidsLimit() int64 {
-	if x != nil {
-		return x.PidsLimit
-	}
-	return 0
-}
-
-// ResourceUsage represents current resource usage
-type ResourceUsage struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	CpuPercent    float64                `protobuf:"fixed64,1,opt,name=cpu_percent,json=cpuPercent,proto3" json:"cpu_percent,omitempty"`
-	MemoryUsage   int64                  `protobuf:"varint,2,opt,name=memory_usage,json=memoryUsage,proto3" json:"memory_usage,omitempty"`
-	MemoryLimit   int64                  `protobuf:"varint,3,opt,name=memory_limit,json=memoryLimit,proto3" json:"memory_limit,omitempty"`
-	MemoryPercent float64                `protobuf:"fixed64,4,opt,name=memory_percent,json=memoryPercent,proto3" json:"memory_percent,omitempty"`
-	NetworkRx     int64                  `protobuf:"varint,5,opt,name=network_rx,json=networkRx,proto3" json:"network_rx,omitempty"`
-	NetworkTx     int64                  `protobuf:"varint,6,opt,name=network_tx,json=networkTx,proto3" json:"network_tx,omitempty"`
-	BlockRead     int64                  `protobuf:"varint,7,opt,name=block_read,json=blockRead,proto3" json:"block_read,omitempty"`
-	BlockWrite    int64                  `protobuf:"varint,8,opt,name=block_write,json=blockWrite,proto3" json:"block_write,omitempty"`
-	PidsCount     int64                  `protobuf:"varint,9,opt,name=pids_count,json=pidsCount,proto3" json:"pids_count,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ResourceUsage) Reset() {
-	*x = ResourceUsage{}
-	mi := &file_proto_orchestrator_proto_msgTypes[14]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ResourceUsage) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ResourceUsage) ProtoMessage() {}
-
-func (x *ResourceUsage) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[14]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ResourceUsage.ProtoReflect.Descriptor instead.
-func (*ResourceUsage) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{14}
-}
-
-func (x *ResourceUsage) GetCpuPercent() float64 {
-	if x != nil {
-		return x.CpuPercent
-	}
-	return 0
-}
-
-func (x *ResourceUsage) GetMemoryUsage() int64 {
-	if x != nil {
-		return x.MemoryUsage
-	}
-	return 0
-}
-
-func (x *ResourceUsage) GetMemoryLimit() int64 {
-	if x != nil {
-		return x.MemoryLimit
-	}
-	return 0
-}
-
-func (x *ResourceUsage) GetMemoryPercent() float64 {
-	if x != nil {
-		return x.MemoryPercent
-	}
-	return 0
-}
-
-func (x *ResourceUsage) GetNetworkRx() int64 {
-	if x != nil {
-		return x.NetworkRx
-	}
-	return 0
-}
-
-func (x *ResourceUsage) GetNetworkTx() int64 {
-	if x != nil {
-		return x.NetworkTx
-	}
-	return 0
-}
-
-func (x *ResourceUsage) GetBlockRead() int64 {
-	if x != nil {
-		return x.BlockRead
-	}
-	return 0
-}
-
-func (x *ResourceUsage) GetBlockWrite() int64 {
-	if x != nil {
-		return x.BlockWrite
-	}
-	return 0
-}
-
-func (x *ResourceUsage) GetPidsCount() int64 {
-	if x != nil {
-		return x.PidsCount
-	}
-	return 0
-}
-
 // Event represents a system event
 type Event struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -1876,7 +1518,7 @@ type Event struct {
 
 func (x *Event) Reset() {
 	*x = Event{}
-	mi := &file_proto_orchestrator_proto_msgTypes[15]
+	mi := &file_proto_orchestrator_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1888,7 +1530,7 @@ func (x *Event) String() string {
 func (*Event) ProtoMessage() {}
 
 func (x *Event) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[15]
+	mi := &file_proto_orchestrator_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1901,7 +1543,7 @@ func (x *Event) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Event.ProtoReflect.Descriptor instead.
 func (*Event) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{15}
+	return file_proto_orchestrator_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *Event) GetId() string {
@@ -1954,14 +1596,14 @@ type EventMetadata struct {
 	ContainerId   string                 `protobuf:"bytes,3,opt,name=container_id,json=containerId,proto3" json:"container_id,omitempty"`       // Optional
 	UserId        string                 `protobuf:"bytes,4,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`                      // Optional
 	Labels        map[string]string      `protobuf:"bytes,5,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	Priority      Priority               `protobuf:"varint,6,opt,name=priority,proto3,enum=orchestrator.v1.Priority" json:"priority,omitempty"`
+	Priority      Priority               `protobuf:"varint,6,opt,name=priority,proto3,enum=common.v1.Priority" json:"priority,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *EventMetadata) Reset() {
 	*x = EventMetadata{}
-	mi := &file_proto_orchestrator_proto_msgTypes[16]
+	mi := &file_proto_orchestrator_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1973,7 +1615,7 @@ func (x *EventMetadata) String() string {
 func (*EventMetadata) ProtoMessage() {}
 
 func (x *EventMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[16]
+	mi := &file_proto_orchestrator_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1986,7 +1628,7 @@ func (x *EventMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EventMetadata.ProtoReflect.Descriptor instead.
 func (*EventMetadata) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{16}
+	return file_proto_orchestrator_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *EventMetadata) GetCorrelationId() string {
@@ -2038,7 +1680,7 @@ type EventFilter struct {
 	Source        string                 `protobuf:"bytes,2,opt,name=source,proto3" json:"source,omitempty"`                                                                           // Optional, unset means all sources
 	SessionId     string                 `protobuf:"bytes,3,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`                                                    // Optional
 	ContainerId   string                 `protobuf:"bytes,4,opt,name=container_id,json=containerId,proto3" json:"container_id,omitempty"`                                              // Optional
-	Priority      Priority               `protobuf:"varint,5,opt,name=priority,proto3,enum=orchestrator.v1.Priority" json:"priority,omitempty"`                                        // Optional
+	Priority      Priority               `protobuf:"varint,5,opt,name=priority,proto3,enum=common.v1.Priority" json:"priority,omitempty"`                                              // Optional
 	Labels        map[string]string      `protobuf:"bytes,6,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // Optional, match all if empty
 	StartTime     *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=start_time,json=startTime,proto3" json:"start_time,omitempty"`                                                    // Optional
 	EndTime       *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=end_time,json=endTime,proto3" json:"end_time,omitempty"`                                                          // Optional
@@ -2048,7 +1690,7 @@ type EventFilter struct {
 
 func (x *EventFilter) Reset() {
 	*x = EventFilter{}
-	mi := &file_proto_orchestrator_proto_msgTypes[17]
+	mi := &file_proto_orchestrator_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2060,7 +1702,7 @@ func (x *EventFilter) String() string {
 func (*EventFilter) ProtoMessage() {}
 
 func (x *EventFilter) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[17]
+	mi := &file_proto_orchestrator_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2073,7 +1715,7 @@ func (x *EventFilter) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EventFilter.ProtoReflect.Descriptor instead.
 func (*EventFilter) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{17}
+	return file_proto_orchestrator_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *EventFilter) GetType() EventType {
@@ -2148,7 +1790,7 @@ type IPCMessage struct {
 
 func (x *IPCMessage) Reset() {
 	*x = IPCMessage{}
-	mi := &file_proto_orchestrator_proto_msgTypes[18]
+	mi := &file_proto_orchestrator_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2160,7 +1802,7 @@ func (x *IPCMessage) String() string {
 func (*IPCMessage) ProtoMessage() {}
 
 func (x *IPCMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[18]
+	mi := &file_proto_orchestrator_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2173,7 +1815,7 @@ func (x *IPCMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IPCMessage.ProtoReflect.Descriptor instead.
 func (*IPCMessage) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{18}
+	return file_proto_orchestrator_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *IPCMessage) GetId() string {
@@ -2238,7 +1880,7 @@ type IPCMetadata struct {
 
 func (x *IPCMetadata) Reset() {
 	*x = IPCMetadata{}
-	mi := &file_proto_orchestrator_proto_msgTypes[19]
+	mi := &file_proto_orchestrator_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2250,7 +1892,7 @@ func (x *IPCMetadata) String() string {
 func (*IPCMetadata) ProtoMessage() {}
 
 func (x *IPCMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[19]
+	mi := &file_proto_orchestrator_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2263,7 +1905,7 @@ func (x *IPCMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use IPCMetadata.ProtoReflect.Descriptor instead.
 func (*IPCMetadata) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{19}
+	return file_proto_orchestrator_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *IPCMetadata) GetCorrelationId() string {
@@ -2305,7 +1947,7 @@ type CreateSessionRequest struct {
 
 func (x *CreateSessionRequest) Reset() {
 	*x = CreateSessionRequest{}
-	mi := &file_proto_orchestrator_proto_msgTypes[20]
+	mi := &file_proto_orchestrator_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2317,7 +1959,7 @@ func (x *CreateSessionRequest) String() string {
 func (*CreateSessionRequest) ProtoMessage() {}
 
 func (x *CreateSessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[20]
+	mi := &file_proto_orchestrator_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2330,7 +1972,7 @@ func (x *CreateSessionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateSessionRequest.ProtoReflect.Descriptor instead.
 func (*CreateSessionRequest) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{20}
+	return file_proto_orchestrator_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *CreateSessionRequest) GetMetadata() *SessionMetadata {
@@ -2358,7 +2000,7 @@ type CreateSessionResponse struct {
 
 func (x *CreateSessionResponse) Reset() {
 	*x = CreateSessionResponse{}
-	mi := &file_proto_orchestrator_proto_msgTypes[21]
+	mi := &file_proto_orchestrator_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2370,7 +2012,7 @@ func (x *CreateSessionResponse) String() string {
 func (*CreateSessionResponse) ProtoMessage() {}
 
 func (x *CreateSessionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[21]
+	mi := &file_proto_orchestrator_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2383,7 +2025,7 @@ func (x *CreateSessionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateSessionResponse.ProtoReflect.Descriptor instead.
 func (*CreateSessionResponse) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{21}
+	return file_proto_orchestrator_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *CreateSessionResponse) GetSessionId() string {
@@ -2410,7 +2052,7 @@ type GetSessionRequest struct {
 
 func (x *GetSessionRequest) Reset() {
 	*x = GetSessionRequest{}
-	mi := &file_proto_orchestrator_proto_msgTypes[22]
+	mi := &file_proto_orchestrator_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2422,7 +2064,7 @@ func (x *GetSessionRequest) String() string {
 func (*GetSessionRequest) ProtoMessage() {}
 
 func (x *GetSessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[22]
+	mi := &file_proto_orchestrator_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2435,7 +2077,7 @@ func (x *GetSessionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSessionRequest.ProtoReflect.Descriptor instead.
 func (*GetSessionRequest) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{22}
+	return file_proto_orchestrator_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *GetSessionRequest) GetSessionId() string {
@@ -2455,7 +2097,7 @@ type GetSessionResponse struct {
 
 func (x *GetSessionResponse) Reset() {
 	*x = GetSessionResponse{}
-	mi := &file_proto_orchestrator_proto_msgTypes[23]
+	mi := &file_proto_orchestrator_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2467,7 +2109,7 @@ func (x *GetSessionResponse) String() string {
 func (*GetSessionResponse) ProtoMessage() {}
 
 func (x *GetSessionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[23]
+	mi := &file_proto_orchestrator_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2480,7 +2122,7 @@ func (x *GetSessionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSessionResponse.ProtoReflect.Descriptor instead.
 func (*GetSessionResponse) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{23}
+	return file_proto_orchestrator_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *GetSessionResponse) GetSession() *Session {
@@ -2500,7 +2142,7 @@ type ListSessionsRequest struct {
 
 func (x *ListSessionsRequest) Reset() {
 	*x = ListSessionsRequest{}
-	mi := &file_proto_orchestrator_proto_msgTypes[24]
+	mi := &file_proto_orchestrator_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2512,7 +2154,7 @@ func (x *ListSessionsRequest) String() string {
 func (*ListSessionsRequest) ProtoMessage() {}
 
 func (x *ListSessionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[24]
+	mi := &file_proto_orchestrator_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2525,7 +2167,7 @@ func (x *ListSessionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSessionsRequest.ProtoReflect.Descriptor instead.
 func (*ListSessionsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{24}
+	return file_proto_orchestrator_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *ListSessionsRequest) GetFilter() *SessionFilter {
@@ -2539,7 +2181,7 @@ func (x *ListSessionsRequest) GetFilter() *SessionFilter {
 type SessionFilter struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	State         SessionState           `protobuf:"varint,1,opt,name=state,proto3,enum=orchestrator.v1.SessionState" json:"state,omitempty"`                                          // Optional
-	Status        Status                 `protobuf:"varint,2,opt,name=status,proto3,enum=orchestrator.v1.Status" json:"status,omitempty"`                                              // Optional
+	Status        Status                 `protobuf:"varint,2,opt,name=status,proto3,enum=common.v1.Status" json:"status,omitempty"`                                                    // Optional
 	OwnerId       string                 `protobuf:"bytes,3,opt,name=owner_id,json=ownerId,proto3" json:"owner_id,omitempty"`                                                          // Optional
 	Labels        map[string]string      `protobuf:"bytes,4,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // Optional, match all if empty
 	unknownFields protoimpl.UnknownFields
@@ -2548,7 +2190,7 @@ type SessionFilter struct {
 
 func (x *SessionFilter) Reset() {
 	*x = SessionFilter{}
-	mi := &file_proto_orchestrator_proto_msgTypes[25]
+	mi := &file_proto_orchestrator_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2560,7 +2202,7 @@ func (x *SessionFilter) String() string {
 func (*SessionFilter) ProtoMessage() {}
 
 func (x *SessionFilter) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[25]
+	mi := &file_proto_orchestrator_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2573,7 +2215,7 @@ func (x *SessionFilter) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SessionFilter.ProtoReflect.Descriptor instead.
 func (*SessionFilter) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{25}
+	return file_proto_orchestrator_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *SessionFilter) GetState() SessionState {
@@ -2615,7 +2257,7 @@ type ListSessionsResponse struct {
 
 func (x *ListSessionsResponse) Reset() {
 	*x = ListSessionsResponse{}
-	mi := &file_proto_orchestrator_proto_msgTypes[26]
+	mi := &file_proto_orchestrator_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2627,7 +2269,7 @@ func (x *ListSessionsResponse) String() string {
 func (*ListSessionsResponse) ProtoMessage() {}
 
 func (x *ListSessionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[26]
+	mi := &file_proto_orchestrator_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2640,7 +2282,7 @@ func (x *ListSessionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListSessionsResponse.ProtoReflect.Descriptor instead.
 func (*ListSessionsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{26}
+	return file_proto_orchestrator_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *ListSessionsResponse) GetSessions() []*Session {
@@ -2669,7 +2311,7 @@ type UpdateSessionRequest struct {
 
 func (x *UpdateSessionRequest) Reset() {
 	*x = UpdateSessionRequest{}
-	mi := &file_proto_orchestrator_proto_msgTypes[27]
+	mi := &file_proto_orchestrator_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2681,7 +2323,7 @@ func (x *UpdateSessionRequest) String() string {
 func (*UpdateSessionRequest) ProtoMessage() {}
 
 func (x *UpdateSessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[27]
+	mi := &file_proto_orchestrator_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2694,7 +2336,7 @@ func (x *UpdateSessionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateSessionRequest.ProtoReflect.Descriptor instead.
 func (*UpdateSessionRequest) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{27}
+	return file_proto_orchestrator_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *UpdateSessionRequest) GetSessionId() string {
@@ -2728,7 +2370,7 @@ type UpdateSessionResponse struct {
 
 func (x *UpdateSessionResponse) Reset() {
 	*x = UpdateSessionResponse{}
-	mi := &file_proto_orchestrator_proto_msgTypes[28]
+	mi := &file_proto_orchestrator_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2740,7 +2382,7 @@ func (x *UpdateSessionResponse) String() string {
 func (*UpdateSessionResponse) ProtoMessage() {}
 
 func (x *UpdateSessionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[28]
+	mi := &file_proto_orchestrator_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2753,7 +2395,7 @@ func (x *UpdateSessionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateSessionResponse.ProtoReflect.Descriptor instead.
 func (*UpdateSessionResponse) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{28}
+	return file_proto_orchestrator_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *UpdateSessionResponse) GetSession() *Session {
@@ -2774,7 +2416,7 @@ type CloseSessionRequest struct {
 
 func (x *CloseSessionRequest) Reset() {
 	*x = CloseSessionRequest{}
-	mi := &file_proto_orchestrator_proto_msgTypes[29]
+	mi := &file_proto_orchestrator_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2786,7 +2428,7 @@ func (x *CloseSessionRequest) String() string {
 func (*CloseSessionRequest) ProtoMessage() {}
 
 func (x *CloseSessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[29]
+	mi := &file_proto_orchestrator_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2799,7 +2441,7 @@ func (x *CloseSessionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CloseSessionRequest.ProtoReflect.Descriptor instead.
 func (*CloseSessionRequest) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{29}
+	return file_proto_orchestrator_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *CloseSessionRequest) GetSessionId() string {
@@ -2827,7 +2469,7 @@ type CloseSessionResponse struct {
 
 func (x *CloseSessionResponse) Reset() {
 	*x = CloseSessionResponse{}
-	mi := &file_proto_orchestrator_proto_msgTypes[30]
+	mi := &file_proto_orchestrator_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2839,7 +2481,7 @@ func (x *CloseSessionResponse) String() string {
 func (*CloseSessionResponse) ProtoMessage() {}
 
 func (x *CloseSessionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[30]
+	mi := &file_proto_orchestrator_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2852,7 +2494,7 @@ func (x *CloseSessionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CloseSessionResponse.ProtoReflect.Descriptor instead.
 func (*CloseSessionResponse) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{30}
+	return file_proto_orchestrator_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *CloseSessionResponse) GetSessionId() string {
@@ -2880,7 +2522,7 @@ type SendMessageRequest struct {
 
 func (x *SendMessageRequest) Reset() {
 	*x = SendMessageRequest{}
-	mi := &file_proto_orchestrator_proto_msgTypes[31]
+	mi := &file_proto_orchestrator_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2892,7 +2534,7 @@ func (x *SendMessageRequest) String() string {
 func (*SendMessageRequest) ProtoMessage() {}
 
 func (x *SendMessageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[31]
+	mi := &file_proto_orchestrator_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2905,7 +2547,7 @@ func (x *SendMessageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendMessageRequest.ProtoReflect.Descriptor instead.
 func (*SendMessageRequest) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{31}
+	return file_proto_orchestrator_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *SendMessageRequest) GetSessionId() string {
@@ -2934,7 +2576,7 @@ type SendMessageResponse struct {
 
 func (x *SendMessageResponse) Reset() {
 	*x = SendMessageResponse{}
-	mi := &file_proto_orchestrator_proto_msgTypes[32]
+	mi := &file_proto_orchestrator_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2946,7 +2588,7 @@ func (x *SendMessageResponse) String() string {
 func (*SendMessageResponse) ProtoMessage() {}
 
 func (x *SendMessageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[32]
+	mi := &file_proto_orchestrator_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2959,7 +2601,7 @@ func (x *SendMessageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SendMessageResponse.ProtoReflect.Descriptor instead.
 func (*SendMessageResponse) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{32}
+	return file_proto_orchestrator_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *SendMessageResponse) GetMessageId() string {
@@ -2998,7 +2640,7 @@ type StreamMessageRequest struct {
 
 func (x *StreamMessageRequest) Reset() {
 	*x = StreamMessageRequest{}
-	mi := &file_proto_orchestrator_proto_msgTypes[33]
+	mi := &file_proto_orchestrator_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3010,7 +2652,7 @@ func (x *StreamMessageRequest) String() string {
 func (*StreamMessageRequest) ProtoMessage() {}
 
 func (x *StreamMessageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[33]
+	mi := &file_proto_orchestrator_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3023,7 +2665,7 @@ func (x *StreamMessageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StreamMessageRequest.ProtoReflect.Descriptor instead.
 func (*StreamMessageRequest) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{33}
+	return file_proto_orchestrator_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *StreamMessageRequest) GetSessionId() string {
@@ -3089,7 +2731,7 @@ type StreamMessageResponse struct {
 
 func (x *StreamMessageResponse) Reset() {
 	*x = StreamMessageResponse{}
-	mi := &file_proto_orchestrator_proto_msgTypes[34]
+	mi := &file_proto_orchestrator_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3101,7 +2743,7 @@ func (x *StreamMessageResponse) String() string {
 func (*StreamMessageResponse) ProtoMessage() {}
 
 func (x *StreamMessageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[34]
+	mi := &file_proto_orchestrator_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3114,7 +2756,7 @@ func (x *StreamMessageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StreamMessageResponse.ProtoReflect.Descriptor instead.
 func (*StreamMessageResponse) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{34}
+	return file_proto_orchestrator_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *StreamMessageResponse) GetPayload() isStreamMessageResponse_Payload {
@@ -3184,7 +2826,7 @@ type CreateContainerRequest struct {
 
 func (x *CreateContainerRequest) Reset() {
 	*x = CreateContainerRequest{}
-	mi := &file_proto_orchestrator_proto_msgTypes[35]
+	mi := &file_proto_orchestrator_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3196,7 +2838,7 @@ func (x *CreateContainerRequest) String() string {
 func (*CreateContainerRequest) ProtoMessage() {}
 
 func (x *CreateContainerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[35]
+	mi := &file_proto_orchestrator_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3209,7 +2851,7 @@ func (x *CreateContainerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateContainerRequest.ProtoReflect.Descriptor instead.
 func (*CreateContainerRequest) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{35}
+	return file_proto_orchestrator_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *CreateContainerRequest) GetSessionId() string {
@@ -3237,7 +2879,7 @@ type CreateContainerResponse struct {
 
 func (x *CreateContainerResponse) Reset() {
 	*x = CreateContainerResponse{}
-	mi := &file_proto_orchestrator_proto_msgTypes[36]
+	mi := &file_proto_orchestrator_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3249,7 +2891,7 @@ func (x *CreateContainerResponse) String() string {
 func (*CreateContainerResponse) ProtoMessage() {}
 
 func (x *CreateContainerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[36]
+	mi := &file_proto_orchestrator_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3262,7 +2904,7 @@ func (x *CreateContainerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateContainerResponse.ProtoReflect.Descriptor instead.
 func (*CreateContainerResponse) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{36}
+	return file_proto_orchestrator_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *CreateContainerResponse) GetContainerId() string {
@@ -3289,7 +2931,7 @@ type GetContainerRequest struct {
 
 func (x *GetContainerRequest) Reset() {
 	*x = GetContainerRequest{}
-	mi := &file_proto_orchestrator_proto_msgTypes[37]
+	mi := &file_proto_orchestrator_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3301,7 +2943,7 @@ func (x *GetContainerRequest) String() string {
 func (*GetContainerRequest) ProtoMessage() {}
 
 func (x *GetContainerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[37]
+	mi := &file_proto_orchestrator_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3314,7 +2956,7 @@ func (x *GetContainerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetContainerRequest.ProtoReflect.Descriptor instead.
 func (*GetContainerRequest) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{37}
+	return file_proto_orchestrator_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *GetContainerRequest) GetContainerId() string {
@@ -3334,7 +2976,7 @@ type GetContainerResponse struct {
 
 func (x *GetContainerResponse) Reset() {
 	*x = GetContainerResponse{}
-	mi := &file_proto_orchestrator_proto_msgTypes[38]
+	mi := &file_proto_orchestrator_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3346,7 +2988,7 @@ func (x *GetContainerResponse) String() string {
 func (*GetContainerResponse) ProtoMessage() {}
 
 func (x *GetContainerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[38]
+	mi := &file_proto_orchestrator_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3359,7 +3001,7 @@ func (x *GetContainerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetContainerResponse.ProtoReflect.Descriptor instead.
 func (*GetContainerResponse) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{38}
+	return file_proto_orchestrator_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *GetContainerResponse) GetContainer() *Container {
@@ -3379,7 +3021,7 @@ type ListContainersRequest struct {
 
 func (x *ListContainersRequest) Reset() {
 	*x = ListContainersRequest{}
-	mi := &file_proto_orchestrator_proto_msgTypes[39]
+	mi := &file_proto_orchestrator_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3391,7 +3033,7 @@ func (x *ListContainersRequest) String() string {
 func (*ListContainersRequest) ProtoMessage() {}
 
 func (x *ListContainersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[39]
+	mi := &file_proto_orchestrator_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3404,7 +3046,7 @@ func (x *ListContainersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListContainersRequest.ProtoReflect.Descriptor instead.
 func (*ListContainersRequest) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{39}
+	return file_proto_orchestrator_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *ListContainersRequest) GetFilter() *ContainerFilter {
@@ -3419,7 +3061,7 @@ type ContainerFilter struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	SessionId     string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`                                                    // Optional
 	State         ContainerState         `protobuf:"varint,2,opt,name=state,proto3,enum=orchestrator.v1.ContainerState" json:"state,omitempty"`                                        // Optional
-	Status        Status                 `protobuf:"varint,3,opt,name=status,proto3,enum=orchestrator.v1.Status" json:"status,omitempty"`                                              // Optional
+	Status        Status                 `protobuf:"varint,3,opt,name=status,proto3,enum=common.v1.Status" json:"status,omitempty"`                                                    // Optional
 	Labels        map[string]string      `protobuf:"bytes,4,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // Optional, match all if empty
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -3427,7 +3069,7 @@ type ContainerFilter struct {
 
 func (x *ContainerFilter) Reset() {
 	*x = ContainerFilter{}
-	mi := &file_proto_orchestrator_proto_msgTypes[40]
+	mi := &file_proto_orchestrator_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3439,7 +3081,7 @@ func (x *ContainerFilter) String() string {
 func (*ContainerFilter) ProtoMessage() {}
 
 func (x *ContainerFilter) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[40]
+	mi := &file_proto_orchestrator_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3452,7 +3094,7 @@ func (x *ContainerFilter) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContainerFilter.ProtoReflect.Descriptor instead.
 func (*ContainerFilter) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{40}
+	return file_proto_orchestrator_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *ContainerFilter) GetSessionId() string {
@@ -3494,7 +3136,7 @@ type ListContainersResponse struct {
 
 func (x *ListContainersResponse) Reset() {
 	*x = ListContainersResponse{}
-	mi := &file_proto_orchestrator_proto_msgTypes[41]
+	mi := &file_proto_orchestrator_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3506,7 +3148,7 @@ func (x *ListContainersResponse) String() string {
 func (*ListContainersResponse) ProtoMessage() {}
 
 func (x *ListContainersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[41]
+	mi := &file_proto_orchestrator_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3519,7 +3161,7 @@ func (x *ListContainersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListContainersResponse.ProtoReflect.Descriptor instead.
 func (*ListContainersResponse) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{41}
+	return file_proto_orchestrator_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *ListContainersResponse) GetContainers() []*Container {
@@ -3547,7 +3189,7 @@ type StopContainerRequest struct {
 
 func (x *StopContainerRequest) Reset() {
 	*x = StopContainerRequest{}
-	mi := &file_proto_orchestrator_proto_msgTypes[42]
+	mi := &file_proto_orchestrator_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3559,7 +3201,7 @@ func (x *StopContainerRequest) String() string {
 func (*StopContainerRequest) ProtoMessage() {}
 
 func (x *StopContainerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[42]
+	mi := &file_proto_orchestrator_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3572,7 +3214,7 @@ func (x *StopContainerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopContainerRequest.ProtoReflect.Descriptor instead.
 func (*StopContainerRequest) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{42}
+	return file_proto_orchestrator_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *StopContainerRequest) GetContainerId() string {
@@ -3600,7 +3242,7 @@ type StopContainerResponse struct {
 
 func (x *StopContainerResponse) Reset() {
 	*x = StopContainerResponse{}
-	mi := &file_proto_orchestrator_proto_msgTypes[43]
+	mi := &file_proto_orchestrator_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3612,7 +3254,7 @@ func (x *StopContainerResponse) String() string {
 func (*StopContainerResponse) ProtoMessage() {}
 
 func (x *StopContainerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[43]
+	mi := &file_proto_orchestrator_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3625,7 +3267,7 @@ func (x *StopContainerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StopContainerResponse.ProtoReflect.Descriptor instead.
 func (*StopContainerResponse) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{43}
+	return file_proto_orchestrator_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *StopContainerResponse) GetContainerId() string {
@@ -3653,7 +3295,7 @@ type RemoveContainerRequest struct {
 
 func (x *RemoveContainerRequest) Reset() {
 	*x = RemoveContainerRequest{}
-	mi := &file_proto_orchestrator_proto_msgTypes[44]
+	mi := &file_proto_orchestrator_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3665,7 +3307,7 @@ func (x *RemoveContainerRequest) String() string {
 func (*RemoveContainerRequest) ProtoMessage() {}
 
 func (x *RemoveContainerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[44]
+	mi := &file_proto_orchestrator_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3678,7 +3320,7 @@ func (x *RemoveContainerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveContainerRequest.ProtoReflect.Descriptor instead.
 func (*RemoveContainerRequest) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{44}
+	return file_proto_orchestrator_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *RemoveContainerRequest) GetContainerId() string {
@@ -3705,7 +3347,7 @@ type RemoveContainerResponse struct {
 
 func (x *RemoveContainerResponse) Reset() {
 	*x = RemoveContainerResponse{}
-	mi := &file_proto_orchestrator_proto_msgTypes[45]
+	mi := &file_proto_orchestrator_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3717,7 +3359,7 @@ func (x *RemoveContainerResponse) String() string {
 func (*RemoveContainerResponse) ProtoMessage() {}
 
 func (x *RemoveContainerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[45]
+	mi := &file_proto_orchestrator_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3730,7 +3372,7 @@ func (x *RemoveContainerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoveContainerResponse.ProtoReflect.Descriptor instead.
 func (*RemoveContainerResponse) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{45}
+	return file_proto_orchestrator_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *RemoveContainerResponse) GetContainerId() string {
@@ -3750,7 +3392,7 @@ type SubscribeEventsRequest struct {
 
 func (x *SubscribeEventsRequest) Reset() {
 	*x = SubscribeEventsRequest{}
-	mi := &file_proto_orchestrator_proto_msgTypes[46]
+	mi := &file_proto_orchestrator_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3762,7 +3404,7 @@ func (x *SubscribeEventsRequest) String() string {
 func (*SubscribeEventsRequest) ProtoMessage() {}
 
 func (x *SubscribeEventsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[46]
+	mi := &file_proto_orchestrator_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3775,7 +3417,7 @@ func (x *SubscribeEventsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubscribeEventsRequest.ProtoReflect.Descriptor instead.
 func (*SubscribeEventsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{46}
+	return file_proto_orchestrator_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *SubscribeEventsRequest) GetFilter() *EventFilter {
@@ -3788,7 +3430,7 @@ func (x *SubscribeEventsRequest) GetFilter() *EventFilter {
 // HealthCheckResponse
 type HealthCheckResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Health        Health                 `protobuf:"varint,1,opt,name=health,proto3,enum=orchestrator.v1.Health" json:"health,omitempty"`
+	Health        Health                 `protobuf:"varint,1,opt,name=health,proto3,enum=common.v1.Health" json:"health,omitempty"`
 	Version       string                 `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
 	Subsystems    []string               `protobuf:"bytes,3,rep,name=subsystems,proto3" json:"subsystems,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -3797,7 +3439,7 @@ type HealthCheckResponse struct {
 
 func (x *HealthCheckResponse) Reset() {
 	*x = HealthCheckResponse{}
-	mi := &file_proto_orchestrator_proto_msgTypes[47]
+	mi := &file_proto_orchestrator_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3809,7 +3451,7 @@ func (x *HealthCheckResponse) String() string {
 func (*HealthCheckResponse) ProtoMessage() {}
 
 func (x *HealthCheckResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[47]
+	mi := &file_proto_orchestrator_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3822,7 +3464,7 @@ func (x *HealthCheckResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HealthCheckResponse.ProtoReflect.Descriptor instead.
 func (*HealthCheckResponse) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{47}
+	return file_proto_orchestrator_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *HealthCheckResponse) GetHealth() Health {
@@ -3849,7 +3491,7 @@ func (x *HealthCheckResponse) GetSubsystems() []string {
 // StatusResponse
 type StatusResponse struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
-	Status           Status                 `protobuf:"varint,1,opt,name=status,proto3,enum=orchestrator.v1.Status" json:"status,omitempty"`
+	Status           Status                 `protobuf:"varint,1,opt,name=status,proto3,enum=common.v1.Status" json:"status,omitempty"`
 	ActiveSessions   int32                  `protobuf:"varint,2,opt,name=active_sessions,json=activeSessions,proto3" json:"active_sessions,omitempty"`
 	ActiveContainers int32                  `protobuf:"varint,3,opt,name=active_containers,json=activeContainers,proto3" json:"active_containers,omitempty"`
 	StartedAt        *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
@@ -3860,7 +3502,7 @@ type StatusResponse struct {
 
 func (x *StatusResponse) Reset() {
 	*x = StatusResponse{}
-	mi := &file_proto_orchestrator_proto_msgTypes[48]
+	mi := &file_proto_orchestrator_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3872,7 +3514,7 @@ func (x *StatusResponse) String() string {
 func (*StatusResponse) ProtoMessage() {}
 
 func (x *StatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_orchestrator_proto_msgTypes[48]
+	mi := &file_proto_orchestrator_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3885,7 +3527,7 @@ func (x *StatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StatusResponse.ProtoReflect.Descriptor instead.
 func (*StatusResponse) Descriptor() ([]byte, []int) {
-	return file_proto_orchestrator_proto_rawDescGZIP(), []int{48}
+	return file_proto_orchestrator_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *StatusResponse) GetStatus() Status {
@@ -3927,11 +3569,11 @@ var File_proto_orchestrator_proto protoreflect.FileDescriptor
 
 const file_proto_orchestrator_proto_rawDesc = "" +
 	"\n" +
-	"\x18proto/orchestrator.proto\x12\x0forchestrator.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1bgoogle/protobuf/empty.proto\"\x87\x04\n" +
+	"\x18proto/orchestrator.proto\x12\x0forchestrator.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x12proto/common.proto\"\x81\x04\n" +
 	"\aSession\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x123\n" +
-	"\x05state\x18\x02 \x01(\x0e2\x1d.orchestrator.v1.SessionStateR\x05state\x12/\n" +
-	"\x06status\x18\x03 \x01(\x0e2\x17.orchestrator.v1.StatusR\x06status\x129\n" +
+	"\x05state\x18\x02 \x01(\x0e2\x1d.orchestrator.v1.SessionStateR\x05state\x12)\n" +
+	"\x06status\x18\x03 \x01(\x0e2\x11.common.v1.StatusR\x06status\x129\n" +
 	"\n" +
 	"created_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
@@ -3951,14 +3593,14 @@ const file_proto_orchestrator_proto_rawDesc = "" +
 	"\x04tags\x18\x05 \x03(\tR\x04tags\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xd4\x02\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xce\x02\n" +
 	"\x0eSessionContext\x124\n" +
 	"\bmessages\x18\x01 \x03(\v2\x18.orchestrator.v1.MessageR\bmessages\x12&\n" +
 	"\x0fcurrent_task_id\x18\x02 \x01(\tR\rcurrentTaskId\x12!\n" +
 	"\ftask_history\x18\x03 \x03(\tR\vtaskHistory\x12B\n" +
 	"\vpreferences\x18\x04 \x01(\v2 .orchestrator.v1.UserPreferencesR\vpreferences\x126\n" +
-	"\x06config\x18\x05 \x01(\v2\x1e.orchestrator.v1.SessionConfigR\x06config\x12E\n" +
-	"\x0eresource_usage\x18\x06 \x01(\v2\x1e.orchestrator.v1.ResourceUsageR\rresourceUsage\"\xdd\x01\n" +
+	"\x06config\x18\x05 \x01(\v2\x1e.orchestrator.v1.SessionConfigR\x06config\x12?\n" +
+	"\x0eresource_usage\x18\x06 \x01(\v2\x18.common.v1.ResourceUsageR\rresourceUsage\"\xdd\x01\n" +
 	"\aMessage\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x128\n" +
 	"\ttimestamp\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x120\n" +
@@ -3979,12 +3621,12 @@ const file_proto_orchestrator_proto_rawDesc = "" +
 	"\btimezone\x18\x01 \x01(\tR\btimezone\x12\x1a\n" +
 	"\blanguage\x18\x02 \x01(\tR\blanguage\x12\x14\n" +
 	"\x05theme\x18\x03 \x01(\tR\x05theme\x12$\n" +
-	"\rnotifications\x18\x04 \x01(\bR\rnotifications\"\xaf\x02\n" +
+	"\rnotifications\x18\x04 \x01(\bR\rnotifications\"\xa9\x02\n" +
 	"\rSessionConfig\x12%\n" +
 	"\x0emax_containers\x18\x01 \x01(\x05R\rmaxContainers\x12&\n" +
 	"\x0fmax_duration_ns\x18\x02 \x01(\x03R\rmaxDurationNs\x12&\n" +
-	"\x0fidle_timeout_ns\x18\x03 \x01(\x03R\ridleTimeoutNs\x12H\n" +
-	"\x0fresource_limits\x18\x04 \x01(\v2\x1f.orchestrator.v1.ResourceLimitsR\x0eresourceLimits\x12%\n" +
+	"\x0fidle_timeout_ns\x18\x03 \x01(\x03R\ridleTimeoutNs\x12B\n" +
+	"\x0fresource_limits\x18\x04 \x01(\v2\x19.common.v1.ResourceLimitsR\x0eresourceLimits\x12%\n" +
 	"\x0eallowed_images\x18\x05 \x03(\tR\rallowedImages\x126\n" +
 	"\x06policy\x18\x06 \x01(\v2\x1e.orchestrator.v1.SessionPolicyR\x06policy\"\xdd\x01\n" +
 	"\rSessionPolicy\x12#\n" +
@@ -3992,14 +3634,14 @@ const file_proto_orchestrator_proto_rawDesc = "" +
 	"\x10allowed_networks\x18\x02 \x03(\tR\x0fallowedNetworks\x12,\n" +
 	"\x12allow_volume_mount\x18\x03 \x01(\bR\x10allowVolumeMount\x12#\n" +
 	"\rallowed_paths\x18\x04 \x03(\tR\fallowedPaths\x12)\n" +
-	"\x10require_approval\x18\x05 \x01(\bR\x0frequireApproval\"\xc1\x04\n" +
+	"\x10require_approval\x18\x05 \x01(\bR\x0frequireApproval\"\xaf\x04\n" +
 	"\tContainer\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
 	"\x05image\x18\x03 \x01(\tR\x05image\x125\n" +
-	"\x05state\x18\x04 \x01(\x0e2\x1f.orchestrator.v1.ContainerStateR\x05state\x12/\n" +
-	"\x06status\x18\x05 \x01(\x0e2\x17.orchestrator.v1.StatusR\x06status\x12/\n" +
-	"\x06health\x18\x06 \x01(\x0e2\x17.orchestrator.v1.HealthR\x06health\x129\n" +
+	"\x05state\x18\x04 \x01(\x0e2\x1f.orchestrator.v1.ContainerStateR\x05state\x12)\n" +
+	"\x06status\x18\x05 \x01(\x0e2\x11.common.v1.StatusR\x06status\x12)\n" +
+	"\x06health\x18\x06 \x01(\x0e2\x11.common.v1.HealthR\x06health\x129\n" +
 	"\n" +
 	"created_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
@@ -4007,10 +3649,10 @@ const file_proto_orchestrator_proto_rawDesc = "" +
 	"\texited_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\bexitedAt\x12\x1b\n" +
 	"\texit_code\x18\n" +
 	" \x01(\x05R\bexitCode\x128\n" +
-	"\x06config\x18\v \x01(\v2 .orchestrator.v1.ContainerConfigR\x06config\x12<\n" +
-	"\tresources\x18\f \x01(\v2\x1e.orchestrator.v1.ResourceUsageR\tresources\x12\x1d\n" +
+	"\x06config\x18\v \x01(\v2 .orchestrator.v1.ContainerConfigR\x06config\x126\n" +
+	"\tresources\x18\f \x01(\v2\x18.common.v1.ResourceUsageR\tresources\x12\x1d\n" +
 	"\n" +
-	"session_id\x18\r \x01(\tR\tsessionId\"\xe5\x05\n" +
+	"session_id\x18\r \x01(\tR\tsessionId\"\xdf\x05\n" +
 	"\x0fContainerConfig\x12\x14\n" +
 	"\x05image\x18\x01 \x01(\tR\x05image\x12\x18\n" +
 	"\acommand\x18\x02 \x03(\tR\acommand\x12\x12\n" +
@@ -4023,8 +3665,8 @@ const file_proto_orchestrator_proto_rawDesc = "" +
 	"\x05ports\x18\b \x03(\v2\x1c.orchestrator.v1.PortBindingR\x05ports\x12!\n" +
 	"\fnetwork_mode\x18\t \x01(\tR\vnetworkMode\x12\x1a\n" +
 	"\bnetworks\x18\n" +
-	" \x03(\tR\bnetworks\x12=\n" +
-	"\tresources\x18\v \x01(\v2\x1f.orchestrator.v1.ResourceLimitsR\tresources\x12E\n" +
+	" \x03(\tR\bnetworks\x127\n" +
+	"\tresources\x18\v \x01(\v2\x19.common.v1.ResourceLimitsR\tresources\x12E\n" +
 	"\x0erestart_policy\x18\f \x01(\v2\x1e.orchestrator.v1.RestartPolicyR\rrestartPolicy\x12(\n" +
 	"\x10read_only_rootfs\x18\r \x01(\bR\x0ereadOnlyRootfs\x12$\n" +
 	"\x0eremove_on_stop\x18\x0e \x01(\bR\fremoveOnStop\x1a6\n" +
@@ -4048,30 +3690,7 @@ const file_proto_orchestrator_proto_rawDesc = "" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12.\n" +
 	"\x13maximum_retry_count\x18\x02 \x01(\x05R\x11maximumRetryCount\x12\x1d\n" +
 	"\n" +
-	"timeout_ns\x18\x03 \x01(\x03R\ttimeoutNs\"\x90\x01\n" +
-	"\x0eResourceLimits\x12\x1b\n" +
-	"\tnano_cpus\x18\x01 \x01(\x03R\bnanoCpus\x12!\n" +
-	"\fmemory_bytes\x18\x02 \x01(\x03R\vmemoryBytes\x12\x1f\n" +
-	"\vmemory_swap\x18\x03 \x01(\x03R\n" +
-	"memorySwap\x12\x1d\n" +
-	"\n" +
-	"pids_limit\x18\x04 \x01(\x03R\tpidsLimit\"\xba\x02\n" +
-	"\rResourceUsage\x12\x1f\n" +
-	"\vcpu_percent\x18\x01 \x01(\x01R\n" +
-	"cpuPercent\x12!\n" +
-	"\fmemory_usage\x18\x02 \x01(\x03R\vmemoryUsage\x12!\n" +
-	"\fmemory_limit\x18\x03 \x01(\x03R\vmemoryLimit\x12%\n" +
-	"\x0ememory_percent\x18\x04 \x01(\x01R\rmemoryPercent\x12\x1d\n" +
-	"\n" +
-	"network_rx\x18\x05 \x01(\x03R\tnetworkRx\x12\x1d\n" +
-	"\n" +
-	"network_tx\x18\x06 \x01(\x03R\tnetworkTx\x12\x1d\n" +
-	"\n" +
-	"block_read\x18\a \x01(\x03R\tblockRead\x12\x1f\n" +
-	"\vblock_write\x18\b \x01(\x03R\n" +
-	"blockWrite\x12\x1d\n" +
-	"\n" +
-	"pids_count\x18\t \x01(\x03R\tpidsCount\"\xc4\x02\n" +
+	"timeout_ns\x18\x03 \x01(\x03R\ttimeoutNs\"\xc4\x02\n" +
 	"\x05Event\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12.\n" +
 	"\x04type\x18\x02 \x01(\x0e2\x1a.orchestrator.v1.EventTypeR\x04type\x12\x16\n" +
@@ -4081,25 +3700,25 @@ const file_proto_orchestrator_proto_rawDesc = "" +
 	"\bmetadata\x18\x06 \x01(\v2\x1e.orchestrator.v1.EventMetadataR\bmetadata\x1a7\n" +
 	"\tDataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xc7\x02\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xc1\x02\n" +
 	"\rEventMetadata\x12%\n" +
 	"\x0ecorrelation_id\x18\x01 \x01(\tR\rcorrelationId\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x02 \x01(\tR\tsessionId\x12!\n" +
 	"\fcontainer_id\x18\x03 \x01(\tR\vcontainerId\x12\x17\n" +
 	"\auser_id\x18\x04 \x01(\tR\x06userId\x12B\n" +
-	"\x06labels\x18\x05 \x03(\v2*.orchestrator.v1.EventMetadata.LabelsEntryR\x06labels\x125\n" +
-	"\bpriority\x18\x06 \x01(\x0e2\x19.orchestrator.v1.PriorityR\bpriority\x1a9\n" +
+	"\x06labels\x18\x05 \x03(\v2*.orchestrator.v1.EventMetadata.LabelsEntryR\x06labels\x12/\n" +
+	"\bpriority\x18\x06 \x01(\x0e2\x13.common.v1.PriorityR\bpriority\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xbd\x03\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xb7\x03\n" +
 	"\vEventFilter\x12.\n" +
 	"\x04type\x18\x01 \x01(\x0e2\x1a.orchestrator.v1.EventTypeR\x04type\x12\x16\n" +
 	"\x06source\x18\x02 \x01(\tR\x06source\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x03 \x01(\tR\tsessionId\x12!\n" +
-	"\fcontainer_id\x18\x04 \x01(\tR\vcontainerId\x125\n" +
-	"\bpriority\x18\x05 \x01(\x0e2\x19.orchestrator.v1.PriorityR\bpriority\x12@\n" +
+	"\fcontainer_id\x18\x04 \x01(\tR\vcontainerId\x12/\n" +
+	"\bpriority\x18\x05 \x01(\x0e2\x13.common.v1.PriorityR\bpriority\x12@\n" +
 	"\x06labels\x18\x06 \x03(\v2(.orchestrator.v1.EventFilter.LabelsEntryR\x06labels\x129\n" +
 	"\n" +
 	"start_time\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x125\n" +
@@ -4139,10 +3758,10 @@ const file_proto_orchestrator_proto_rawDesc = "" +
 	"\x12GetSessionResponse\x122\n" +
 	"\asession\x18\x01 \x01(\v2\x18.orchestrator.v1.SessionR\asession\"M\n" +
 	"\x13ListSessionsRequest\x126\n" +
-	"\x06filter\x18\x01 \x01(\v2\x1e.orchestrator.v1.SessionFilterR\x06filter\"\x8f\x02\n" +
+	"\x06filter\x18\x01 \x01(\v2\x1e.orchestrator.v1.SessionFilterR\x06filter\"\x89\x02\n" +
 	"\rSessionFilter\x123\n" +
-	"\x05state\x18\x01 \x01(\x0e2\x1d.orchestrator.v1.SessionStateR\x05state\x12/\n" +
-	"\x06status\x18\x02 \x01(\x0e2\x17.orchestrator.v1.StatusR\x06status\x12\x19\n" +
+	"\x05state\x18\x01 \x01(\x0e2\x1d.orchestrator.v1.SessionStateR\x05state\x12)\n" +
+	"\x06status\x18\x02 \x01(\x0e2\x11.common.v1.StatusR\x06status\x12\x19\n" +
 	"\bowner_id\x18\x03 \x01(\tR\aownerId\x12B\n" +
 	"\x06labels\x18\x04 \x03(\v2*.orchestrator.v1.SessionFilter.LabelsEntryR\x06labels\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
@@ -4200,12 +3819,12 @@ const file_proto_orchestrator_proto_rawDesc = "" +
 	"\x14GetContainerResponse\x128\n" +
 	"\tcontainer\x18\x01 \x01(\v2\x1a.orchestrator.v1.ContainerR\tcontainer\"Q\n" +
 	"\x15ListContainersRequest\x128\n" +
-	"\x06filter\x18\x01 \x01(\v2 .orchestrator.v1.ContainerFilterR\x06filter\"\x99\x02\n" +
+	"\x06filter\x18\x01 \x01(\v2 .orchestrator.v1.ContainerFilterR\x06filter\"\x93\x02\n" +
 	"\x0fContainerFilter\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x125\n" +
-	"\x05state\x18\x02 \x01(\x0e2\x1f.orchestrator.v1.ContainerStateR\x05state\x12/\n" +
-	"\x06status\x18\x03 \x01(\x0e2\x17.orchestrator.v1.StatusR\x06status\x12D\n" +
+	"\x05state\x18\x02 \x01(\x0e2\x1f.orchestrator.v1.ContainerStateR\x05state\x12)\n" +
+	"\x06status\x18\x03 \x01(\x0e2\x11.common.v1.StatusR\x06status\x12D\n" +
 	"\x06labels\x18\x04 \x03(\v2,.orchestrator.v1.ContainerFilter.LabelsEntryR\x06labels\x1a9\n" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
@@ -4229,15 +3848,15 @@ const file_proto_orchestrator_proto_rawDesc = "" +
 	"\x17RemoveContainerResponse\x12!\n" +
 	"\fcontainer_id\x18\x01 \x01(\tR\vcontainerId\"N\n" +
 	"\x16SubscribeEventsRequest\x124\n" +
-	"\x06filter\x18\x01 \x01(\v2\x1c.orchestrator.v1.EventFilterR\x06filter\"\x80\x01\n" +
-	"\x13HealthCheckResponse\x12/\n" +
-	"\x06health\x18\x01 \x01(\x0e2\x17.orchestrator.v1.HealthR\x06health\x12\x18\n" +
+	"\x06filter\x18\x01 \x01(\v2\x1c.orchestrator.v1.EventFilterR\x06filter\"z\n" +
+	"\x13HealthCheckResponse\x12)\n" +
+	"\x06health\x18\x01 \x01(\x0e2\x11.common.v1.HealthR\x06health\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x12\x1e\n" +
 	"\n" +
 	"subsystems\x18\x03 \x03(\tR\n" +
-	"subsystems\"\x86\x02\n" +
-	"\x0eStatusResponse\x12/\n" +
-	"\x06status\x18\x01 \x01(\x0e2\x17.orchestrator.v1.StatusR\x06status\x12'\n" +
+	"subsystems\"\x80\x02\n" +
+	"\x0eStatusResponse\x12)\n" +
+	"\x06status\x18\x01 \x01(\x0e2\x11.common.v1.StatusR\x06status\x12'\n" +
 	"\x0factive_sessions\x18\x02 \x01(\x05R\x0eactiveSessions\x12+\n" +
 	"\x11active_containers\x18\x03 \x01(\x05R\x10activeContainers\x129\n" +
 	"\n" +
@@ -4269,23 +3888,7 @@ const file_proto_orchestrator_proto_rawDesc = "" +
 	"\x16MOUNT_TYPE_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fMOUNT_TYPE_BIND\x10\x01\x12\x15\n" +
 	"\x11MOUNT_TYPE_VOLUME\x10\x02\x12\x14\n" +
-	"\x10MOUNT_TYPE_TMPFS\x10\x03*\xaf\x01\n" +
-	"\x06Status\x12\x16\n" +
-	"\x12STATUS_UNSPECIFIED\x10\x00\x12\x12\n" +
-	"\x0eSTATUS_UNKNOWN\x10\x01\x12\x13\n" +
-	"\x0fSTATUS_STARTING\x10\x02\x12\x12\n" +
-	"\x0eSTATUS_RUNNING\x10\x03\x12\x13\n" +
-	"\x0fSTATUS_STOPPING\x10\x04\x12\x12\n" +
-	"\x0eSTATUS_STOPPED\x10\x05\x12\x10\n" +
-	"\fSTATUS_ERROR\x10\x06\x12\x15\n" +
-	"\x11STATUS_TERMINATED\x10\a*\x88\x01\n" +
-	"\x06Health\x12\x16\n" +
-	"\x12HEALTH_UNSPECIFIED\x10\x00\x12\x12\n" +
-	"\x0eHEALTH_UNKNOWN\x10\x01\x12\x12\n" +
-	"\x0eHEALTH_HEALTHY\x10\x02\x12\x14\n" +
-	"\x10HEALTH_UNHEALTHY\x10\x03\x12\x13\n" +
-	"\x0fHEALTH_DEGRADED\x10\x04\x12\x13\n" +
-	"\x0fHEALTH_CHECKING\x10\x05*\xc2\x04\n" +
+	"\x10MOUNT_TYPE_TMPFS\x10\x03*\xc2\x04\n" +
 	"\tEventType\x12\x1a\n" +
 	"\x16EVENT_TYPE_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cEVENT_TYPE_CONTAINER_CREATED\x10\x01\x12 \n" +
@@ -4305,13 +3908,7 @@ const file_proto_orchestrator_proto_rawDesc = "" +
 	"\x1bEVENT_TYPE_POLICY_VIOLATION\x10\x0e\x12!\n" +
 	"\x1dEVENT_TYPE_RESOURCE_THRESHOLD\x10\x0f\x12\x1d\n" +
 	"\x19EVENT_TYPE_SYSTEM_STARTUP\x10\x10\x12\x1e\n" +
-	"\x1aEVENT_TYPE_SYSTEM_SHUTDOWN\x10\x11*u\n" +
-	"\bPriority\x12\x18\n" +
-	"\x14PRIORITY_UNSPECIFIED\x10\x00\x12\x10\n" +
-	"\fPRIORITY_LOW\x10\x01\x12\x13\n" +
-	"\x0fPRIORITY_NORMAL\x10\x02\x12\x11\n" +
-	"\rPRIORITY_HIGH\x10\x03\x12\x15\n" +
-	"\x11PRIORITY_CRITICAL\x10\x042\xfa\n" +
+	"\x1aEVENT_TYPE_SYSTEM_SHUTDOWN\x10\x112\xfa\n" +
 	"\n" +
 	"\x13OrchestratorService\x12^\n" +
 	"\rCreateSession\x12%.orchestrator.v1.CreateSessionRequest\x1a&.orchestrator.v1.CreateSessionResponse\x12U\n" +
@@ -4343,192 +3940,192 @@ func file_proto_orchestrator_proto_rawDescGZIP() []byte {
 	return file_proto_orchestrator_proto_rawDescData
 }
 
-var file_proto_orchestrator_proto_enumTypes = make([]protoimpl.EnumInfo, 8)
-var file_proto_orchestrator_proto_msgTypes = make([]protoimpl.MessageInfo, 59)
+var file_proto_orchestrator_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
+var file_proto_orchestrator_proto_msgTypes = make([]protoimpl.MessageInfo, 57)
 var file_proto_orchestrator_proto_goTypes = []any{
 	(SessionState)(0),               // 0: orchestrator.v1.SessionState
 	(MessageRole)(0),                // 1: orchestrator.v1.MessageRole
 	(ContainerState)(0),             // 2: orchestrator.v1.ContainerState
 	(MountType)(0),                  // 3: orchestrator.v1.MountType
-	(Status)(0),                     // 4: orchestrator.v1.Status
-	(Health)(0),                     // 5: orchestrator.v1.Health
-	(EventType)(0),                  // 6: orchestrator.v1.EventType
-	(Priority)(0),                   // 7: orchestrator.v1.Priority
-	(*Session)(nil),                 // 8: orchestrator.v1.Session
-	(*SessionMetadata)(nil),         // 9: orchestrator.v1.SessionMetadata
-	(*SessionContext)(nil),          // 10: orchestrator.v1.SessionContext
-	(*Message)(nil),                 // 11: orchestrator.v1.Message
-	(*MessageMetadata)(nil),         // 12: orchestrator.v1.MessageMetadata
-	(*UserPreferences)(nil),         // 13: orchestrator.v1.UserPreferences
-	(*SessionConfig)(nil),           // 14: orchestrator.v1.SessionConfig
-	(*SessionPolicy)(nil),           // 15: orchestrator.v1.SessionPolicy
-	(*Container)(nil),               // 16: orchestrator.v1.Container
-	(*ContainerConfig)(nil),         // 17: orchestrator.v1.ContainerConfig
-	(*Mount)(nil),                   // 18: orchestrator.v1.Mount
-	(*PortBinding)(nil),             // 19: orchestrator.v1.PortBinding
-	(*RestartPolicy)(nil),           // 20: orchestrator.v1.RestartPolicy
-	(*ResourceLimits)(nil),          // 21: orchestrator.v1.ResourceLimits
-	(*ResourceUsage)(nil),           // 22: orchestrator.v1.ResourceUsage
-	(*Event)(nil),                   // 23: orchestrator.v1.Event
-	(*EventMetadata)(nil),           // 24: orchestrator.v1.EventMetadata
-	(*EventFilter)(nil),             // 25: orchestrator.v1.EventFilter
-	(*IPCMessage)(nil),              // 26: orchestrator.v1.IPCMessage
-	(*IPCMetadata)(nil),             // 27: orchestrator.v1.IPCMetadata
-	(*CreateSessionRequest)(nil),    // 28: orchestrator.v1.CreateSessionRequest
-	(*CreateSessionResponse)(nil),   // 29: orchestrator.v1.CreateSessionResponse
-	(*GetSessionRequest)(nil),       // 30: orchestrator.v1.GetSessionRequest
-	(*GetSessionResponse)(nil),      // 31: orchestrator.v1.GetSessionResponse
-	(*ListSessionsRequest)(nil),     // 32: orchestrator.v1.ListSessionsRequest
-	(*SessionFilter)(nil),           // 33: orchestrator.v1.SessionFilter
-	(*ListSessionsResponse)(nil),    // 34: orchestrator.v1.ListSessionsResponse
-	(*UpdateSessionRequest)(nil),    // 35: orchestrator.v1.UpdateSessionRequest
-	(*UpdateSessionResponse)(nil),   // 36: orchestrator.v1.UpdateSessionResponse
-	(*CloseSessionRequest)(nil),     // 37: orchestrator.v1.CloseSessionRequest
-	(*CloseSessionResponse)(nil),    // 38: orchestrator.v1.CloseSessionResponse
-	(*SendMessageRequest)(nil),      // 39: orchestrator.v1.SendMessageRequest
-	(*SendMessageResponse)(nil),     // 40: orchestrator.v1.SendMessageResponse
-	(*StreamMessageRequest)(nil),    // 41: orchestrator.v1.StreamMessageRequest
-	(*StreamMessageResponse)(nil),   // 42: orchestrator.v1.StreamMessageResponse
-	(*CreateContainerRequest)(nil),  // 43: orchestrator.v1.CreateContainerRequest
-	(*CreateContainerResponse)(nil), // 44: orchestrator.v1.CreateContainerResponse
-	(*GetContainerRequest)(nil),     // 45: orchestrator.v1.GetContainerRequest
-	(*GetContainerResponse)(nil),    // 46: orchestrator.v1.GetContainerResponse
-	(*ListContainersRequest)(nil),   // 47: orchestrator.v1.ListContainersRequest
-	(*ContainerFilter)(nil),         // 48: orchestrator.v1.ContainerFilter
-	(*ListContainersResponse)(nil),  // 49: orchestrator.v1.ListContainersResponse
-	(*StopContainerRequest)(nil),    // 50: orchestrator.v1.StopContainerRequest
-	(*StopContainerResponse)(nil),   // 51: orchestrator.v1.StopContainerResponse
-	(*RemoveContainerRequest)(nil),  // 52: orchestrator.v1.RemoveContainerRequest
-	(*RemoveContainerResponse)(nil), // 53: orchestrator.v1.RemoveContainerResponse
-	(*SubscribeEventsRequest)(nil),  // 54: orchestrator.v1.SubscribeEventsRequest
-	(*HealthCheckResponse)(nil),     // 55: orchestrator.v1.HealthCheckResponse
-	(*StatusResponse)(nil),          // 56: orchestrator.v1.StatusResponse
-	nil,                             // 57: orchestrator.v1.SessionMetadata.LabelsEntry
-	nil,                             // 58: orchestrator.v1.MessageMetadata.ExtraEntry
-	nil,                             // 59: orchestrator.v1.ContainerConfig.EnvEntry
-	nil,                             // 60: orchestrator.v1.ContainerConfig.LabelsEntry
-	nil,                             // 61: orchestrator.v1.Event.DataEntry
-	nil,                             // 62: orchestrator.v1.EventMetadata.LabelsEntry
-	nil,                             // 63: orchestrator.v1.EventFilter.LabelsEntry
-	nil,                             // 64: orchestrator.v1.IPCMetadata.HeadersEntry
-	nil,                             // 65: orchestrator.v1.SessionFilter.LabelsEntry
-	nil,                             // 66: orchestrator.v1.ContainerFilter.LabelsEntry
-	(*timestamppb.Timestamp)(nil),   // 67: google.protobuf.Timestamp
+	(EventType)(0),                  // 4: orchestrator.v1.EventType
+	(*Session)(nil),                 // 5: orchestrator.v1.Session
+	(*SessionMetadata)(nil),         // 6: orchestrator.v1.SessionMetadata
+	(*SessionContext)(nil),          // 7: orchestrator.v1.SessionContext
+	(*Message)(nil),                 // 8: orchestrator.v1.Message
+	(*MessageMetadata)(nil),         // 9: orchestrator.v1.MessageMetadata
+	(*UserPreferences)(nil),         // 10: orchestrator.v1.UserPreferences
+	(*SessionConfig)(nil),           // 11: orchestrator.v1.SessionConfig
+	(*SessionPolicy)(nil),           // 12: orchestrator.v1.SessionPolicy
+	(*Container)(nil),               // 13: orchestrator.v1.Container
+	(*ContainerConfig)(nil),         // 14: orchestrator.v1.ContainerConfig
+	(*Mount)(nil),                   // 15: orchestrator.v1.Mount
+	(*PortBinding)(nil),             // 16: orchestrator.v1.PortBinding
+	(*RestartPolicy)(nil),           // 17: orchestrator.v1.RestartPolicy
+	(*Event)(nil),                   // 18: orchestrator.v1.Event
+	(*EventMetadata)(nil),           // 19: orchestrator.v1.EventMetadata
+	(*EventFilter)(nil),             // 20: orchestrator.v1.EventFilter
+	(*IPCMessage)(nil),              // 21: orchestrator.v1.IPCMessage
+	(*IPCMetadata)(nil),             // 22: orchestrator.v1.IPCMetadata
+	(*CreateSessionRequest)(nil),    // 23: orchestrator.v1.CreateSessionRequest
+	(*CreateSessionResponse)(nil),   // 24: orchestrator.v1.CreateSessionResponse
+	(*GetSessionRequest)(nil),       // 25: orchestrator.v1.GetSessionRequest
+	(*GetSessionResponse)(nil),      // 26: orchestrator.v1.GetSessionResponse
+	(*ListSessionsRequest)(nil),     // 27: orchestrator.v1.ListSessionsRequest
+	(*SessionFilter)(nil),           // 28: orchestrator.v1.SessionFilter
+	(*ListSessionsResponse)(nil),    // 29: orchestrator.v1.ListSessionsResponse
+	(*UpdateSessionRequest)(nil),    // 30: orchestrator.v1.UpdateSessionRequest
+	(*UpdateSessionResponse)(nil),   // 31: orchestrator.v1.UpdateSessionResponse
+	(*CloseSessionRequest)(nil),     // 32: orchestrator.v1.CloseSessionRequest
+	(*CloseSessionResponse)(nil),    // 33: orchestrator.v1.CloseSessionResponse
+	(*SendMessageRequest)(nil),      // 34: orchestrator.v1.SendMessageRequest
+	(*SendMessageResponse)(nil),     // 35: orchestrator.v1.SendMessageResponse
+	(*StreamMessageRequest)(nil),    // 36: orchestrator.v1.StreamMessageRequest
+	(*StreamMessageResponse)(nil),   // 37: orchestrator.v1.StreamMessageResponse
+	(*CreateContainerRequest)(nil),  // 38: orchestrator.v1.CreateContainerRequest
+	(*CreateContainerResponse)(nil), // 39: orchestrator.v1.CreateContainerResponse
+	(*GetContainerRequest)(nil),     // 40: orchestrator.v1.GetContainerRequest
+	(*GetContainerResponse)(nil),    // 41: orchestrator.v1.GetContainerResponse
+	(*ListContainersRequest)(nil),   // 42: orchestrator.v1.ListContainersRequest
+	(*ContainerFilter)(nil),         // 43: orchestrator.v1.ContainerFilter
+	(*ListContainersResponse)(nil),  // 44: orchestrator.v1.ListContainersResponse
+	(*StopContainerRequest)(nil),    // 45: orchestrator.v1.StopContainerRequest
+	(*StopContainerResponse)(nil),   // 46: orchestrator.v1.StopContainerResponse
+	(*RemoveContainerRequest)(nil),  // 47: orchestrator.v1.RemoveContainerRequest
+	(*RemoveContainerResponse)(nil), // 48: orchestrator.v1.RemoveContainerResponse
+	(*SubscribeEventsRequest)(nil),  // 49: orchestrator.v1.SubscribeEventsRequest
+	(*HealthCheckResponse)(nil),     // 50: orchestrator.v1.HealthCheckResponse
+	(*StatusResponse)(nil),          // 51: orchestrator.v1.StatusResponse
+	nil,                             // 52: orchestrator.v1.SessionMetadata.LabelsEntry
+	nil,                             // 53: orchestrator.v1.MessageMetadata.ExtraEntry
+	nil,                             // 54: orchestrator.v1.ContainerConfig.EnvEntry
+	nil,                             // 55: orchestrator.v1.ContainerConfig.LabelsEntry
+	nil,                             // 56: orchestrator.v1.Event.DataEntry
+	nil,                             // 57: orchestrator.v1.EventMetadata.LabelsEntry
+	nil,                             // 58: orchestrator.v1.EventFilter.LabelsEntry
+	nil,                             // 59: orchestrator.v1.IPCMetadata.HeadersEntry
+	nil,                             // 60: orchestrator.v1.SessionFilter.LabelsEntry
+	nil,                             // 61: orchestrator.v1.ContainerFilter.LabelsEntry
+	(Status)(0),                     // 62: common.v1.Status
+	(*timestamppb.Timestamp)(nil),   // 63: google.protobuf.Timestamp
+	(*ResourceUsage)(nil),           // 64: common.v1.ResourceUsage
+	(*ResourceLimits)(nil),          // 65: common.v1.ResourceLimits
+	(Health)(0),                     // 66: common.v1.Health
+	(Priority)(0),                   // 67: common.v1.Priority
 	(*emptypb.Empty)(nil),           // 68: google.protobuf.Empty
 }
 var file_proto_orchestrator_proto_depIdxs = []int32{
 	0,  // 0: orchestrator.v1.Session.state:type_name -> orchestrator.v1.SessionState
-	4,  // 1: orchestrator.v1.Session.status:type_name -> orchestrator.v1.Status
-	67, // 2: orchestrator.v1.Session.created_at:type_name -> google.protobuf.Timestamp
-	67, // 3: orchestrator.v1.Session.updated_at:type_name -> google.protobuf.Timestamp
-	67, // 4: orchestrator.v1.Session.expires_at:type_name -> google.protobuf.Timestamp
-	67, // 5: orchestrator.v1.Session.closed_at:type_name -> google.protobuf.Timestamp
-	9,  // 6: orchestrator.v1.Session.metadata:type_name -> orchestrator.v1.SessionMetadata
-	10, // 7: orchestrator.v1.Session.context:type_name -> orchestrator.v1.SessionContext
-	57, // 8: orchestrator.v1.SessionMetadata.labels:type_name -> orchestrator.v1.SessionMetadata.LabelsEntry
-	11, // 9: orchestrator.v1.SessionContext.messages:type_name -> orchestrator.v1.Message
-	13, // 10: orchestrator.v1.SessionContext.preferences:type_name -> orchestrator.v1.UserPreferences
-	14, // 11: orchestrator.v1.SessionContext.config:type_name -> orchestrator.v1.SessionConfig
-	22, // 12: orchestrator.v1.SessionContext.resource_usage:type_name -> orchestrator.v1.ResourceUsage
-	67, // 13: orchestrator.v1.Message.timestamp:type_name -> google.protobuf.Timestamp
+	62, // 1: orchestrator.v1.Session.status:type_name -> common.v1.Status
+	63, // 2: orchestrator.v1.Session.created_at:type_name -> google.protobuf.Timestamp
+	63, // 3: orchestrator.v1.Session.updated_at:type_name -> google.protobuf.Timestamp
+	63, // 4: orchestrator.v1.Session.expires_at:type_name -> google.protobuf.Timestamp
+	63, // 5: orchestrator.v1.Session.closed_at:type_name -> google.protobuf.Timestamp
+	6,  // 6: orchestrator.v1.Session.metadata:type_name -> orchestrator.v1.SessionMetadata
+	7,  // 7: orchestrator.v1.Session.context:type_name -> orchestrator.v1.SessionContext
+	52, // 8: orchestrator.v1.SessionMetadata.labels:type_name -> orchestrator.v1.SessionMetadata.LabelsEntry
+	8,  // 9: orchestrator.v1.SessionContext.messages:type_name -> orchestrator.v1.Message
+	10, // 10: orchestrator.v1.SessionContext.preferences:type_name -> orchestrator.v1.UserPreferences
+	11, // 11: orchestrator.v1.SessionContext.config:type_name -> orchestrator.v1.SessionConfig
+	64, // 12: orchestrator.v1.SessionContext.resource_usage:type_name -> common.v1.ResourceUsage
+	63, // 13: orchestrator.v1.Message.timestamp:type_name -> google.protobuf.Timestamp
 	1,  // 14: orchestrator.v1.Message.role:type_name -> orchestrator.v1.MessageRole
-	12, // 15: orchestrator.v1.Message.metadata:type_name -> orchestrator.v1.MessageMetadata
-	58, // 16: orchestrator.v1.MessageMetadata.extra:type_name -> orchestrator.v1.MessageMetadata.ExtraEntry
-	21, // 17: orchestrator.v1.SessionConfig.resource_limits:type_name -> orchestrator.v1.ResourceLimits
-	15, // 18: orchestrator.v1.SessionConfig.policy:type_name -> orchestrator.v1.SessionPolicy
+	9,  // 15: orchestrator.v1.Message.metadata:type_name -> orchestrator.v1.MessageMetadata
+	53, // 16: orchestrator.v1.MessageMetadata.extra:type_name -> orchestrator.v1.MessageMetadata.ExtraEntry
+	65, // 17: orchestrator.v1.SessionConfig.resource_limits:type_name -> common.v1.ResourceLimits
+	12, // 18: orchestrator.v1.SessionConfig.policy:type_name -> orchestrator.v1.SessionPolicy
 	2,  // 19: orchestrator.v1.Container.state:type_name -> orchestrator.v1.ContainerState
-	4,  // 20: orchestrator.v1.Container.status:type_name -> orchestrator.v1.Status
-	5,  // 21: orchestrator.v1.Container.health:type_name -> orchestrator.v1.Health
-	67, // 22: orchestrator.v1.Container.created_at:type_name -> google.protobuf.Timestamp
-	67, // 23: orchestrator.v1.Container.started_at:type_name -> google.protobuf.Timestamp
-	67, // 24: orchestrator.v1.Container.exited_at:type_name -> google.protobuf.Timestamp
-	17, // 25: orchestrator.v1.Container.config:type_name -> orchestrator.v1.ContainerConfig
-	22, // 26: orchestrator.v1.Container.resources:type_name -> orchestrator.v1.ResourceUsage
-	59, // 27: orchestrator.v1.ContainerConfig.env:type_name -> orchestrator.v1.ContainerConfig.EnvEntry
-	60, // 28: orchestrator.v1.ContainerConfig.labels:type_name -> orchestrator.v1.ContainerConfig.LabelsEntry
-	18, // 29: orchestrator.v1.ContainerConfig.mounts:type_name -> orchestrator.v1.Mount
-	19, // 30: orchestrator.v1.ContainerConfig.ports:type_name -> orchestrator.v1.PortBinding
-	21, // 31: orchestrator.v1.ContainerConfig.resources:type_name -> orchestrator.v1.ResourceLimits
-	20, // 32: orchestrator.v1.ContainerConfig.restart_policy:type_name -> orchestrator.v1.RestartPolicy
+	62, // 20: orchestrator.v1.Container.status:type_name -> common.v1.Status
+	66, // 21: orchestrator.v1.Container.health:type_name -> common.v1.Health
+	63, // 22: orchestrator.v1.Container.created_at:type_name -> google.protobuf.Timestamp
+	63, // 23: orchestrator.v1.Container.started_at:type_name -> google.protobuf.Timestamp
+	63, // 24: orchestrator.v1.Container.exited_at:type_name -> google.protobuf.Timestamp
+	14, // 25: orchestrator.v1.Container.config:type_name -> orchestrator.v1.ContainerConfig
+	64, // 26: orchestrator.v1.Container.resources:type_name -> common.v1.ResourceUsage
+	54, // 27: orchestrator.v1.ContainerConfig.env:type_name -> orchestrator.v1.ContainerConfig.EnvEntry
+	55, // 28: orchestrator.v1.ContainerConfig.labels:type_name -> orchestrator.v1.ContainerConfig.LabelsEntry
+	15, // 29: orchestrator.v1.ContainerConfig.mounts:type_name -> orchestrator.v1.Mount
+	16, // 30: orchestrator.v1.ContainerConfig.ports:type_name -> orchestrator.v1.PortBinding
+	65, // 31: orchestrator.v1.ContainerConfig.resources:type_name -> common.v1.ResourceLimits
+	17, // 32: orchestrator.v1.ContainerConfig.restart_policy:type_name -> orchestrator.v1.RestartPolicy
 	3,  // 33: orchestrator.v1.Mount.type:type_name -> orchestrator.v1.MountType
-	6,  // 34: orchestrator.v1.Event.type:type_name -> orchestrator.v1.EventType
-	67, // 35: orchestrator.v1.Event.timestamp:type_name -> google.protobuf.Timestamp
-	61, // 36: orchestrator.v1.Event.data:type_name -> orchestrator.v1.Event.DataEntry
-	24, // 37: orchestrator.v1.Event.metadata:type_name -> orchestrator.v1.EventMetadata
-	62, // 38: orchestrator.v1.EventMetadata.labels:type_name -> orchestrator.v1.EventMetadata.LabelsEntry
-	7,  // 39: orchestrator.v1.EventMetadata.priority:type_name -> orchestrator.v1.Priority
-	6,  // 40: orchestrator.v1.EventFilter.type:type_name -> orchestrator.v1.EventType
-	7,  // 41: orchestrator.v1.EventFilter.priority:type_name -> orchestrator.v1.Priority
-	63, // 42: orchestrator.v1.EventFilter.labels:type_name -> orchestrator.v1.EventFilter.LabelsEntry
-	67, // 43: orchestrator.v1.EventFilter.start_time:type_name -> google.protobuf.Timestamp
-	67, // 44: orchestrator.v1.EventFilter.end_time:type_name -> google.protobuf.Timestamp
-	27, // 45: orchestrator.v1.IPCMessage.metadata:type_name -> orchestrator.v1.IPCMetadata
-	67, // 46: orchestrator.v1.IPCMessage.timestamp:type_name -> google.protobuf.Timestamp
-	64, // 47: orchestrator.v1.IPCMetadata.headers:type_name -> orchestrator.v1.IPCMetadata.HeadersEntry
-	9,  // 48: orchestrator.v1.CreateSessionRequest.metadata:type_name -> orchestrator.v1.SessionMetadata
-	14, // 49: orchestrator.v1.CreateSessionRequest.config:type_name -> orchestrator.v1.SessionConfig
-	8,  // 50: orchestrator.v1.CreateSessionResponse.session:type_name -> orchestrator.v1.Session
-	8,  // 51: orchestrator.v1.GetSessionResponse.session:type_name -> orchestrator.v1.Session
-	33, // 52: orchestrator.v1.ListSessionsRequest.filter:type_name -> orchestrator.v1.SessionFilter
+	4,  // 34: orchestrator.v1.Event.type:type_name -> orchestrator.v1.EventType
+	63, // 35: orchestrator.v1.Event.timestamp:type_name -> google.protobuf.Timestamp
+	56, // 36: orchestrator.v1.Event.data:type_name -> orchestrator.v1.Event.DataEntry
+	19, // 37: orchestrator.v1.Event.metadata:type_name -> orchestrator.v1.EventMetadata
+	57, // 38: orchestrator.v1.EventMetadata.labels:type_name -> orchestrator.v1.EventMetadata.LabelsEntry
+	67, // 39: orchestrator.v1.EventMetadata.priority:type_name -> common.v1.Priority
+	4,  // 40: orchestrator.v1.EventFilter.type:type_name -> orchestrator.v1.EventType
+	67, // 41: orchestrator.v1.EventFilter.priority:type_name -> common.v1.Priority
+	58, // 42: orchestrator.v1.EventFilter.labels:type_name -> orchestrator.v1.EventFilter.LabelsEntry
+	63, // 43: orchestrator.v1.EventFilter.start_time:type_name -> google.protobuf.Timestamp
+	63, // 44: orchestrator.v1.EventFilter.end_time:type_name -> google.protobuf.Timestamp
+	22, // 45: orchestrator.v1.IPCMessage.metadata:type_name -> orchestrator.v1.IPCMetadata
+	63, // 46: orchestrator.v1.IPCMessage.timestamp:type_name -> google.protobuf.Timestamp
+	59, // 47: orchestrator.v1.IPCMetadata.headers:type_name -> orchestrator.v1.IPCMetadata.HeadersEntry
+	6,  // 48: orchestrator.v1.CreateSessionRequest.metadata:type_name -> orchestrator.v1.SessionMetadata
+	11, // 49: orchestrator.v1.CreateSessionRequest.config:type_name -> orchestrator.v1.SessionConfig
+	5,  // 50: orchestrator.v1.CreateSessionResponse.session:type_name -> orchestrator.v1.Session
+	5,  // 51: orchestrator.v1.GetSessionResponse.session:type_name -> orchestrator.v1.Session
+	28, // 52: orchestrator.v1.ListSessionsRequest.filter:type_name -> orchestrator.v1.SessionFilter
 	0,  // 53: orchestrator.v1.SessionFilter.state:type_name -> orchestrator.v1.SessionState
-	4,  // 54: orchestrator.v1.SessionFilter.status:type_name -> orchestrator.v1.Status
-	65, // 55: orchestrator.v1.SessionFilter.labels:type_name -> orchestrator.v1.SessionFilter.LabelsEntry
-	8,  // 56: orchestrator.v1.ListSessionsResponse.sessions:type_name -> orchestrator.v1.Session
-	9,  // 57: orchestrator.v1.UpdateSessionRequest.metadata:type_name -> orchestrator.v1.SessionMetadata
-	10, // 58: orchestrator.v1.UpdateSessionRequest.context:type_name -> orchestrator.v1.SessionContext
-	8,  // 59: orchestrator.v1.UpdateSessionResponse.session:type_name -> orchestrator.v1.Session
+	62, // 54: orchestrator.v1.SessionFilter.status:type_name -> common.v1.Status
+	60, // 55: orchestrator.v1.SessionFilter.labels:type_name -> orchestrator.v1.SessionFilter.LabelsEntry
+	5,  // 56: orchestrator.v1.ListSessionsResponse.sessions:type_name -> orchestrator.v1.Session
+	6,  // 57: orchestrator.v1.UpdateSessionRequest.metadata:type_name -> orchestrator.v1.SessionMetadata
+	7,  // 58: orchestrator.v1.UpdateSessionRequest.context:type_name -> orchestrator.v1.SessionContext
+	5,  // 59: orchestrator.v1.UpdateSessionResponse.session:type_name -> orchestrator.v1.Session
 	0,  // 60: orchestrator.v1.CloseSessionResponse.state:type_name -> orchestrator.v1.SessionState
-	11, // 61: orchestrator.v1.SendMessageRequest.message:type_name -> orchestrator.v1.Message
-	67, // 62: orchestrator.v1.SendMessageResponse.timestamp:type_name -> google.protobuf.Timestamp
-	11, // 63: orchestrator.v1.StreamMessageRequest.message:type_name -> orchestrator.v1.Message
+	8,  // 61: orchestrator.v1.SendMessageRequest.message:type_name -> orchestrator.v1.Message
+	63, // 62: orchestrator.v1.SendMessageResponse.timestamp:type_name -> google.protobuf.Timestamp
+	8,  // 63: orchestrator.v1.StreamMessageRequest.message:type_name -> orchestrator.v1.Message
 	68, // 64: orchestrator.v1.StreamMessageRequest.heartbeat:type_name -> google.protobuf.Empty
-	11, // 65: orchestrator.v1.StreamMessageResponse.message:type_name -> orchestrator.v1.Message
-	23, // 66: orchestrator.v1.StreamMessageResponse.event:type_name -> orchestrator.v1.Event
+	8,  // 65: orchestrator.v1.StreamMessageResponse.message:type_name -> orchestrator.v1.Message
+	18, // 66: orchestrator.v1.StreamMessageResponse.event:type_name -> orchestrator.v1.Event
 	68, // 67: orchestrator.v1.StreamMessageResponse.heartbeat:type_name -> google.protobuf.Empty
-	17, // 68: orchestrator.v1.CreateContainerRequest.config:type_name -> orchestrator.v1.ContainerConfig
-	16, // 69: orchestrator.v1.CreateContainerResponse.container:type_name -> orchestrator.v1.Container
-	16, // 70: orchestrator.v1.GetContainerResponse.container:type_name -> orchestrator.v1.Container
-	48, // 71: orchestrator.v1.ListContainersRequest.filter:type_name -> orchestrator.v1.ContainerFilter
+	14, // 68: orchestrator.v1.CreateContainerRequest.config:type_name -> orchestrator.v1.ContainerConfig
+	13, // 69: orchestrator.v1.CreateContainerResponse.container:type_name -> orchestrator.v1.Container
+	13, // 70: orchestrator.v1.GetContainerResponse.container:type_name -> orchestrator.v1.Container
+	43, // 71: orchestrator.v1.ListContainersRequest.filter:type_name -> orchestrator.v1.ContainerFilter
 	2,  // 72: orchestrator.v1.ContainerFilter.state:type_name -> orchestrator.v1.ContainerState
-	4,  // 73: orchestrator.v1.ContainerFilter.status:type_name -> orchestrator.v1.Status
-	66, // 74: orchestrator.v1.ContainerFilter.labels:type_name -> orchestrator.v1.ContainerFilter.LabelsEntry
-	16, // 75: orchestrator.v1.ListContainersResponse.containers:type_name -> orchestrator.v1.Container
+	62, // 73: orchestrator.v1.ContainerFilter.status:type_name -> common.v1.Status
+	61, // 74: orchestrator.v1.ContainerFilter.labels:type_name -> orchestrator.v1.ContainerFilter.LabelsEntry
+	13, // 75: orchestrator.v1.ListContainersResponse.containers:type_name -> orchestrator.v1.Container
 	2,  // 76: orchestrator.v1.StopContainerResponse.state:type_name -> orchestrator.v1.ContainerState
-	25, // 77: orchestrator.v1.SubscribeEventsRequest.filter:type_name -> orchestrator.v1.EventFilter
-	5,  // 78: orchestrator.v1.HealthCheckResponse.health:type_name -> orchestrator.v1.Health
-	4,  // 79: orchestrator.v1.StatusResponse.status:type_name -> orchestrator.v1.Status
-	67, // 80: orchestrator.v1.StatusResponse.started_at:type_name -> google.protobuf.Timestamp
-	67, // 81: orchestrator.v1.StatusResponse.uptime:type_name -> google.protobuf.Timestamp
-	28, // 82: orchestrator.v1.OrchestratorService.CreateSession:input_type -> orchestrator.v1.CreateSessionRequest
-	30, // 83: orchestrator.v1.OrchestratorService.GetSession:input_type -> orchestrator.v1.GetSessionRequest
-	32, // 84: orchestrator.v1.OrchestratorService.ListSessions:input_type -> orchestrator.v1.ListSessionsRequest
-	35, // 85: orchestrator.v1.OrchestratorService.UpdateSession:input_type -> orchestrator.v1.UpdateSessionRequest
-	37, // 86: orchestrator.v1.OrchestratorService.CloseSession:input_type -> orchestrator.v1.CloseSessionRequest
-	39, // 87: orchestrator.v1.OrchestratorService.SendMessage:input_type -> orchestrator.v1.SendMessageRequest
-	41, // 88: orchestrator.v1.OrchestratorService.StreamMessages:input_type -> orchestrator.v1.StreamMessageRequest
-	43, // 89: orchestrator.v1.OrchestratorService.CreateContainer:input_type -> orchestrator.v1.CreateContainerRequest
-	45, // 90: orchestrator.v1.OrchestratorService.GetContainer:input_type -> orchestrator.v1.GetContainerRequest
-	47, // 91: orchestrator.v1.OrchestratorService.ListContainers:input_type -> orchestrator.v1.ListContainersRequest
-	50, // 92: orchestrator.v1.OrchestratorService.StopContainer:input_type -> orchestrator.v1.StopContainerRequest
-	52, // 93: orchestrator.v1.OrchestratorService.RemoveContainer:input_type -> orchestrator.v1.RemoveContainerRequest
-	54, // 94: orchestrator.v1.OrchestratorService.SubscribeEvents:input_type -> orchestrator.v1.SubscribeEventsRequest
+	20, // 77: orchestrator.v1.SubscribeEventsRequest.filter:type_name -> orchestrator.v1.EventFilter
+	66, // 78: orchestrator.v1.HealthCheckResponse.health:type_name -> common.v1.Health
+	62, // 79: orchestrator.v1.StatusResponse.status:type_name -> common.v1.Status
+	63, // 80: orchestrator.v1.StatusResponse.started_at:type_name -> google.protobuf.Timestamp
+	63, // 81: orchestrator.v1.StatusResponse.uptime:type_name -> google.protobuf.Timestamp
+	23, // 82: orchestrator.v1.OrchestratorService.CreateSession:input_type -> orchestrator.v1.CreateSessionRequest
+	25, // 83: orchestrator.v1.OrchestratorService.GetSession:input_type -> orchestrator.v1.GetSessionRequest
+	27, // 84: orchestrator.v1.OrchestratorService.ListSessions:input_type -> orchestrator.v1.ListSessionsRequest
+	30, // 85: orchestrator.v1.OrchestratorService.UpdateSession:input_type -> orchestrator.v1.UpdateSessionRequest
+	32, // 86: orchestrator.v1.OrchestratorService.CloseSession:input_type -> orchestrator.v1.CloseSessionRequest
+	34, // 87: orchestrator.v1.OrchestratorService.SendMessage:input_type -> orchestrator.v1.SendMessageRequest
+	36, // 88: orchestrator.v1.OrchestratorService.StreamMessages:input_type -> orchestrator.v1.StreamMessageRequest
+	38, // 89: orchestrator.v1.OrchestratorService.CreateContainer:input_type -> orchestrator.v1.CreateContainerRequest
+	40, // 90: orchestrator.v1.OrchestratorService.GetContainer:input_type -> orchestrator.v1.GetContainerRequest
+	42, // 91: orchestrator.v1.OrchestratorService.ListContainers:input_type -> orchestrator.v1.ListContainersRequest
+	45, // 92: orchestrator.v1.OrchestratorService.StopContainer:input_type -> orchestrator.v1.StopContainerRequest
+	47, // 93: orchestrator.v1.OrchestratorService.RemoveContainer:input_type -> orchestrator.v1.RemoveContainerRequest
+	49, // 94: orchestrator.v1.OrchestratorService.SubscribeEvents:input_type -> orchestrator.v1.SubscribeEventsRequest
 	68, // 95: orchestrator.v1.OrchestratorService.HealthCheck:input_type -> google.protobuf.Empty
 	68, // 96: orchestrator.v1.OrchestratorService.GetStatus:input_type -> google.protobuf.Empty
-	29, // 97: orchestrator.v1.OrchestratorService.CreateSession:output_type -> orchestrator.v1.CreateSessionResponse
-	31, // 98: orchestrator.v1.OrchestratorService.GetSession:output_type -> orchestrator.v1.GetSessionResponse
-	34, // 99: orchestrator.v1.OrchestratorService.ListSessions:output_type -> orchestrator.v1.ListSessionsResponse
-	36, // 100: orchestrator.v1.OrchestratorService.UpdateSession:output_type -> orchestrator.v1.UpdateSessionResponse
-	38, // 101: orchestrator.v1.OrchestratorService.CloseSession:output_type -> orchestrator.v1.CloseSessionResponse
-	40, // 102: orchestrator.v1.OrchestratorService.SendMessage:output_type -> orchestrator.v1.SendMessageResponse
-	42, // 103: orchestrator.v1.OrchestratorService.StreamMessages:output_type -> orchestrator.v1.StreamMessageResponse
-	44, // 104: orchestrator.v1.OrchestratorService.CreateContainer:output_type -> orchestrator.v1.CreateContainerResponse
-	46, // 105: orchestrator.v1.OrchestratorService.GetContainer:output_type -> orchestrator.v1.GetContainerResponse
-	49, // 106: orchestrator.v1.OrchestratorService.ListContainers:output_type -> orchestrator.v1.ListContainersResponse
-	51, // 107: orchestrator.v1.OrchestratorService.StopContainer:output_type -> orchestrator.v1.StopContainerResponse
-	53, // 108: orchestrator.v1.OrchestratorService.RemoveContainer:output_type -> orchestrator.v1.RemoveContainerResponse
-	23, // 109: orchestrator.v1.OrchestratorService.SubscribeEvents:output_type -> orchestrator.v1.Event
-	55, // 110: orchestrator.v1.OrchestratorService.HealthCheck:output_type -> orchestrator.v1.HealthCheckResponse
-	56, // 111: orchestrator.v1.OrchestratorService.GetStatus:output_type -> orchestrator.v1.StatusResponse
+	24, // 97: orchestrator.v1.OrchestratorService.CreateSession:output_type -> orchestrator.v1.CreateSessionResponse
+	26, // 98: orchestrator.v1.OrchestratorService.GetSession:output_type -> orchestrator.v1.GetSessionResponse
+	29, // 99: orchestrator.v1.OrchestratorService.ListSessions:output_type -> orchestrator.v1.ListSessionsResponse
+	31, // 100: orchestrator.v1.OrchestratorService.UpdateSession:output_type -> orchestrator.v1.UpdateSessionResponse
+	33, // 101: orchestrator.v1.OrchestratorService.CloseSession:output_type -> orchestrator.v1.CloseSessionResponse
+	35, // 102: orchestrator.v1.OrchestratorService.SendMessage:output_type -> orchestrator.v1.SendMessageResponse
+	37, // 103: orchestrator.v1.OrchestratorService.StreamMessages:output_type -> orchestrator.v1.StreamMessageResponse
+	39, // 104: orchestrator.v1.OrchestratorService.CreateContainer:output_type -> orchestrator.v1.CreateContainerResponse
+	41, // 105: orchestrator.v1.OrchestratorService.GetContainer:output_type -> orchestrator.v1.GetContainerResponse
+	44, // 106: orchestrator.v1.OrchestratorService.ListContainers:output_type -> orchestrator.v1.ListContainersResponse
+	46, // 107: orchestrator.v1.OrchestratorService.StopContainer:output_type -> orchestrator.v1.StopContainerResponse
+	48, // 108: orchestrator.v1.OrchestratorService.RemoveContainer:output_type -> orchestrator.v1.RemoveContainerResponse
+	18, // 109: orchestrator.v1.OrchestratorService.SubscribeEvents:output_type -> orchestrator.v1.Event
+	50, // 110: orchestrator.v1.OrchestratorService.HealthCheck:output_type -> orchestrator.v1.HealthCheckResponse
+	51, // 111: orchestrator.v1.OrchestratorService.GetStatus:output_type -> orchestrator.v1.StatusResponse
 	97, // [97:112] is the sub-list for method output_type
 	82, // [82:97] is the sub-list for method input_type
 	82, // [82:82] is the sub-list for extension type_name
@@ -4541,11 +4138,12 @@ func file_proto_orchestrator_proto_init() {
 	if File_proto_orchestrator_proto != nil {
 		return
 	}
-	file_proto_orchestrator_proto_msgTypes[33].OneofWrappers = []any{
+	file_proto_common_proto_init()
+	file_proto_orchestrator_proto_msgTypes[31].OneofWrappers = []any{
 		(*StreamMessageRequest_Message)(nil),
 		(*StreamMessageRequest_Heartbeat)(nil),
 	}
-	file_proto_orchestrator_proto_msgTypes[34].OneofWrappers = []any{
+	file_proto_orchestrator_proto_msgTypes[32].OneofWrappers = []any{
 		(*StreamMessageResponse_Message)(nil),
 		(*StreamMessageResponse_Event)(nil),
 		(*StreamMessageResponse_Heartbeat)(nil),
@@ -4555,8 +4153,8 @@ func file_proto_orchestrator_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_orchestrator_proto_rawDesc), len(file_proto_orchestrator_proto_rawDesc)),
-			NumEnums:      8,
-			NumMessages:   59,
+			NumEnums:      5,
+			NumMessages:   57,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

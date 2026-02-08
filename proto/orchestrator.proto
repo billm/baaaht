@@ -13,6 +13,7 @@ option go_package = "github.com/billm/baaaht/orchestrator/proto";
 
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/empty.proto";
+import "proto/common.proto";
 
 // =============================================================================
 // Orchestrator Service
@@ -84,7 +85,7 @@ service OrchestratorService {
 message Session {
   string id = 1;
   SessionState state = 2;
-  Status status = 3;
+  common.v1.Status status = 3;
   google.protobuf.Timestamp created_at = 4;
   google.protobuf.Timestamp updated_at = 5;
   google.protobuf.Timestamp expires_at = 6;  // Optional
@@ -120,7 +121,7 @@ message SessionContext {
   repeated string task_history = 3;
   UserPreferences preferences = 4;
   SessionConfig config = 5;
-  ResourceUsage resource_usage = 6;
+  common.v1.ResourceUsage resource_usage = 6;
 }
 
 // Message represents a message in the conversation
@@ -162,7 +163,7 @@ message SessionConfig {
   int32 max_containers = 1;
   int64 max_duration_ns = 2;       // Duration in nanoseconds
   int64 idle_timeout_ns = 3;       // Duration in nanoseconds
-  ResourceLimits resource_limits = 4;
+  common.v1.ResourceLimits resource_limits = 4;
   repeated string allowed_images = 5;
   SessionPolicy policy = 6;
 }
@@ -186,14 +187,14 @@ message Container {
   string name = 2;
   string image = 3;
   ContainerState state = 4;
-  Status status = 5;
-  Health health = 6;
+  common.v1.Status status = 5;
+  common.v1.Health health = 6;
   google.protobuf.Timestamp created_at = 7;
   google.protobuf.Timestamp started_at = 8;   // Optional
   google.protobuf.Timestamp exited_at = 9;    // Optional
   int32 exit_code = 10;                        // Optional
   ContainerConfig config = 11;
-  ResourceUsage resources = 12;
+  common.v1.ResourceUsage resources = 12;
   string session_id = 13;
 }
 
@@ -221,7 +222,7 @@ message ContainerConfig {
   repeated PortBinding ports = 8;
   string network_mode = 9;
   repeated string networks = 10;
-  ResourceLimits resources = 11;
+  common.v1.ResourceLimits resources = 11;
   RestartPolicy restart_policy = 12;
   bool read_only_rootfs = 13;
   bool remove_on_stop = 14;
@@ -256,57 +257,6 @@ message RestartPolicy {
   string name = 1;
   int32 maximum_retry_count = 2;
   int64 timeout_ns = 3;  // Duration in nanoseconds, optional
-}
-
-// =============================================================================
-// Resource Types
-// =============================================================================
-
-// ResourceLimits defines resource constraints for a container/session
-message ResourceLimits {
-  int64 nano_cpus = 1;      // CPU in 1e-9 units
-  int64 memory_bytes = 2;   // Memory in bytes
-  int64 memory_swap = 3;    // Memory swap in bytes
-  int64 pids_limit = 4;     // Max processes, optional
-}
-
-// ResourceUsage represents current resource usage
-message ResourceUsage {
-  double cpu_percent = 1;
-  int64 memory_usage = 2;
-  int64 memory_limit = 3;
-  double memory_percent = 4;
-  int64 network_rx = 5;
-  int64 network_tx = 6;
-  int64 block_read = 7;
-  int64 block_write = 8;
-  int64 pids_count = 9;
-}
-
-// =============================================================================
-// Common Types
-// =============================================================================
-
-// Status represents the operational status of components
-enum Status {
-  STATUS_UNSPECIFIED = 0;
-  STATUS_UNKNOWN = 1;
-  STATUS_STARTING = 2;
-  STATUS_RUNNING = 3;
-  STATUS_STOPPING = 4;
-  STATUS_STOPPED = 5;
-  STATUS_ERROR = 6;
-  STATUS_TERMINATED = 7;
-}
-
-// Health represents the health state of a component
-enum Health {
-  HEALTH_UNSPECIFIED = 0;
-  HEALTH_UNKNOWN = 1;
-  HEALTH_HEALTHY = 2;
-  HEALTH_UNHEALTHY = 3;
-  HEALTH_DEGRADED = 4;
-  HEALTH_CHECKING = 5;
 }
 
 // =============================================================================
@@ -352,16 +302,7 @@ message EventMetadata {
   string container_id = 3;    // Optional
   string user_id = 4;         // Optional
   map<string, string> labels = 5;
-  Priority priority = 6;
-}
-
-// Priority represents the priority level of an event
-enum Priority {
-  PRIORITY_UNSPECIFIED = 0;
-  PRIORITY_LOW = 1;
-  PRIORITY_NORMAL = 2;
-  PRIORITY_HIGH = 3;
-  PRIORITY_CRITICAL = 4;
+  common.v1.Priority priority = 6;
 }
 
 // EventFilter defines a filter for events
@@ -370,7 +311,7 @@ message EventFilter {
   string source = 2;               // Optional, unset means all sources
   string session_id = 3;           // Optional
   string container_id = 4;         // Optional
-  Priority priority = 5;           // Optional
+  common.v1.Priority priority = 5;           // Optional
   map<string, string> labels = 6;  // Optional, match all if empty
   google.protobuf.Timestamp start_time = 7;   // Optional
   google.protobuf.Timestamp end_time = 8;     // Optional
@@ -433,7 +374,7 @@ message ListSessionsRequest {
 // SessionFilter defines filters for querying sessions
 message SessionFilter {
   SessionState state = 1;        // Optional
-  Status status = 2;             // Optional
+  common.v1.Status status = 2;             // Optional
   string owner_id = 3;           // Optional
   map<string, string> labels = 4; // Optional, match all if empty
 }
@@ -538,7 +479,7 @@ message ListContainersRequest {
 message ContainerFilter {
   string session_id = 1;         // Optional
   ContainerState state = 2;      // Optional
-  Status status = 3;             // Optional
+  common.v1.Status status = 3;             // Optional
   map<string, string> labels = 4; // Optional, match all if empty
 }
 
@@ -586,14 +527,14 @@ message SubscribeEventsRequest {
 
 // HealthCheckResponse
 message HealthCheckResponse {
-  Health health = 1;
+  common.v1.Health health = 1;
   string version = 2;
   repeated string subsystems = 3;
 }
 
 // StatusResponse
 message StatusResponse {
-  Status status = 1;
+  common.v1.Status status = 1;
   int32 active_sessions = 2;
   int32 active_containers = 3;
   google.protobuf.Timestamp started_at = 4;

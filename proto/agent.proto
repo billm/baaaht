@@ -1,0 +1,544 @@
+// agent.proto - gRPC service definitions for Agent communication
+//
+// This file defines the AgentService which provides agent registration,
+// task execution, and bidirectional streaming for real-time communication.
+//
+// Copyright 2026 baaaht project
+
+syntax = "proto3";
+
+package agent.v1;
+
+option go_package = "github.com/billm/baaaht/orchestrator/proto";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+import "proto/common.proto";
+
+// =============================================================================
+// Agent Service
+// =============================================================================
+
+// AgentService provides core agent operations for task execution and communication
+service AgentService {
+  // Agent Registration
+
+  // Register registers an agent with the orchestrator
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+
+  // Unregister unregisters an agent from the orchestrator
+  rpc Unregister(UnregisterRequest) returns (UnregisterResponse);
+
+  // Heartbeat sends a heartbeat to keep the agent connection alive
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+
+  // Task Execution
+
+  // ExecuteTask executes a task on the agent
+  rpc ExecuteTask(ExecuteTaskRequest) returns (ExecuteTaskResponse);
+
+  // StreamTask establishes a bidirectional stream for task execution with real-time updates
+  rpc StreamTask(stream StreamTaskRequest) returns (stream StreamTaskResponse);
+
+  // CancelTask cancels a running task
+  rpc CancelTask(CancelTaskRequest) returns (CancelTaskResponse);
+
+  // ListTasks lists all tasks on the agent
+  rpc ListTasks(ListTasksRequest) returns (ListTasksResponse);
+
+  // GetTaskStatus retrieves the status of a task
+  rpc GetTaskStatus(GetTaskStatusRequest) returns (GetTaskStatusResponse);
+
+  // Communication
+
+  // StreamAgent establishes a bidirectional stream for agent communication
+  rpc StreamAgent(stream StreamAgentRequest) returns (stream StreamAgentResponse);
+
+  // SendMessage sends a message to the agent
+  rpc SendMessage(AgentSendMessageRequest) returns (AgentSendMessageResponse);
+
+  // Health and Status
+
+  // HealthCheck returns the health status of the agent
+  rpc HealthCheck(google.protobuf.Empty) returns (AgentHealthCheckResponse);
+
+  // GetStatus returns the current status of the agent
+  rpc GetStatus(google.protobuf.Empty) returns (AgentStatusResponse);
+
+  // GetCapabilities returns the capabilities of the agent
+  rpc GetCapabilities(google.protobuf.Empty) returns (CapabilitiesResponse);
+}
+
+// =============================================================================
+// Agent Types
+// =============================================================================
+
+// Agent represents an agent instance
+message Agent {
+  string id = 1;
+  string name = 2;
+  AgentType type = 3;
+  AgentState state = 4;
+  common.v1.Status status = 5;
+  google.protobuf.Timestamp registered_at = 6;
+  google.protobuf.Timestamp last_heartbeat = 7;
+  AgentMetadata metadata = 8;
+  AgentCapabilities capabilities = 9;
+  common.v1.ResourceUsage resources = 10;
+  repeated string active_tasks = 11;
+}
+
+// AgentType represents the type of agent
+enum AgentType {
+  AGENT_TYPE_UNSPECIFIED = 0;
+  AGENT_TYPE_ORCHESTRATOR = 1;
+  AGENT_TYPE_GATEWAY = 2;
+  AGENT_TYPE_WORKER = 3;
+  AGENT_TYPE_TOOL = 4;
+  AGENT_TYPE_MONITOR = 5;
+}
+
+// AgentState represents the lifecycle state of an agent
+enum AgentState {
+  AGENT_STATE_UNSPECIFIED = 0;
+  AGENT_STATE_INITIALIZING = 1;
+  AGENT_STATE_REGISTERING = 2;
+  AGENT_STATE_IDLE = 3;
+  AGENT_STATE_BUSY = 4;
+  AGENT_STATE_UNREGISTERING = 5;
+  AGENT_STATE_TERMINATED = 6;
+}
+
+// AgentMetadata contains descriptive information about an agent
+message AgentMetadata {
+  string version = 1;
+  string description = 2;           // Optional
+  map<string, string> labels = 3;
+  string owner_id = 4;              // Optional
+  repeated string tags = 5;
+  string hostname = 6;
+  string pid = 7;                   // Process ID as string
+}
+
+// AgentCapabilities describes what an agent can do
+message AgentCapabilities {
+  repeated string supported_tasks = 1;
+  repeated string supported_tools = 2;
+  int32 max_concurrent_tasks = 3;
+  common.v1.ResourceLimits resource_limits = 4;
+  bool supports_streaming = 5;
+  bool supports_cancellation = 6;
+  repeated string supported_protocols = 7;
+}
+
+// =============================================================================
+// Task Types
+// =============================================================================
+
+// Task represents a task assigned to an agent
+message Task {
+  string id = 1;
+  string name = 2;
+  string session_id = 3;
+  TaskType type = 4;
+  TaskState state = 5;
+  TaskPriority priority = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp started_at = 8;    // Optional
+  google.protobuf.Timestamp completed_at = 9;  // Optional
+  google.protobuf.Timestamp expires_at = 10;   // Optional
+  TaskConfig config = 11;
+  TaskResult result = 12;                      // Optional
+  TaskError error = 13;                        // Optional
+  double progress = 14;                        // 0.0 to 1.0
+  string agent_id = 15;
+}
+
+// TaskType represents the type of task
+enum TaskType {
+  TASK_TYPE_UNSPECIFIED = 0;
+  TASK_TYPE_CODE_EXECUTION = 1;
+  TASK_TYPE_FILE_OPERATION = 2;
+  TASK_TYPE_NETWORK_REQUEST = 3;
+  TASK_TYPE_DATA_PROCESSING = 4;
+  TASK_TYPE_CONTAINER_OPERATION = 5;
+  TASK_TYPE_TOOL_EXECUTION = 6;
+  TASK_TYPE_CUSTOM = 7;
+}
+
+// TaskState represents the state of a task
+enum TaskState {
+  TASK_STATE_UNSPECIFIED = 0;
+  TASK_STATE_PENDING = 1;
+  TASK_STATE_QUEUED = 2;
+  TASK_STATE_RUNNING = 3;
+  TASK_STATE_PAUSED = 4;
+  TASK_STATE_COMPLETED = 5;
+  TASK_STATE_FAILED = 6;
+  TASK_STATE_CANCELLED = 7;
+  TASK_STATE_TIMEOUT = 8;
+}
+
+// TaskPriority represents the priority of a task
+enum TaskPriority {
+  TASK_PRIORITY_UNSPECIFIED = 0;
+  TASK_PRIORITY_LOW = 1;
+  TASK_PRIORITY_NORMAL = 2;
+  TASK_PRIORITY_HIGH = 3;
+  TASK_PRIORITY_CRITICAL = 4;
+}
+
+// TaskConfig contains configuration for a task
+message TaskConfig {
+  string command = 1;
+  repeated string arguments = 2;
+  map<string, string> environment = 3;
+  string working_directory = 4;
+  int64 timeout_ns = 5;              // Duration in nanoseconds
+  int64 max_retries = 6;
+  bool retry_on_failure = 7;
+  bytes input_data = 8;              // Optional
+  map<string, string> parameters = 9;
+  TaskConstraints constraints = 10;
+}
+
+// TaskConstraints defines constraints for task execution
+message TaskConstraints {
+  int64 max_memory_bytes = 1;
+  int64 max_cpu_ns = 2;              // CPU time in nanoseconds
+  int64 max_execution_time_ns = 3;
+  repeated string allowed_operations = 4;
+  repeated string denied_operations = 5;
+}
+
+// TaskResult contains the result of a completed task
+message TaskResult {
+  int32 exit_code = 1;
+  bytes output_data = 2;
+  string output_text = 3;
+  string error_text = 4;
+  map<string, string> metadata = 5;
+  google.protobuf.Timestamp completed_at = 6;
+  int64 execution_duration_ns = 7;
+}
+
+// TaskError contains error information for a failed task
+message TaskError {
+  string code = 1;
+  string message = 2;
+  repeated string details = 3;
+  string stack_trace = 4;            // Optional
+  google.protobuf.Timestamp occurred_at = 5;
+}
+
+// =============================================================================
+// Message Types
+// =============================================================================
+
+// AgentMessage represents a message to or from an agent
+message AgentMessage {
+  string id = 1;
+  MessageType type = 2;
+  google.protobuf.Timestamp timestamp = 3;
+  string source_id = 4;
+  string target_id = 5;
+  oneof payload {
+    TaskMessage task_message = 6;
+    ControlMessage control_message = 7;
+    DataMessage data_message = 8;
+    EventMessage event_message = 9;
+  }
+  AgentMessageMetadata metadata = 10;
+}
+
+// MessageType represents the type of message
+enum MessageType {
+  MESSAGE_TYPE_UNSPECIFIED = 0;
+  MESSAGE_TYPE_TASK_REQUEST = 1;
+  MESSAGE_TYPE_TASK_RESPONSE = 2;
+  MESSAGE_TYPE_TASK_UPDATE = 3;
+  MESSAGE_TYPE_CONTROL = 4;
+  MESSAGE_TYPE_DATA = 5;
+  MESSAGE_TYPE_EVENT = 6;
+  MESSAGE_TYPE_HEARTBEAT = 7;
+  MESSAGE_TYPE_ERROR = 8;
+}
+
+// TaskMessage contains task-related information
+message TaskMessage {
+  string task_id = 1;
+  string session_id = 2;
+  TaskState state = 3;
+  double progress = 4;
+  string status_message = 5;
+  bytes output = 6;
+}
+
+// ControlMessage contains control commands
+message ControlMessage {
+  ControlCommand command = 1;
+  map<string, string> parameters = 2;
+}
+
+// ControlCommand represents a control command
+enum ControlCommand {
+  CONTROL_COMMAND_UNSPECIFIED = 0;
+  CONTROL_COMMAND_PAUSE = 1;
+  CONTROL_COMMAND_RESUME = 2;
+  CONTROL_COMMAND_CANCEL = 3;
+  CONTROL_COMMAND_SHUTDOWN = 4;
+  CONTROL_COMMAND_RESTART = 5;
+  CONTROL_COMMAND_STATUS = 6;
+}
+
+// DataMessage contains arbitrary data
+message DataMessage {
+  string content_type = 1;
+  bytes data = 2;
+  map<string, string> headers = 3;
+}
+
+// EventMessage contains event information
+message EventMessage {
+  string event_type = 1;
+  string source = 2;
+  map<string, string> data = 3;
+}
+
+// AgentMessageMetadata contains additional message information
+message AgentMessageMetadata {
+  string correlation_id = 1;
+  string session_id = 2;
+  map<string, string> headers = 3;
+  int32 priority = 4;
+}
+
+// =============================================================================
+// Request/Response Messages - Registration
+// =============================================================================
+
+// RegisterRequest
+message RegisterRequest {
+  string name = 1;
+  AgentType type = 2;
+  AgentMetadata metadata = 3;
+  AgentCapabilities capabilities = 4;
+}
+
+// RegisterResponse
+message RegisterResponse {
+  string agent_id = 1;
+  Agent agent = 2;
+  string registration_token = 3;
+}
+
+// UnregisterRequest
+message UnregisterRequest {
+  string agent_id = 1;
+  string reason = 2;          // Optional
+}
+
+// UnregisterResponse
+message UnregisterResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// HeartbeatRequest
+message HeartbeatRequest {
+  string agent_id = 1;
+  common.v1.ResourceUsage resources = 2;  // Optional
+  repeated string active_tasks = 3;
+}
+
+// HeartbeatResponse
+message HeartbeatResponse {
+  google.protobuf.Timestamp timestamp = 1;
+  repeated string pending_tasks = 2;
+}
+
+// =============================================================================
+// Request/Response Messages - Task Execution
+// =============================================================================
+
+// ExecuteTaskRequest
+message ExecuteTaskRequest {
+  string agent_id = 1;
+  string session_id = 2;
+  TaskConfig config = 3;
+  TaskType type = 4;
+  TaskPriority priority = 5;
+}
+
+// ExecuteTaskResponse
+message ExecuteTaskResponse {
+  string task_id = 1;
+  Task task = 2;
+}
+
+// StreamTaskRequest
+message StreamTaskRequest {
+  string task_id = 1;
+  oneof payload {
+    TaskInput input = 2;
+    google.protobuf.Empty heartbeat = 3;
+    CancelCommand cancel = 4;
+  }
+}
+
+// TaskInput contains input data for a streaming task
+message TaskInput {
+  bytes data = 1;
+  map<string, string> metadata = 2;
+}
+
+// CancelCommand cancels a task
+message CancelCommand {
+  string reason = 1;          // Optional
+  bool force = 2;
+}
+
+// StreamTaskResponse
+message StreamTaskResponse {
+  oneof payload {
+    TaskOutput output = 1;
+    TaskStatusUpdate status = 2;
+    TaskProgress progress = 3;
+    TaskComplete complete = 4;
+    TaskError error = 5;
+    google.protobuf.Empty heartbeat = 6;
+  }
+}
+
+// TaskOutput contains output data from a task
+message TaskOutput {
+  bytes data = 1;
+  string text = 2;            // Optional, for text output
+  string stream_type = 3;     // stdout, stderr
+}
+
+// TaskStatusUpdate contains status update for a task
+message TaskStatusUpdate {
+  TaskState state = 1;
+  string message = 2;
+  google.protobuf.Timestamp timestamp = 3;
+}
+
+// TaskProgress contains progress information for a task
+message TaskProgress {
+  double percent = 1;         // 0.0 to 1.0
+  string message = 2;         // Optional
+  map<string, string> details = 3;
+}
+
+// TaskComplete indicates task completion
+message TaskComplete {
+  string task_id = 1;
+  TaskResult result = 2;
+  google.protobuf.Timestamp completed_at = 3;
+}
+
+// CancelTaskRequest
+message CancelTaskRequest {
+  string task_id = 1;
+  string reason = 2;          // Optional
+  bool force = 3;
+}
+
+// CancelTaskResponse
+message CancelTaskResponse {
+  string task_id = 1;
+  TaskState state = 2;
+  bool cancelled = 3;
+}
+
+// ListTasksRequest
+message ListTasksRequest {
+  string agent_id = 1;
+  TaskFilter filter = 2;
+}
+
+// TaskFilter defines filters for querying tasks
+message TaskFilter {
+  TaskState state = 1;               // Optional
+  TaskType type = 2;                 // Optional
+  TaskPriority priority = 3;         // Optional
+  string session_id = 4;             // Optional
+  google.protobuf.Timestamp created_after = 5;   // Optional
+  google.protobuf.Timestamp created_before = 6;  // Optional
+}
+
+// ListTasksResponse
+message ListTasksResponse {
+  repeated Task tasks = 1;
+  int32 total_count = 2;
+}
+
+// GetTaskStatusRequest
+message GetTaskStatusRequest {
+  string task_id = 1;
+}
+
+// GetTaskStatusResponse
+message GetTaskStatusResponse {
+  Task task = 1;
+}
+
+// =============================================================================
+// Request/Response Messages - Communication
+// =============================================================================
+
+// StreamAgentRequest
+message StreamAgentRequest {
+  string agent_id = 1;
+  oneof payload {
+    AgentMessage message = 2;
+    google.protobuf.Empty heartbeat = 3;
+  }
+}
+
+// StreamAgentResponse
+message StreamAgentResponse {
+  oneof payload {
+    AgentMessage message = 1;
+    google.protobuf.Empty heartbeat = 2;
+  }
+}
+
+// SendMessageRequest
+message AgentSendMessageRequest {
+  string agent_id = 1;
+  AgentMessage message = 2;
+}
+
+// SendMessageResponse
+message AgentSendMessageResponse {
+  string message_id = 1;
+  google.protobuf.Timestamp timestamp = 2;
+}
+
+// =============================================================================
+// Request/Response Messages - Health and Status
+// =============================================================================
+
+// AgentHealthCheckResponse
+message AgentHealthCheckResponse {
+  common.v1.Status status = 1;
+  string version = 2;
+  repeated string subsystems = 3;
+}
+
+// AgentStatusResponse
+message AgentStatusResponse {
+  common.v1.Status status = 1;
+  AgentState state = 2;
+  int32 active_tasks = 3;
+  google.protobuf.Timestamp started_at = 4;
+  google.protobuf.Timestamp uptime = 5;
+  common.v1.ResourceUsage resources = 6;
+}
+
+// CapabilitiesResponse
+message CapabilitiesResponse {
+  AgentCapabilities capabilities = 1;
+}

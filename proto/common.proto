@@ -1,0 +1,71 @@
+// common.proto - Shared protocol buffer definitions
+//
+// This file contains common types shared across multiple gRPC services.
+//
+// Copyright 2026 baaaht project
+
+syntax = "proto3";
+
+package common.v1;
+
+option go_package = "github.com/billm/baaaht/orchestrator/proto";
+
+// =============================================================================
+// Common Types
+// =============================================================================
+
+// Status represents the operational status of components
+enum Status {
+  STATUS_UNSPECIFIED = 0;
+  STATUS_UNKNOWN = 1;
+  STATUS_STARTING = 2;
+  STATUS_RUNNING = 3;
+  STATUS_STOPPING = 4;
+  STATUS_STOPPED = 5;
+  STATUS_ERROR = 6;
+  STATUS_TERMINATED = 7;
+}
+
+// Health represents the health state of a component
+enum Health {
+  HEALTH_UNSPECIFIED = 0;
+  HEALTH_UNKNOWN = 1;
+  HEALTH_HEALTHY = 2;
+  HEALTH_UNHEALTHY = 3;
+  HEALTH_DEGRADED = 4;
+  HEALTH_CHECKING = 5;
+}
+
+// Priority represents the priority level
+enum Priority {
+  PRIORITY_UNSPECIFIED = 0;
+  PRIORITY_LOW = 1;
+  PRIORITY_NORMAL = 2;
+  PRIORITY_HIGH = 3;
+  PRIORITY_CRITICAL = 4;
+}
+
+// =============================================================================
+// Resource Types
+// =============================================================================
+
+// ResourceLimits defines resource constraints for a container/session
+message ResourceLimits {
+  int64 nano_cpus = 1;      // CPU in 1e-9 units
+  int64 memory_bytes = 2;   // Memory in bytes
+  int64 memory_swap = 3;    // Memory swap in bytes
+  int64 pids_limit = 4;     // Max processes, optional
+}
+
+// ResourceUsage represents current resource usage
+message ResourceUsage {
+  double cpu_percent = 1;
+  int64 memory_usage = 2;
+  int64 memory_limit = 3;
+  double memory_percent = 4;
+  int64 network_rx = 5;
+  int64 network_tx = 6;
+  int64 block_read = 7;
+  int64 block_write = 8;
+  int64 pids_count = 9;
+}
