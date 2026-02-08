@@ -64,6 +64,13 @@ const (
 	EnvMetricsPort       = "METRICS_PORT"
 	EnvTraceEnabled      = "TRACE_ENABLED"
 	EnvShutdownTimeout   = "SHUTDOWN_TIMEOUT"
+	EnvRuntimeType       = "CONTAINER_RUNTIME"
+	EnvRuntimeSocketPath = "CONTAINER_RUNTIME_SOCKET"
+	EnvRuntimeTimeout    = "CONTAINER_RUNTIME_TIMEOUT"
+	EnvRuntimeTLSCert    = "CONTAINER_RUNTIME_TLS_CERT"
+	EnvRuntimeTLSKey     = "CONTAINER_RUNTIME_TLS_KEY"
+	EnvRuntimeTLSCA      = "CONTAINER_RUNTIME_TLS_CA"
+	EnvRuntimeTLSEnabled = "CONTAINER_RUNTIME_TLS_ENABLED"
 )
 
 const (
@@ -108,6 +115,10 @@ const (
 
 	// Default Orchestrator settings
 	DefaultShutdownTimeout = 30 * time.Second
+
+	// Default Runtime settings
+	DefaultRuntimeType  = "auto"
+	DefaultRuntimeTimeout = 30 * time.Second
 )
 
 // DefaultDockerConfig returns the default Docker configuration
@@ -265,5 +276,20 @@ func DefaultOrchestratorConfig() OrchestratorConfig {
 		GracefulStopTimeout: 10 * time.Second,
 		EnableProfiling:  false,
 		ProfilingPort:    6060,
+	}
+}
+
+// DefaultRuntimeConfig returns the default container runtime configuration
+func DefaultRuntimeConfig() RuntimeConfig {
+	return RuntimeConfig{
+		Type:        DefaultRuntimeType,
+		SocketPath:  "", // Auto-detected based on platform
+		Timeout:     DefaultRuntimeTimeout,
+		MaxRetries:  3,
+		RetryDelay:  1 * time.Second,
+		TLSEnabled:  false,
+		TLSCertPath: "",
+		TLSKeyPath:  "",
+		TLSCAPath:   "",
 	}
 }
