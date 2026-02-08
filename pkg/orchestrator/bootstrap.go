@@ -94,6 +94,18 @@ func Bootstrap(ctx context.Context, cfg BootstrapConfig) (*BootstrapResult, erro
 		return result, result.Error
 	}
 
+	// Restore sessions from persistence (if enabled)
+	if orch.sessionMgr != nil {
+		if err := orch.sessionMgr.RestoreSessions(ctx); err != nil {
+			// Log the error but don't fail the bootstrap
+			// Sessions can be created fresh if restoration fails
+			orch.logger.Warn("Failed to restore sessions from persistence, continuing with empty session store",
+				"error", err)
+		} else {
+			orch.logger.Info("Sessions restored from persistence successfully")
+		}
+	}
+
 	// Perform health check if enabled
 	if cfg.EnableHealthCheck {
 		healthCtx, cancel := context.WithTimeout(ctx, 10*time.Second)

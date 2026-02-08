@@ -75,6 +75,8 @@ const (
 	EnvMemoryEnabled     = "MEMORY_ENABLED"
 	EnvMemoryMaxFileSize = "MEMORY_MAX_FILE_SIZE"
 	EnvMemoryFileFormat  = "MEMORY_FILE_FORMAT"
+	EnvSessionPersistence = "SESSION_PERSISTENCE"
+	EnvSessionStoragePath = "SESSION_STORAGE_PATH"
 )
 
 const (
@@ -186,7 +188,7 @@ func DefaultSessionConfig() SessionConfig {
 		MaxSessions:        DefaultMaxSessions,
 		CleanupInterval:    5 * time.Minute,
 		IdleTimeout:        10 * time.Minute,
-		PersistenceEnabled: false,
+		PersistenceEnabled: true,
 		StoragePath:        storagePath,
 	}
 }

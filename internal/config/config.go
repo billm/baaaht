@@ -252,6 +252,12 @@ func Load() (*Config, error) {
 			cfg.Session.MaxSessions = max
 		}
 	}
+	if v := os.Getenv(EnvSessionPersistence); v != "" {
+		cfg.Session.PersistenceEnabled = strings.ToLower(v) == "true" || v == "1"
+	}
+	if v := os.Getenv(EnvSessionStoragePath); v != "" {
+		cfg.Session.StoragePath = v
+	}
 
 	// Load Event configuration
 	if v := os.Getenv(EnvEventQueueSize); v != "" {
