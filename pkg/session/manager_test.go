@@ -1131,3 +1131,47 @@ func TestAddMessageWithoutPersistence(t *testing.T) {
 		t.Error("store should be nil when persistence is disabled")
 	}
 }
+
+// TestManagerCloseWithPersistence tests that the manager properly closes the persistence store
+func TestManagerCloseWithPersistence(t *testing.T) {
+	log, err := logger.NewDefault()
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
+
+	// Create a manager with persistence enabled
+	cfg := config.DefaultSessionConfig()
+	cfg.PersistenceEnabled = true
+
+	manager, err := New(cfg, log)
+	if err != nil {
+		t.Fatalf("failed to create manager with persistence: %v", err)
+	}
+
+	// Verify store is initialized
+	if manager.store == nil {
+		t.Fatal("expected store to be initialized when persistence is enabled")
+	}
+
+	// Verify store is not closed initially
+	if manager.store.IsClosed() {
+		t.Error("store should not be closed initially")
+	}
+
+	// Close the manager
+	err = manager.Close()
+	if err != nil {
+		t.Fatalf("failed to close manager: %v", err)
+	}
+
+	// Verify store is closed after manager close
+	if !manager.store.IsClosed() {
+		t.Error("store should be closed after manager close")
+	}
+
+	// Close should be idempotent
+	err = manager.Close()
+	if err != nil {
+		t.Errorf("close should be idempotent, got error: %v", err)
+	}
+}
