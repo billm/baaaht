@@ -1,0 +1,425 @@
+{
+  "feature": "Filesystem Memory",
+  "description": "Long-term memory storage using markdown files in per-user and per-group directories. Memory Agent extracts memorable content from sessions during archival.",
+  "workflow_type": "feature",
+  "workflow_rationale": "This is a new feature being added to an existing system. It follows the feature workflow with phases ordered by dependencies: types/config first, then storage, then extraction logic, then event integration, and finally verification.",
+  "phases": [
+    {
+      "id": "phase-1-types-config",
+      "name": "Memory Types and Configuration",
+      "type": "implementation",
+      "description": "Define memory data structures, configuration options, and event types for the memory system",
+      "depends_on": [],
+      "parallel_safe": true,
+      "subtasks": [
+        {
+          "id": "subtask-1-1",
+          "description": "Add memory-related types to pkg/types",
+          "service": "orchestrator",
+          "files_to_modify": [],
+          "files_to_create": [
+            "pkg/types/memory.go"
+          ],
+          "patterns_from": [
+            "pkg/types/session.go",
+            "pkg/types/event.go"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "go test -c ./pkg/types/...",
+            "expected": "Compilation succeeds"
+          },
+          "status": "completed"
+        },
+        {
+          "id": "subtask-1-2",
+          "description": "Add memory configuration to internal/config",
+          "service": "orchestrator",
+          "files_to_modify": [
+            "internal/config/config.go",
+            "internal/config/defaults.go"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "internal/config/config.go"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "go test -c ./internal/config/...",
+            "expected": "Compilation succeeds"
+          },
+          "status": "completed",
+          "notes": "Added MemoryConfig struct with storage path configuration for user and group memory directories, including environment variable support for MEMORY_STORAGE_PATH, MEMORY_ENABLED, MEMORY_MAX_FILE_SIZE, and MEMORY_FILE_FORMAT. Defaults to ~/.config/baaaht/memory with 100KB max file size and markdown format.",
+          "updated_at": "2026-02-08T00:43:54.676429+00:00"
+        },
+        {
+          "id": "subtask-1-3",
+          "description": "Add session archival event type to pkg/types",
+          "service": "orchestrator",
+          "files_to_modify": [
+            "pkg/types/event.go"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "pkg/types/event.go"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "go build ./pkg/types/...",
+            "expected": "Compilation succeeds"
+          },
+          "status": "completed",
+          "notes": "Added EventTypeSessionArchived constant to support session archival events. Follows existing pattern for session-related event types (session.created, session.updated, session.closed).",
+          "updated_at": "2026-02-08T00:44:12.676437+00:00"
+        }
+      ]
+    },
+    {
+      "id": "phase-2-filesystem-storage",
+      "name": "Filesystem Storage Service",
+      "type": "implementation",
+      "description": "Implement the core filesystem-based memory storage service with markdown file persistence",
+      "depends_on": [
+        "phase-1-types-config"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-2-1",
+          "description": "Create memory store with filesystem operations",
+          "service": "orchestrator",
+          "files_to_modify": [],
+          "files_to_create": [
+            "pkg/memory/store.go"
+          ],
+          "patterns_from": [
+            "pkg/credentials/store.go"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "go test -v ./pkg/memory/",
+            "expected": "All tests pass"
+          },
+          "status": "completed",
+          "notes": "Implemented core memory store with filesystem operations: Store struct with in-memory cache, saveToDisk/loadFromDisk for persistence, markdown serialization with JSON frontmatter, CRUD operations (Store/Get/List/Delete), memory expiration support, filter-based queries, user/group scoped directories, thread-safe with mutex protection. All 16 tests pass.",
+          "updated_at": "2026-02-08T00:50:00.000Z"
+        },
+        {
+          "id": "subtask-2-2",
+          "description": "Implement markdown file format and serialization",
+          "service": "orchestrator",
+          "files_to_modify": [],
+          "files_to_create": [
+            "pkg/memory/markdown.go"
+          ],
+          "patterns_from": [
+            "pkg/credentials/store.go"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "go test -v -run TestMarkdown ./pkg/memory/",
+            "expected": "Markdown serialization tests pass"
+          },
+          "status": "completed",
+          "notes": "Extracted markdown serialization logic from store.go into dedicated markdown.go module. Implemented SerializeToMarkdown() and DeserializeFromMarkdown() functions with JSON frontmatter in code blocks. Handles optional fields (accessed_at, expires_at, source_id), robust error handling, title extraction from headings, whitespace trimming. Created comprehensive test suite with 17 test cases covering serialization, deserialization, error cases, round-trip, and edge cases. All 27 tests pass.",
+          "updated_at": "2026-02-08T00:58:00.000Z"
+        },
+        {
+          "id": "subtask-2-3",
+          "description": "Implement user and group scoped memory directories",
+          "service": "orchestrator",
+          "files_to_modify": [],
+          "files_to_create": [
+            "pkg/memory/scope.go"
+          ],
+          "patterns_from": [
+            "pkg/credentials/store.go"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "go test -v -run TestScope ./pkg/memory/",
+            "expected": "Scope isolation tests pass"
+          },
+          "status": "completed",
+          "notes": "Implemented scope.go module with comprehensive user and group scoped memory directory management. Functions include GetScopePath, ValidateScope, GetOwnerPath (with ID sanitization), CreateScopeDir/CreateOwnerDir, ScopeExists/OwnerDirExists, ListOwners, ValidateMemoryPath (with directory traversal protection), GetScopeForPath, and EnsureScopeDirectories. All scope isolation tests pass (11 test functions with 30+ subtests covering validation, path operations, directory management, owner listing, and strict scope segregation).",
+          "updated_at": "2026-02-08T01:04:04.916193+00:00"
+        }
+      ]
+    },
+    {
+      "id": "phase-3-memory-extraction",
+      "name": "Memory Extraction Service",
+      "type": "implementation",
+      "description": "Implement the memory extraction service that analyzes sessions and extracts memorable content",
+      "depends_on": [
+        "phase-2-filesystem-storage"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-3-1",
+          "description": "Create memory extractor with session analysis logic",
+          "service": "orchestrator",
+          "files_to_modify": [],
+          "files_to_create": [
+            "pkg/memory/extractor.go"
+          ],
+          "patterns_from": [
+            "pkg/session/manager.go"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "go test -v -run TestExtractor ./pkg/memory/",
+            "expected": "Extraction tests pass"
+          },
+          "status": "completed",
+          "notes": "Implemented Extractor struct with session analysis logic. ExtractFromSession() analyzes session preferences, metadata labels, and conversation messages for memorable content. Pattern-based extraction supports preferences (I prefer, I like, I always), decisions (I decided, chosen), facts (my name is, I work at), and context (working on, building). Includes confidence scoring (0.6-0.9), topic filtering, max memories per session limit, and configurable extraction settings. All 17 test cases pass.",
+          "updated_at": "2026-02-08T01:11:45.000Z"
+        },
+        {
+          "id": "subtask-3-2",
+          "description": "Implement topic-based memory organization",
+          "service": "orchestrator",
+          "files_to_modify": [],
+          "files_to_create": [
+            "pkg/memory/organizer.go"
+          ],
+          "patterns_from": [
+            "pkg/memory/store.go"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "go test -v -run TestOrganizer ./pkg/memory/",
+            "expected": "Organization tests pass"
+          },
+          "status": "completed",
+          "notes": "Implemented Organizer struct for topic-based memory organization. Features include: GetTopicPath/ValidateTopic/sanitizeTopic for topic path management, CreateTopicDir for directory creation, ListTopics for topic enumeration, GetMemoriesByTopic for filtering by topic, OrganizeMemory/OrganizeAllMemories for moving memories into topic directories, GetTopicStats for topic statistics, RenameTopic/DeleteTopic/MergeTopic for topic management. All 26 organizer test functions pass covering topic validation, sanitization, directory operations, memory organization, and topic management.",
+          "updated_at": "2026-02-08T01:26:00.000Z"
+        }
+      ]
+    },
+    {
+      "id": "phase-4-event-integration",
+      "name": "Event Integration",
+      "type": "implementation",
+      "description": "Connect memory extraction to session lifecycle events",
+      "depends_on": [
+        "phase-3-memory-extraction"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-4-1",
+          "description": "Create event handler for session archival",
+          "service": "orchestrator",
+          "files_to_modify": [],
+          "files_to_create": [
+            "pkg/memory/handler.go"
+          ],
+          "patterns_from": [
+            "pkg/events/handler.go"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "go test -v -run TestHandler ./pkg/memory/",
+            "expected": "Handler tests pass"
+          },
+          "status": "completed",
+          "notes": "Implemented SessionArchivalHandler that handles EventTypeSessionArchived events. Supports session extraction from both *types.Session and map[string]interface{} for inter-service communication. Includes comprehensive tests (13 test functions covering creation, timeout, closing, event handling, and session deserialization). All tests pass.",
+          "updated_at": "2026-02-08T01:46:20Z"
+        },
+        {
+          "id": "subtask-4-2",
+          "description": "Register memory handler with event bus in orchestrator",
+          "service": "orchestrator",
+          "files_to_modify": [
+            "pkg/orchestrator/bootstrap.go"
+          ],
+          "files_to_create": [],
+          "patterns_from": [
+            "pkg/orchestrator/bootstrap.go"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "go build -o bin/orchestrator ./cmd/orchestrator",
+            "expected": "Orchestrator builds successfully"
+          },
+          "status": "completed",
+          "notes": "Added memory subsystem integration to orchestrator.go. Created initMemorySystem() method that initializes memory store, extractor, and session archival handler. Registered handler with event router for EventTypeSessionArchived events. Added memory fields to Orchestrator struct, getter methods (MemoryStore, MemoryExtractor, MemoryHandler), cleanupMemorySystem() method, and updated Close() and HealthCheck() methods. Orchestrator builds successfully.",
+          "updated_at": "2026-02-08T01:52:00Z"
+        }
+      ]
+    },
+    {
+      "id": "phase-5-integration-testing",
+      "name": "Integration Testing",
+      "type": "integration",
+      "description": "End-to-end verification of the filesystem memory system",
+      "depends_on": [
+        "phase-4-event-integration"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-5-1",
+          "description": "Create integration tests for memory extraction flow",
+          "service": "orchestrator",
+          "files_to_modify": [],
+          "files_to_create": [
+            "pkg/memory/integration_test.go"
+          ],
+          "patterns_from": [
+            "tests/integration/e2e_test.go"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "go test -v -run TestMemoryExtraction ./pkg/memory/",
+            "expected": "Integration tests pass"
+          },
+          "status": "completed",
+          "notes": "Created comprehensive integration test suite with 10 test functions: TestMemoryExtractionFlow (complete session-to-memory flow), TestMemoryPersistence (disk persistence across restarts), TestSessionArchivalHandlerIntegration (event handler integration), TestMemoryRetrievalAndFiltering (filter operations), TestMemoryOrganization (topic organization), TestMemoryExtractionWithDisabledExtraction, TestMemoryExtractionConfidenceFiltering, TestMemoryExtractionTopicFiltering, and TestExtractionFromSingleMessage. All integration tests pass.",
+          "updated_at": "2026-02-08T02:00:00.000Z"
+        },
+        {
+          "id": "subtask-5-2",
+          "description": "Verify memory files are created in correct directories",
+          "service": "orchestrator",
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "manual",
+            "instructions": "Create a test session, archive it, and verify memory files are created in user/group directories with markdown format"
+          },
+          "status": "completed",
+          "notes": "Added TestMemoryFileStructureVerification to integration_test.go which verifies: user-scoped memories are created in user directories, group-scoped memories are created in group directories, all files have .md extension, files have JSON frontmatter with metadata, files have markdown heading (# Title) format, and proper scope isolation between user and group memories. Test displays sample memory file content showing the complete markdown structure.",
+          "updated_at": "2026-02-08T02:07:00.000Z"
+        },
+        {
+          "id": "subtask-5-3",
+          "description": "Verify strict user/group memory segregation",
+          "service": "orchestrator",
+          "files_to_modify": [],
+          "files_to_create": [],
+          "patterns_from": [],
+          "verification": {
+            "type": "manual",
+            "instructions": "Create sessions for different users/groups, archive them, and verify memory is strictly segregated (no cross-contamination)"
+          },
+          "status": "completed",
+          "notes": "Added TestStrictMemorySegregation to integration_test.go which verifies: User-to-user memory isolation (3 users with separate memories), Group-to-group memory isolation (2 groups with separate memories), User-to-group scope isolation (users can't access group memories and vice versa), Filesystem directory separation (different directories for each owner), Query filter isolation (filters properly segregate by owner), Memory ID uniqueness (no ID collision across owners), Stats isolation (each owner has independent stats), No cross-contamination (memories don't leak between owners). All 12 verification steps pass with comprehensive logging showing complete segregation.",
+          "updated_at": "2026-02-08T02:16:00.000Z"
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "total_phases": 5,
+    "total_subtasks": 13,
+    "services_involved": [
+      "orchestrator"
+    ],
+    "parallelism": {
+      "max_parallel_phases": 1,
+      "parallel_groups": [],
+      "recommended_workers": 1,
+      "speedup_estimate": "Sequential execution - phases have strict dependencies"
+    },
+    "startup_command": "go run ./cmd/orchestrator"
+  },
+  "verification_strategy": {
+    "risk_level": "medium",
+    "skip_validation": false,
+    "test_creation_phase": "with_implementation",
+    "test_types_required": [
+      "unit",
+      "integration"
+    ],
+    "security_scanning_required": false,
+    "staging_deployment_required": false,
+    "acceptance_criteria": [
+      "Memory is stored as markdown files in user/group directories",
+      "Memory files are organized by topic and date",
+      "Memory content is searchable via file operations",
+      "Users can manually edit and organize memory files",
+      "Memory extraction is triggered on session archival",
+      "Memory is scoped per user and per group with strict segregation"
+    ],
+    "verification_steps": [
+      {
+        "name": "Unit Tests",
+        "command": "go test -v ./pkg/memory/...",
+        "expected_outcome": "All unit tests pass",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "Integration Tests",
+        "command": "go test -v -run TestMemoryExtraction ./pkg/memory/",
+        "expected_outcome": "Integration tests pass",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "Build Verification",
+        "command": "go build -o bin/orchestrator ./cmd/orchestrator",
+        "expected_outcome": "Orchestrator builds without errors",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "Memory File Format Verification",
+        "command": "grep -r '## Memory' ~/.config/baaaht/memory/ 2>/dev/null | head -1",
+        "expected_outcome": "Markdown files exist with proper headers",
+        "type": "manual",
+        "required": true,
+        "blocking": false
+      }
+    ],
+    "reasoning": "Medium risk change involves adding a new storage subsystem to the orchestrator. Requires unit tests for each component and integration tests to verify the full extraction flow. No security scanning required as this is internal file storage without external network access."
+  },
+  "qa_acceptance": {
+    "unit_tests": {
+      "required": true,
+      "commands": [
+        "go test -v ./pkg/memory/..."
+      ],
+      "minimum_coverage": 80
+    },
+    "integration_tests": {
+      "required": true,
+      "commands": [
+        "go test -v -run TestMemoryExtraction ./pkg/memory/"
+      ],
+      "services_to_test": [
+        "orchestrator"
+      ]
+    },
+    "e2e_tests": {
+      "required": false,
+      "commands": [],
+      "flows": []
+    },
+    "browser_verification": {
+      "required": false,
+      "pages": []
+    },
+    "database_verification": {
+      "required": true,
+      "checks": [
+        "memory-files-created",
+        "user-scope-isolation",
+        "group-scope-isolation",
+        "markdown-format-valid"
+      ]
+    }
+  },
+  "qa_signoff": null,
+  "status": "completed",
+  "planStatus": "completed",
+  "updated_at": "2026-02-08T00:58:00.000Z",
+  "last_updated": "2026-02-08T02:16:00.000Z"
+}
