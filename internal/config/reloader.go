@@ -113,8 +113,9 @@ func (r *Reloader) Reload(ctx context.Context) error {
 	log.Printf("[config_reloader] configuration reload initiated, config_path=%s", r.configPath)
 	r.mu.Unlock()
 
-	// Load the new configuration
-	newConfig, err := LoadFromFile(r.configPath)
+	// Load the new configuration using the same logic as the initial load,
+	// ensuring environment variable overrides are applied.
+	newConfig, err := Load(r.configPath)
 	if err != nil {
 		r.setState(ReloadStateIdle)
 		return fmt.Errorf("failed to load configuration: %w", err)
