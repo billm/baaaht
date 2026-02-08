@@ -359,7 +359,7 @@ runtime, err := factory(ctx, container.RuntimeConfig{
 |-------------|-------------|-----------|
 | `auto` | Auto-detect best runtime | All |
 | `docker` | Docker daemon | Linux, macOS, Windows |
-| `apple` | Apple Containers | macOS 15.0+ |
+| `apple` | Apple Containers (planned / stub, currently disabled) | Planned: macOS 15.0+ |
 
 ### Container Configuration Options
 
