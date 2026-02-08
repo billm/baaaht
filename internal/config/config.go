@@ -577,6 +577,25 @@ func (c *Config) ApplyOverrides(opts OverrideOptions) {
 	if opts.LogOutput != "" {
 		c.Logging.Output = opts.LogOutput
 	}
+
+	// gRPC overrides
+	if opts.GRPCSocketPath != "" {
+		c.GRPC.SocketPath = opts.GRPCSocketPath
+	}
+	if opts.GRPCMaxRecvMsgSize > 0 {
+		c.GRPC.MaxRecvMsgSize = opts.GRPCMaxRecvMsgSize
+	}
+	if opts.GRPCMaxSendMsgSize > 0 {
+		c.GRPC.MaxSendMsgSize = opts.GRPCMaxSendMsgSize
+	}
+	if opts.GRPCTimeout != "" {
+		if d, err := time.ParseDuration(opts.GRPCTimeout); err == nil {
+			c.GRPC.Timeout = d
+		}
+	}
+	if opts.GRPCMaxConnections > 0 {
+		c.GRPC.MaxConnections = opts.GRPCMaxConnections
+	}
 }
 
 // OverrideOptions contains override options typically set via CLI flags
@@ -592,6 +611,13 @@ type OverrideOptions struct {
 	LogLevel  string
 	LogFormat string
 	LogOutput string
+
+	// gRPC options
+	GRPCSocketPath     string
+	GRPCMaxRecvMsgSize int
+	GRPCMaxSendMsgSize int
+	GRPCTimeout        string
+	GRPCMaxConnections int
 }
 
 func (c DockerConfig) String() string {

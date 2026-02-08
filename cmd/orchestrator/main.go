@@ -8,6 +8,7 @@ import (
 
 	"github.com/billm/baaaht/orchestrator/internal/config"
 	"github.com/billm/baaaht/orchestrator/internal/logger"
+	"github.com/billm/baaaht/orchestrator/pkg/grpc"
 	"github.com/billm/baaaht/orchestrator/pkg/orchestrator"
 	"github.com/spf13/cobra"
 )
@@ -23,11 +24,19 @@ var (
 	apiPort     int
 	versionFlag bool
 
+	// gRPC CLI flags
+	grpcSocketPath     string
+	grpcMaxRecvMsgSize int
+	grpcMaxSendMsgSize int
+	grpcTimeout        string
+	grpcMaxConnections int
+
 	// Global variables
 	rootLog   *logger.Logger
 	orch      *orchestrator.Orchestrator
 	shutdown  *orchestrator.ShutdownManager
 	cfgReloader *config.Reloader
+	grpcResult *grpc.BootstrapResult
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -95,6 +104,28 @@ func runOrchestrator(cmd *cobra.Command, args []string) error {
 		"duration", result.Duration(),
 		"version", result.Version)
 
+	// Bootstrap gRPC server
+	rootLog.Info("Bootstrapping gRPC server...")
+	grpcBootstrapCfg := grpc.BootstrapConfig{
+		Config:              cfg.GRPC,
+		Logger:              rootLog,
+		SessionManager:      orch.SessionManager(),
+		EventBus:            orch.EventBus(),
+		Version:             orchestrator.DefaultVersion,
+		ShutdownTimeout:     cfg.Orchestrator.ShutdownTimeout,
+		EnableHealthCheck:   true,
+		HealthCheckInterval: 30 * time.Second,
+	}
+	grpcResult, err = grpc.Bootstrap(ctx, grpcBootstrapCfg)
+	if err != nil {
+		rootLog.Error("Failed to bootstrap gRPC server", "error", err)
+		return err
+	}
+
+	rootLog.Info("gRPC server initialized successfully",
+		"socket_path", grpcResult.SocketPath,
+		"duration", grpcResult.Duration())
+
 	// Create shutdown manager
 	shutdown = orchestrator.NewShutdownManager(
 		orch,
@@ -126,6 +157,17 @@ func runOrchestrator(cmd *cobra.Command, args []string) error {
 	// Add shutdown hook for graceful cleanup
 	shutdown.AddHook(func(ctx context.Context) error {
 		rootLog.Info("Executing shutdown hook")
+		// Stop gRPC server
+		if grpcResult != nil && grpcResult.Server != nil {
+			if grpcResult.Health != nil {
+				grpcResult.Health.Shutdown()
+			}
+			if err := grpcResult.Server.Stop(); err != nil {
+				rootLog.Error("Failed to stop gRPC server", "error", err)
+			} else {
+				rootLog.Info("gRPC server stopped")
+			}
+		}
 		// Stop config reloader
 		if cfgReloader != nil {
 			cfgReloader.Stop()
@@ -182,12 +224,17 @@ func loadConfig() (*config.Config, error) {
 
 	// Apply CLI overrides (highest precedence)
 	cfg.ApplyOverrides(config.OverrideOptions{
-		DockerHost:    dockerHost,
-		APIServerHost: apiHost,
-		APIServerPort: apiPort,
-		LogLevel:      logLevel,
-		LogFormat:     logFormat,
-		LogOutput:     logOutput,
+		DockerHost:         dockerHost,
+		APIServerHost:      apiHost,
+		APIServerPort:      apiPort,
+		LogLevel:           logLevel,
+		LogFormat:          logFormat,
+		LogOutput:          logOutput,
+		GRPCSocketPath:     grpcSocketPath,
+		GRPCMaxRecvMsgSize: grpcMaxRecvMsgSize,
+		GRPCMaxSendMsgSize: grpcMaxSendMsgSize,
+		GRPCTimeout:        grpcTimeout,
+		GRPCMaxConnections: grpcMaxConnections,
 	})
 
 	return cfg, nil
@@ -233,6 +280,18 @@ func main() {
 		"API server host (default: 0.0.0.0)")
 	rootCmd.PersistentFlags().IntVar(&apiPort, "api-port", 0,
 		"API server port (default: from config or env)")
+
+	// gRPC flags
+	rootCmd.PersistentFlags().StringVar(&grpcSocketPath, "grpc-socket-path", "",
+		"gRPC server socket path (default: /tmp/baaaht-grpc.sock)")
+	rootCmd.PersistentFlags().IntVar(&grpcMaxRecvMsgSize, "grpc-max-recv-msg-size", 0,
+		"gRPC max receive message size in bytes (default: 104857600)")
+	rootCmd.PersistentFlags().IntVar(&grpcMaxSendMsgSize, "grpc-max-send-msg-size", 0,
+		"gRPC max send message size in bytes (default: 104857600)")
+	rootCmd.PersistentFlags().StringVar(&grpcTimeout, "grpc-timeout", "",
+		"gRPC connection timeout (default: 30s)")
+	rootCmd.PersistentFlags().IntVar(&grpcMaxConnections, "grpc-max-connections", 0,
+		"gRPC max connections (default: 100)")
 
 	// Version flag
 	rootCmd.Flags().BoolVar(&versionFlag, "version", false,
