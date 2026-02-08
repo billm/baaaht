@@ -14,6 +14,10 @@ import (
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 )
 
+const (
+	bytesPerKB = 1024 // Bytes per kilobyte for size conversions
+)
+
 // Store manages memory storage with filesystem persistence
 type Store struct {
 	memories map[types.ID]*types.Memory
@@ -101,12 +105,37 @@ func (s *Store) Store(ctx context.Context, mem *types.Memory) error {
 	// Check if memory already exists
 	existing, exists := s.memories[mem.ID]
 	if exists {
-		// Update existing memory
+		// Update existing memory - deep copy metadata to prevent external mutation
 		existing.Title = mem.Title
 		existing.Content = mem.Content
 		existing.Topic = mem.Topic
 		existing.Type = mem.Type
-		existing.Metadata = mem.Metadata
+		
+		// Deep copy the metadata fields
+		if mem.Metadata.Labels != nil {
+			existing.Metadata.Labels = make(map[string]string, len(mem.Metadata.Labels))
+			for k, v := range mem.Metadata.Labels {
+				existing.Metadata.Labels[k] = v
+			}
+		} else {
+			existing.Metadata.Labels = nil
+		}
+		
+		if mem.Metadata.Tags != nil {
+			existing.Metadata.Tags = make([]string, len(mem.Metadata.Tags))
+			copy(existing.Metadata.Tags, mem.Metadata.Tags)
+		} else {
+			existing.Metadata.Tags = nil
+		}
+		
+		// Copy scalar metadata fields
+		existing.Metadata.Source = mem.Metadata.Source
+		existing.Metadata.SourceID = mem.Metadata.SourceID
+		existing.Metadata.Importance = mem.Metadata.Importance
+		existing.Metadata.Confidence = mem.Metadata.Confidence
+		existing.Metadata.Verified = mem.Metadata.Verified
+		existing.Metadata.Version = mem.Metadata.Version
+		
 		existing.UpdatedAt = now
 		if mem.ExpiresAt != nil {
 			existing.ExpiresAt = mem.ExpiresAt
@@ -114,10 +143,11 @@ func (s *Store) Store(ctx context.Context, mem *types.Memory) error {
 
 		s.logger.Info("Memory updated", "id", mem.ID, "title", mem.Title)
 	} else {
-		// Create new memory
-		mem.CreatedAt = now
-		mem.UpdatedAt = now
-		s.memories[mem.ID] = mem
+		// Create new memory - deep copy to prevent external mutation
+		memCopy := deepCopyMemory(mem)
+		memCopy.CreatedAt = now
+		memCopy.UpdatedAt = now
+		s.memories[mem.ID] = memCopy
 		s.logger.Info("Memory stored", "id", mem.ID, "title", mem.Title, "scope", mem.Scope)
 	}
 
@@ -156,9 +186,8 @@ func (s *Store) Get(ctx context.Context, id types.ID) (*types.Memory, error) {
 	// Update access time asynchronously
 	go s.updateAccessTime(id)
 
-	// Return a copy
-	result := *mem
-	return &result, nil
+	// Return a deep copy to prevent external mutation
+	return deepCopyMemory(mem), nil
 }
 
 // GetByOwner retrieves all memories for a specific owner
@@ -174,8 +203,7 @@ func (s *Store) GetByOwner(ctx context.Context, scope types.MemoryScope, ownerID
 	for _, mem := range s.memories {
 		if mem.Scope == scope && mem.OwnerID == ownerID {
 			if !s.isExpired(mem) {
-				copy := *mem
-				result = append(result, &copy)
+				result = append(result, deepCopyMemory(mem))
 			}
 		}
 	}
@@ -201,8 +229,7 @@ func (s *Store) List(ctx context.Context, filter *types.MemoryFilter) ([]*types.
 			continue
 		}
 
-		copy := *mem
-		result = append(result, &copy)
+		result = append(result, deepCopyMemory(mem))
 	}
 
 	return result, nil
@@ -410,6 +437,22 @@ func (s *Store) saveToDisk(mem *types.Memory) error {
 		return types.WrapError(types.ErrCodeInternal, "failed to serialize memory", err)
 	}
 
+	// Enforce MaxFileSize configuration (convert KB to bytes)
+	if s.cfg.MaxFileSize > 0 {
+		maxBytes := s.cfg.MaxFileSize * bytesPerKB
+		if len(content) > maxBytes {
+			return types.NewError(types.ErrCodeInvalidArgument, 
+				fmt.Sprintf("memory content exceeds maximum file size of %d KB", s.cfg.MaxFileSize))
+		}
+	}
+
+	// Enforce FileFormat - only markdown is supported
+	// generateFilename always produces .md extension, so this validates the config
+	if s.cfg.FileFormat != "" && s.cfg.FileFormat != "markdown" && s.cfg.FileFormat != "md" {
+		return types.NewError(types.ErrCodeInvalidArgument, 
+			fmt.Sprintf("unsupported file format: %s (only markdown/md is supported)", s.cfg.FileFormat))
+	}
+
 	// Write to temporary file first
 	tmpPath := filePath + ".tmp"
 	if err := os.WriteFile(tmpPath, []byte(content), 0644); err != nil {
@@ -480,10 +523,34 @@ func (s *Store) loadMemoriesFromDir(dirPath string, scope types.MemoryScope) err
 		}
 
 		for _, fileEntry := range ownerEntries {
+			// If it's a directory, it's a topic directory - recursively load memories
 			if fileEntry.IsDir() {
+				topicPath := filepath.Join(ownerPath, fileEntry.Name())
+				topicEntries, err := os.ReadDir(topicPath)
+				if err != nil {
+					s.logger.Warn("Failed to read topic directory", "path", topicPath, "error", err)
+					continue
+				}
+
+				// Load memory files from topic directory
+				for _, topicFileEntry := range topicEntries {
+					if topicFileEntry.IsDir() {
+						continue // Skip nested directories
+					}
+
+					filePath := filepath.Join(topicPath, topicFileEntry.Name())
+					mem, err := s.loadMemoryFromFile(filePath, scope, ownerID)
+					if err != nil {
+						s.logger.Warn("Failed to load memory from file", "path", filePath, "error", err)
+						continue
+					}
+
+					s.memories[mem.ID] = mem
+				}
 				continue
 			}
 
+			// Load memory files from owner directory (non-organized memories)
 			filePath := filepath.Join(ownerPath, fileEntry.Name())
 			mem, err := s.loadMemoryFromFile(filePath, scope, ownerID)
 			if err != nil {
@@ -524,6 +591,7 @@ func (s *Store) generateFilename(mem *types.Memory) string {
 }
 
 // getFilePath returns the file path for a memory
+// It checks both the owner directory and topic subdirectories
 func (s *Store) getFilePath(mem *types.Memory) string {
 	var basePath string
 	switch mem.Scope {
@@ -536,7 +604,46 @@ func (s *Store) getFilePath(mem *types.Memory) string {
 	}
 
 	filename := s.generateFilename(mem)
-	return filepath.Join(basePath, mem.OwnerID, filename)
+	
+	// First, check if the memory is in a topic directory
+	if mem.Topic != "" {
+		// Sanitize topic to prevent path traversal
+		sanitizedTopic := sanitizeTopic(mem.Topic)
+		topicPath := filepath.Join(basePath, sanitizeOwnerID(mem.OwnerID), sanitizedTopic)
+		topicFilePath := filepath.Join(topicPath, filename)
+		if _, err := os.Stat(topicFilePath); err == nil {
+			return topicFilePath
+		}
+	}
+	
+	// Fall back to the owner directory (for non-organized memories)
+	return filepath.Join(basePath, sanitizeOwnerID(mem.OwnerID), filename)
+}
+
+// deepCopyMemory creates a deep copy of a Memory object, including all nested slices and maps
+func deepCopyMemory(mem *types.Memory) *types.Memory {
+	if mem == nil {
+		return nil
+	}
+
+	// Create a shallow copy first
+	result := *mem
+
+	// Deep copy the Labels map
+	if mem.Metadata.Labels != nil {
+		result.Metadata.Labels = make(map[string]string, len(mem.Metadata.Labels))
+		for k, v := range mem.Metadata.Labels {
+			result.Metadata.Labels[k] = v
+		}
+	}
+
+	// Deep copy the Tags slice
+	if mem.Metadata.Tags != nil {
+		result.Metadata.Tags = make([]string, len(mem.Metadata.Tags))
+		copy(result.Metadata.Tags, mem.Metadata.Tags)
+	}
+
+	return &result
 }
 
 // serializeToMarkdown converts a memory to markdown format with frontmatter

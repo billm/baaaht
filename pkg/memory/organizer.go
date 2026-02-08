@@ -65,6 +65,12 @@ func (o *Organizer) GetTopicPath(scope types.MemoryScope, ownerID, topic string)
 		return "", types.NewError(types.ErrCodeUnavailable, "memory organizer is closed")
 	}
 
+	return o.getTopicPathLocked(scope, ownerID, topic)
+}
+
+// getTopicPathLocked is an internal helper that doesn't acquire locks
+// Callers must hold at least a read lock on o.mu
+func (o *Organizer) getTopicPathLocked(scope types.MemoryScope, ownerID, topic string) (string, error) {
 	if err := ValidateTopic(topic); err != nil {
 		return "", err
 	}
@@ -246,7 +252,7 @@ func (o *Organizer) OrganizeMemory(ctx context.Context, memoryID types.ID) error
 	}
 
 	// Get the destination topic path
-	topicPath, err := o.GetTopicPath(mem.Scope, mem.OwnerID, mem.Topic)
+	topicPath, err := o.getTopicPathLocked(mem.Scope, mem.OwnerID, mem.Topic)
 	if err != nil {
 		return err
 	}
@@ -326,7 +332,7 @@ func (o *Organizer) OrganizeAllMemories(ctx context.Context, scope types.MemoryS
 			topic = "general"
 		}
 
-		topicPath, err := o.GetTopicPath(mem.Scope, mem.OwnerID, topic)
+		topicPath, err := o.getTopicPathLocked(mem.Scope, mem.OwnerID, topic)
 		if err != nil {
 			stats.FailedCount++
 			stats.Errors = append(stats.Errors, fmt.Sprintf("memory %s: %v", mem.ID, err))
@@ -450,12 +456,12 @@ func (o *Organizer) RenameTopic(scope types.MemoryScope, ownerID, oldTopic, newT
 		return err
 	}
 
-	oldPath, err := o.GetTopicPath(scope, ownerID, oldTopic)
+	oldPath, err := o.getTopicPathLocked(scope, ownerID, oldTopic)
 	if err != nil {
 		return err
 	}
 
-	newPath, err := o.GetTopicPath(scope, ownerID, newTopic)
+	newPath, err := o.getTopicPathLocked(scope, ownerID, newTopic)
 	if err != nil {
 		return err
 	}
@@ -497,7 +503,7 @@ func (o *Organizer) DeleteTopic(scope types.MemoryScope, ownerID, topic string) 
 		return err
 	}
 
-	topicPath, err := o.GetTopicPath(scope, ownerID, topic)
+	topicPath, err := o.getTopicPathLocked(scope, ownerID, topic)
 	if err != nil {
 		return err
 	}
