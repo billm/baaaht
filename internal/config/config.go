@@ -25,6 +25,7 @@ type Config struct {
 	Tracing      TracingConfig      `json:"tracing" yaml:"tracing"`
 	Orchestrator OrchestratorConfig `json:"orchestrator" yaml:"orchestrator"`
 	Runtime      RuntimeConfig      `json:"runtime" yaml:"runtime"`
+	Memory       MemoryConfig       `json:"memory" yaml:"memory"`
 	GRPC         GRPCConfig         `json:"grpc" yaml:"grpc"`
 }
 
@@ -163,6 +164,16 @@ type RuntimeConfig struct {
 	TLSCAPath   string        `json:"tls_ca_path,omitempty"`
 }
 
+// MemoryConfig contains memory storage configuration
+type MemoryConfig struct {
+	StoragePath        string `json:"storage_path"`         // Base path for memory files
+	UserMemoryPath     string `json:"user_memory_path"`     // Path for user-specific memory
+	GroupMemoryPath    string `json:"group_memory_path"`    // Path for group-specific memory
+	Enabled            bool   `json:"enabled"`              // Enable memory storage
+	MaxFileSize        int    `json:"max_file_size"`        // Maximum size of a memory file in KB
+	FileFormat         string `json:"file_format"`          // File format (markdown)
+}
+
 // GRPCConfig contains gRPC server configuration
 type GRPCConfig struct {
 	SocketPath     string        `json:"socket_path" yaml:"socket_path"`
@@ -207,6 +218,7 @@ func Load() (*Config, error) {
 			Tracing:      DefaultTracingConfig(),
 			Orchestrator: DefaultOrchestratorConfig(),
 			Runtime:      DefaultRuntimeConfig(),
+      Memory:       DefaultMemoryConfig(),
 			GRPC:         DefaultGRPCConfig(),
 		}
 	}
@@ -250,6 +262,12 @@ func Load() (*Config, error) {
 		if max, err := strconv.Atoi(v); err == nil {
 			cfg.Session.MaxSessions = max
 		}
+	}
+	if v := os.Getenv(EnvSessionPersistence); v != "" {
+		cfg.Session.PersistenceEnabled = strings.ToLower(v) == "true" || v == "1"
+	}
+	if v := os.Getenv(EnvSessionStoragePath); v != "" {
+		cfg.Session.StoragePath = v
 	}
 
 	// Load Event configuration
@@ -332,7 +350,35 @@ func Load() (*Config, error) {
 		cfg.Runtime.TLSEnabled = strings.ToLower(v) == "true" || v == "1"
 	}
 
-	// Load gRPC configuration
+	// Load Memory configuration
+	// Capture the existing storage path so we can keep any derived paths consistent
+	oldStoragePath := cfg.Memory.StoragePath
+	if v := os.Getenv(EnvMemoryStoragePath); v != "" {
+		// Override the base storage path from the environment
+		cfg.Memory.StoragePath = v
+
+		// If user/group memory paths still point under the old storage base,
+		// update them to use the new base path to avoid a mixed configuration.
+		if cfg.Memory.UserMemoryPath != "" && strings.HasPrefix(cfg.Memory.UserMemoryPath, oldStoragePath) {
+			cfg.Memory.UserMemoryPath = strings.Replace(cfg.Memory.UserMemoryPath, oldStoragePath, cfg.Memory.StoragePath, 1)
+		}
+		if cfg.Memory.GroupMemoryPath != "" && strings.HasPrefix(cfg.Memory.GroupMemoryPath, oldStoragePath) {
+			cfg.Memory.GroupMemoryPath = strings.Replace(cfg.Memory.GroupMemoryPath, oldStoragePath, cfg.Memory.StoragePath, 1)
+		}
+	}
+	if v := os.Getenv(EnvMemoryEnabled); v != "" {
+		cfg.Memory.Enabled = strings.ToLower(v) == "true" || v == "1"
+	}
+	if v := os.Getenv(EnvMemoryMaxFileSize); v != "" {
+		if size, err := strconv.Atoi(v); err == nil {
+			cfg.Memory.MaxFileSize = size
+		}
+	}
+	if v := os.Getenv(EnvMemoryFileFormat); v != "" {
+		cfg.Memory.FileFormat = v
+	}
+
+  // Load gRPC configuration
 	if v := os.Getenv(EnvGRPCSocketPath); v != "" {
 		cfg.GRPC.SocketPath = v
 	}
@@ -495,6 +541,22 @@ func (c *Config) Validate() error {
 		return types.NewError(types.ErrCodeInvalidArgument, "runtime max retries cannot be negative")
 	}
 
+	// Validate Memory configuration
+	if c.Memory.StoragePath == "" {
+		return types.NewError(types.ErrCodeInvalidArgument, "memory storage path cannot be empty")
+	}
+	if c.Memory.MaxFileSize <= 0 {
+		return types.NewError(types.ErrCodeInvalidArgument, "memory max file size must be positive")
+	}
+	validFileFormats := map[string]bool{
+		"markdown": true,
+		"md":       true,
+	}
+	if c.Memory.FileFormat != "" && !validFileFormats[c.Memory.FileFormat] {
+		return types.NewError(types.ErrCodeInvalidArgument,
+			fmt.Sprintf("invalid memory file format: %s (must be markdown or md)", c.Memory.FileFormat))
+	}
+  
 	// Validate gRPC configuration
 	if c.GRPC.SocketPath == "" {
 		return types.NewError(types.ErrCodeInvalidArgument, "grpc socket path cannot be empty")
@@ -510,8 +572,7 @@ func (c *Config) Validate() error {
 	}
 	if c.GRPC.MaxConnections <= 0 {
 		return types.NewError(types.ErrCodeInvalidArgument, "grpc max connections must be positive")
-	}
-
+  }
 	return nil
 }
 
@@ -532,7 +593,7 @@ func (c *Config) ProfilingAddress() string {
 
 // String returns a string representation of the configuration (sensitive data is hidden)
 func (c *Config) String() string {
-	return fmt.Sprintf("Config{Docker: %s, API: %s, Logging: %s, Session: %s, Event: %s, IPC: %s, Scheduler: %s, Credentials: %s, Policy: %s, Metrics: %s, Tracing: %s, Orchestrator: %s, Runtime: %s, GRPC: %s}",
+	return fmt.Sprintf("Config{Docker: %s, API: %s, Logging: %s, Session: %s, Event: %s, IPC: %s, Scheduler: %s, Credentials: %s, Policy: %s, Metrics: %s, Tracing: %s, Orchestrator: %s, Runtime: %s, Memory: %s, GRPC: %s}",
 		c.Docker.String(),
 		c.APIServer.String(),
 		c.Logging.String(),
@@ -546,7 +607,8 @@ func (c *Config) String() string {
 		c.Tracing.String(),
 		c.Orchestrator.String(),
 		c.Runtime.String(),
-		c.GRPC.String(),
+		c.Memory.String(),
+		c.GRPC.String()
 	)
 }
 
@@ -683,6 +745,11 @@ func (c OrchestratorConfig) String() string {
 func (c RuntimeConfig) String() string {
 	return fmt.Sprintf("RuntimeConfig{Type: %s, SocketPath: %s, Timeout: %s, MaxRetries: %d, TLSEnabled: %v}",
 		c.Type, c.SocketPath, c.Timeout, c.MaxRetries, c.TLSEnabled)
+}
+
+func (c MemoryConfig) String() string {
+	return fmt.Sprintf("MemoryConfig{StoragePath: %s, Enabled: %v, FileFormat: %s}",
+		c.StoragePath, c.Enabled, c.FileFormat)
 }
 
 func (c GRPCConfig) String() string {

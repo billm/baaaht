@@ -71,6 +71,12 @@ const (
 	EnvRuntimeTLSKey     = "CONTAINER_RUNTIME_TLS_KEY"
 	EnvRuntimeTLSCA      = "CONTAINER_RUNTIME_TLS_CA"
 	EnvRuntimeTLSEnabled = "CONTAINER_RUNTIME_TLS_ENABLED"
+	EnvMemoryStoragePath = "MEMORY_STORAGE_PATH"
+	EnvMemoryEnabled     = "MEMORY_ENABLED"
+	EnvMemoryMaxFileSize = "MEMORY_MAX_FILE_SIZE"
+	EnvMemoryFileFormat  = "MEMORY_FILE_FORMAT"
+	EnvSessionPersistence = "SESSION_PERSISTENCE"
+	EnvSessionStoragePath = "SESSION_STORAGE_PATH"
 	EnvGRPCSocketPath    = "GRPC_SOCKET_PATH"
 	EnvGRPCMaxRecvMsgSize = "GRPC_MAX_RECV_MSG_SIZE"
 	EnvGRPCMaxSendMsgSize = "GRPC_MAX_SEND_MSG_SIZE"
@@ -124,6 +130,11 @@ const (
 	// Default Runtime settings
 	DefaultRuntimeType    = "auto"
 	DefaultRuntimeTimeout = 30 * time.Second
+
+	// Default Memory settings
+	DefaultMemoryEnabled    = true
+	DefaultMemoryMaxFileSize = 100 // KB
+	DefaultMemoryFileFormat = "markdown"
 
 	// Default gRPC settings
 	DefaultGRPCSocketPath     = "/tmp/baaaht-grpc.sock"
@@ -189,7 +200,7 @@ func DefaultSessionConfig() SessionConfig {
 		MaxSessions:        DefaultMaxSessions,
 		CleanupInterval:    5 * time.Minute,
 		IdleTimeout:        10 * time.Minute,
-		PersistenceEnabled: false,
+		PersistenceEnabled: true,
 		StoragePath:        storagePath,
 	}
 }
@@ -306,6 +317,22 @@ func DefaultRuntimeConfig() RuntimeConfig {
 	}
 }
 
+// DefaultMemoryConfig returns the default memory configuration
+func DefaultMemoryConfig() MemoryConfig {
+	storagePath := "/var/lib/baaaht/memory" // fallback
+	if configDir, err := GetConfigDir(); err == nil {
+		storagePath = filepath.Join(configDir, "memory")
+	}
+	return MemoryConfig{
+		StoragePath:     storagePath,
+		UserMemoryPath:  filepath.Join(storagePath, "users"),
+		GroupMemoryPath: filepath.Join(storagePath, "groups"),
+		Enabled:         DefaultMemoryEnabled,
+		MaxFileSize:     DefaultMemoryMaxFileSize, // KB
+		FileFormat:      DefaultMemoryFileFormat,
+	}
+}
+
 // DefaultGRPCConfig returns the default gRPC server configuration
 func DefaultGRPCConfig() GRPCConfig {
 	return GRPCConfig{
@@ -314,5 +341,5 @@ func DefaultGRPCConfig() GRPCConfig {
 		MaxSendMsgSize: DefaultGRPCMaxSendMsgSize,
 		Timeout:        DefaultGRPCTimeout,
 		MaxConnections: DefaultGRPCMaxConnections,
-	}
+  }
 }
