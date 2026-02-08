@@ -12,6 +12,11 @@ import (
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 )
 
+const (
+	// SessionIDPrefixLength is the length of the session ID prefix used in display names
+	SessionIDPrefixLength = 8
+)
+
 // Manager manages session lifecycles
 type Manager struct {
 	mu              sync.RWMutex
@@ -774,8 +779,8 @@ func (m *Manager) RestoreSessions(ctx context.Context) error {
 
 			// Create a short session ID prefix for display name
 			sessionPrefix := sessionIDStr
-			if len(sessionIDStr) > 8 {
-				sessionPrefix = sessionIDStr[:8]
+			if len(sessionIDStr) > SessionIDPrefixLength {
+				sessionPrefix = sessionIDStr[:SessionIDPrefixLength]
 			}
 
 			session := &types.Session{
