@@ -834,3 +834,366 @@ func errFailedPrecondition(msg string) error {
 func errResourceExhausted(msg string) error {
 	return grpcStatus.Error(grpcCodes.ResourceExhausted, msg)
 }
+
+// =============================================================================
+// Agent Type Conversion Functions
+// =============================================================================
+
+// AgentType conversion functions
+
+// protoToAgentType converts protobuf AgentType to string
+func protoToAgentType(agentType proto.AgentType) string {
+	switch agentType {
+	case proto.AgentType_AGENT_TYPE_ORCHESTRATOR:
+		return "orchestrator"
+	case proto.AgentType_AGENT_TYPE_GATEWAY:
+		return "gateway"
+	case proto.AgentType_AGENT_TYPE_WORKER:
+		return "worker"
+	case proto.AgentType_AGENT_TYPE_TOOL:
+		return "tool"
+	case proto.AgentType_AGENT_TYPE_MONITOR:
+		return "monitor"
+	default:
+		return "unspecified"
+	}
+}
+
+// agentTypeToProto converts string to protobuf AgentType
+func agentTypeToProto(agentType string) proto.AgentType {
+	switch agentType {
+	case "orchestrator":
+		return proto.AgentType_AGENT_TYPE_ORCHESTRATOR
+	case "gateway":
+		return proto.AgentType_AGENT_TYPE_GATEWAY
+	case "worker":
+		return proto.AgentType_AGENT_TYPE_WORKER
+	case "tool":
+		return proto.AgentType_AGENT_TYPE_TOOL
+	case "monitor":
+		return proto.AgentType_AGENT_TYPE_MONITOR
+	default:
+		return proto.AgentType_AGENT_TYPE_UNSPECIFIED
+	}
+}
+
+// AgentState conversion functions
+
+// protoToAgentState converts protobuf AgentState to string
+func protoToAgentState(state proto.AgentState) string {
+	switch state {
+	case proto.AgentState_AGENT_STATE_INITIALIZING:
+		return "initializing"
+	case proto.AgentState_AGENT_STATE_REGISTERING:
+		return "registering"
+	case proto.AgentState_AGENT_STATE_IDLE:
+		return "idle"
+	case proto.AgentState_AGENT_STATE_BUSY:
+		return "busy"
+	case proto.AgentState_AGENT_STATE_UNREGISTERING:
+		return "unregistering"
+	case proto.AgentState_AGENT_STATE_TERMINATED:
+		return "terminated"
+	default:
+		return "unspecified"
+	}
+}
+
+// agentStateToProto converts string to protobuf AgentState
+func agentStateToProto(state string) proto.AgentState {
+	switch state {
+	case "initializing":
+		return proto.AgentState_AGENT_STATE_INITIALIZING
+	case "registering":
+		return proto.AgentState_AGENT_STATE_REGISTERING
+	case "idle":
+		return proto.AgentState_AGENT_STATE_IDLE
+	case "busy":
+		return proto.AgentState_AGENT_STATE_BUSY
+	case "unregistering":
+		return proto.AgentState_AGENT_STATE_UNREGISTERING
+	case "terminated":
+		return proto.AgentState_AGENT_STATE_TERMINATED
+	default:
+		return proto.AgentState_AGENT_STATE_UNSPECIFIED
+	}
+}
+
+// TaskType conversion functions
+
+// protoToTaskType converts protobuf TaskType to string
+func protoToTaskType(taskType proto.TaskType) string {
+	switch taskType {
+	case proto.TaskType_TASK_TYPE_CODE_EXECUTION:
+		return "code_execution"
+	case proto.TaskType_TASK_TYPE_FILE_OPERATION:
+		return "file_operation"
+	case proto.TaskType_TASK_TYPE_NETWORK_REQUEST:
+		return "network_request"
+	case proto.TaskType_TASK_TYPE_DATA_PROCESSING:
+		return "data_processing"
+	case proto.TaskType_TASK_TYPE_CONTAINER_OPERATION:
+		return "container_operation"
+	case proto.TaskType_TASK_TYPE_TOOL_EXECUTION:
+		return "tool_execution"
+	case proto.TaskType_TASK_TYPE_CUSTOM:
+		return "custom"
+	default:
+		return "unspecified"
+	}
+}
+
+// taskTypeToProto converts string to protobuf TaskType
+func taskTypeToProto(taskType string) proto.TaskType {
+	switch taskType {
+	case "code_execution":
+		return proto.TaskType_TASK_TYPE_CODE_EXECUTION
+	case "file_operation":
+		return proto.TaskType_TASK_TYPE_FILE_OPERATION
+	case "network_request":
+		return proto.TaskType_TASK_TYPE_NETWORK_REQUEST
+	case "data_processing":
+		return proto.TaskType_TASK_TYPE_DATA_PROCESSING
+	case "container_operation":
+		return proto.TaskType_TASK_TYPE_CONTAINER_OPERATION
+	case "tool_execution":
+		return proto.TaskType_TASK_TYPE_TOOL_EXECUTION
+	case "custom":
+		return proto.TaskType_TASK_TYPE_CUSTOM
+	default:
+		return proto.TaskType_TASK_TYPE_UNSPECIFIED
+	}
+}
+
+// TaskState conversion functions
+
+// protoToTaskState converts protobuf TaskState to string
+func protoToTaskState(state proto.TaskState) string {
+	switch state {
+	case proto.TaskState_TASK_STATE_PENDING:
+		return "pending"
+	case proto.TaskState_TASK_STATE_QUEUED:
+		return "queued"
+	case proto.TaskState_TASK_STATE_RUNNING:
+		return "running"
+	case proto.TaskState_TASK_STATE_PAUSED:
+		return "paused"
+	case proto.TaskState_TASK_STATE_COMPLETED:
+		return "completed"
+	case proto.TaskState_TASK_STATE_FAILED:
+		return "failed"
+	case proto.TaskState_TASK_STATE_CANCELLED:
+		return "cancelled"
+	case proto.TaskState_TASK_STATE_TIMEOUT:
+		return "timeout"
+	default:
+		return "unspecified"
+	}
+}
+
+// taskStateToProto converts string to protobuf TaskState
+func taskStateToProto(state string) proto.TaskState {
+	switch state {
+	case "pending":
+		return proto.TaskState_TASK_STATE_PENDING
+	case "queued":
+		return proto.TaskState_TASK_STATE_QUEUED
+	case "running":
+		return proto.TaskState_TASK_STATE_RUNNING
+	case "paused":
+		return proto.TaskState_TASK_STATE_PAUSED
+	case "completed":
+		return proto.TaskState_TASK_STATE_COMPLETED
+	case "failed":
+		return proto.TaskState_TASK_STATE_FAILED
+	case "cancelled":
+		return proto.TaskState_TASK_STATE_CANCELLED
+	case "timeout":
+		return proto.TaskState_TASK_STATE_TIMEOUT
+	default:
+		return proto.TaskState_TASK_STATE_UNSPECIFIED
+	}
+}
+
+// TaskPriority conversion functions
+
+// protoToTaskPriority converts protobuf TaskPriority to string
+func protoToTaskPriority(priority proto.TaskPriority) string {
+	switch priority {
+	case proto.TaskPriority_TASK_PRIORITY_LOW:
+		return "low"
+	case proto.TaskPriority_TASK_PRIORITY_NORMAL:
+		return "normal"
+	case proto.TaskPriority_TASK_PRIORITY_HIGH:
+		return "high"
+	case proto.TaskPriority_TASK_PRIORITY_CRITICAL:
+		return "critical"
+	default:
+		return "unspecified"
+	}
+}
+
+// taskPriorityToProto converts string to protobuf TaskPriority
+func taskPriorityToProto(priority string) proto.TaskPriority {
+	switch priority {
+	case "low":
+		return proto.TaskPriority_TASK_PRIORITY_LOW
+	case "normal":
+		return proto.TaskPriority_TASK_PRIORITY_NORMAL
+	case "high":
+		return proto.TaskPriority_TASK_PRIORITY_HIGH
+	case "critical":
+		return proto.TaskPriority_TASK_PRIORITY_CRITICAL
+	default:
+		return proto.TaskPriority_TASK_PRIORITY_UNSPECIFIED
+	}
+}
+
+// MessageType conversion functions
+
+// protoToMessageType converts protobuf MessageType to string
+func protoToMessageType(msgType proto.MessageType) string {
+	switch msgType {
+	case proto.MessageType_MESSAGE_TYPE_TASK_REQUEST:
+		return "task_request"
+	case proto.MessageType_MESSAGE_TYPE_TASK_RESPONSE:
+		return "task_response"
+	case proto.MessageType_MESSAGE_TYPE_TASK_UPDATE:
+		return "task_update"
+	case proto.MessageType_MESSAGE_TYPE_CONTROL:
+		return "control"
+	case proto.MessageType_MESSAGE_TYPE_DATA:
+		return "data"
+	case proto.MessageType_MESSAGE_TYPE_EVENT:
+		return "event"
+	case proto.MessageType_MESSAGE_TYPE_HEARTBEAT:
+		return "heartbeat"
+	case proto.MessageType_MESSAGE_TYPE_ERROR:
+		return "error"
+	default:
+		return "unspecified"
+	}
+}
+
+// messageTypeToProto converts string to protobuf MessageType
+func messageTypeToProto(msgType string) proto.MessageType {
+	switch msgType {
+	case "task_request":
+		return proto.MessageType_MESSAGE_TYPE_TASK_REQUEST
+	case "task_response":
+		return proto.MessageType_MESSAGE_TYPE_TASK_RESPONSE
+	case "task_update":
+		return proto.MessageType_MESSAGE_TYPE_TASK_UPDATE
+	case "control":
+		return proto.MessageType_MESSAGE_TYPE_CONTROL
+	case "data":
+		return proto.MessageType_MESSAGE_TYPE_DATA
+	case "event":
+		return proto.MessageType_MESSAGE_TYPE_EVENT
+	case "heartbeat":
+		return proto.MessageType_MESSAGE_TYPE_HEARTBEAT
+	case "error":
+		return proto.MessageType_MESSAGE_TYPE_ERROR
+	default:
+		return proto.MessageType_MESSAGE_TYPE_UNSPECIFIED
+	}
+}
+
+// ControlCommand conversion functions
+
+// protoToControlCommand converts protobuf ControlCommand to string
+func protoToControlCommand(cmd proto.ControlCommand) string {
+	switch cmd {
+	case proto.ControlCommand_CONTROL_COMMAND_PAUSE:
+		return "pause"
+	case proto.ControlCommand_CONTROL_COMMAND_RESUME:
+		return "resume"
+	case proto.ControlCommand_CONTROL_COMMAND_CANCEL:
+		return "cancel"
+	case proto.ControlCommand_CONTROL_COMMAND_SHUTDOWN:
+		return "shutdown"
+	case proto.ControlCommand_CONTROL_COMMAND_RESTART:
+		return "restart"
+	case proto.ControlCommand_CONTROL_COMMAND_STATUS:
+		return "status"
+	default:
+		return "unspecified"
+	}
+}
+
+// controlCommandToProto converts string to protobuf ControlCommand
+func controlCommandToProto(cmd string) proto.ControlCommand {
+	switch cmd {
+	case "pause":
+		return proto.ControlCommand_CONTROL_COMMAND_PAUSE
+	case "resume":
+		return proto.ControlCommand_CONTROL_COMMAND_RESUME
+	case "cancel":
+		return proto.ControlCommand_CONTROL_COMMAND_CANCEL
+	case "shutdown":
+		return proto.ControlCommand_CONTROL_COMMAND_SHUTDOWN
+	case "restart":
+		return proto.ControlCommand_CONTROL_COMMAND_RESTART
+	case "status":
+		return proto.ControlCommand_CONTROL_COMMAND_STATUS
+	default:
+		return proto.ControlCommand_CONTROL_COMMAND_UNSPECIFIED
+	}
+}
+
+// AgentMetadata conversion functions
+
+// protoToAgentMetadata converts protobuf AgentMetadata to a map
+func protoToAgentMetadata(m *proto.AgentMetadata) map[string]interface{} {
+	if m == nil {
+		return nil
+	}
+
+	metadata := make(map[string]interface{})
+	metadata["version"] = m.Version
+	metadata["description"] = m.Description
+	metadata["owner_id"] = m.OwnerId
+	metadata["hostname"] = m.Hostname
+	metadata["pid"] = m.Pid
+
+	if m.Labels != nil {
+		metadata["labels"] = m.Labels
+	}
+
+	if m.Tags != nil {
+		metadata["tags"] = m.Tags
+	}
+
+	return metadata
+}
+
+// agentMetadataToProto converts map to protobuf AgentMetadata
+func agentMetadataToProto(metadata map[string]interface{}) *proto.AgentMetadata {
+	pb := &proto.AgentMetadata{}
+
+	if v, ok := metadata["version"].(string); ok {
+		pb.Version = v
+	}
+	if v, ok := metadata["description"].(string); ok {
+		pb.Description = v
+	}
+	if v, ok := metadata["owner_id"].(string); ok {
+		pb.OwnerId = v
+	}
+	if v, ok := metadata["hostname"].(string); ok {
+		pb.Hostname = v
+	}
+	if v, ok := metadata["pid"].(string); ok {
+		pb.Pid = v
+	}
+
+	if v, ok := metadata["labels"].(map[string]string); ok {
+		pb.Labels = v
+	}
+
+	if v, ok := metadata["tags"].([]string); ok {
+		pb.Tags = v
+	}
+
+	return pb
+}
