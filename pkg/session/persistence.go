@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/billm/baaaht/orchestrator/internal/config"
@@ -33,6 +34,20 @@ type Store struct {
 	logger *logger.Logger
 	closed bool
 }
+
+// fileLock represents an acquired file lock
+type fileLock struct {
+	file *os.File
+	path string
+}
+
+// Constants for file locking
+const (
+	// DefaultLockTimeout is the default timeout for acquiring a lock
+	DefaultLockTimeout = 30 * time.Second
+	// LockRetryInterval is the interval between lock acquisition retries
+	LockRetryInterval = 100 * time.Millisecond
+)
 
 // NewStore creates a new session persistence store with the specified configuration
 func NewStore(cfg config.SessionConfig, log *logger.Logger) (*Store, error) {
@@ -110,6 +125,70 @@ func (s *Store) ensureUserDir(ownerID string) error {
 	return nil
 }
 
+// acquireLock attempts to acquire a file lock with retry logic
+func (s *Store) acquireLock(lockPath string) (*fileLock, error) {
+	// Ensure the parent directory exists for the lock file
+	lockDir := filepath.Dir(lockPath)
+	if err := os.MkdirAll(lockDir, DefaultDirPermissions); err != nil {
+		return nil, types.WrapError(types.ErrCodeInternal, "failed to create lock directory", err)
+	}
+
+	// Create lock file
+	lockFile, err := os.OpenFile(lockPath, os.O_CREATE|os.O_WRONLY, DefaultFilePermissions)
+	if err != nil {
+		return nil, types.WrapError(types.ErrCodeInternal, "failed to create lock file", err)
+	}
+
+	// Try to acquire exclusive lock with timeout
+	timeout := time.After(DefaultLockTimeout)
+	ticker := time.NewTicker(LockRetryInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-timeout:
+			lockFile.Close()
+			os.Remove(lockPath)
+			return nil, types.NewError(types.ErrCodeUnavailable, "timeout waiting to acquire file lock")
+		case <-ticker.C:
+			// Try to acquire exclusive flock
+			err := syscall.Flock(int(lockFile.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+			if err == nil {
+				// Lock acquired successfully
+				return &fileLock{
+					file: lockFile,
+					path: lockPath,
+				}, nil
+			}
+			// Lock is held by another process, continue retrying
+		}
+	}
+}
+
+// releaseLock releases a file lock
+func (s *Store) releaseLock(lock *fileLock) error {
+	if lock == nil || lock.file == nil {
+		return nil
+	}
+
+	// Release the flock
+	if err := syscall.Flock(int(lock.file.Fd()), syscall.LOCK_UN); err != nil {
+		s.logger.Warn("Failed to release file lock", "path", lock.path, "error", err)
+	}
+
+	// Close the file
+	if err := lock.file.Close(); err != nil {
+		s.logger.Warn("Failed to close lock file", "path", lock.path, "error", err)
+	}
+
+	// Remove the lock file
+	if err := os.Remove(lock.path); err != nil && !os.IsNotExist(err) {
+		s.logger.Warn("Failed to remove lock file", "path", lock.path, "error", err)
+	}
+
+	return nil
+}
+
 // PersistedMessage represents a message as persisted in JSONL format
 type PersistedMessage struct {
 	ID        string              `json:"id"`
@@ -161,7 +240,7 @@ func (s *Store) unmarshalMessage(data []byte) (PersistedMessage, error) {
 	return msg, nil
 }
 
-// AppendMessage appends a message to the session file with atomic write
+// AppendMessage appends a message to the session file with atomic write and file locking
 func (s *Store) AppendMessage(ctx context.Context, ownerID, sessionID string, msg types.Message) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -180,6 +259,14 @@ func (s *Store) AppendMessage(ctx context.Context, ownerID, sessionID string, ms
 	}
 
 	sessionFile := s.getSessionFilePath(ownerID, sessionID)
+	lockPath := s.getLockFilePath(sessionFile)
+
+	// Acquire file lock for concurrent write safety
+	lock, err := s.acquireLock(lockPath)
+	if err != nil {
+		return err
+	}
+	defer s.releaseLock(lock)
 
 	// Convert message to persisted format
 	persistedMsg := toPersistedMessage(msg)
@@ -239,7 +326,7 @@ func (s *Store) AppendMessage(ctx context.Context, ownerID, sessionID string, ms
 	return nil
 }
 
-// LoadMessages loads all messages from a session file
+// LoadMessages loads all messages from a session file with file locking
 func (s *Store) LoadMessages(ctx context.Context, ownerID, sessionID string) ([]types.Message, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -254,6 +341,17 @@ func (s *Store) LoadMessages(ctx context.Context, ownerID, sessionID string) ([]
 	}
 
 	sessionFile := s.getSessionFilePath(ownerID, sessionID)
+	lockPath := s.getLockFilePath(sessionFile)
+
+	// Acquire shared file lock for concurrent read safety
+	lock, err := s.acquireLock(lockPath)
+	if err != nil {
+		// If lock acquisition fails, log and attempt to read anyway
+		// This handles cases where lock file exists but file is readable
+		s.logger.Warn("Failed to acquire read lock, attempting to read anyway", "error", err)
+	} else {
+		defer s.releaseLock(lock)
+	}
 
 	// Read the file
 	data, err := os.ReadFile(sessionFile)

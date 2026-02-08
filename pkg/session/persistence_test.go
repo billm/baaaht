@@ -3,8 +3,10 @@ package session
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -695,6 +697,164 @@ func TestConstants(t *testing.T) {
 
 	if LockFileExtension != ".lock" {
 		t.Errorf("expected LockFileExtension .lock, got %s", LockFileExtension)
+	}
+}
+
+// TestConcurrentWrites tests concurrent writes to the same session file
+func TestConcurrentWrites(t *testing.T) {
+	store := createTestStore(t)
+	defer store.Close()
+
+	ctx := context.Background()
+	ownerID := "user123"
+	sessionID := "session456"
+
+	// Number of concurrent goroutines
+	numGoroutines := 10
+	messagesPerGoroutine := 5
+
+	var wg sync.WaitGroup
+	errCh := make(chan error, numGoroutines)
+
+	// Start multiple goroutines writing to the same session
+	for i := 0; i < numGoroutines; i++ {
+		wg.Add(1)
+		go func(goroutineID int) {
+			defer wg.Done()
+
+			for j := 0; j < messagesPerGoroutine; j++ {
+				msg := types.Message{
+					ID:        types.GenerateID(),
+					Timestamp: types.NewTimestamp(),
+					Role:      types.MessageRoleUser,
+					Content:   fmt.Sprintf("Message from goroutine %d, message %d", goroutineID, j),
+				}
+
+				if err := store.AppendMessage(ctx, ownerID, sessionID, msg); err != nil {
+					errCh <- fmt.Errorf("goroutine %d: %w", goroutineID, err)
+					return
+				}
+			}
+		}(i)
+	}
+
+	// Wait for all goroutines to complete
+	wg.Wait()
+	close(errCh)
+
+	// Check for any errors
+	var errors []error
+	for err := range errCh {
+		errors = append(errors, err)
+	}
+
+	if len(errors) > 0 {
+		t.Fatalf("encountered %d errors during concurrent writes: %v", len(errors), errors[0])
+	}
+
+	// Verify all messages were written correctly
+	loaded, err := store.LoadMessages(ctx, ownerID, sessionID)
+	if err != nil {
+		t.Fatalf("failed to load messages: %v", err)
+	}
+
+	expectedCount := numGoroutines * messagesPerGoroutine
+	if len(loaded) != expectedCount {
+		t.Errorf("expected %d messages, got %d", expectedCount, len(loaded))
+	}
+
+	// Verify no duplicate message IDs
+	idMap := make(map[string]bool)
+	for _, msg := range loaded {
+		id := msg.ID.String()
+		if idMap[id] {
+			t.Errorf("duplicate message ID found: %s", id)
+		}
+		idMap[id] = true
+	}
+}
+
+// TestConcurrentReadsAndWrites tests concurrent reads and writes to the same session file
+func TestConcurrentReadsAndWrites(t *testing.T) {
+	store := createTestStore(t)
+	defer store.Close()
+
+	ctx := context.Background()
+	ownerID := "user123"
+	sessionID := "session456"
+
+	// Start with some initial messages
+	for i := 0; i < 5; i++ {
+		msg := types.Message{
+			ID:        types.GenerateID(),
+			Timestamp: types.NewTimestamp(),
+			Role:      types.MessageRoleUser,
+			Content:   fmt.Sprintf("Initial message %d", i),
+		}
+		if err := store.AppendMessage(ctx, ownerID, sessionID, msg); err != nil {
+			t.Fatalf("failed to append initial message: %v", err)
+		}
+	}
+
+	var wg sync.WaitGroup
+	errCh := make(chan error, 1)
+
+	// Writer goroutine
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 20; i++ {
+			msg := types.Message{
+				ID:        types.GenerateID(),
+				Timestamp: types.NewTimestamp(),
+				Role:      types.MessageRoleUser,
+				Content:   fmt.Sprintf("Concurrent message %d", i),
+			}
+			if err := store.AppendMessage(ctx, ownerID, sessionID, msg); err != nil {
+				select {
+				case errCh <- fmt.Errorf("writer: %w", err):
+				default:
+				}
+				return
+			}
+		}
+	}()
+
+	// Reader goroutines
+	for i := 0; i < 3; i++ {
+		wg.Add(1)
+		go func(readerID int) {
+			defer wg.Done()
+			for j := 0; j < 10; j++ {
+				_, err := store.LoadMessages(ctx, ownerID, sessionID)
+				if err != nil {
+					select {
+					case errCh <- fmt.Errorf("reader %d: %w", readerID, err):
+					default:
+					}
+					return
+				}
+			}
+		}(i)
+	}
+
+	wg.Wait()
+	close(errCh)
+
+	// Check for any errors
+	for err := range errCh {
+		t.Fatalf("concurrent operation error: %v", err)
+	}
+
+	// Verify final state
+	loaded, err := store.LoadMessages(ctx, ownerID, sessionID)
+	if err != nil {
+		t.Fatalf("failed to load final messages: %v", err)
+	}
+
+	expectedCount := 5 + 20 // 5 initial + 20 concurrent writes
+	if len(loaded) != expectedCount {
+		t.Errorf("expected %d messages, got %d", expectedCount, len(loaded))
 	}
 }
 
