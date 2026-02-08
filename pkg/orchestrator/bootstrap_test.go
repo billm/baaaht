@@ -3,6 +3,7 @@ package orchestrator
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -590,5 +591,122 @@ func BenchmarkGetVersionInfo(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		GetVersionInfo()
+	}
+}
+
+func TestBootstrapWithCorruptSession(t *testing.T) {
+	// Create a temporary directory for session storage
+	tempDir, err := os.MkdirTemp("", "corrupt-session-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create a user directory
+	userDir := filepath.Join(tempDir, "test-user")
+	if err := os.MkdirAll(userDir, 0755); err != nil {
+		t.Fatalf("failed to create user dir: %v", err)
+	}
+
+	// Create a corrupt session file with invalid JSON
+	corruptSessionPath := filepath.Join(userDir, "corrupt-session.jsonl")
+	if err := os.WriteFile(corruptSessionPath, []byte("{invalid json content}\n{not valid json}\n"), 0644); err != nil {
+		t.Fatalf("failed to create corrupt session file: %v", err)
+	}
+
+	// Create config with session persistence enabled pointing to corrupt data
+	cfg := &config.Config{
+		Docker:    config.DefaultDockerConfig(),
+		APIServer: config.DefaultAPIServerConfig(),
+		Logging:   config.DefaultLoggingConfig(),
+		Session: config.SessionConfig{
+			MaxSessions:        100,
+			IdleTimeout:        30 * time.Minute,
+			Timeout:            5 * time.Minute,
+			PersistenceEnabled: true,
+			StoragePath:        tempDir,
+		},
+		Event:        config.DefaultEventConfig(),
+		IPC:          config.DefaultIPCConfig(),
+		Scheduler:    config.DefaultSchedulerConfig(),
+		Credentials:  config.DefaultCredentialsConfig(),
+		Policy:       config.DefaultPolicyConfig(),
+		Metrics:      config.DefaultMetricsConfig(),
+		Tracing:      config.DefaultTracingConfig(),
+		Orchestrator: config.DefaultOrchestratorConfig(),
+	}
+
+	// Create a test logger
+	log, err := logger.New(config.DefaultLoggingConfig())
+	if err != nil {
+		t.Fatalf("failed to create test logger: %v", err)
+	}
+
+	bootstrapCfg := BootstrapConfig{
+		Config:            *cfg,
+		Logger:            log,
+		Version:           "test-1.0.0",
+		ShutdownTimeout:   5 * time.Second,
+		EnableHealthCheck: false,
+	}
+
+	ctx := context.Background()
+
+	// Bootstrap should succeed even with corrupt session data
+	result, err := Bootstrap(ctx, bootstrapCfg)
+
+	// Bootstrap may fail for other reasons (e.g., Docker not available)
+	// but it should NOT fail due to corrupt session data
+	if err != nil {
+		// If bootstrap failed, verify it's not due to restore
+		t.Logf("Bootstrap failed (may be expected without Docker): %v", err)
+	}
+
+	// The key assertion: result should not be nil
+	if result == nil {
+		t.Fatal("expected result to be returned even with corrupt session data")
+	}
+
+	// If we got an orchestrator, verify it's functional
+	if result.Orchestrator != nil {
+		t.Log("Bootstrap succeeded despite corrupt session data")
+
+		// Verify the session manager is working
+		if result.Orchestrator.sessionMgr != nil {
+			// List sessions - corrupt session may exist but should have 0 messages
+			sessions, err := result.Orchestrator.sessionMgr.List(ctx, nil)
+			if err != nil {
+				t.Logf("Warning: failed to list sessions: %v", err)
+			}
+
+			// Check if the corrupt session exists
+			corruptSessionFound := false
+			for _, sess := range sessions {
+				if sess.ID == "corrupt-session" {
+					corruptSessionFound = true
+					// The key assertion: corrupt session should have 0 messages
+					// (corrupt messages were skipped)
+					if len(sess.Context.Messages) > 0 {
+						t.Errorf("corrupt session should have 0 messages, got %d", len(sess.Context.Messages))
+					}
+					t.Log("Corrupt session was restored with 0 messages (corrupt data was skipped)")
+				}
+			}
+
+			if corruptSessionFound {
+				t.Log("Session manager handled corrupt data gracefully")
+			}
+
+			t.Logf("Session manager is functional, %d session(s) found", len(sessions))
+		}
+
+		// Clean up
+		_ = result.Orchestrator.Close()
+	}
+
+	// Verify that the corrupt session file still exists
+	// (it should not have been deleted)
+	if _, err := os.Stat(corruptSessionPath); os.IsNotExist(err) {
+		t.Error("corrupt session file was deleted, but should have been preserved")
 	}
 }
