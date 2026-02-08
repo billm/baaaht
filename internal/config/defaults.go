@@ -71,6 +71,8 @@ const (
 	EnvRuntimeTLSKey     = "CONTAINER_RUNTIME_TLS_KEY"
 	EnvRuntimeTLSCA      = "CONTAINER_RUNTIME_TLS_CA"
 	EnvRuntimeTLSEnabled = "CONTAINER_RUNTIME_TLS_ENABLED"
+	EnvSessionPersistence = "SESSION_PERSISTENCE"
+	EnvSessionStoragePath = "SESSION_STORAGE_PATH"
 )
 
 const (
@@ -177,7 +179,7 @@ func DefaultSessionConfig() SessionConfig {
 		MaxSessions:        DefaultMaxSessions,
 		CleanupInterval:    5 * time.Minute,
 		IdleTimeout:        10 * time.Minute,
-		PersistenceEnabled: false,
+		PersistenceEnabled: true,
 		StoragePath:        storagePath,
 	}
 }
