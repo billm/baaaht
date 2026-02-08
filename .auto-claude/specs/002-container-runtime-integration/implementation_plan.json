@@ -350,7 +350,7 @@
             "type": "manual",
             "instructions": "Review documentation for clarity and completeness. Verify examples work."
           },
-          "status": "pending"
+          "status": "completed"
         },
         {
           "id": "subtask-6-2",
