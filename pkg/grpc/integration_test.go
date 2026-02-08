@@ -731,6 +731,226 @@ func TestIntegration_StreamingMessages(t *testing.T) {
 	t.Log("StreamMessages test passed")
 }
 
+// TestStreaming tests streaming RPCs with concurrent clients
+// This test verifies that multiple clients can perform streaming operations concurrently without race conditions
+func TestStreaming(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	cfg := loadTestIntegrationConfig(t)
+	result, sessionMgr, eventBus, _ := setupIntegrationTestServer(t, cfg)
+
+	ctx := context.Background()
+
+	// Wait for server to be ready
+	err := WaitForReady(ctx, result.Server, 5*time.Second, 100*time.Millisecond)
+	require.NoError(t, err)
+
+	// Create test sessions for concurrent clients
+	numClients := 5
+	sessionIDs := make([]types.ID, numClients)
+	for i := 0; i < numClients; i++ {
+		sessionID, err := sessionMgr.Create(ctx, types.SessionMetadata{
+			Name:    fmt.Sprintf("streaming-test-session-%d", i),
+			OwnerID: "streaming-test-user",
+		}, types.SessionConfig{
+			MaxContainers: 10,
+		})
+		require.NoError(t, err, "Session creation should succeed")
+		sessionIDs[i] = sessionID
+	}
+
+	var wg sync.WaitGroup
+	errorsCh := make(chan error, numClients*3)
+	successCount := atomic.Int32{}
+
+	t.Logf("Testing streaming RPCs with %d concurrent clients...", numClients)
+
+	// Test 1: Concurrent bidirectional streaming (StreamMessages)
+	for i := 0; i < numClients; i++ {
+		wg.Add(1)
+		go func(clientIndex int) {
+			defer wg.Done()
+
+			log, err := logger.NewDefault()
+			if err != nil {
+				errorsCh <- err
+				return
+			}
+
+			clientCfg := ClientConfig{
+				DialTimeout:          5 * time.Second,
+				RPCTimeout:           5 * time.Second,
+				MaxRecvMsgSize:       DefaultMaxRecvMsgSize,
+				MaxSendMsgSize:       DefaultMaxSendMsgSize,
+				ReconnectInterval:    DefaultReconnectInterval,
+				ReconnectMaxAttempts: 0,
+			}
+
+			client, err := NewClient(cfg.GRPC.SocketPath, clientCfg, log)
+			if err != nil {
+				errorsCh <- err
+				return
+			}
+			defer client.Close()
+
+			if err := client.Dial(ctx); err != nil {
+				errorsCh <- err
+				return
+			}
+
+			orchClient := proto.NewOrchestratorServiceClient(client.GetConn())
+
+			// Create bidirectional stream
+			stream, err := orchClient.StreamMessages(ctx)
+			if err != nil {
+				errorsCh <- fmt.Errorf("client %d: failed to create stream: %w", clientIndex, err)
+				return
+			}
+			defer stream.CloseSend()
+
+			// Send multiple messages on the stream
+			for j := 0; j < 3; j++ {
+				msg := &proto.StreamMessageRequest{
+					SessionId: sessionIDs[clientIndex].String(),
+					Payload: &proto.StreamMessageRequest_Message{
+						Message: &proto.Message{
+							Role:      proto.MessageRole_MESSAGE_ROLE_USER,
+							Content:   fmt.Sprintf("Client %d, message %d", clientIndex, j),
+							Timestamp: timestampToProtoValue(types.NewTimestampFromTime(time.Now())),
+						},
+					},
+				}
+				if err := stream.Send(msg); err != nil {
+					errorsCh <- fmt.Errorf("client %d: failed to send message %d: %w", clientIndex, j, err)
+					return
+				}
+
+				// Try to receive response
+				_, err := stream.Recv()
+				if err != nil {
+					// EOF or canceled is acceptable for streaming
+					if err.Error() != "EOF" && ctx.Err() == nil {
+						errorsCh <- fmt.Errorf("client %d: failed to receive response for message %d: %w", clientIndex, j, err)
+						return
+					}
+				}
+			}
+
+			successCount.Add(1)
+			t.Logf("Client %d: completed StreamMessages test", clientIndex)
+		}(i)
+	}
+
+	// Test 2: Concurrent server streaming (SubscribeEvents)
+	for i := 0; i < numClients; i++ {
+		wg.Add(1)
+		go func(clientIndex int) {
+			defer wg.Done()
+
+			log, err := logger.NewDefault()
+			if err != nil {
+				errorsCh <- err
+				return
+			}
+
+			clientCfg := ClientConfig{
+				DialTimeout:          5 * time.Second,
+				RPCTimeout:           5 * time.Second,
+				MaxRecvMsgSize:       DefaultMaxRecvMsgSize,
+				MaxSendMsgSize:       DefaultMaxSendMsgSize,
+				ReconnectInterval:    DefaultReconnectInterval,
+				ReconnectMaxAttempts: 0,
+			}
+
+			client, err := NewClient(cfg.GRPC.SocketPath, clientCfg, log)
+			if err != nil {
+				errorsCh <- err
+				return
+			}
+			defer client.Close()
+
+			if err := client.Dial(ctx); err != nil {
+				errorsCh <- err
+				return
+			}
+
+			orchClient := proto.NewOrchestratorServiceClient(client.GetConn())
+
+			// Create server stream for event subscription
+			subReq := &proto.SubscribeEventsRequest{
+				Filter: &proto.EventFilter{
+					SessionId: sessionIDs[clientIndex%numClients].String(),
+				},
+			}
+
+			subClient, err := orchClient.SubscribeEvents(ctx, subReq)
+			if err != nil {
+				errorsCh <- fmt.Errorf("client %d: failed to subscribe: %w", clientIndex, err)
+				return
+			}
+
+			// Publish a test event that this client might receive
+			testEvent := types.Event{
+				Type:      "session.test",
+				Source:    "streaming-test",
+				Timestamp: types.NewTimestampFromTime(time.Now()),
+				Data: map[string]interface{}{
+					"client": clientIndex,
+				},
+				Metadata: types.EventMetadata{
+					SessionID: &sessionIDs[clientIndex%numClients],
+				},
+			}
+			_ = eventBus.Publish(ctx, testEvent)
+
+			// Try to receive an event
+			ctxTimeout, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+			defer cancel()
+
+			done := make(chan bool, 1)
+			go func() {
+				_, err := subClient.Recv()
+				if err != nil && err.Error() != "EOF" && ctxTimeout.Err() == nil {
+					// Non-EOF error during receive
+				}
+				done <- true
+			}()
+
+			select {
+			case <-done:
+				// Successfully received or timeout
+			case <-ctxTimeout.Done():
+				// Timeout is acceptable
+			}
+			subClient.CloseSend()
+
+			successCount.Add(1)
+			t.Logf("Client %d: completed SubscribeEvents test", clientIndex)
+		}(i)
+	}
+
+	// Wait for all goroutines to complete
+	wg.Wait()
+	close(errorsCh)
+
+	// Check for errors
+	var errors []error
+	for err := range errorsCh {
+		errors = append(errors, err)
+	}
+
+	if len(errors) > 0 {
+		t.Fatalf("Streaming operations failed with %d errors: %v", len(errors), errors[0])
+	}
+
+	totalOps := numClients * 2 // Each client does 2 streaming operations
+	completed := int(successCount.Load())
+	t.Logf("All %d clients completed streaming operations successfully (%d/%d operations)", numClients, completed, totalOps)
+	require.Equal(t, totalOps, completed, "All streaming operations should complete successfully")
+}
+
 // TestIntegration_ServerShutdown tests graceful server shutdown with active connections
 func TestIntegration_ServerShutdown(t *testing.T) {
 	if testing.Short() {
