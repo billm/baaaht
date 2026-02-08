@@ -774,9 +774,9 @@ func (r *AppleRuntime) LogsLines(ctx context.Context, cfg LogsConfig) ([]types.C
 // EventsStream returns a stream of container events
 func (r *AppleRuntime) EventsStream(ctx context.Context, containerID string) (<-chan EventsMessage, <-chan error) {
 	r.mu.RLock()
-	defer r.mu.RUnlock()
 
 	if r.closed {
+		r.mu.RUnlock()
 		errCh := make(chan error, 1)
 		eventCh := make(chan EventsMessage)
 		close(eventCh)
