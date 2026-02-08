@@ -12,140 +12,140 @@ import (
 
 // Config represents the complete configuration for the orchestrator
 type Config struct {
-	Docker       DockerConfig       `json:"docker"`
-	APIServer    APIServerConfig    `json:"api_server"`
-	Logging      LoggingConfig      `json:"logging"`
-	Session      SessionConfig      `json:"session"`
-	Event        EventConfig        `json:"event"`
-	IPC          IPCConfig          `json:"ipc"`
-	Scheduler    SchedulerConfig    `json:"scheduler"`
-	Credentials  CredentialsConfig  `json:"credentials"`
-	Policy       PolicyConfig       `json:"policy"`
-	Metrics      MetricsConfig      `json:"metrics"`
-	Tracing      TracingConfig      `json:"tracing"`
-	Orchestrator OrchestratorConfig `json:"orchestrator"`
+	Docker       DockerConfig       `json:"docker" yaml:"docker"`
+	APIServer    APIServerConfig    `json:"api_server" yaml:"api_server"`
+	Logging      LoggingConfig      `json:"logging" yaml:"logging"`
+	Session      SessionConfig      `json:"session" yaml:"session"`
+	Event        EventConfig        `json:"event" yaml:"event"`
+	IPC          IPCConfig          `json:"ipc" yaml:"ipc"`
+	Scheduler    SchedulerConfig    `json:"scheduler" yaml:"scheduler"`
+	Credentials  CredentialsConfig  `json:"credentials" yaml:"credentials"`
+	Policy       PolicyConfig       `json:"policy" yaml:"policy"`
+	Metrics      MetricsConfig      `json:"metrics" yaml:"metrics"`
+	Tracing      TracingConfig      `json:"tracing" yaml:"tracing"`
+	Orchestrator OrchestratorConfig `json:"orchestrator" yaml:"orchestrator"`
 }
 
 // DockerConfig contains Docker client configuration
 type DockerConfig struct {
-	Host       string        `json:"host"`
-	TLSCert    string        `json:"tls_cert,omitempty"`
-	TLSKey     string        `json:"tls_key,omitempty"`
-	TLSCACert  string        `json:"tls_ca_cert,omitempty"`
-	TLSVerify  bool          `json:"tls_verify"`
-	APIVersion string        `json:"api_version"`
-	Timeout    time.Duration `json:"timeout"`
-	MaxRetries int           `json:"max_retries"`
-	RetryDelay time.Duration `json:"retry_delay"`
+	Host       string        `json:"host" yaml:"host"`
+	TLSCert    string        `json:"tls_cert,omitempty" yaml:"tls_cert,omitempty"`
+	TLSKey     string        `json:"tls_key,omitempty" yaml:"tls_key,omitempty"`
+	TLSCACert  string        `json:"tls_ca_cert,omitempty" yaml:"tls_ca_cert,omitempty"`
+	TLSVerify  bool          `json:"tls_verify" yaml:"tls_verify"`
+	APIVersion string        `json:"api_version" yaml:"api_version"`
+	Timeout    time.Duration `json:"timeout" yaml:"timeout"`
+	MaxRetries int           `json:"max_retries" yaml:"max_retries"`
+	RetryDelay time.Duration `json:"retry_delay" yaml:"retry_delay"`
 }
 
 // APIServerConfig contains API server configuration
 type APIServerConfig struct {
-	Host           string        `json:"host"`
-	Port           int           `json:"port"`
-	ReadTimeout    time.Duration `json:"read_timeout"`
-	WriteTimeout   time.Duration `json:"write_timeout"`
-	IdleTimeout    time.Duration `json:"idle_timeout"`
-	MaxConnections int           `json:"max_connections"`
-	TLSEnabled     bool          `json:"tls_enabled"`
-	TLSCert        string        `json:"tls_cert,omitempty"`
-	TLSKey         string        `json:"tls_key,omitempty"`
+	Host           string        `json:"host" yaml:"host"`
+	Port           int           `json:"port" yaml:"port"`
+	ReadTimeout    time.Duration `json:"read_timeout" yaml:"read_timeout"`
+	WriteTimeout   time.Duration `json:"write_timeout" yaml:"write_timeout"`
+	IdleTimeout    time.Duration `json:"idle_timeout" yaml:"idle_timeout"`
+	MaxConnections int           `json:"max_connections" yaml:"max_connections"`
+	TLSEnabled     bool          `json:"tls_enabled" yaml:"tls_enabled"`
+	TLSCert        string        `json:"tls_cert,omitempty" yaml:"tls_cert,omitempty"`
+	TLSKey         string        `json:"tls_key,omitempty" yaml:"tls_key,omitempty"`
 }
 
 // LoggingConfig contains logging configuration
 type LoggingConfig struct {
-	Level            string `json:"level"`            // debug, info, warn, error
-	Format           string `json:"format"`           // json, text
-	Output           string `json:"output"`           // stdout, stderr, syslog, file path
-	SyslogFacility   string `json:"syslog_facility"`
-	RotationEnabled  bool   `json:"rotation_enabled"`
-	MaxSize          int    `json:"max_size"`         // MB
-	MaxBackups       int    `json:"max_backups"`
-	MaxAge           int    `json:"max_age"`          // days
-	Compress         bool   `json:"compress"`
+	Level            string `json:"level" yaml:"level"`            // debug, info, warn, error
+	Format           string `json:"format" yaml:"format"`           // json, text
+	Output           string `json:"output" yaml:"output"`           // stdout, stderr, syslog, file path
+	SyslogFacility   string `json:"syslog_facility" yaml:"syslog_facility"`
+	RotationEnabled  bool   `json:"rotation_enabled" yaml:"rotation_enabled"`
+	MaxSize          int    `json:"max_size" yaml:"max_size"`         // MB
+	MaxBackups       int    `json:"max_backups" yaml:"max_backups"`
+	MaxAge           int    `json:"max_age" yaml:"max_age"`          // days
+	Compress         bool   `json:"compress" yaml:"compress"`
 }
 
 // SessionConfig contains session management configuration
 type SessionConfig struct {
-	Timeout            time.Duration `json:"timeout"`
-	MaxSessions        int           `json:"max_sessions"`
-	CleanupInterval    time.Duration `json:"cleanup_interval"`
-	IdleTimeout        time.Duration `json:"idle_timeout"`
-	PersistenceEnabled bool          `json:"persistence_enabled"`
-	StoragePath        string        `json:"storage_path"`
+	Timeout            time.Duration `json:"timeout" yaml:"timeout"`
+	MaxSessions        int           `json:"max_sessions" yaml:"max_sessions"`
+	CleanupInterval    time.Duration `json:"cleanup_interval" yaml:"cleanup_interval"`
+	IdleTimeout        time.Duration `json:"idle_timeout" yaml:"idle_timeout"`
+	PersistenceEnabled bool          `json:"persistence_enabled" yaml:"persistence_enabled"`
+	StoragePath        string        `json:"storage_path" yaml:"storage_path"`
 }
 
 // EventConfig contains event system configuration
 type EventConfig struct {
-	QueueSize          int           `json:"queue_size"`
-	Workers            int           `json:"workers"`
-	BufferSize         int           `json:"buffer_size"`
-	Timeout            time.Duration `json:"timeout"`
-	RetryAttempts      int           `json:"retry_attempts"`
-	RetryDelay         time.Duration `json:"retry_delay"`
-	PersistenceEnabled bool          `json:"persistence_enabled"`
+	QueueSize          int           `json:"queue_size" yaml:"queue_size"`
+	Workers            int           `json:"workers" yaml:"workers"`
+	BufferSize         int           `json:"buffer_size" yaml:"buffer_size"`
+	Timeout            time.Duration `json:"timeout" yaml:"timeout"`
+	RetryAttempts      int           `json:"retry_attempts" yaml:"retry_attempts"`
+	RetryDelay         time.Duration `json:"retry_delay" yaml:"retry_delay"`
+	PersistenceEnabled bool          `json:"persistence_enabled" yaml:"persistence_enabled"`
 }
 
 // IPCConfig contains IPC configuration
 type IPCConfig struct {
-	SocketPath     string        `json:"socket_path"`
-	BufferSize     int           `json:"buffer_size"`
-	Timeout        time.Duration `json:"timeout"`
-	MaxConnections int           `json:"max_connections"`
-	EnableAuth     bool          `json:"enable_auth"`
+	SocketPath     string        `json:"socket_path" yaml:"socket_path"`
+	BufferSize     int           `json:"buffer_size" yaml:"buffer_size"`
+	Timeout        time.Duration `json:"timeout" yaml:"timeout"`
+	MaxConnections int           `json:"max_connections" yaml:"max_connections"`
+	EnableAuth     bool          `json:"enable_auth" yaml:"enable_auth"`
 }
 
 // SchedulerConfig contains task scheduler configuration
 type SchedulerConfig struct {
-	QueueSize    int           `json:"queue_size"`
-	Workers      int           `json:"workers"`
-	MaxRetries   int           `json:"max_retries"`
-	RetryDelay   time.Duration `json:"retry_delay"`
-	TaskTimeout  time.Duration `json:"task_timeout"`
-	QueueTimeout time.Duration `json:"queue_timeout"`
+	QueueSize    int           `json:"queue_size" yaml:"queue_size"`
+	Workers      int           `json:"workers" yaml:"workers"`
+	MaxRetries   int           `json:"max_retries" yaml:"max_retries"`
+	RetryDelay   time.Duration `json:"retry_delay" yaml:"retry_delay"`
+	TaskTimeout  time.Duration `json:"task_timeout" yaml:"task_timeout"`
+	QueueTimeout time.Duration `json:"queue_timeout" yaml:"queue_timeout"`
 }
 
 // CredentialsConfig contains credential management configuration
 type CredentialsConfig struct {
-	StorePath         string `json:"store_path"`
-	EncryptionEnabled bool   `json:"encryption_enabled"`
-	KeyRotationDays   int    `json:"key_rotation_days"`
-	MaxCredentialAge  int    `json:"max_credential_age"` // days
+	StorePath         string `json:"store_path" yaml:"store_path"`
+	EncryptionEnabled bool   `json:"encryption_enabled" yaml:"encryption_enabled"`
+	KeyRotationDays   int    `json:"key_rotation_days" yaml:"key_rotation_days"`
+	MaxCredentialAge  int    `json:"max_credential_age" yaml:"max_credential_age"` // days
 }
 
 // PolicyConfig contains policy engine configuration
 type PolicyConfig struct {
-	ConfigPath          string        `json:"config_path"`
-	ReloadOnChanges     bool          `json:"reload_on_changes"`
-	ReloadInterval      time.Duration `json:"reload_interval"`
-	EnforcementMode     string        `json:"enforcement_mode"` // strict, permissive, disabled
-	DefaultQuotaCPU     int64         `json:"default_quota_cpu"`
-	DefaultQuotaMemory  int64         `json:"default_quota_memory"`
+	ConfigPath          string        `json:"config_path" yaml:"config_path"`
+	ReloadOnChanges     bool          `json:"reload_on_changes" yaml:"reload_on_changes"`
+	ReloadInterval      time.Duration `json:"reload_interval" yaml:"reload_interval"`
+	EnforcementMode     string        `json:"enforcement_mode" yaml:"enforcement_mode"` // strict, permissive, disabled
+	DefaultQuotaCPU     int64         `json:"default_quota_cpu" yaml:"default_quota_cpu"`
+	DefaultQuotaMemory  int64         `json:"default_quota_memory" yaml:"default_quota_memory"`
 }
 
 // MetricsConfig contains metrics configuration
 type MetricsConfig struct {
-	Enabled         bool          `json:"enabled"`
-	Port            int           `json:"port"`
-	Path            string        `json:"path"`
-	ReportInterval  time.Duration `json:"report_interval"`
+	Enabled         bool          `json:"enabled" yaml:"enabled"`
+	Port            int           `json:"port" yaml:"port"`
+	Path            string        `json:"path" yaml:"path"`
+	ReportInterval  time.Duration `json:"report_interval" yaml:"report_interval"`
 }
 
 // TracingConfig contains distributed tracing configuration
 type TracingConfig struct {
-	Enabled          bool    `json:"enabled"`
-	SampleRate       float64 `json:"sample_rate"`
-	Exporter         string  `json:"exporter"` // stdout, jaeger, otlp
-	ExporterEndpoint string  `json:"exporter_endpoint,omitempty"`
+	Enabled          bool    `json:"enabled" yaml:"enabled"`
+	SampleRate       float64 `json:"sample_rate" yaml:"sample_rate"`
+	Exporter         string  `json:"exporter" yaml:"exporter"` // stdout, jaeger, otlp
+	ExporterEndpoint string  `json:"exporter_endpoint,omitempty" yaml:"exporter_endpoint,omitempty"`
 }
 
 // OrchestratorConfig contains orchestrator-specific configuration
 type OrchestratorConfig struct {
-	ShutdownTimeout       time.Duration `json:"shutdown_timeout"`
-	HealthCheckInterval   time.Duration `json:"health_check_interval"`
-	GracefulStopTimeout   time.Duration `json:"graceful_stop_timeout"`
-	EnableProfiling       bool          `json:"enable_profiling"`
-	ProfilingPort         int           `json:"profiling_port"`
+	ShutdownTimeout       time.Duration `json:"shutdown_timeout" yaml:"shutdown_timeout"`
+	HealthCheckInterval   time.Duration `json:"health_check_interval" yaml:"health_check_interval"`
+	GracefulStopTimeout   time.Duration `json:"graceful_stop_timeout" yaml:"graceful_stop_timeout"`
+	EnableProfiling       bool          `json:"enable_profiling" yaml:"enable_profiling"`
+	ProfilingPort         int           `json:"profiling_port" yaml:"profiling_port"`
 }
 
 // Load creates a new Config by loading defaults and overriding with environment variables
