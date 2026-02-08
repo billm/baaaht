@@ -17,6 +17,7 @@ type Manager struct {
 	sessions        map[types.ID]*SessionWithStateMachine
 	cfg             config.SessionConfig
 	logger          *logger.Logger
+	store           *Store
 	closed          bool
 	cleanupInterval time.Duration
 	stopCleanup     chan struct{}
@@ -37,6 +38,7 @@ func New(cfg config.SessionConfig, log *logger.Logger) (*Manager, error) {
 		sessions:        make(map[types.ID]*SessionWithStateMachine),
 		cfg:             cfg,
 		logger:          log.With("component", "session_manager"),
+		store:           nil, // Will be initialized when persistence is integrated
 		closed:          false,
 		cleanupInterval: time.Minute,
 		stopCleanup:     make(chan struct{}),
