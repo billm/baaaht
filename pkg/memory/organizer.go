@@ -132,11 +132,11 @@ func sanitizeTopic(topic string) string {
 // CreateTopicDir creates the directory for a specific topic if it doesn't exist
 func (o *Organizer) CreateTopicDir(scope types.MemoryScope, ownerID, topic string) error {
 	o.mu.Lock()
-	defer o.mu.Unlock()
-
 	if o.closed {
+		o.mu.Unlock()
 		return types.NewError(types.ErrCodeUnavailable, "memory organizer is closed")
 	}
+	o.mu.Unlock()
 
 	topicPath, err := o.GetTopicPath(scope, ownerID, topic)
 	if err != nil {

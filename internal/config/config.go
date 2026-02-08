@@ -334,8 +334,20 @@ func Load() (*Config, error) {
 	}
 
 	// Load Memory configuration
+	// Capture the existing storage path so we can keep any derived paths consistent
+	oldStoragePath := cfg.Memory.StoragePath
 	if v := os.Getenv(EnvMemoryStoragePath); v != "" {
+		// Override the base storage path from the environment
 		cfg.Memory.StoragePath = v
+
+		// If user/group memory paths still point under the old storage base,
+		// update them to use the new base path to avoid a mixed configuration.
+		if cfg.Memory.UserMemoryPath != "" && strings.HasPrefix(cfg.Memory.UserMemoryPath, oldStoragePath) {
+			cfg.Memory.UserMemoryPath = strings.Replace(cfg.Memory.UserMemoryPath, oldStoragePath, cfg.Memory.StoragePath, 1)
+		}
+		if cfg.Memory.GroupMemoryPath != "" && strings.HasPrefix(cfg.Memory.GroupMemoryPath, oldStoragePath) {
+			cfg.Memory.GroupMemoryPath = strings.Replace(cfg.Memory.GroupMemoryPath, oldStoragePath, cfg.Memory.StoragePath, 1)
+		}
 	}
 	if v := os.Getenv(EnvMemoryEnabled); v != "" {
 		cfg.Memory.Enabled = strings.ToLower(v) == "true" || v == "1"

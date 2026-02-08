@@ -121,8 +121,12 @@ func (s *Store) Store(ctx context.Context, mem *types.Memory) error {
 		s.logger.Info("Memory stored", "id", mem.ID, "title", mem.Title, "scope", mem.Scope)
 	}
 
-	// Persist to disk
-	if err := s.saveToDisk(mem); err != nil {
+	// Persist to disk using the canonical in-memory object
+	memToPersist := mem
+	if exists {
+		memToPersist = existing
+	}
+	if err := s.saveToDisk(memToPersist); err != nil {
 		s.logger.Error("Failed to persist memory to disk", "error", err)
 		return err
 	}
@@ -390,8 +394,8 @@ func (s *Store) saveToDisk(mem *types.Memory) error {
 		return types.NewError(types.ErrCodeInvalidArgument, fmt.Sprintf("unknown memory scope: %s", mem.Scope))
 	}
 
-	// Create owner directory
-	ownerDir := filepath.Join(basePath, mem.OwnerID)
+	// Create owner directory (sanitize owner ID to prevent path traversal)
+	ownerDir := filepath.Join(basePath, sanitizeOwnerID(mem.OwnerID))
 	if err := os.MkdirAll(ownerDir, 0755); err != nil {
 		return types.WrapError(types.ErrCodeInternal, "failed to create owner directory", err)
 	}

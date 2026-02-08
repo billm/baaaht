@@ -393,6 +393,11 @@ func (o *Orchestrator) Close() error {
 		}
 	}
 
+	if o.memoryExtractor != nil {
+		if err := o.memoryExtractor.Close(); err != nil {
+			o.logger.Error("Failed to close memory extractor", "error", err)
+		}
+	}
 	if o.memoryStore != nil {
 		if err := o.memoryStore.Close(); err != nil {
 			o.logger.Error("Failed to close memory store", "error", err)
