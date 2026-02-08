@@ -28,15 +28,15 @@ type ReloadCallback func(ctx context.Context, newConfig *Config) error
 
 // Reloader manages configuration reloading via SIGHUP signals
 type Reloader struct {
-	mu             sync.RWMutex
-	configPath     string
-	currentConfig  *Config
-	state          ReloadState
-	signalChan     chan os.Signal
-	reloadCtx      context.Context
-	reloadCancel   context.CancelFunc
-	started        bool
-	callbacks      []ReloadCallback
+	mu            sync.RWMutex
+	configPath    string
+	currentConfig *Config
+	state         ReloadState
+	signalChan    chan os.Signal
+	reloadCtx     context.Context
+	reloadCancel  context.CancelFunc
+	started       bool
+	callbacks     []ReloadCallback
 }
 
 // NewReloader creates a new config reloader
@@ -115,7 +115,7 @@ func (r *Reloader) Reload(ctx context.Context) error {
 
 	// Load the new configuration using the same logic as the initial load,
 	// ensuring environment variable overrides are applied.
-	newConfig, err := Load(r.configPath)
+	newConfig, err := Load()
 	if err != nil {
 		r.setState(ReloadStateIdle)
 		return fmt.Errorf("failed to load configuration: %w", err)
