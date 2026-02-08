@@ -176,17 +176,22 @@ func (s *Server) Start(ctx context.Context) error {
 		s.mu.Unlock()
 		return types.NewError(types.ErrCodeInvalid, "server already started")
 	}
+	// Mark as started (i.e., starting or already started) while holding the lock
+	s.started = true
 	s.mu.Unlock()
 
 	// Create the listener
 	listener, err := net.Listen("unix", s.path)
 	if err != nil {
+		// Roll back started state to allow retry
+		s.mu.Lock()
+		s.started = false
+		s.mu.Unlock()
 		return types.WrapError(types.ErrCodeInternal, "failed to listen on socket", err)
 	}
 
 	s.mu.Lock()
 	s.listener = listener
-	s.started = true
 	s.stats.StartTime = time.Now()
 	s.stats.IsServing = true
 	s.mu.Unlock()

@@ -128,16 +128,15 @@ func (s *HealthServer) Watch(req *grpc_health_v1.HealthCheckRequest, stream grpc
 		return nil
 	}
 
-	// In a production system, you would monitor status changes here
-	// and push updates to the stream. For now, we'll keep the stream open
-	// and send updates when SetServingStatus is called.
+	// Note: This implementation does not stream ongoing health status changes.
+	// It sends a single response with the current status and then closes the stream.
 	//
-	// This is a simplified implementation that keeps the stream alive.
-	// A more sophisticated implementation would use channels or watchers.
-
-	// For this implementation, we'll just close the stream after sending the initial status
-	// to avoid blocking goroutines indefinitely. In production, you'd want to
-	// implement proper streaming with status change notifications.
+	// In a more advanced implementation, you could monitor status changes and
+	// push updates to the stream when SetServingStatus or Shutdown is called,
+	// for example using per-service watchers or channels.
+	//
+	// We currently close the stream after sending the initial status to avoid
+	// blocking goroutines indefinitely while still exposing the Watch RPC.
 	s.logger.Debug("Health watch stream closed", "service", service)
 	return nil
 }

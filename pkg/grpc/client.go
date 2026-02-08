@@ -226,7 +226,7 @@ func (c *Client) startReconnectMonitor(ctx context.Context) {
 	c.mu.Unlock()
 
 	c.reconnectWg.Add(1)
-	go c.reconnectLoop(ctx, reconnectCtx)
+	go c.reconnectLoop(reconnectCtx, reconnectCtx)
 }
 
 // reconnectLoop is the main reconnection monitoring goroutine

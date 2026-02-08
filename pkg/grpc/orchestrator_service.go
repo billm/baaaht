@@ -616,7 +616,8 @@ func (s *OrchestratorService) GetStatus(ctx context.Context, req *emptypb.Empty)
 	uptime := time.Since(startedAt)
 
 	startedTs := types.NewTimestampFromTime(startedAt)
-	uptimeTs := types.NewTimestampFromTime(startedAt.Add(uptime))
+	// Represent uptime as a duration anchored at the Unix epoch (seconds/nanos encode the duration)
+	uptimeTs := types.NewTimestampFromTime(time.Unix(0, 0).Add(uptime))
 
 	return &proto.StatusResponse{
 		Status:           proto.Status_STATUS_RUNNING,

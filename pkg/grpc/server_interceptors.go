@@ -472,18 +472,13 @@ func (s AuthStats) String() string {
 		s.TotalRequests, s.SuccessAuth, s.FailedAuth, s.SkippedAuth)
 }
 
-// ChainInterceptors chains multiple interceptors together
-func ChainInterceptors(interceptors ...grpc.ServerOption) grpc.ServerOption {
-	return grpc.ChainUnaryInterceptor(
-		func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-			// Apply all interceptors in order
-			var h grpc.UnaryHandler = handler
-			for i := len(interceptors) - 1; i >= 0; i-- {
-				// Each interceptor wraps the handler
-				// Note: This is a simplified implementation
-				// In production, you'd want to use grpc.ChainUnaryInterceptor directly
-			}
-			return h(ctx, req)
-		},
-	)
+// ChainInterceptors chains multiple unary interceptors together into a single ServerOption.
+func ChainInterceptors(interceptors ...grpc.UnaryServerInterceptor) grpc.ServerOption {
+	// If no interceptors are provided, return a no-op server option.
+	if len(interceptors) == 0 {
+		return grpc.EmptyServerOption{}
+	}
+
+	// Delegate to gRPC's built-in chaining helper.
+	return grpc.ChainUnaryInterceptor(interceptors...)
 }
