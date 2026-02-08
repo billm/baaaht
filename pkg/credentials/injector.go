@@ -26,24 +26,24 @@ const (
 
 // InjectionConfig defines how a credential should be injected
 type InjectionConfig struct {
-	CredentialID   string                 `json:"credential_id"`
-	CredentialName string                 `json:"credential_name"` // Alternative to ID
-	Method         InjectionMethod        `json:"method"`
-	EnvVarName     string                 `json:"env_var_name"`     // For env injection
-	FilePath       string                 `json:"file_path"`        // For file injection
-	FilePermissions string                `json:"file_permissions"` // e.g., "0600"
-	MountPath      string                 `json:"mount_path"`       // Mount point for credential files
-	Format         string                 `json:"format"`           // e.g., "raw", "json", "env"
-	Template       string                 `json:"template"`         // Template for complex formats
-	AdditionalEnv  map[string]string      `json:"additional_env"`  // Additional env vars to set
+	CredentialID    string            `json:"credential_id"`
+	CredentialName  string            `json:"credential_name"` // Alternative to ID
+	Method          InjectionMethod   `json:"method"`
+	EnvVarName      string            `json:"env_var_name"`     // For env injection
+	FilePath        string            `json:"file_path"`        // For file injection
+	FilePermissions string            `json:"file_permissions"` // e.g., "0600"
+	MountPath       string            `json:"mount_path"`       // Mount point for credential files
+	Format          string            `json:"format"`           // e.g., "raw", "json", "env"
+	Template        string            `json:"template"`         // Template for complex formats
+	AdditionalEnv   map[string]string `json:"additional_env"`   // Additional env vars to set
 }
 
 // InjectedCredential represents a credential that has been prepared for injection
 type InjectedCredential struct {
-	EnvVars   map[string]string `json:"env_vars"`
-	Files     map[string]string `json:"files"`       // path -> content
-	Mounts    []MountInfo       `json:"mounts"`      // mount information
-	Metadata  map[string]string `json:"metadata"`    // additional metadata
+	EnvVars  map[string]string `json:"env_vars"`
+	Files    map[string]string `json:"files"`    // path -> content
+	Mounts   []MountInfo       `json:"mounts"`   // mount information
+	Metadata map[string]string `json:"metadata"` // additional metadata
 }
 
 // MountInfo represents a mount point for credential files
@@ -429,8 +429,8 @@ func (inj *Injector) IsClosed() bool {
 
 // Global injector instance
 var (
-	globalInjector *Injector
-	injectorGlobalOnce     sync.Once
+	globalInjector     *Injector
+	injectorGlobalOnce sync.Once
 )
 
 // InitGlobalInjector initializes the global credential injector

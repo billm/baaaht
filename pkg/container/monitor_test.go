@@ -84,26 +84,26 @@ func TestMonitorValidateContainerID(t *testing.T) {
 	monitor, _ := NewMonitor(client, log)
 
 	tests := []struct {
-		name      string
+		name        string
 		containerID string
-		wantError bool
-		errorCode string
+		wantError   bool
+		errorCode   string
 	}{
 		{
-			name:      "valid container ID",
+			name:        "valid container ID",
 			containerID: "abc123",
-			wantError: false,
+			wantError:   false,
 		},
 		{
-			name:      "valid UUID container ID",
+			name:        "valid UUID container ID",
 			containerID: "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6",
-			wantError: false,
+			wantError:   false,
 		},
 		{
-			name:      "empty container ID",
+			name:        "empty container ID",
 			containerID: "",
-			wantError: true,
-			errorCode: types.ErrCodeInvalidArgument,
+			wantError:   true,
+			errorCode:   types.ErrCodeInvalidArgument,
 		},
 	}
 
@@ -369,7 +369,7 @@ func TestParseStats(t *testing.T) {
 			Stats: container.Stats{
 				CPUStats: container.CPUStats{
 					CPUUsage: container.CPUUsage{
-						TotalUsage: 2000,
+						TotalUsage:  2000,
 						PercpuUsage: []uint64{1000, 1000},
 					},
 					SystemUsage: 10000,
@@ -394,7 +394,7 @@ func TestParseStats(t *testing.T) {
 		stats := &dockertypes.StatsJSON{
 			Stats: container.Stats{
 				MemoryStats: container.MemoryStats{
-					Usage: 1024 * 1024 * 100, // 100MB
+					Usage: 1024 * 1024 * 100,  // 100MB
 					Limit: 1024 * 1024 * 1000, // 1GB
 				},
 			},
@@ -453,11 +453,11 @@ func TestParseStats(t *testing.T) {
 // TestHealthCheckResult tests the health check result structure
 func TestHealthCheckResult(t *testing.T) {
 	result := &HealthCheckResult{
-		ContainerID:  "test-container",
-		Status:       types.Healthy,
+		ContainerID:   "test-container",
+		Status:        types.Healthy,
 		FailingStreak: 0,
-		LastOutput:   "health check passed",
-		CheckedAt:    time.Now(),
+		LastOutput:    "health check passed",
+		CheckedAt:     time.Now(),
 	}
 
 	if result.ContainerID != "test-container" {
@@ -528,7 +528,7 @@ func BenchmarkParseStats(b *testing.B) {
 		Stats: container.Stats{
 			CPUStats: container.CPUStats{
 				CPUUsage: container.CPUUsage{
-					TotalUsage: 2000,
+					TotalUsage:  2000,
 					PercpuUsage: []uint64{1000, 1000},
 				},
 				SystemUsage: 10000,

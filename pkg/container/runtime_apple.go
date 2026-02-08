@@ -380,11 +380,11 @@ func (m *AppleMonitor) HealthCheck(ctx context.Context, containerID string) (*He
 
 	// Stub implementation
 	return &HealthCheckResult{
-		ContainerID:  containerID,
-		Status:       types.HealthUnknown,
+		ContainerID:   containerID,
+		Status:        types.HealthUnknown,
 		FailingStreak: 0,
-		LastOutput:   "Apple Containers health check not yet implemented",
-		CheckedAt:    time.Now(),
+		LastOutput:    "Apple Containers health check not yet implemented",
+		CheckedAt:     time.Now(),
 	}, nil
 }
 
@@ -399,11 +399,11 @@ func (m *AppleMonitor) HealthCheckWithRetry(ctx context.Context, containerID str
 
 	// Stub implementation
 	return &HealthCheckResult{
-		ContainerID:  containerID,
-		Status:       types.HealthUnknown,
+		ContainerID:   containerID,
+		Status:        types.HealthUnknown,
 		FailingStreak: 0,
-		LastOutput:   "Apple Containers health check not yet implemented",
-		CheckedAt:    time.Now(),
+		LastOutput:    "Apple Containers health check not yet implemented",
+		CheckedAt:     time.Now(),
 	}, nil
 }
 

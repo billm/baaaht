@@ -445,16 +445,16 @@ func TestCleanupExpired(t *testing.T) {
 
 	// Store valid and expired credentials
 	validCred := &Credential{
-		Name:  "valid-cred",
-		Type:  "api_key",
-		Value: "valid-value",
+		Name:      "valid-cred",
+		Type:      "api_key",
+		Value:     "valid-value",
 		ExpiresAt: time.Now().Add(1 * time.Hour),
 	}
 
 	expiredCred := &Credential{
-		Name:  "expired-cred",
-		Type:  "api_key",
-		Value: "expired-value",
+		Name:      "expired-cred",
+		Type:      "api_key",
+		Value:     "expired-value",
 		ExpiresAt: time.Now().Add(-1 * time.Hour),
 	}
 

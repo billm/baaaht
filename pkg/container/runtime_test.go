@@ -1087,4 +1087,3 @@ func TestRuntimeString(t *testing.T) {
 		assert.Contains(t, str, "Closed")
 	}
 }
-

@@ -101,10 +101,10 @@ const (
 	DefaultSchedulerWorkers   = 2
 
 	// Default Credentials settings
-	DefaultCredStorePath = ""  // Will be set to ~/.config/baaaht/credentials via getConfigDir()
+	DefaultCredStorePath = "" // Will be set to ~/.config/baaaht/credentials via getConfigDir()
 
 	// Default Policy settings
-	DefaultPolicyConfigPath = ""  // Will be set to ~/.config/baaaht/policies.yaml via getConfigDir()
+	DefaultPolicyConfigPath = "" // Will be set to ~/.config/baaaht/policies.yaml via getConfigDir()
 
 	// Default Metrics settings
 	DefaultMetricsEnabled = false
@@ -117,22 +117,22 @@ const (
 	DefaultShutdownTimeout = 30 * time.Second
 
 	// Default Runtime settings
-	DefaultRuntimeType  = "auto"
+	DefaultRuntimeType    = "auto"
 	DefaultRuntimeTimeout = 30 * time.Second
 )
 
 // DefaultDockerConfig returns the default Docker configuration
 func DefaultDockerConfig() DockerConfig {
 	return DockerConfig{
-		Host:        DefaultDockerHost,
-		TLSCert:     "",
-		TLSKey:      "",
-		TLSCACert:   "",
-		TLSVerify:   false,
-		APIVersion:  "1.44",
-		Timeout:     30 * time.Second,
-		MaxRetries:  3,
-		RetryDelay:  1 * time.Second,
+		Host:       DefaultDockerHost,
+		TLSCert:    "",
+		TLSKey:     "",
+		TLSCACert:  "",
+		TLSVerify:  false,
+		APIVersion: "1.44",
+		Timeout:    30 * time.Second,
+		MaxRetries: 3,
+		RetryDelay: 1 * time.Second,
 	}
 }
 
@@ -185,12 +185,12 @@ func DefaultSessionConfig() SessionConfig {
 // DefaultEventConfig returns the default event system configuration
 func DefaultEventConfig() EventConfig {
 	return EventConfig{
-		QueueSize:         DefaultEventQueueSize,
-		Workers:           DefaultEventWorkers,
-		BufferSize:        1000,
-		Timeout:           5 * time.Second,
-		RetryAttempts:     3,
-		RetryDelay:        100 * time.Millisecond,
+		QueueSize:          DefaultEventQueueSize,
+		Workers:            DefaultEventWorkers,
+		BufferSize:         1000,
+		Timeout:            5 * time.Second,
+		RetryAttempts:      3,
+		RetryDelay:         100 * time.Millisecond,
 		PersistenceEnabled: false,
 	}
 }
@@ -198,23 +198,23 @@ func DefaultEventConfig() EventConfig {
 // DefaultIPCConfig returns the default IPC configuration
 func DefaultIPCConfig() IPCConfig {
 	return IPCConfig{
-		SocketPath:      DefaultIPCSocketPath,
-		BufferSize:      65536,
-		Timeout:         30 * time.Second,
-		MaxConnections:  100,
-		EnableAuth:      true,
+		SocketPath:     DefaultIPCSocketPath,
+		BufferSize:     65536,
+		Timeout:        30 * time.Second,
+		MaxConnections: 100,
+		EnableAuth:     true,
 	}
 }
 
 // DefaultSchedulerConfig returns the default scheduler configuration
 func DefaultSchedulerConfig() SchedulerConfig {
 	return SchedulerConfig{
-		QueueSize:      DefaultSchedulerQueueSize,
-		Workers:        DefaultSchedulerWorkers,
-		MaxRetries:     3,
-		RetryDelay:     1 * time.Second,
-		TaskTimeout:    5 * time.Minute,
-		QueueTimeout:   1 * time.Minute,
+		QueueSize:    DefaultSchedulerQueueSize,
+		Workers:      DefaultSchedulerWorkers,
+		MaxRetries:   3,
+		RetryDelay:   1 * time.Second,
+		TaskTimeout:  5 * time.Minute,
+		QueueTimeout: 1 * time.Minute,
 	}
 }
 
@@ -225,10 +225,10 @@ func DefaultCredentialsConfig() CredentialsConfig {
 		storePath = filepath.Join(configDir, "credentials")
 	}
 	return CredentialsConfig{
-		StorePath:          storePath,
-		EncryptionEnabled:  true,
-		KeyRotationDays:    90,
-		MaxCredentialAge:   365, // days
+		StorePath:         storePath,
+		EncryptionEnabled: true,
+		KeyRotationDays:   90,
+		MaxCredentialAge:  365, // days
 	}
 }
 
@@ -251,9 +251,9 @@ func DefaultPolicyConfig() PolicyConfig {
 // DefaultMetricsConfig returns the default metrics configuration
 func DefaultMetricsConfig() MetricsConfig {
 	return MetricsConfig{
-		Enabled:       DefaultMetricsEnabled,
-		Port:          DefaultMetricsPort,
-		Path:          "/metrics",
+		Enabled:        DefaultMetricsEnabled,
+		Port:           DefaultMetricsPort,
+		Path:           "/metrics",
 		ReportInterval: 15 * time.Second,
 	}
 }
@@ -261,21 +261,21 @@ func DefaultMetricsConfig() MetricsConfig {
 // DefaultTracingConfig returns the default tracing configuration
 func DefaultTracingConfig() TracingConfig {
 	return TracingConfig{
-		Enabled:           DefaultTraceEnabled,
-		SampleRate:        0.1, // 10%
-		Exporter:          "stdout",
-		ExporterEndpoint:  "",
+		Enabled:          DefaultTraceEnabled,
+		SampleRate:       0.1, // 10%
+		Exporter:         "stdout",
+		ExporterEndpoint: "",
 	}
 }
 
 // DefaultOrchestratorConfig returns the default orchestrator configuration
 func DefaultOrchestratorConfig() OrchestratorConfig {
 	return OrchestratorConfig{
-		ShutdownTimeout:  DefaultShutdownTimeout,
+		ShutdownTimeout:     DefaultShutdownTimeout,
 		HealthCheckInterval: 30 * time.Second,
 		GracefulStopTimeout: 10 * time.Second,
-		EnableProfiling:  false,
-		ProfilingPort:    6060,
+		EnableProfiling:     false,
+		ProfilingPort:       6060,
 	}
 }
 

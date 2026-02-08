@@ -316,8 +316,8 @@ func (h *TimeoutHandler) CanHandle(eventType types.EventType) bool {
 
 // LoggingHandler logs event handling
 type LoggingHandler struct {
-	handler types.EventHandler
-	logger  *logger.Logger
+	handler  types.EventHandler
+	logger   *logger.Logger
 	logLevel string
 }
 
@@ -447,14 +447,14 @@ func (h *FilterHandler) CanHandle(eventType types.EventType) bool {
 
 // BufferedHandler buffers events and handles them in batches
 type BufferedHandler struct {
-	handler   types.EventHandler
-	logger    *logger.Logger
-	buffer    []types.Event
-	mu        sync.Mutex
-	batchSize int
+	handler       types.EventHandler
+	logger        *logger.Logger
+	buffer        []types.Event
+	mu            sync.Mutex
+	batchSize     int
 	flushInterval time.Duration
-	stopCh    chan struct{}
-	wg        sync.WaitGroup
+	stopCh        chan struct{}
+	wg            sync.WaitGroup
 }
 
 // NewBufferedHandler creates a new buffered handler
@@ -480,12 +480,12 @@ func NewBufferedHandler(log *logger.Logger, handler types.EventHandler, batchSiz
 	}
 
 	h := &BufferedHandler{
-		handler:   handler,
-		logger:    log.With("component", "buffered_handler"),
-		buffer:    make([]types.Event, 0, batchSize),
-		batchSize: batchSize,
+		handler:       handler,
+		logger:        log.With("component", "buffered_handler"),
+		buffer:        make([]types.Event, 0, batchSize),
+		batchSize:     batchSize,
 		flushInterval: flushInterval,
-		stopCh:    make(chan struct{}),
+		stopCh:        make(chan struct{}),
 	}
 
 	// Start flush goroutine

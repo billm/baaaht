@@ -22,7 +22,7 @@ func createTestBootstrapConfig(t *testing.T) BootstrapConfig {
 		cfg = &config.Config{}
 		// Set minimal required config for testing
 		*cfg = config.Config{
-			Docker: config.DefaultDockerConfig(),
+			Docker:  config.DefaultDockerConfig(),
 			Logging: config.DefaultLoggingConfig(),
 		}
 	}
@@ -34,11 +34,11 @@ func createTestBootstrapConfig(t *testing.T) BootstrapConfig {
 	}
 
 	return BootstrapConfig{
-		Config:            *cfg,
-		Logger:            log,
-		Version:           "test-1.0.0",
-		ShutdownTimeout:   5 * time.Second,
-		EnableHealthCheck: false, // Disable health check for unit tests
+		Config:              *cfg,
+		Logger:              log,
+		Version:             "test-1.0.0",
+		ShutdownTimeout:     5 * time.Second,
+		EnableHealthCheck:   false, // Disable health check for unit tests
 		HealthCheckInterval: 10 * time.Second,
 	}
 }

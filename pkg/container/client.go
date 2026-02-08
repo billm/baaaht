@@ -342,14 +342,14 @@ func (c *Client) String() string {
 
 // Global client instance
 var (
-	globalClient    *Client
-	globalClientMu  sync.RWMutex
-	globalOnce      sync.Once
+	globalClient   *Client
+	globalClientMu sync.RWMutex
+	globalOnce     sync.Once
 
 	// Global runtime instance (new pattern using factory)
-	globalRuntime      Runtime
-	globalRuntimeMu    sync.RWMutex
-	globalRuntimeOnce  sync.Once
+	globalRuntime     Runtime
+	globalRuntimeMu   sync.RWMutex
+	globalRuntimeOnce sync.Once
 )
 
 // InitGlobal initializes the global Docker client with the specified configuration

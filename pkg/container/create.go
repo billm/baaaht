@@ -24,10 +24,10 @@ import (
 // CreateConfig holds configuration for creating a container
 type CreateConfig struct {
 	// Container configuration
-	Config     types.ContainerConfig
-	Name       string
-	SessionID  types.ID
-	AutoPull   bool // Automatically pull image if not present
+	Config      types.ContainerConfig
+	Name        string
+	SessionID   types.ID
+	AutoPull    bool          // Automatically pull image if not present
 	PullTimeout time.Duration // Timeout for image pull operations
 }
 
@@ -149,19 +149,19 @@ func (c *Creator) Create(ctx context.Context, cfg CreateConfig) (*CreateResult, 
 func (c *Creator) CreateWithDefaults(ctx context.Context, image string, name string, sessionID types.ID) (*CreateResult, error) {
 	cfg := CreateConfig{
 		Config: types.ContainerConfig{
-			Image:      image,
-			Env:        make(map[string]string),
-			Labels:     make(map[string]string),
-			Mounts:     []types.Mount{},
-			Ports:      []types.PortBinding{},
-			Resources:  types.ResourceLimits{},
+			Image:     image,
+			Env:       make(map[string]string),
+			Labels:    make(map[string]string),
+			Mounts:    []types.Mount{},
+			Ports:     []types.PortBinding{},
+			Resources: types.ResourceLimits{},
 			RestartPolicy: types.RestartPolicy{
 				Name: "unless-stopped",
 			},
 		},
-		Name:      name,
-		SessionID: sessionID,
-		AutoPull:  true,
+		Name:        name,
+		SessionID:   sessionID,
+		AutoPull:    true,
 		PullTimeout: 5 * time.Minute,
 	}
 
@@ -274,15 +274,15 @@ func (c *Creator) convertConfig(cfg types.ContainerConfig, name string, sessionI
 	error) {
 	// Build container config
 	containerConfig := &container.Config{
-		Image:        cfg.Image,
-		Cmd:          strslice.StrSlice(cfg.Command),
-		ArgsEscaped:  true,
-		Env:          convertEnvMap(cfg.Env),
-		WorkingDir:   cfg.WorkingDir,
-		Labels:       convertLabels(cfg.Labels, name, sessionID),
-		StopSignal:   "SIGTERM",
-		Tty:          false,
-		OpenStdin:    false,
+		Image:       cfg.Image,
+		Cmd:         strslice.StrSlice(cfg.Command),
+		ArgsEscaped: true,
+		Env:         convertEnvMap(cfg.Env),
+		WorkingDir:  cfg.WorkingDir,
+		Labels:      convertLabels(cfg.Labels, name, sessionID),
+		StopSignal:  "SIGTERM",
+		Tty:         false,
+		OpenStdin:   false,
 	}
 
 	// Convert Args to Entrypoint if needed (for OCI compatibility)

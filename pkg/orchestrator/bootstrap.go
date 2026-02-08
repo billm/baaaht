@@ -28,11 +28,11 @@ type BootstrapResult struct {
 
 // BootstrapConfig contains configuration for the bootstrap process
 type BootstrapConfig struct {
-	Config           config.Config
-	Logger           *logger.Logger
-	Version          string
-	ShutdownTimeout  time.Duration
-	EnableHealthCheck bool
+	Config              config.Config
+	Logger              *logger.Logger
+	Version             string
+	ShutdownTimeout     time.Duration
+	EnableHealthCheck   bool
 	HealthCheckInterval time.Duration
 }
 
@@ -49,11 +49,11 @@ func NewDefaultBootstrapConfig() BootstrapConfig {
 	}
 
 	return BootstrapConfig{
-		Config:            *cfg,
-		Logger:            log,
-		Version:           DefaultVersion,
-		ShutdownTimeout:   DefaultShutdownTimeout,
-		EnableHealthCheck: true,
+		Config:              *cfg,
+		Logger:              log,
+		Version:             DefaultVersion,
+		ShutdownTimeout:     DefaultShutdownTimeout,
+		EnableHealthCheck:   true,
 		HealthCheckInterval: 30 * time.Second,
 	}
 }
@@ -133,11 +133,11 @@ func BootstrapWithDefaults(ctx context.Context) (*BootstrapResult, error) {
 // BootstrapOrchestrator is a simplified bootstrap function that returns only the orchestrator
 func BootstrapOrchestrator(ctx context.Context, cfg config.Config, log *logger.Logger) (*Orchestrator, error) {
 	bootstrapCfg := BootstrapConfig{
-		Config:            cfg,
-		Logger:            log,
-		Version:           DefaultVersion,
-		ShutdownTimeout:   DefaultShutdownTimeout,
-		EnableHealthCheck: true,
+		Config:              cfg,
+		Logger:              log,
+		Version:             DefaultVersion,
+		ShutdownTimeout:     DefaultShutdownTimeout,
+		EnableHealthCheck:   true,
 		HealthCheckInterval: 30 * time.Second,
 	}
 
@@ -223,11 +223,11 @@ func InitGlobal(ctx context.Context, cfg config.Config, log *logger.Logger) erro
 	var initErr error
 	globalOnce.Do(func() {
 		result, err := Bootstrap(ctx, BootstrapConfig{
-			Config:            cfg,
-			Logger:            log,
-			Version:           DefaultVersion,
-			ShutdownTimeout:   DefaultShutdownTimeout,
-			EnableHealthCheck: true,
+			Config:              cfg,
+			Logger:              log,
+			Version:             DefaultVersion,
+			ShutdownTimeout:     DefaultShutdownTimeout,
+			EnableHealthCheck:   true,
 			HealthCheckInterval: 30 * time.Second,
 		})
 		if err != nil {

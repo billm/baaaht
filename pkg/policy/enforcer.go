@@ -13,11 +13,11 @@ import (
 
 // Enforcer enforces security policies on container configurations
 type Enforcer struct {
-	mu            sync.RWMutex
-	policy        *Policy
-	cfg           config.PolicyConfig
-	logger        *logger.Logger
-	closed        bool
+	mu              sync.RWMutex
+	policy          *Policy
+	cfg             config.PolicyConfig
+	logger          *logger.Logger
+	closed          bool
 	sessionPolicies map[types.ID]*Policy // Session-specific policies
 }
 
@@ -35,10 +35,10 @@ func New(cfg config.PolicyConfig, log *logger.Logger) (*Enforcer, error) {
 	policy := DefaultPolicy()
 
 	e := &Enforcer{
-		policy:         policy,
-		cfg:            cfg,
-		logger:         log.With("component", "policy_enforcer"),
-		closed:         false,
+		policy:          policy,
+		cfg:             cfg,
+		logger:          log.With("component", "policy_enforcer"),
+		closed:          false,
 		sessionPolicies: make(map[types.ID]*Policy),
 	}
 
@@ -204,8 +204,8 @@ func (e *Enforcer) validateQuotas(policy *Policy, config types.ContainerConfig, 
 	if config.Resources.NanoCPUs > 0 {
 		if policy.Quotas.MaxCPUs != nil && config.Resources.NanoCPUs > *policy.Quotas.MaxCPUs {
 			violation := Violation{
-				Rule:     "quota.cpu.max",
-				Message:  fmt.Sprintf("CPU quota exceeds maximum: requested %.2f, maximum %.2f",
+				Rule: "quota.cpu.max",
+				Message: fmt.Sprintf("CPU quota exceeds maximum: requested %.2f, maximum %.2f",
 					float64(config.Resources.NanoCPUs)/1e9, float64(*policy.Quotas.MaxCPUs)/1e9),
 				Severity:  "error",
 				Component: "quota",
@@ -214,8 +214,8 @@ func (e *Enforcer) validateQuotas(policy *Policy, config types.ContainerConfig, 
 		}
 		if policy.Quotas.MinCPUs != nil && config.Resources.NanoCPUs < *policy.Quotas.MinCPUs {
 			violation := Violation{
-				Rule:     "quota.cpu.min",
-				Message:  fmt.Sprintf("CPU quota below minimum: requested %.2f, minimum %.2f",
+				Rule: "quota.cpu.min",
+				Message: fmt.Sprintf("CPU quota below minimum: requested %.2f, minimum %.2f",
 					float64(config.Resources.NanoCPUs)/1e9, float64(*policy.Quotas.MinCPUs)/1e9),
 				Severity:  "warning",
 				Component: "quota",
@@ -227,8 +227,8 @@ func (e *Enforcer) validateQuotas(policy *Policy, config types.ContainerConfig, 
 	if config.Resources.MemoryBytes > 0 {
 		if policy.Quotas.MaxMemory != nil && config.Resources.MemoryBytes > *policy.Quotas.MaxMemory {
 			violation := Violation{
-				Rule:     "quota.memory.max",
-				Message:  fmt.Sprintf("memory quota exceeds maximum: requested %d, maximum %d",
+				Rule: "quota.memory.max",
+				Message: fmt.Sprintf("memory quota exceeds maximum: requested %d, maximum %d",
 					config.Resources.MemoryBytes, *policy.Quotas.MaxMemory),
 				Severity:  "error",
 				Component: "quota",
@@ -237,8 +237,8 @@ func (e *Enforcer) validateQuotas(policy *Policy, config types.ContainerConfig, 
 		}
 		if policy.Quotas.MinMemory != nil && config.Resources.MemoryBytes < *policy.Quotas.MinMemory {
 			violation := Violation{
-				Rule:     "quota.memory.min",
-				Message:  fmt.Sprintf("memory quota below minimum: requested %d, minimum %d",
+				Rule: "quota.memory.min",
+				Message: fmt.Sprintf("memory quota below minimum: requested %d, minimum %d",
 					config.Resources.MemoryBytes, *policy.Quotas.MinMemory),
 				Severity:  "warning",
 				Component: "quota",
@@ -250,8 +250,8 @@ func (e *Enforcer) validateQuotas(policy *Policy, config types.ContainerConfig, 
 	if config.Resources.MemorySwap > 0 && policy.Quotas.MaxMemorySwap != nil {
 		if config.Resources.MemorySwap > *policy.Quotas.MaxMemorySwap && *policy.Quotas.MaxMemorySwap != -1 {
 			violation := Violation{
-				Rule:     "quota.memory_swap.max",
-				Message:  fmt.Sprintf("memory swap quota exceeds maximum: requested %d, maximum %d",
+				Rule: "quota.memory_swap.max",
+				Message: fmt.Sprintf("memory swap quota exceeds maximum: requested %d, maximum %d",
 					config.Resources.MemorySwap, *policy.Quotas.MaxMemorySwap),
 				Severity:  "error",
 				Component: "quota",
@@ -263,8 +263,8 @@ func (e *Enforcer) validateQuotas(policy *Policy, config types.ContainerConfig, 
 	if config.Resources.PidsLimit != nil && policy.Quotas.MaxPids != nil {
 		if *config.Resources.PidsLimit > *policy.Quotas.MaxPids {
 			violation := Violation{
-				Rule:     "quota.pids.max",
-				Message:  fmt.Sprintf("PIDs limit exceeds maximum: requested %d, maximum %d",
+				Rule: "quota.pids.max",
+				Message: fmt.Sprintf("PIDs limit exceeds maximum: requested %d, maximum %d",
 					*config.Resources.PidsLimit, *policy.Quotas.MaxPids),
 				Severity:  "error",
 				Component: "quota",
@@ -281,8 +281,8 @@ func (e *Enforcer) validateMounts(policy *Policy, config types.ContainerConfig, 
 		case types.MountTypeBind:
 			if !policy.Mounts.AllowBindMounts {
 				violation := Violation{
-					Rule:     "mount.bind.disabled",
-					Message:  fmt.Sprintf("bind mounts are not allowed: %s -> %s", mount.Source, mount.Target),
+					Rule:      "mount.bind.disabled",
+					Message:   fmt.Sprintf("bind mounts are not allowed: %s -> %s", mount.Source, mount.Target),
 					Severity:  "error",
 					Component: "mount",
 				}
@@ -293,8 +293,8 @@ func (e *Enforcer) validateMounts(policy *Policy, config types.ContainerConfig, 
 			// Check bind mount source against allow/deny lists
 			if !isPathAllowed(mount.Source, policy.Mounts.AllowedBindSources, policy.Mounts.DeniedBindSources) {
 				violation := Violation{
-					Rule:     "mount.bind.source_not_allowed",
-					Message:  fmt.Sprintf("bind mount source not allowed: %s", mount.Source),
+					Rule:      "mount.bind.source_not_allowed",
+					Message:   fmt.Sprintf("bind mount source not allowed: %s", mount.Source),
 					Severity:  "error",
 					Component: "mount",
 				}
@@ -304,8 +304,8 @@ func (e *Enforcer) validateMounts(policy *Policy, config types.ContainerConfig, 
 		case types.MountTypeVolume:
 			if !policy.Mounts.AllowVolumes {
 				violation := Violation{
-					Rule:     "mount.volume.disabled",
-					Message:  fmt.Sprintf("volume mounts are not allowed: %s", mount.Source),
+					Rule:      "mount.volume.disabled",
+					Message:   fmt.Sprintf("volume mounts are not allowed: %s", mount.Source),
 					Severity:  "error",
 					Component: "mount",
 				}
@@ -316,8 +316,8 @@ func (e *Enforcer) validateMounts(policy *Policy, config types.ContainerConfig, 
 			// Check volume name against allow/deny lists
 			if !isPathAllowed(mount.Source, policy.Mounts.AllowedVolumes, policy.Mounts.DeniedVolumes) {
 				violation := Violation{
-					Rule:     "mount.volume.not_allowed",
-					Message:  fmt.Sprintf("volume not allowed: %s", mount.Source),
+					Rule:      "mount.volume.not_allowed",
+					Message:   fmt.Sprintf("volume not allowed: %s", mount.Source),
 					Severity:  "error",
 					Component: "mount",
 				}
@@ -327,8 +327,8 @@ func (e *Enforcer) validateMounts(policy *Policy, config types.ContainerConfig, 
 		case types.MountTypeTmpfs:
 			if !policy.Mounts.AllowTmpfs {
 				violation := Violation{
-					Rule:     "mount.tmpfs.disabled",
-					Message:  fmt.Sprintf("tmpfs mounts are not allowed: %s", mount.Target),
+					Rule:      "mount.tmpfs.disabled",
+					Message:   fmt.Sprintf("tmpfs mounts are not allowed: %s", mount.Target),
 					Severity:  "error",
 					Component: "mount",
 				}
@@ -350,8 +350,8 @@ func (e *Enforcer) validateMounts(policy *Policy, config types.ContainerConfig, 
 
 				if size > *policy.Mounts.MaxTmpfsSize {
 					violation := Violation{
-						Rule:     "mount.tmpfs.size_exceeded",
-						Message:  fmt.Sprintf("tmpfs size exceeds maximum: requested %d, maximum %d",
+						Rule: "mount.tmpfs.size_exceeded",
+						Message: fmt.Sprintf("tmpfs size exceeds maximum: requested %d, maximum %d",
 							size, *policy.Mounts.MaxTmpfsSize),
 						Severity:  "error",
 						Component: "mount",
@@ -365,8 +365,8 @@ func (e *Enforcer) validateMounts(policy *Policy, config types.ContainerConfig, 
 	// Check read-only rootfs enforcement
 	if policy.Mounts.EnforceReadOnlyRootfs && !config.ReadOnlyRootfs {
 		violation := Violation{
-			Rule:     "mount.readonly_rootfs.required",
-			Message:  "read-only root filesystem is required but not set",
+			Rule:      "mount.readonly_rootfs.required",
+			Message:   "read-only root filesystem is required but not set",
 			Severity:  "error",
 			Component: "mount",
 		}
@@ -379,8 +379,8 @@ func (e *Enforcer) validateNetwork(policy *Policy, config types.ContainerConfig,
 	// Check host networking
 	if config.NetworkMode == "host" && !policy.Network.AllowHostNetwork {
 		violation := Violation{
-			Rule:     "network.host.disabled",
-			Message:  "host networking is not allowed",
+			Rule:      "network.host.disabled",
+			Message:   "host networking is not allowed",
 			Severity:  "error",
 			Component: "network",
 		}
@@ -390,8 +390,8 @@ func (e *Enforcer) validateNetwork(policy *Policy, config types.ContainerConfig,
 	// If network access is disabled, warn about any network configuration
 	if !policy.Network.AllowNetwork && len(config.Networks) > 0 {
 		violation := Violation{
-			Rule:     "network.disabled",
-			Message:  "network access is disabled but networks are configured",
+			Rule:      "network.disabled",
+			Message:   "network access is disabled but networks are configured",
 			Severity:  "warning",
 			Component: "network",
 		}
@@ -401,8 +401,8 @@ func (e *Enforcer) validateNetwork(policy *Policy, config types.ContainerConfig,
 	// Check port bindings - if network is disabled, ports shouldn't be exposed
 	if !policy.Network.AllowNetwork && len(config.Ports) > 0 {
 		violation := Violation{
-			Rule:     "network.ports.disabled",
-			Message:  "network access is disabled but ports are exposed",
+			Rule:      "network.ports.disabled",
+			Message:   "network access is disabled but ports are exposed",
 			Severity:  "warning",
 			Component: "network",
 		}
@@ -418,8 +418,8 @@ func (e *Enforcer) validateImage(policy *Policy, config types.ContainerConfig, r
 	for _, pattern := range policy.Images.DeniedImages {
 		if matchPattern(image, pattern) {
 			violation := Violation{
-				Rule:     "image.denied",
-				Message:  fmt.Sprintf("image is denied by policy: %s matches pattern %s", image, pattern),
+				Rule:      "image.denied",
+				Message:   fmt.Sprintf("image is denied by policy: %s matches pattern %s", image, pattern),
 				Severity:  "error",
 				Component: "image",
 			}
@@ -439,8 +439,8 @@ func (e *Enforcer) validateImage(policy *Policy, config types.ContainerConfig, r
 		}
 		if !allowed {
 			violation := Violation{
-				Rule:     "image.not_allowed",
-				Message:  fmt.Sprintf("image is not in allowed list: %s", image),
+				Rule:      "image.not_allowed",
+				Message:   fmt.Sprintf("image is not in allowed list: %s", image),
 				Severity:  "error",
 				Component: "image",
 			}
@@ -452,8 +452,8 @@ func (e *Enforcer) validateImage(policy *Policy, config types.ContainerConfig, r
 	if !policy.Images.AllowLatestTag {
 		if strings.HasSuffix(image, ":latest") || !strings.Contains(image, ":") {
 			violation := Violation{
-				Rule:     "image.latest_tag",
-				Message:  "images with 'latest' tag or no tag are not allowed",
+				Rule:      "image.latest_tag",
+				Message:   "images with 'latest' tag or no tag are not allowed",
 				Severity:  "error",
 				Component: "image",
 			}
@@ -464,8 +464,8 @@ func (e *Enforcer) validateImage(policy *Policy, config types.ContainerConfig, r
 	// Check for digest pinning
 	if policy.Images.RequireDigest && !strings.Contains(image, "@sha256:") {
 		violation := Violation{
-			Rule:     "image.digest_required",
-			Message:  "image digest pinning is required but not present",
+			Rule:      "image.digest_required",
+			Message:   "image digest pinning is required but not present",
 			Severity:  "error",
 			Component: "image",
 		}
@@ -480,8 +480,8 @@ func (e *Enforcer) validateSecurity(policy *Policy, config types.ContainerConfig
 		if privileged, ok := config.Labels["privileged"]; ok && privileged == "true" {
 			if !policy.Security.AllowPrivileged {
 				violation := Violation{
-					Rule:     "security.privileged.disabled",
-					Message:  "privileged containers are not allowed",
+					Rule:      "security.privileged.disabled",
+					Message:   "privileged containers are not allowed",
 					Severity:  "error",
 					Component: "security",
 				}
@@ -496,8 +496,8 @@ func (e *Enforcer) validateSecurity(policy *Policy, config types.ContainerConfig
 		if user == "root" || user == "0" {
 			if !policy.Security.AllowRoot {
 				violation := Violation{
-					Rule:     "security.root.disabled",
-					Message:  "running as root is not allowed",
+					Rule:      "security.root.disabled",
+					Message:   "running as root is not allowed",
 					Severity:  "error",
 					Component: "security",
 				}
@@ -505,8 +505,8 @@ func (e *Enforcer) validateSecurity(policy *Policy, config types.ContainerConfig
 			}
 			if policy.Security.RequireNonRoot {
 				violation := Violation{
-					Rule:     "security.non_root_required",
-					Message:  "running as non-root user is required",
+					Rule:      "security.non_root_required",
+					Message:   "running as non-root user is required",
 					Severity:  "error",
 					Component: "security",
 				}
@@ -518,8 +518,8 @@ func (e *Enforcer) validateSecurity(policy *Policy, config types.ContainerConfig
 	// Check read-only rootfs
 	if policy.Security.ReadOnlyRootfs && !config.ReadOnlyRootfs {
 		violation := Violation{
-			Rule:     "security.readonly_rootfs.required",
-			Message:  "read-only root filesystem is required by security policy",
+			Rule:      "security.readonly_rootfs.required",
+			Message:   "read-only root filesystem is required by security policy",
 			Severity:  "error",
 			Component: "security",
 		}
