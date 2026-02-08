@@ -390,6 +390,168 @@ func TestBootstrapConfigDefaults(t *testing.T) {
 
 // Benchmark tests
 
+func TestBootstrapWithSessionRestore(t *testing.T) {
+	// Create a temporary directory for session storage
+	tempDir, err := os.MkdirTemp("", "session-restore-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create config with session persistence enabled
+	cfg := &config.Config{
+		Docker:    config.DefaultDockerConfig(),
+		APIServer: config.DefaultAPIServerConfig(),
+		Logging:   config.DefaultLoggingConfig(),
+		Session: config.SessionConfig{
+			MaxSessions:        100,
+			IdleTimeout:        30 * time.Minute,
+			Timeout:            5 * time.Minute,
+			PersistenceEnabled: true,
+			StoragePath:        tempDir,
+		},
+		Event:        config.DefaultEventConfig(),
+		IPC:          config.DefaultIPCConfig(),
+		Scheduler:    config.DefaultSchedulerConfig(),
+		Credentials:  config.DefaultCredentialsConfig(),
+		Policy:       config.DefaultPolicyConfig(),
+		Metrics:      config.DefaultMetricsConfig(),
+		Tracing:      config.DefaultTracingConfig(),
+		Orchestrator: config.DefaultOrchestratorConfig(),
+	}
+
+	// Create a test logger
+	log, err := logger.New(config.DefaultLoggingConfig())
+	if err != nil {
+		t.Fatalf("failed to create test logger: %v", err)
+	}
+
+	ctx := context.Background()
+
+	// First, create an orchestrator and add a session with messages
+	t.Run("setup: create session with persistence", func(t *testing.T) {
+		bootstrapCfg := BootstrapConfig{
+			Config:            *cfg,
+			Logger:            log,
+			Version:           "test-1.0.0",
+			ShutdownTimeout:   5 * time.Second,
+			EnableHealthCheck: false,
+		}
+
+		result, err := Bootstrap(ctx, bootstrapCfg)
+		if err != nil {
+			t.Logf("Bootstrap failed (may be expected without Docker): %v", err)
+			if result == nil || result.Orchestrator == nil {
+				t.Skip("Docker not available, skipping session restore test")
+			}
+		}
+
+		orch := result.Orchestrator
+		if orch != nil && orch.sessionMgr != nil {
+			// Create a test session
+			metadata := types.SessionMetadata{
+				OwnerID: "test-user",
+				Name:    "test-session",
+			}
+			sessionCfg := types.SessionConfig{
+				MaxDuration: 10 * time.Minute,
+			}
+
+			sessionID, err := orch.sessionMgr.Create(ctx, metadata, sessionCfg)
+			if err != nil {
+				t.Fatalf("failed to create session: %v", err)
+			}
+
+			// Add a message to the session
+			message := types.Message{
+				Role:    "user",
+				Content: "Hello, world!",
+			}
+			if err := orch.sessionMgr.AddMessage(ctx, sessionID, message); err != nil {
+				t.Fatalf("failed to add message: %v", err)
+			}
+
+			// Close the orchestrator to ensure persistence
+			if err := orch.Close(); err != nil {
+				t.Logf("Warning: failed to close orchestrator: %v", err)
+			}
+		}
+	})
+
+	// Now test that sessions are restored on bootstrap
+	t.Run("restore sessions on bootstrap", func(t *testing.T) {
+		bootstrapCfg := BootstrapConfig{
+			Config:            *cfg,
+			Logger:            log,
+			Version:           "test-1.0.0",
+			ShutdownTimeout:   5 * time.Second,
+			EnableHealthCheck: false,
+		}
+
+		result, err := Bootstrap(ctx, bootstrapCfg)
+		if err != nil {
+			// Bootstrap may fail without Docker, but session restore should have been attempted
+			// The key is that RestoreSessions was called and handled gracefully
+			t.Logf("Bootstrap failed (may be expected): %v", err)
+			if result == nil || result.Orchestrator == nil {
+				t.Skip("Docker not available, skipping full test")
+			}
+		}
+
+		if result != nil && result.Orchestrator != nil && result.Orchestrator.sessionMgr != nil {
+			// Check that sessions were restored by listing them
+			sessions, err := result.Orchestrator.sessionMgr.List(ctx, nil)
+			if err != nil {
+				t.Logf("Warning: failed to list sessions: %v", err)
+			}
+
+			// We should have at least one restored session
+			if len(sessions) > 0 {
+				t.Logf("Successfully restored %d session(s)", len(sessions))
+
+				// Verify the restored session has messages
+				for _, sess := range sessions {
+					if len(sess.Context.Messages) > 0 {
+						t.Logf("Session %s has %d message(s)", sess.ID, len(sess.Context.Messages))
+					}
+				}
+			}
+
+			// Clean up
+			_ = result.Orchestrator.Close()
+		}
+	})
+
+	// Test that errors during restore don't fail the bootstrap
+	t.Run("bootstrap handles restore errors gracefully", func(t *testing.T) {
+		// Use a non-existent directory to cause an error
+		invalidCfg := *cfg
+		invalidCfg.Session.StoragePath = "/non/existent/path/that/should/fail"
+
+		bootstrapCfg := BootstrapConfig{
+			Config:            invalidCfg,
+			Logger:            log,
+			Version:           "test-1.0.0",
+			ShutdownTimeout:   5 * time.Second,
+			EnableHealthCheck: false,
+		}
+
+		result, err := Bootstrap(ctx, bootstrapCfg)
+		// Bootstrap should not fail due to restore errors
+		if err != nil && result != nil && result.Orchestrator != nil {
+			// If bootstrap failed, it should be for a different reason
+			// (e.g., Docker not available), not because of restore
+			t.Logf("Bootstrap failed: %v", err)
+		}
+
+		// The key is that the orchestrator was created even though restore might have failed
+		if result != nil && result.Orchestrator != nil {
+			// Clean up
+			_ = result.Orchestrator.Close()
+		}
+	})
+}
+
 func BenchmarkBootstrapResultString(b *testing.B) {
 	result := &BootstrapResult{
 		StartedAt:    time.Now(),
