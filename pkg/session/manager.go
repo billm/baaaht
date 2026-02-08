@@ -383,6 +383,17 @@ func (m *Manager) AddMessage(ctx context.Context, sessionID types.ID, message ty
 	session.Context.Messages = append(session.Context.Messages, message)
 	session.UpdatedAt = types.NewTimestampFromTime(time.Now())
 
+	// Persist message to storage if enabled
+	if m.store != nil {
+		if err := m.store.AppendMessage(ctx, session.Metadata.OwnerID, sessionID.String(), message); err != nil {
+			m.logger.Error("Failed to persist message to storage",
+				"session_id", sessionID,
+				"message_id", message.ID,
+				"error", err)
+			return err
+		}
+	}
+
 	// Transition from idle to active when a message is added
 	if sessionWithSM.CurrentState() == types.SessionStateIdle {
 		_ = sessionWithSM.Activate()

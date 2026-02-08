@@ -994,3 +994,140 @@ func BenchmarkManagerAddMessage(b *testing.B) {
 		}
 	}
 }
+
+// TestAddMessageWithPersistence tests adding a message with persistence enabled
+func TestAddMessageWithPersistence(t *testing.T) {
+	log, err := logger.NewDefault()
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
+
+	// Create a manager with persistence enabled
+	cfg := config.DefaultSessionConfig()
+	cfg.PersistenceEnabled = true
+
+	manager, err := New(cfg, log)
+	if err != nil {
+		t.Fatalf("failed to create manager: %v", err)
+	}
+	defer manager.Close()
+
+	ctx := context.Background()
+
+	// Create a session with owner
+	metadata := types.SessionMetadata{
+		Name:    "test-session",
+		OwnerID: "user-123",
+	}
+	sessionCfg := types.SessionConfig{}
+
+	sessionID, err := manager.Create(ctx, metadata, sessionCfg)
+	if err != nil {
+		t.Fatalf("failed to create session: %v", err)
+	}
+
+	// Add a message
+	message := types.Message{
+		Role:    types.MessageRoleUser,
+		Content: "Hello, world!",
+	}
+
+	err = manager.AddMessage(ctx, sessionID, message)
+	if err != nil {
+		t.Fatalf("failed to add message: %v", err)
+	}
+
+	// Verify message was added to session
+	session, err := manager.Get(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("failed to get session: %v", err)
+	}
+
+	if len(session.Context.Messages) != 1 {
+		t.Fatalf("expected 1 message in session, got %d", len(session.Context.Messages))
+	}
+
+	// Verify message was persisted to storage
+	store := manager.store
+	if store == nil {
+		t.Fatal("store should not be nil when persistence is enabled")
+	}
+
+	// Load messages from storage
+	loadedMessages, err := store.LoadMessages(ctx, metadata.OwnerID, sessionID.String())
+	if err != nil {
+		t.Fatalf("failed to load messages from storage: %v", err)
+	}
+
+	if len(loadedMessages) != 1 {
+		t.Fatalf("expected 1 persisted message, got %d", len(loadedMessages))
+	}
+
+	// Verify the persisted message matches
+	loadedMessage := loadedMessages[0]
+	if loadedMessage.Content != message.Content {
+		t.Errorf("persisted message content: got %s, want %s", loadedMessage.Content, message.Content)
+	}
+
+	if loadedMessage.Role != message.Role {
+		t.Errorf("persisted message role: got %s, want %s", loadedMessage.Role, message.Role)
+	}
+}
+
+// TestAddMessageWithoutPersistence tests adding a message with persistence disabled
+func TestAddMessageWithoutPersistence(t *testing.T) {
+	log, err := logger.NewDefault()
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
+
+	// Create a manager with persistence disabled
+	cfg := config.DefaultSessionConfig()
+	cfg.PersistenceEnabled = false
+
+	manager, err := New(cfg, log)
+	if err != nil {
+		t.Fatalf("failed to create manager: %v", err)
+	}
+	defer manager.Close()
+
+	ctx := context.Background()
+
+	// Create a session
+	metadata := types.SessionMetadata{
+		Name:    "test-session",
+		OwnerID: "user-123",
+	}
+	sessionCfg := types.SessionConfig{}
+
+	sessionID, err := manager.Create(ctx, metadata, sessionCfg)
+	if err != nil {
+		t.Fatalf("failed to create session: %v", err)
+	}
+
+	// Add a message
+	message := types.Message{
+		Role:    types.MessageRoleUser,
+		Content: "Hello, world!",
+	}
+
+	err = manager.AddMessage(ctx, sessionID, message)
+	if err != nil {
+		t.Fatalf("failed to add message: %v", err)
+	}
+
+	// Verify message was added to session (in-memory)
+	session, err := manager.Get(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("failed to get session: %v", err)
+	}
+
+	if len(session.Context.Messages) != 1 {
+		t.Fatalf("expected 1 message in session, got %d", len(session.Context.Messages))
+	}
+
+	// Verify store is nil (no persistence)
+	if manager.store != nil {
+		t.Error("store should be nil when persistence is disabled")
+	}
+}
