@@ -6,12 +6,21 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"runtime"
 	"sync"
+	"syscall"
 	"time"
+	"unsafe"
 
 	"github.com/billm/baaaht/orchestrator/internal/config"
 	"github.com/billm/baaaht/orchestrator/internal/logger"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
+)
+
+const (
+	// Darwin sysctl constants for querying system information
+	ctlHW      = 6  // CTL_HW - hardware-related information
+	hwMemsize  = 24 // HW_MEMSIZE - physical RAM size in bytes
 )
 
 // AppleClient represents a client for Apple Containers
@@ -86,6 +95,32 @@ func (c *AppleClient) IsClosed() bool {
 	return c.closed
 }
 
+// getSystemMemory returns the total physical memory on macOS using sysctl
+func getSystemMemory() int64 {
+	// Use sysctl to get hw.memsize
+	mib := [2]int32{ctlHW, hwMemsize}
+	var memsize uint64
+	length := unsafe.Sizeof(memsize)
+
+	// Call sysctl to get memory size
+	_, _, err := syscall.Syscall6(
+		syscall.SYS___SYSCTL,
+		uintptr(unsafe.Pointer(&mib[0])),
+		2,
+		uintptr(unsafe.Pointer(&memsize)),
+		uintptr(unsafe.Pointer(&length)),
+		0,
+		0,
+	)
+
+	if err != 0 {
+		// If sysctl fails, return 0 to indicate unknown
+		return 0
+	}
+
+	return int64(memsize)
+}
+
 // Version returns the Apple Containers version information
 func (c *AppleClient) Version(ctx context.Context) (string, error) {
 	c.mu.RLock()
@@ -109,14 +144,17 @@ func (c *AppleClient) Info(ctx context.Context) (*types.DockerInfo, error) {
 	c.mu.RUnlock()
 
 	// Stub implementation - return basic macOS system info
+	// Use actual system values where possible to avoid misleading callers
+	totalMemory := getSystemMemory()
+
 	return &types.DockerInfo{
 		ServerVersion:     "1.0.0",
 		APIVersion:        "1.0.0",
 		OS:                "darwin",
 		KernelVersion:     "Darwin Kernel",
-		Architecture:      "arm64",
-		NCPU:              8,
-		Memory:            8589934592, // 8GB
+		Architecture:      runtime.GOARCH,
+		NCPU:              runtime.NumCPU(),
+		Memory:            totalMemory, // Total physical RAM from sysctl hw.memsize
 		ContainerCount:    0,
 		RunningContainers: 0,
 	}, nil

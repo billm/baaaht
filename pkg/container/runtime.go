@@ -78,6 +78,7 @@ package container
 import (
 	"context"
 	"io"
+	"sync"
 	"time"
 
 	"github.com/billm/baaaht/orchestrator/pkg/types"
@@ -356,10 +357,16 @@ type RuntimeFactory func(cfg RuntimeConfig) (Runtime, error)
 // runtimeRegistry holds registered runtime factories
 var runtimeRegistry = make(map[string]RuntimeFactory)
 
+// runtimeRegistryMu protects access to runtimeRegistry
+var runtimeRegistryMu sync.RWMutex
+
 // RegisterRuntime registers a runtime factory for a given type.
 //
 // This allows custom runtime implementations to be registered and used
 // with the NewRuntime function. The runtimeType can be any string identifier.
+//
+// This function is safe for concurrent use and can be called from init() functions
+// to register custom runtime types at package initialization time.
 //
 // # Example
 //
@@ -367,6 +374,8 @@ var runtimeRegistry = make(map[string]RuntimeFactory)
 //	    return &MyRuntime{cfg: cfg}, nil
 //	})
 func RegisterRuntime(runtimeType string, factory RuntimeFactory) {
+	runtimeRegistryMu.Lock()
+	defer runtimeRegistryMu.Unlock()
 	runtimeRegistry[runtimeType] = factory
 }
 
@@ -375,6 +384,8 @@ func RegisterRuntime(runtimeType string, factory RuntimeFactory) {
 // Returns the factory function and true if the runtime type is registered,
 // nil and false otherwise.
 func GetRuntimeFactory(runtimeType string) (RuntimeFactory, bool) {
+	runtimeRegistryMu.RLock()
+	defer runtimeRegistryMu.RUnlock()
 	factory, ok := runtimeRegistry[runtimeType]
 	return factory, ok
 }
@@ -385,6 +396,8 @@ func GetRuntimeFactory(runtimeType string) (RuntimeFactory, bool) {
 // It does not indicate whether the runtimes are available on the current
 // system, only that they have been registered.
 func ListRuntimes() []string {
+	runtimeRegistryMu.RLock()
+	defer runtimeRegistryMu.RUnlock()
 	types := make([]string, 0, len(runtimeRegistry))
 	for t := range runtimeRegistry {
 		types = append(types, t)

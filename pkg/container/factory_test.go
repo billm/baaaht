@@ -691,3 +691,82 @@ func TestRuntimeConfigWithOptions(t *testing.T) {
 		t.Errorf("Failed to close runtime: %v", err)
 	}
 }
+
+// TestNewRuntimeWithPackageLevelRegistration tests that NewRuntime works with
+// custom runtimes registered via the package-level RegisterRuntime function
+func TestNewRuntimeWithPackageLevelRegistration(t *testing.T) {
+	ctx := context.Background()
+
+	// Save original registry state to restore after test
+	runtimeRegistryMu.Lock()
+	originalRegistry := make(map[string]RuntimeFactory)
+	for k, v := range runtimeRegistry {
+		originalRegistry[k] = v
+	}
+	runtimeRegistryMu.Unlock()
+
+	// Clean up after test
+	defer func() {
+		runtimeRegistryMu.Lock()
+		runtimeRegistry = originalRegistry
+		runtimeRegistryMu.Unlock()
+	}()
+
+	// Register a custom runtime using package-level RegisterRuntime
+	customType := "test-custom-runtime"
+	RegisterRuntime(customType, func(cfg RuntimeConfig) (Runtime, error) {
+		return &mockRuntime{runtimeType: customType}, nil
+	})
+
+	// Verify the factory was registered
+	factory, ok := GetRuntimeFactory(customType)
+	if !ok {
+		t.Fatal("Custom runtime factory not registered")
+	}
+	if factory == nil {
+		t.Fatal("Custom runtime factory is nil")
+	}
+
+	// Create a runtime using NewRuntime with the custom type
+	cfg := RuntimeConfig{
+		Type:    customType,
+		Timeout: 10 * time.Second,
+	}
+
+	rt, err := NewRuntime(ctx, cfg)
+	if err != nil {
+		t.Fatalf("NewRuntime failed with custom type: %v", err)
+	}
+
+	if rt == nil {
+		t.Fatal("NewRuntime returned nil runtime")
+	}
+
+	// Verify we got the correct runtime type
+	if rt.Type() != customType {
+		t.Errorf("expected runtime type %q, got %q", customType, rt.Type())
+	}
+
+	// Verify it's a mockRuntime
+	if _, ok := rt.(*mockRuntime); !ok {
+		t.Error("runtime is not a *mockRuntime")
+	}
+
+	// Test that an unregistered custom type returns an error
+	unregisteredType := "unregistered-type"
+	cfg.Type = unregisteredType
+
+	_, err = NewRuntime(ctx, cfg)
+	if err == nil {
+		t.Error("expected error for unregistered runtime type, got nil")
+	}
+
+	// Verify error is ErrCodeInvalidArgument
+	if typedErr, ok := err.(*types.Error); ok {
+		if typedErr.Code != types.ErrCodeInvalidArgument {
+			t.Errorf("expected error code %s, got %s", types.ErrCodeInvalidArgument, typedErr.Code)
+		}
+	} else {
+		t.Errorf("expected *types.Error, got %T", err)
+	}
+}
