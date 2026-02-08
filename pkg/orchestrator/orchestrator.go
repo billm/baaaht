@@ -11,6 +11,7 @@ import (
 	"github.com/billm/baaaht/orchestrator/pkg/credentials"
 	"github.com/billm/baaaht/orchestrator/pkg/events"
 	"github.com/billm/baaaht/orchestrator/pkg/ipc"
+	"github.com/billm/baaaht/orchestrator/pkg/memory"
 	"github.com/billm/baaaht/orchestrator/pkg/policy"
 	"github.com/billm/baaaht/orchestrator/pkg/scheduler"
 	"github.com/billm/baaaht/orchestrator/pkg/session"
@@ -35,6 +36,9 @@ type Orchestrator struct {
 	policyEnforcer *policy.Enforcer
 	credStore      *credentials.Store
 	scheduler      *scheduler.Scheduler
+	memoryStore    *memory.Store
+	memoryExtractor *memory.Extractor
+	memoryHandler  *memory.SessionArchivalHandler
 
 	// Lifecycle management
 	started        bool
@@ -98,6 +102,7 @@ func NewDefault(log *logger.Logger) (*Orchestrator, error) {
 // 7. Policy Enforcer
 // 8. Credential Store
 // 9. Scheduler
+// 10. Memory System
 func (o *Orchestrator) Initialize(ctx context.Context) error {
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -185,6 +190,20 @@ func (o *Orchestrator) Initialize(ctx context.Context) error {
 		_ = o.cleanupEventBus()
 		_ = o.cleanupDockerClient()
 		return types.WrapError(types.ErrCodeInternal, "failed to initialize scheduler", err)
+	}
+
+	// 9. Initialize memory system
+	if err := o.initMemorySystem(ctx); err != nil {
+		// Cleanup previously initialized subsystems
+		_ = o.cleanupScheduler()
+		_ = o.cleanupCredentialStore()
+		_ = o.cleanupPolicyEnforcer()
+		_ = o.cleanupIPCBroker()
+		_ = o.cleanupSessionManager()
+		_ = o.cleanupEventRouter()
+		_ = o.cleanupEventBus()
+		_ = o.cleanupDockerClient()
+		return types.WrapError(types.ErrCodeInternal, "failed to initialize memory system", err)
 	}
 
 	o.started = true
@@ -305,6 +324,49 @@ func (o *Orchestrator) initScheduler(ctx context.Context) error {
 	return nil
 }
 
+// initMemorySystem initializes the memory system and registers the handler
+func (o *Orchestrator) initMemorySystem(ctx context.Context) error {
+	o.logger.Debug("Initializing memory system")
+
+	// Create memory store
+	store, err := memory.NewStore(o.cfg.Memory, o.logger)
+	if err != nil {
+		return types.WrapError(types.ErrCodeInternal, "failed to create memory store", err)
+	}
+	o.memoryStore = store
+
+	// Create memory extractor
+	extractor, err := memory.NewDefaultExtractor(store, o.logger)
+	if err != nil {
+		_ = store.Close()
+		return types.WrapError(types.ErrCodeInternal, "failed to create memory extractor", err)
+	}
+	o.memoryExtractor = extractor
+
+	// Create session archival handler
+	handler, err := memory.NewSessionArchivalHandler(extractor, store, o.logger)
+	if err != nil {
+		_ = store.Close()
+		return types.WrapError(types.ErrCodeInternal, "failed to create session archival handler", err)
+	}
+	o.memoryHandler = handler
+
+	// Register handler with event router
+	_, err = o.eventRouter.AddRoute(ctx, string(types.EventTypeSessionArchived), handler)
+	if err != nil {
+		_ = handler.Close()
+		_ = store.Close()
+		return types.WrapError(types.ErrCodeInternal, "failed to register memory handler", err)
+	}
+
+	o.logger.Info("Memory system initialized",
+		"enabled", o.cfg.Memory.Enabled,
+		"user_path", o.cfg.Memory.UserMemoryPath,
+		"group_path", o.cfg.Memory.GroupMemoryPath)
+
+	return nil
+}
+
 // Close gracefully shuts down the orchestrator and all subsystems
 // Subsystems are closed in reverse dependency order
 func (o *Orchestrator) Close() error {
@@ -325,6 +387,18 @@ func (o *Orchestrator) Close() error {
 	}
 
 	// Close subsystems in reverse order
+	if o.memoryHandler != nil {
+		if err := o.memoryHandler.Close(); err != nil {
+			o.logger.Error("Failed to close memory handler", "error", err)
+		}
+	}
+
+	if o.memoryStore != nil {
+		if err := o.memoryStore.Close(); err != nil {
+			o.logger.Error("Failed to close memory store", "error", err)
+		}
+	}
+
 	if o.scheduler != nil {
 		if err := o.scheduler.Close(); err != nil {
 			o.logger.Error("Failed to close scheduler", "error", err)
@@ -490,6 +564,27 @@ func (o *Orchestrator) Scheduler() *scheduler.Scheduler {
 	return o.scheduler
 }
 
+// MemoryStore returns the memory store
+func (o *Orchestrator) MemoryStore() *memory.Store {
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	return o.memoryStore
+}
+
+// MemoryExtractor returns the memory extractor
+func (o *Orchestrator) MemoryExtractor() *memory.Extractor {
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	return o.memoryExtractor
+}
+
+// MemoryHandler returns the memory handler
+func (o *Orchestrator) MemoryHandler() *memory.SessionArchivalHandler {
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	return o.memoryHandler
+}
+
 // ShutdownContext returns the shutdown context for cancellation
 func (o *Orchestrator) ShutdownContext() context.Context {
 	return o.shutdownCtx
@@ -560,6 +655,13 @@ func (o *Orchestrator) HealthCheck(ctx context.Context) map[string]types.Health 
 		health["scheduler"] = types.Healthy
 	} else {
 		health["scheduler"] = types.Unhealthy
+	}
+
+	// Check memory system
+	if o.memoryStore != nil && !o.closed {
+		health["memory"] = types.Healthy
+	} else {
+		health["memory"] = types.Unhealthy
 	}
 
 	return health
@@ -694,6 +796,23 @@ func (o *Orchestrator) cleanupPolicyEnforcer() error {
 func (o *Orchestrator) cleanupCredentialStore() error {
 	if o.credStore != nil {
 		return o.credStore.Close()
+	}
+	return nil
+}
+
+func (o *Orchestrator) cleanupScheduler() error {
+	if o.scheduler != nil {
+		return o.scheduler.Close()
+	}
+	return nil
+}
+
+func (o *Orchestrator) cleanupMemorySystem() error {
+	if o.memoryHandler != nil {
+		_ = o.memoryHandler.Close()
+	}
+	if o.memoryStore != nil {
+		return o.memoryStore.Close()
 	}
 	return nil
 }
