@@ -8,7 +8,9 @@ import (
 	"io"
 	"runtime"
 	"sync"
+	"syscall"
 	"time"
+	"unsafe"
 
 	"github.com/billm/baaaht/orchestrator/internal/config"
 	"github.com/billm/baaaht/orchestrator/internal/logger"
@@ -87,6 +89,32 @@ func (c *AppleClient) IsClosed() bool {
 	return c.closed
 }
 
+// getSystemMemory returns the total physical memory on macOS using sysctl
+func getSystemMemory() int64 {
+	// Use sysctl to get hw.memsize
+	mib := [2]int32{6 /* CTL_HW */, 24 /* HW_MEMSIZE */}
+	var memsize uint64
+	length := unsafe.Sizeof(memsize)
+	
+	// Call sysctl to get memory size
+	_, _, err := syscall.Syscall6(
+		syscall.SYS___SYSCTL,
+		uintptr(unsafe.Pointer(&mib[0])),
+		2,
+		uintptr(unsafe.Pointer(&memsize)),
+		uintptr(unsafe.Pointer(&length)),
+		0,
+		0,
+	)
+	
+	if err != 0 {
+		// If sysctl fails, return 0 to indicate unknown
+		return 0
+	}
+	
+	return int64(memsize)
+}
+
 // Version returns the Apple Containers version information
 func (c *AppleClient) Version(ctx context.Context) (string, error) {
 	c.mu.RLock()
@@ -111,8 +139,7 @@ func (c *AppleClient) Info(ctx context.Context) (*types.DockerInfo, error) {
 
 	// Stub implementation - return basic macOS system info
 	// Use actual system values where possible to avoid misleading callers
-	var memStats runtime.MemStats
-	runtime.ReadMemStats(&memStats)
+	totalMemory := getSystemMemory()
 
 	return &types.DockerInfo{
 		ServerVersion:     "1.0.0",
@@ -121,7 +148,7 @@ func (c *AppleClient) Info(ctx context.Context) (*types.DockerInfo, error) {
 		KernelVersion:     "Darwin Kernel",
 		Architecture:      runtime.GOARCH,
 		NCPU:              runtime.NumCPU(),
-		Memory:            int64(memStats.Sys), // Memory obtained from OS by Go runtime (not total system RAM)
+		Memory:            totalMemory, // Total physical RAM from sysctl hw.memsize
 		ContainerCount:    0,
 		RunningContainers: 0,
 	}, nil
