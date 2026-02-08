@@ -17,6 +17,12 @@ import (
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 )
 
+const (
+	// Darwin sysctl constants for querying system information
+	ctlHW      = 6  // CTL_HW - hardware-related information
+	hwMemsize  = 24 // HW_MEMSIZE - physical RAM size in bytes
+)
+
 // AppleClient represents a client for Apple Containers
 // This is a stub implementation for future Apple Containers integration
 type AppleClient struct {
@@ -92,10 +98,10 @@ func (c *AppleClient) IsClosed() bool {
 // getSystemMemory returns the total physical memory on macOS using sysctl
 func getSystemMemory() int64 {
 	// Use sysctl to get hw.memsize
-	mib := [2]int32{6 /* CTL_HW */, 24 /* HW_MEMSIZE */}
+	mib := [2]int32{ctlHW, hwMemsize}
 	var memsize uint64
 	length := unsafe.Sizeof(memsize)
-	
+
 	// Call sysctl to get memory size
 	_, _, err := syscall.Syscall6(
 		syscall.SYS___SYSCTL,
@@ -106,12 +112,12 @@ func getSystemMemory() int64 {
 		0,
 		0,
 	)
-	
+
 	if err != 0 {
 		// If sysctl fails, return 0 to indicate unknown
 		return 0
 	}
-	
+
 	return int64(memsize)
 }
 
