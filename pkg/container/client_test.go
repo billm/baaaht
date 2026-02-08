@@ -41,12 +41,12 @@ func TestNewClient(t *testing.T) {
 
 	t.Run("create client with custom config", func(t *testing.T) {
 		cfg := config.DockerConfig{
-			Host:        os.Getenv("DOCKER_HOST"),
-			APIVersion:  "1.44",
-			Timeout:     10 * time.Second,
-			MaxRetries:  2,
-			RetryDelay:  500 * time.Millisecond,
-			TLSVerify:   false,
+			Host:       os.Getenv("DOCKER_HOST"),
+			APIVersion: "1.44",
+			Timeout:    10 * time.Second,
+			MaxRetries: 2,
+			RetryDelay: 500 * time.Millisecond,
+			TLSVerify:  false,
 		}
 		if cfg.Host == "" {
 			cfg.Host = config.DefaultDockerHost

@@ -1,0 +1,497 @@
+{
+  "feature": "Container Runtime Integration",
+  "description": "Docker runtime integration with container lifecycle management, health monitoring, resource enforcement (CPU, memory, disk), and support for Apple Containers on macOS. Includes abstraction layer for future container runtime support.",
+  "workflow_type": "refactor",
+  "workflow_rationale": "This task primarily refactors existing Docker code into an abstraction layer. The refactor workflow is appropriate because: (1) Docker runtime already works and must continue working, (2) We're adding a new abstraction interface while preserving existing functionality, (3) Apple Containers support extends the system without breaking existing behavior. Following refactor pattern: Add New (abstraction) → Migrate (Docker to interface) → Extend (Apple Containers) → Cleanup (polish and verify).",
+  "created_at": "2026-02-08T00:35:53.632Z",
+  "updated_at": "2026-02-08T01:08:54.733Z",
+  "status": "human_review",
+  "phases": [
+    {
+      "id": "phase-1-abstraction",
+      "name": "Add Runtime Abstraction Layer",
+      "type": "implementation",
+      "description": "Create the Runtime interface and supporting types. Define the contract that all container runtimes must implement. This adds new code without modifying existing Docker implementation.",
+      "depends_on": [],
+      "parallel_safe": true,
+      "subtasks": [
+        {
+          "id": "subtask-1-1",
+          "description": "Create Runtime interface in pkg/container/runtime.go",
+          "service": "orchestrator",
+          "files_to_create": [
+            "pkg/container/runtime.go"
+          ],
+          "files_to_modify": [],
+          "patterns_from": [
+            "pkg/container/lifecycle.go",
+            "pkg/container/monitor.go"
+          ],
+          "details": "Define Runtime interface with all container operations: Create, Start, Stop, Restart, Destroy, HealthCheck, Stats, Logs, Events. Include Client() method for direct access. Add RuntimeType enum (Docker, AppleContainers). Add RuntimeConfig struct for initialization.",
+          "verification": {
+            "type": "command",
+            "command": "go build ./pkg/container",
+            "expected": "Build succeeds with no errors"
+          },
+          "status": "completed"
+        },
+        {
+          "id": "subtask-1-2",
+          "description": "Add RuntimeConfig to internal/config",
+          "service": "orchestrator",
+          "files_to_create": [],
+          "files_to_modify": [
+            "internal/config/config.go",
+            "internal/config/defaults.go"
+          ],
+          "patterns_from": [
+            "internal/config/config.go"
+          ],
+          "details": "Add RuntimeConfig struct with Type (auto, docker, apple) and Runtime-specific settings. Add to main Config struct. Add environment variables: CONTAINER_RUNTIME, CONTAINER_RUNTIME_TIMEOUT. Add defaults and validation.",
+          "verification": {
+            "type": "command",
+            "command": "go build ./internal/config",
+            "expected": "Build succeeds with no errors"
+          },
+          "status": "completed"
+        },
+        {
+          "id": "subtask-1-3",
+          "description": "Create runtime types in pkg/types/container.go",
+          "service": "orchestrator",
+          "files_to_create": [],
+          "files_to_modify": [
+            "pkg/types/container.go"
+          ],
+          "patterns_from": [
+            "pkg/types/container.go"
+          ],
+          "details": "Add RuntimeType enum: RuntimeTypeDocker, RuntimeTypeApple, RuntimeTypeAuto. Add RuntimeInfo struct for runtime metadata (version, platform, capabilities).",
+          "verification": {
+            "type": "command",
+            "command": "go build ./pkg/types",
+            "expected": "Build succeeds with no errors"
+          },
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "phase-2-docker-refactor",
+      "name": "Refactor Docker to Runtime Interface",
+      "type": "implementation",
+      "description": "Refactor existing Docker implementation to implement the Runtime interface. Keep all existing exports working for backwards compatibility. This is the 'Migrate' phase of the refactor workflow.",
+      "depends_on": [
+        "phase-1-abstraction"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-2-1",
+          "description": "Create pkg/container/runtime_docker.go with DockerRuntime struct",
+          "service": "orchestrator",
+          "files_to_create": [
+            "pkg/container/runtime_docker.go"
+          ],
+          "files_to_modify": [],
+          "patterns_from": [
+            "pkg/container/client.go",
+            "pkg/container/create.go",
+            "pkg/container/lifecycle.go",
+            "pkg/container/monitor.go"
+          ],
+          "details": "Create DockerRuntime struct that embeds *Client, *Creator, *LifecycleManager, *Monitor. Implement Runtime interface by delegating to embedded types. This refactors existing code without changing behavior.",
+          "verification": {
+            "type": "command",
+            "command": "go build ./pkg/container",
+            "expected": "Build succeeds with no errors"
+          },
+          "status": "completed"
+        },
+        {
+          "id": "subtask-2-2",
+          "description": "Update pkg/container/client.go to work with DockerRuntime",
+          "service": "orchestrator",
+          "files_to_create": [],
+          "files_to_modify": [
+            "pkg/container/client.go"
+          ],
+          "patterns_from": [
+            "pkg/container/client.go"
+          ],
+          "details": "Add NewDockerRuntime() function that creates a DockerRuntime. Keep existing New() function for backwards compatibility. Update global client pattern to support runtime.",
+          "verification": {
+            "type": "command",
+            "command": "go test ./pkg/container -run TestClient",
+            "expected": "All client tests pass"
+          },
+          "status": "completed"
+        },
+        {
+          "id": "subtask-2-3",
+          "description": "Update create.go, lifecycle.go, monitor.go to support runtime pattern",
+          "service": "orchestrator",
+          "files_to_create": [],
+          "files_to_modify": [
+            "pkg/container/create.go",
+            "pkg/container/lifecycle.go",
+            "pkg/container/monitor.go"
+          ],
+          "patterns_from": [
+            "pkg/container/create.go",
+            "pkg/container/lifecycle.go",
+            "pkg/container/monitor.go"
+          ],
+          "details": "Add constructors that accept Runtime interface. Keep existing constructors for backwards compatibility. Update helper functions to work with Runtime.",
+          "verification": {
+            "type": "command",
+            "command": "go test ./pkg/container -v",
+            "expected": "All container tests pass"
+          },
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "phase-3-apple-containers",
+      "name": "Add Apple Containers Runtime",
+      "type": "implementation",
+      "description": "Implement Apple Containers runtime support on macOS. Since Apple Containers SDK is not yet widely available, create a stub implementation that logs warnings and falls back to Docker. When SDK becomes available, this file can be updated with actual implementation.",
+      "depends_on": [
+        "phase-2-docker-refactor"
+      ],
+      "parallel_safe": true,
+      "subtasks": [
+        {
+          "id": "subtask-3-1",
+          "description": "Create pkg/container/runtime_apple.go with AppleRuntime struct",
+          "service": "orchestrator",
+          "files_to_create": [
+            "pkg/container/runtime_apple.go"
+          ],
+          "files_to_modify": [],
+          "patterns_from": [
+            "pkg/container/runtime_docker.go"
+          ],
+          "details": "Create AppleRuntime struct implementing Runtime interface. Implement stub methods that log 'Apple Containers not yet available' and fallback to Docker. Use build tag 'darwin' for macOS-specific code. Include TODO comments for future SDK integration.",
+          "verification": {
+            "type": "command",
+            "command": "go build -tags darwin ./pkg/container",
+            "expected": "Build succeeds on macOS"
+          },
+          "status": "completed"
+        },
+        {
+          "id": "subtask-3-2",
+          "description": "Add runtime detection to pkg/container/detect.go",
+          "service": "orchestrator",
+          "files_to_create": [
+            "pkg/container/detect.go"
+          ],
+          "files_to_modify": [],
+          "patterns_from": [
+            "pkg/container/client.go"
+          ],
+          "details": "Create DetectRuntime() function that checks platform (darwin/linux), runtime availability (docker running, Apple Containers available). Returns recommended RuntimeType. Add runtime availability check functions.",
+          "verification": {
+            "type": "command",
+            "command": "go test ./pkg/container -run TestDetect",
+            "expected": "Runtime detection tests pass"
+          },
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "phase-4-registry-factory",
+      "name": "Create Runtime Registry and Factory",
+      "type": "implementation",
+      "description": "Create the runtime registry and factory pattern for runtime selection and instantiation. This is the glue that ties everything together.",
+      "depends_on": [
+        "phase-2-docker-refactor",
+        "phase-3-apple-containers"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-4-1",
+          "description": "Create pkg/container/registry.go with runtime registry",
+          "service": "orchestrator",
+          "files_to_create": [
+            "pkg/container/registry.go"
+          ],
+          "files_to_modify": [],
+          "patterns_from": [
+            "internal/config/config.go"
+          ],
+          "details": "Create Registry struct that manages available runtimes. Implement RegisterRuntime(), GetRuntime(), GetRuntimeByType(). Add runtime factory functions. Handle runtime initialization and cleanup.",
+          "verification": {
+            "type": "command",
+            "command": "go test ./pkg/container -run TestRegistry",
+            "expected": "Registry tests pass"
+          },
+          "status": "completed"
+        },
+        {
+          "id": "subtask-4-2",
+          "description": "Create pkg/container/factory.go with runtime factory",
+          "service": "orchestrator",
+          "files_to_create": [
+            "pkg/container/factory.go"
+          ],
+          "files_to_modify": [],
+          "patterns_from": [
+            "pkg/container/client.go",
+            "internal/config/config.go"
+          ],
+          "details": "Create NewRuntime() factory function that takes RuntimeConfig and returns appropriate Runtime implementation. Handle 'auto' mode by calling DetectRuntime(). Add initialization logic and error handling.",
+          "verification": {
+            "type": "command",
+            "command": "go test ./pkg/container -run TestFactory",
+            "expected": "Factory tests pass"
+          },
+          "status": "completed"
+        },
+        {
+          "id": "subtask-4-3",
+          "description": "Update global client pattern to use runtime factory",
+          "service": "orchestrator",
+          "files_to_create": [],
+          "files_to_modify": [
+            "pkg/container/client.go"
+          ],
+          "patterns_from": [
+            "pkg/container/client.go"
+          ],
+          "details": "Update InitGlobal() to use runtime factory. Add InitGlobalRuntime() function. Update Global() to return Runtime interface. Keep backwards compatibility with GlobalClient() function.",
+          "verification": {
+            "type": "command",
+            "command": "go test ./pkg/container -run TestGlobal",
+            "expected": "Global client tests pass"
+          },
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "phase-5-integration-tests",
+      "name": "Add Integration Tests",
+      "type": "integration",
+      "description": "Add integration tests for the new runtime abstraction layer. Test all runtime implementations, factory, and registry. Ensure Docker tests still pass.",
+      "depends_on": [
+        "phase-4-registry-factory"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-5-1",
+          "description": "Create pkg/container/runtime_test.go with interface tests",
+          "service": "orchestrator",
+          "files_to_create": [
+            "pkg/container/runtime_test.go"
+          ],
+          "files_to_modify": [],
+          "patterns_from": [
+            "pkg/container/lifecycle_test.go"
+          ],
+          "details": "Create test suite that verifies all Runtime implementations satisfy the interface. Test Docker runtime end-to-end. Test Apple runtime stub (on macOS). Test runtime factory and registry.",
+          "verification": {
+            "type": "command",
+            "command": "go test -v ./pkg/container -run TestRuntime",
+            "expected": "All runtime tests pass"
+          },
+          "status": "completed"
+        },
+        {
+          "id": "subtask-5-2",
+          "description": "Create integration test for runtime switching",
+          "service": "orchestrator",
+          "files_to_create": [
+            "tests/integration/runtime_test.go"
+          ],
+          "files_to_modify": [],
+          "patterns_from": [
+            "tests/integration/e2e_test.go"
+          ],
+          "details": "Create integration test that creates containers with different runtime types. Test runtime auto-detection. Test fallback behavior when runtime is unavailable.",
+          "verification": {
+            "type": "command",
+            "command": "go test -v ./tests/integration -run TestRuntime",
+            "expected": "Integration tests pass"
+          },
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "phase-6-cleanup",
+      "name": "Cleanup and Polish",
+      "type": "cleanup",
+      "description": "Final cleanup phase: polish code, add documentation, verify all tests pass, ensure backwards compatibility.",
+      "depends_on": [
+        "phase-5-integration-tests"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-6-1",
+          "description": "Update documentation and add examples",
+          "service": "orchestrator",
+          "files_to_create": [],
+          "files_to_modify": [
+            "pkg/container/runtime.go",
+            "README.md"
+          ],
+          "patterns_from": [
+            "README.md"
+          ],
+          "details": "Add godoc comments to Runtime interface and implementations. Add usage examples in README. Document configuration options. Add migration guide for existing code.",
+          "verification": {
+            "type": "manual",
+            "instructions": "Review documentation for clarity and completeness. Verify examples work."
+          },
+          "status": "completed"
+        },
+        {
+          "id": "subtask-6-2",
+          "description": "Run full test suite and verify backwards compatibility",
+          "service": "orchestrator",
+          "files_to_create": [],
+          "files_to_modify": [],
+          "patterns_from": [],
+          "details": "Run all tests: unit, integration, e2e. Verify existing Docker-based code still works. Verify new runtime abstraction works. Test configuration options.",
+          "verification": {
+            "type": "command",
+            "command": "make test && go test ./tests/integration/...",
+            "expected": "All tests pass"
+          },
+          "status": "completed"
+        },
+        {
+          "id": "subtask-6-3",
+          "description": "Format code and run linters",
+          "service": "orchestrator",
+          "files_to_create": [],
+          "files_to_modify": [],
+          "patterns_from": [],
+          "details": "Run go fmt ./... to format all code. Run go vet ./... and staticcheck ./... to catch issues. Fix any warnings.",
+          "verification": {
+            "type": "command",
+            "command": "make fmt && make lint",
+            "expected": "Code formatted, no lint errors"
+          },
+          "status": "pending"
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "total_phases": 6,
+    "total_subtasks": 18,
+    "services_involved": [
+      "orchestrator"
+    ],
+    "parallelism": {
+      "max_parallel_phases": 1,
+      "parallel_groups": [],
+      "recommended_workers": 1,
+      "speedup_estimate": "Sequential execution required due to dependencies"
+    },
+    "startup_command": "make test"
+  },
+  "verification_strategy": {
+    "risk_level": "medium",
+    "skip_validation": false,
+    "test_creation_phase": "post_implementation",
+    "test_types_required": [
+      "unit",
+      "integration"
+    ],
+    "security_scanning_required": false,
+    "staging_deployment_required": false,
+    "acceptance_criteria": [
+      "All existing tests pass",
+      "Runtime interface is implemented by Docker and Apple runtimes",
+      "Runtime factory correctly selects runtime based on configuration",
+      "Apple Containers stub logs warning and falls back to Docker",
+      "Backwards compatibility maintained - existing code still works",
+      "No lint errors or warnings"
+    ],
+    "verification_steps": [
+      {
+        "name": "Unit Tests",
+        "command": "go test -v ./pkg/container/...",
+        "expected_outcome": "All unit tests pass",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "Integration Tests",
+        "command": "go test -v ./tests/integration/...",
+        "expected_outcome": "All integration tests pass",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "Build Verification",
+        "command": "make build",
+        "expected_outcome": "Build succeeds with no errors",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "Code Quality",
+        "command": "make lint",
+        "expected_outcome": "No lint errors",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      }
+    ],
+    "reasoning": "Medium risk because we're refactoring working code. Need comprehensive tests to ensure we don't break existing Docker functionality. No security scanning needed as we're not handling sensitive data. No staging deployment as this is a library-level change."
+  },
+  "qa_acceptance": {
+    "unit_tests": {
+      "required": true,
+      "commands": [
+        "go test ./pkg/container/...",
+        "go test ./pkg/types/..."
+      ],
+      "minimum_coverage": null
+    },
+    "integration_tests": {
+      "required": true,
+      "commands": [
+        "go test ./tests/integration/..."
+      ],
+      "services_to_test": [
+        "orchestrator"
+      ]
+    },
+    "e2e_tests": {
+      "required": false,
+      "commands": [],
+      "flows": []
+    },
+    "build_verification": {
+      "required": true,
+      "command": "make build"
+    },
+    "code_quality": {
+      "required": true,
+      "commands": [
+        "make lint",
+        "go vet ./..."
+      ]
+    },
+    "backwards_compatibility": {
+      "required": true,
+      "notes": "All existing exports and functions must continue working"
+    }
+  },
+  "qa_signoff": null,
+  "planStatus": "review"
+}

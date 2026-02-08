@@ -38,6 +38,22 @@ func NewLifecycleManager(client *Client, log *logger.Logger) (*LifecycleManager,
 	}, nil
 }
 
+// NewLifecycleManagerFromRuntime creates a new lifecycle manager from a Runtime interface
+// This allows the LifecycleManager to work with any runtime implementation
+func NewLifecycleManagerFromRuntime(runtime Runtime, log *logger.Logger) (*LifecycleManager, error) {
+	if runtime == nil {
+		return nil, types.NewError(types.ErrCodeInvalidArgument, "runtime cannot be nil")
+	}
+
+	// Extract the underlying client from the runtime
+	client, ok := runtime.Client().(*Client)
+	if !ok {
+		return nil, types.NewError(types.ErrCodeInvalidArgument, "runtime does not provide a Docker client")
+	}
+
+	return NewLifecycleManager(client, log)
+}
+
 // StartConfig holds configuration for starting a container
 type StartConfig struct {
 	ContainerID string
@@ -159,10 +175,10 @@ func (l *LifecycleManager) Restart(ctx context.Context, cfg RestartConfig) error
 
 // DestroyConfig holds configuration for destroying a container
 type DestroyConfig struct {
-	ContainerID string
-	Name        string // Optional: for better logging
-	Force       bool   // Force removal even if running
-	RemoveVolumes bool // Remove associated volumes
+	ContainerID   string
+	Name          string // Optional: for better logging
+	Force         bool   // Force removal even if running
+	RemoveVolumes bool   // Remove associated volumes
 }
 
 // Destroy removes a container

@@ -80,7 +80,7 @@ func TestFilepathWithBase(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := filepathWithBase(tt.base, tt.path)
-			
+
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("filepathWithBase() expected error but got none, result: %s", result)
@@ -181,7 +181,7 @@ func TestPrepareFile(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := inj.Prepare(ctx, []InjectionConfig{tt.cfg})
-			
+
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("Prepare() expected error but got none")

@@ -6,14 +6,14 @@ import "context"
 type EventType string
 
 const (
-	EventTypeContainerCreated   EventType = "container.created"
-	EventTypeContainerStarted   EventType = "container.started"
-	EventTypeContainerStopped   EventType = "container.stopped"
-	EventTypeContainerRemoved   EventType = "container.removed"
-	EventTypeContainerError     EventType = "container.error"
-	EventTypeSessionCreated     EventType = "session.created"
-	EventTypeSessionUpdated     EventType = "session.updated"
-	EventTypeSessionClosed      EventType = "session.closed"
+	EventTypeContainerCreated  EventType = "container.created"
+	EventTypeContainerStarted  EventType = "container.started"
+	EventTypeContainerStopped  EventType = "container.stopped"
+	EventTypeContainerRemoved  EventType = "container.removed"
+	EventTypeContainerError    EventType = "container.error"
+	EventTypeSessionCreated    EventType = "session.created"
+	EventTypeSessionUpdated    EventType = "session.updated"
+	EventTypeSessionClosed     EventType = "session.closed"
 	EventTypeTaskCreated       EventType = "task.created"
 	EventTypeTaskUpdated       EventType = "task.updated"
 	EventTypeTaskCompleted     EventType = "task.completed"
@@ -27,22 +27,22 @@ const (
 
 // Event represents a system event
 type Event struct {
-	ID        ID                 `json:"id"`
-	Type      EventType          `json:"type"`
-	Source    string             `json:"source"`
-	Timestamp Timestamp          `json:"timestamp"`
+	ID        ID                     `json:"id"`
+	Type      EventType              `json:"type"`
+	Source    string                 `json:"source"`
+	Timestamp Timestamp              `json:"timestamp"`
 	Data      map[string]interface{} `json:"data,omitempty"`
-	Metadata  EventMetadata      `json:"metadata,omitempty"`
+	Metadata  EventMetadata          `json:"metadata,omitempty"`
 }
 
 // EventMetadata contains additional information about an event
 type EventMetadata struct {
-	CorrelationID *ID              `json:"correlation_id,omitempty"`
-	SessionID     *ID              `json:"session_id,omitempty"`
-	ContainerID   *ID              `json:"container_id,omitempty"`
-	UserID        string           `json:"user_id,omitempty"`
+	CorrelationID *ID               `json:"correlation_id,omitempty"`
+	SessionID     *ID               `json:"session_id,omitempty"`
+	ContainerID   *ID               `json:"container_id,omitempty"`
+	UserID        string            `json:"user_id,omitempty"`
 	Labels        map[string]string `json:"labels,omitempty"`
-	Priority      Priority         `json:"priority,omitempty"`
+	Priority      Priority          `json:"priority,omitempty"`
 }
 
 // Priority represents the priority level of an event
@@ -79,14 +79,14 @@ func (f EventFunc) CanHandle(eventType EventType) bool {
 
 // EventFilter defines a filter for events
 type EventFilter struct {
-	Type       *EventType        `json:"type,omitempty"`
-	Source     *string           `json:"source,omitempty"`
-	SessionID  *ID               `json:"session_id,omitempty"`
-	ContainerID *ID              `json:"container_id,omitempty"`
-	Priority   *Priority         `json:"priority,omitempty"`
-	Labels     map[string]string `json:"labels,omitempty"`
-	StartTime  *Timestamp        `json:"start_time,omitempty"`
-	EndTime    *Timestamp        `json:"end_time,omitempty"`
+	Type        *EventType        `json:"type,omitempty"`
+	Source      *string           `json:"source,omitempty"`
+	SessionID   *ID               `json:"session_id,omitempty"`
+	ContainerID *ID               `json:"container_id,omitempty"`
+	Priority    *Priority         `json:"priority,omitempty"`
+	Labels      map[string]string `json:"labels,omitempty"`
+	StartTime   *Timestamp        `json:"start_time,omitempty"`
+	EndTime     *Timestamp        `json:"end_time,omitempty"`
 }
 
 // EventMiddleware processes events before they reach handlers
@@ -105,22 +105,22 @@ func (f MiddlewareFunc) Process(ctx context.Context, event Event) (Event, error)
 
 // EventSubscription represents a subscription to events
 type EventSubscription struct {
-	ID       ID               `json:"id"`
-	Filter   EventFilter      `json:"filter"`
-	Handler  EventHandler     `json:"-"`
-	Active   bool             `json:"active"`
-	CreatedAt Timestamp       `json:"created_at"`
+	ID        ID           `json:"id"`
+	Filter    EventFilter  `json:"filter"`
+	Handler   EventHandler `json:"-"`
+	Active    bool         `json:"active"`
+	CreatedAt Timestamp    `json:"created_at"`
 }
 
 // IPCMessage represents an inter-process communication message
 type IPCMessage struct {
-	ID        ID              `json:"id"`
-	Source    ID              `json:"source"`      // Container ID
-	Target    ID              `json:"target"`      // Container ID or orchestrator
-	Type      string          `json:"type"`        // Message type (e.g., "request", "response", "notification")
-	Payload   []byte          `json:"payload"`     // Message data
-	Metadata  IPCMetadata     `json:"metadata"`
-	Timestamp Timestamp       `json:"timestamp"`
+	ID        ID          `json:"id"`
+	Source    ID          `json:"source"`  // Container ID
+	Target    ID          `json:"target"`  // Container ID or orchestrator
+	Type      string      `json:"type"`    // Message type (e.g., "request", "response", "notification")
+	Payload   []byte      `json:"payload"` // Message data
+	Metadata  IPCMetadata `json:"metadata"`
+	Timestamp Timestamp   `json:"timestamp"`
 }
 
 // IPCMetadata contains metadata for IPC messages

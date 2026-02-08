@@ -6,7 +6,7 @@ The central nervous system of baaaht. This Go-based host process manages contain
 
 The Orchestrator is the foundation of the entire baaaht platform. It provides:
 
-- **Container Lifecycle Management**: Create, monitor, and destroy containers via Docker runtime
+- **Container Lifecycle Management**: Create, monitor, and destroy containers via Docker or Apple Containers runtime
 - **Event Routing**: Dispatch messages to appropriate handlers through a publish-subscribe system
 - **Session Management**: Track session state and maintain conversation context
 - **IPC Brokering**: Mediate all inter-container communication
@@ -68,7 +68,7 @@ This is a monorepo containing multiple baaaht tools. Each tool has its own direc
 ### Prerequisites
 
 - Go 1.24 or later
-- Docker running locally
+- Docker running locally (or Apple Containers on macOS)
 - Make (optional)
 
 ### Build from source
@@ -144,11 +144,245 @@ The orchestrator can be configured via:
 
 Key configuration options:
 
+- `runtime.type`: Container runtime to use (auto, docker, apple; default: auto)
+- `runtime.timeout`: Default timeout for operations (default: 30s)
 - `docker.host`: Docker daemon socket path (default: `/var/run/docker.sock`)
 - `log.level`: Logging level - debug, info, warn, error (default: `info`)
 - `session.timeout`: Session inactivity timeout (default: `30m`)
 - `policy.max_containers`: Maximum concurrent containers (default: `10`)
 - `policy.max_memory`: Maximum memory per container (default: `512MB`)
+
+## Container Runtime System
+
+The orchestrator provides a unified interface for managing container runtimes through the `pkg/container` package. This abstraction allows working with different container backends (Docker, Apple Containers) using the same API.
+
+### Runtime Detection
+
+The orchestrator automatically detects the best available runtime:
+
+- **Linux**: Prefers Docker
+- **macOS**: Prefers Apple Containers if available, otherwise Docker
+- **Windows**: Tries Docker as fallback
+
+### Basic Usage Example
+
+```go
+package main
+
+import (
+    "context"
+    "log"
+
+    "github.com/billm/baaaht/orchestrator/pkg/container"
+    "github.com/billm/baaaht/orchestrator/pkg/types"
+)
+
+func main() {
+    ctx := context.Background()
+
+    // Create a runtime with auto-detection
+    runtime, err := container.NewRuntimeDefault(ctx)
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer runtime.Close()
+
+    // Get runtime information
+    info, err := runtime.Info(ctx)
+    if err != nil {
+        log.Fatal(err)
+    }
+    log.Printf("Using runtime: %s %s", info.Type, info.Version)
+
+    // Create a container
+    result, err := runtime.Create(ctx, container.CreateConfig{
+        Config: types.ContainerConfig{
+            Image: "nginx:latest",
+            Env: map[string]string{
+                "FOO": "bar",
+            },
+            Labels: map[string]string{
+                "app": "my-app",
+            },
+        },
+        Name:      "my-nginx",
+        SessionID: types.NewID(),
+        AutoPull:  true,
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    log.Printf("Created container: %s", result.ContainerID)
+
+    // Start the container
+    err = runtime.Start(ctx, container.StartConfig{
+        ContainerID: result.ContainerID,
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    log.Println("Container started successfully")
+}
+```
+
+### Monitoring Container Stats
+
+```go
+// Get a stream of container stats
+statsChan, errChan := runtime.StatsStream(ctx, containerID, 1*time.Second)
+
+for {
+    select {
+    case stats, ok := <-statsChan:
+        if !ok {
+            return
+        }
+        log.Printf("CPU: %.2f%% | Memory: %s | Net RX: %s | Net TX: %s",
+            stats.CPUPercentage,
+            formatBytes(stats.MemoryUsage),
+            formatBytes(stats.NetworkRX),
+            formatBytes(stats.NetworkTX))
+    case err, ok := <-errChan:
+        if !ok {
+            return
+        }
+        log.Printf("Error: %v", err)
+    }
+}
+```
+
+### Health Checks with Retry
+
+```go
+// Wait for container to become healthy
+result, err := runtime.HealthCheckWithRetry(ctx, containerID, 10, 5*time.Second)
+if err != nil {
+    log.Fatal(err)
+}
+
+if result.Status == "healthy" {
+    log.Println("Container is healthy")
+} else {
+    log.Printf("Container health: %s", result.Status)
+}
+```
+
+### Managing Container Lifecycle
+
+```go
+// Stop a container gracefully
+err = runtime.Stop(ctx, container.StopConfig{
+    ContainerID: containerID,
+    Timeout:     10 * time.Second,
+})
+if err != nil {
+    log.Fatal(err)
+}
+
+// Or forcefully kill a container
+err = runtime.Kill(ctx, container.KillConfig{
+    ContainerID: containerID,
+    Signal:      "SIGKILL",
+})
+if err != nil {
+    log.Fatal(err)
+}
+
+// Remove the container
+err = runtime.Destroy(ctx, container.DestroyConfig{
+    ContainerID: containerID,
+    Force:       true,
+})
+if err != nil {
+    log.Fatal(err)
+}
+```
+
+### Retrieving Container Logs
+
+```go
+// Get logs as structured lines
+logs, err := runtime.LogsLines(ctx, container.LogsConfig{
+    ContainerID: containerID,
+    Tail:        "100",     // Last 100 lines
+    Since:       time.Now().Add(-1 * time.Hour),
+})
+if err != nil {
+    log.Fatal(err)
+}
+
+for _, logEntry := range logs {
+    log.Printf("[%s] %s: %s", logEntry.Timestamp, logEntry.Stream, logEntry.Line)
+}
+
+// Or get a raw stream
+reader, err := runtime.Logs(ctx, container.LogsConfig{
+    ContainerID: containerID,
+    Follow:      true, // Stream logs as they arrive
+    Stdout:      true,
+    Stderr:      true,
+})
+if err != nil {
+    log.Fatal(err)
+}
+defer reader.Close()
+
+// Read from reader...
+```
+
+### Runtime Factory Pattern
+
+The container package supports custom runtime implementations through a factory pattern:
+
+```go
+// Register a custom runtime
+container.RegisterCustomRuntime("custom", func(cfg container.RuntimeConfig) (container.Runtime, error) {
+    return &MyCustomRuntime{config: cfg}, nil
+})
+
+// Use the custom runtime from the registry
+factory, err := container.GetRuntimeFromRegistry("custom")
+if err != nil {
+    // handle error
+}
+
+runtime, err := factory(ctx, container.RuntimeConfig{
+    Timeout: 30 * time.Second,
+})
+```
+
+### Available Runtime Types
+
+| Runtime Type | Description | Platforms |
+|-------------|-------------|-----------|
+| `auto` | Auto-detect best runtime | All |
+| `docker` | Docker daemon | Linux, macOS, Windows |
+| `apple` | Apple Containers (planned / stub, currently disabled) | Planned: macOS 15.0+ |
+
+### Container Configuration Options
+
+The `types.ContainerConfig` struct provides comprehensive configuration:
+
+```go
+type ContainerConfig struct {
+    Image           string                 // Container image
+    Command         []string               // Command to run
+    Args            []string               // Entrypoint arguments
+    Env             map[string]string      // Environment variables
+    WorkingDir      string                 // Working directory
+    Labels          map[string]string      // Container labels
+    Mounts          []Mount                // Volume mounts
+    Ports           []PortBinding          // Port bindings
+    Networks        []string               // Network names
+    NetworkMode     string                 // Network mode (bridge, host, etc.)
+    Resources       ResourceLimits         // CPU/memory limits
+    RestartPolicy   RestartPolicy          // Restart policy
+    RemoveOnStop    bool                   // Auto-remove on stop
+    ReadOnlyRootfs  bool                   // Read-only root filesystem
+}
+```
 
 ## Security
 

@@ -211,9 +211,9 @@ func TestLoggerEnabled(t *testing.T) {
 	}
 
 	tests := []struct {
-		name     string
-		level    Level
-		enabled  bool
+		name    string
+		level   Level
+		enabled bool
 	}{
 		{"debug disabled at warn", LevelDebug, false},
 		{"info disabled at warn", LevelInfo, false},
