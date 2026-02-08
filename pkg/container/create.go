@@ -64,6 +64,22 @@ func NewCreator(client *Client, log *logger.Logger) (*Creator, error) {
 	}, nil
 }
 
+// NewCreatorFromRuntime creates a new container creator from a Runtime interface
+// This allows the Creator to work with any runtime implementation
+func NewCreatorFromRuntime(runtime Runtime, log *logger.Logger) (*Creator, error) {
+	if runtime == nil {
+		return nil, types.NewError(types.ErrCodeInvalidArgument, "runtime cannot be nil")
+	}
+
+	// Extract the underlying client from the runtime
+	client, ok := runtime.Client().(*Client)
+	if !ok {
+		return nil, types.NewError(types.ErrCodeInvalidArgument, "runtime does not provide a Docker client")
+	}
+
+	return NewCreator(client, log)
+}
+
 // Create creates a new container with the specified configuration
 func (c *Creator) Create(ctx context.Context, cfg CreateConfig) (*CreateResult, error) {
 	c.mu.Lock()
