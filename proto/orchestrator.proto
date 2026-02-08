@@ -1,0 +1,601 @@
+// orchestrator.proto - gRPC service definitions for Orchestrator communication
+//
+// This file defines the OrchestratorService which provides session management,
+// message handling, and event subscription for agents and gateways.
+//
+// Copyright 2026 baaaht project
+
+syntax = "proto3";
+
+package orchestrator.v1;
+
+option go_package = "github.com/billm/baaaht/orchestrator/proto";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+// =============================================================================
+// Orchestrator Service
+// =============================================================================
+
+// OrchestratorService provides core orchestrator operations for agents and gateways
+service OrchestratorService {
+  // Session Management
+
+  // CreateSession creates a new session with the specified metadata and configuration
+  rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
+
+  // GetSession retrieves a session by its ID
+  rpc GetSession(GetSessionRequest) returns (GetSessionResponse);
+
+  // ListSessions retrieves all sessions matching the specified filter
+  rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse);
+
+  // UpdateSession updates a session's metadata or context
+  rpc UpdateSession(UpdateSessionRequest) returns (UpdateSessionResponse);
+
+  // CloseSession closes a session and releases its resources
+  rpc CloseSession(CloseSessionRequest) returns (CloseSessionResponse);
+
+  // Message Handling
+
+  // SendMessage sends a message to a session
+  rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
+
+  // StreamMessages establishes a bidirectional stream for real-time message exchange
+  rpc StreamMessages(stream StreamMessageRequest) returns (stream StreamMessageResponse);
+
+  // Container Operations (within sessions)
+
+  // CreateContainer creates a new container within a session
+  rpc CreateContainer(CreateContainerRequest) returns (CreateContainerResponse);
+
+  // GetContainer retrieves a container by its ID
+  rpc GetContainer(GetContainerRequest) returns (GetContainerResponse);
+
+  // ListContainers retrieves all containers matching the specified filter
+  rpc ListContainers(ListContainersRequest) returns (ListContainersResponse);
+
+  // StopContainer stops a running container
+  rpc StopContainer(StopContainerRequest) returns (StopContainerResponse);
+
+  // RemoveContainer removes a container from the system
+  rpc RemoveContainer(RemoveContainerRequest) returns (RemoveContainerResponse);
+
+  // Event Subscription
+
+  // SubscribeEvents subscribes to system events matching the specified filter
+  rpc SubscribeEvents(SubscribeEventsRequest) returns (stream Event);
+
+  // Health and Status
+
+  // HealthCheck returns the health status of the orchestrator
+  rpc HealthCheck(google.protobuf.Empty) returns (HealthCheckResponse);
+
+  // GetStatus returns the current status of the orchestrator
+  rpc GetStatus(google.protobuf.Empty) returns (StatusResponse);
+}
+
+// =============================================================================
+// Session Types
+// =============================================================================
+
+// Session represents a user session with conversation context
+message Session {
+  string id = 1;
+  SessionState state = 2;
+  Status status = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp updated_at = 5;
+  google.protobuf.Timestamp expires_at = 6;  // Optional
+  google.protobuf.Timestamp closed_at = 7;   // Optional
+  SessionMetadata metadata = 8;
+  SessionContext context = 9;
+  repeated string container_ids = 10;
+}
+
+// SessionState represents the lifecycle state of a session
+enum SessionState {
+  SESSION_STATE_UNSPECIFIED = 0;
+  SESSION_STATE_INITIALIZING = 1;
+  SESSION_STATE_ACTIVE = 2;
+  SESSION_STATE_IDLE = 3;
+  SESSION_STATE_CLOSING = 4;
+  SESSION_STATE_CLOSED = 5;
+}
+
+// SessionMetadata contains descriptive information about a session
+message SessionMetadata {
+  string name = 1;
+  string description = 2;  // Optional
+  map<string, string> labels = 3;
+  string owner_id = 4;     // Optional
+  repeated string tags = 5;
+}
+
+// SessionContext holds the conversation and operational context
+message SessionContext {
+  repeated Message messages = 1;
+  string current_task_id = 2;      // Optional
+  repeated string task_history = 3;
+  UserPreferences preferences = 4;
+  SessionConfig config = 5;
+  ResourceUsage resource_usage = 6;
+}
+
+// Message represents a message in the conversation
+message Message {
+  string id = 1;
+  google.protobuf.Timestamp timestamp = 2;
+  MessageRole role = 3;
+  string content = 4;
+  MessageMetadata metadata = 5;
+}
+
+// MessageRole represents the role of the message sender
+enum MessageRole {
+  MESSAGE_ROLE_UNSPECIFIED = 0;
+  MESSAGE_ROLE_USER = 1;
+  MESSAGE_ROLE_SYSTEM = 2;
+  MESSAGE_ROLE_ASSISTANT = 3;
+  MESSAGE_ROLE_TOOL = 4;
+}
+
+// MessageMetadata contains additional information about a message
+message MessageMetadata {
+  string container_id = 1;   // Optional
+  string tool_name = 2;      // Optional
+  string tool_call_id = 3;   // Optional
+  map<string, string> extra = 4;
+}
+
+// UserPreferences contains user-specific preferences
+message UserPreferences {
+  string timezone = 1;
+  string language = 2;
+  string theme = 3;
+  bool notifications = 4;
+}
+
+// SessionConfig contains session-specific configuration
+message SessionConfig {
+  int32 max_containers = 1;
+  int64 max_duration_ns = 2;       // Duration in nanoseconds
+  int64 idle_timeout_ns = 3;       // Duration in nanoseconds
+  ResourceLimits resource_limits = 4;
+  repeated string allowed_images = 5;
+  SessionPolicy policy = 6;
+}
+
+// SessionPolicy defines security policies for a session
+message SessionPolicy {
+  bool allow_network = 1;
+  repeated string allowed_networks = 2;
+  bool allow_volume_mount = 3;
+  repeated string allowed_paths = 4;
+  bool require_approval = 5;
+}
+
+// =============================================================================
+// Container Types
+// =============================================================================
+
+// Container represents a container instance managed by the orchestrator
+message Container {
+  string id = 1;
+  string name = 2;
+  string image = 3;
+  ContainerState state = 4;
+  Status status = 5;
+  Health health = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp started_at = 8;   // Optional
+  google.protobuf.Timestamp exited_at = 9;    // Optional
+  int32 exit_code = 10;                        // Optional
+  ContainerConfig config = 11;
+  ResourceUsage resources = 12;
+  string session_id = 13;
+}
+
+// ContainerState represents the lifecycle state of a container
+enum ContainerState {
+  CONTAINER_STATE_UNSPECIFIED = 0;
+  CONTAINER_STATE_CREATED = 1;
+  CONTAINER_STATE_RUNNING = 2;
+  CONTAINER_STATE_PAUSED = 3;
+  CONTAINER_STATE_RESTARTING = 4;
+  CONTAINER_STATE_EXITED = 5;
+  CONTAINER_STATE_REMOVING = 6;
+  CONTAINER_STATE_UNKNOWN = 7;
+}
+
+// ContainerConfig represents the configuration used to create a container
+message ContainerConfig {
+  string image = 1;
+  repeated string command = 2;
+  repeated string args = 3;
+  map<string, string> env = 4;
+  string working_dir = 5;
+  map<string, string> labels = 6;
+  repeated Mount mounts = 7;
+  repeated PortBinding ports = 8;
+  string network_mode = 9;
+  repeated string networks = 10;
+  ResourceLimits resources = 11;
+  RestartPolicy restart_policy = 12;
+  bool read_only_rootfs = 13;
+  bool remove_on_stop = 14;
+}
+
+// Mount represents a filesystem mount
+message Mount {
+  MountType type = 1;
+  string source = 2;
+  string target = 3;
+  bool read_only = 4;
+}
+
+// MountType represents the type of mount
+enum MountType {
+  MOUNT_TYPE_UNSPECIFIED = 0;
+  MOUNT_TYPE_BIND = 1;
+  MOUNT_TYPE_VOLUME = 2;
+  MOUNT_TYPE_TMPFS = 3;
+}
+
+// PortBinding represents a port mapping
+message PortBinding {
+  int32 container_port = 1;
+  int32 host_port = 2;
+  string protocol = 3;
+  string host_ip = 4;
+}
+
+// RestartPolicy defines the restart policy for a container
+message RestartPolicy {
+  string name = 1;
+  int32 maximum_retry_count = 2;
+  int64 timeout_ns = 3;  // Duration in nanoseconds, optional
+}
+
+// =============================================================================
+// Resource Types
+// =============================================================================
+
+// ResourceLimits defines resource constraints for a container/session
+message ResourceLimits {
+  int64 nano_cpus = 1;      // CPU in 1e-9 units
+  int64 memory_bytes = 2;   // Memory in bytes
+  int64 memory_swap = 3;    // Memory swap in bytes
+  int64 pids_limit = 4;     // Max processes, optional
+}
+
+// ResourceUsage represents current resource usage
+message ResourceUsage {
+  double cpu_percent = 1;
+  int64 memory_usage = 2;
+  int64 memory_limit = 3;
+  double memory_percent = 4;
+  int64 network_rx = 5;
+  int64 network_tx = 6;
+  int64 block_read = 7;
+  int64 block_write = 8;
+  int64 pids_count = 9;
+}
+
+// =============================================================================
+// Common Types
+// =============================================================================
+
+// Status represents the operational status of components
+enum Status {
+  STATUS_UNSPECIFIED = 0;
+  STATUS_UNKNOWN = 1;
+  STATUS_STARTING = 2;
+  STATUS_RUNNING = 3;
+  STATUS_STOPPING = 4;
+  STATUS_STOPPED = 5;
+  STATUS_ERROR = 6;
+  STATUS_TERMINATED = 7;
+}
+
+// Health represents the health state of a component
+enum Health {
+  HEALTH_UNSPECIFIED = 0;
+  HEALTH_UNKNOWN = 1;
+  HEALTH_HEALTHY = 2;
+  HEALTH_UNHEALTHY = 3;
+  HEALTH_DEGRADED = 4;
+  HEALTH_CHECKING = 5;
+}
+
+// =============================================================================
+// Event Types
+// =============================================================================
+
+// Event represents a system event
+message Event {
+  string id = 1;
+  EventType type = 2;
+  string source = 3;
+  google.protobuf.Timestamp timestamp = 4;
+  map<string, string> data = 5;       // Using string map for protobuf compatibility
+  EventMetadata metadata = 6;
+}
+
+// EventType represents the type of event
+enum EventType {
+  EVENT_TYPE_UNSPECIFIED = 0;
+  EVENT_TYPE_CONTAINER_CREATED = 1;
+  EVENT_TYPE_CONTAINER_STARTED = 2;
+  EVENT_TYPE_CONTAINER_STOPPED = 3;
+  EVENT_TYPE_CONTAINER_REMOVED = 4;
+  EVENT_TYPE_CONTAINER_ERROR = 5;
+  EVENT_TYPE_SESSION_CREATED = 6;
+  EVENT_TYPE_SESSION_UPDATED = 7;
+  EVENT_TYPE_SESSION_CLOSED = 8;
+  EVENT_TYPE_TASK_CREATED = 9;
+  EVENT_TYPE_TASK_UPDATED = 10;
+  EVENT_TYPE_TASK_COMPLETED = 11;
+  EVENT_TYPE_TASK_FAILED = 12;
+  EVENT_TYPE_IPC_MESSAGE = 13;
+  EVENT_TYPE_POLICY_VIOLATION = 14;
+  EVENT_TYPE_RESOURCE_THRESHOLD = 15;
+  EVENT_TYPE_SYSTEM_STARTUP = 16;
+  EVENT_TYPE_SYSTEM_SHUTDOWN = 17;
+}
+
+// EventMetadata contains additional information about an event
+message EventMetadata {
+  string correlation_id = 1;   // Optional
+  string session_id = 2;      // Optional
+  string container_id = 3;    // Optional
+  string user_id = 4;         // Optional
+  map<string, string> labels = 5;
+  Priority priority = 6;
+}
+
+// Priority represents the priority level of an event
+enum Priority {
+  PRIORITY_UNSPECIFIED = 0;
+  PRIORITY_LOW = 1;
+  PRIORITY_NORMAL = 2;
+  PRIORITY_HIGH = 3;
+  PRIORITY_CRITICAL = 4;
+}
+
+// EventFilter defines a filter for events
+message EventFilter {
+  EventType type = 1;              // Optional, unset means all types
+  string source = 2;               // Optional, unset means all sources
+  string session_id = 3;           // Optional
+  string container_id = 4;         // Optional
+  Priority priority = 5;           // Optional
+  map<string, string> labels = 6;  // Optional, match all if empty
+  google.protobuf.Timestamp start_time = 7;   // Optional
+  google.protobuf.Timestamp end_time = 8;     // Optional
+}
+
+// =============================================================================
+// IPC Types
+// =============================================================================
+
+// IPCMessage represents an inter-process communication message
+message IPCMessage {
+  string id = 1;
+  string source = 2;       // Container ID
+  string target = 3;       // Container ID or orchestrator
+  string type = 4;         // Message type: request, response, notification
+  bytes payload = 5;       // Message data
+  IPCMetadata metadata = 6;
+  google.protobuf.Timestamp timestamp = 7;
+}
+
+// IPCMetadata contains metadata for IPC messages
+message IPCMetadata {
+  string correlation_id = 1;
+  string session_id = 2;
+  string message_id = 3;
+  map<string, string> headers = 4;
+}
+
+// =============================================================================
+// Request/Response Messages - Session Operations
+// =============================================================================
+
+// CreateSessionRequest
+message CreateSessionRequest {
+  SessionMetadata metadata = 1;
+  SessionConfig config = 2;
+}
+
+// CreateSessionResponse
+message CreateSessionResponse {
+  string session_id = 1;
+  Session session = 2;
+}
+
+// GetSessionRequest
+message GetSessionRequest {
+  string session_id = 1;
+}
+
+// GetSessionResponse
+message GetSessionResponse {
+  Session session = 1;
+}
+
+// ListSessionsRequest
+message ListSessionsRequest {
+  SessionFilter filter = 1;
+}
+
+// SessionFilter defines filters for querying sessions
+message SessionFilter {
+  SessionState state = 1;        // Optional
+  Status status = 2;             // Optional
+  string owner_id = 3;           // Optional
+  map<string, string> labels = 4; // Optional, match all if empty
+}
+
+// ListSessionsResponse
+message ListSessionsResponse {
+  repeated Session sessions = 1;
+  int32 total_count = 2;
+}
+
+// UpdateSessionRequest
+message UpdateSessionRequest {
+  string session_id = 1;
+  SessionMetadata metadata = 2;    // Optional, updates metadata
+  SessionContext context = 3;      // Optional, updates context
+}
+
+// UpdateSessionResponse
+message UpdateSessionResponse {
+  Session session = 1;
+}
+
+// CloseSessionRequest
+message CloseSessionRequest {
+  string session_id = 1;
+  string reason = 2;  // Optional
+}
+
+// CloseSessionResponse
+message CloseSessionResponse {
+  string session_id = 1;
+  SessionState state = 2;
+}
+
+// =============================================================================
+// Request/Response Messages - Message Operations
+// =============================================================================
+
+// SendMessageRequest
+message SendMessageRequest {
+  string session_id = 1;
+  Message message = 2;
+}
+
+// SendMessageResponse
+message SendMessageResponse {
+  string message_id = 1;
+  string session_id = 2;
+  google.protobuf.Timestamp timestamp = 3;
+}
+
+// StreamMessageRequest
+message StreamMessageRequest {
+  string session_id = 1;
+  oneof payload {
+    Message message = 2;
+    google.protobuf.Empty heartbeat = 3;
+  }
+}
+
+// StreamMessageResponse
+message StreamMessageResponse {
+  oneof payload {
+    Message message = 1;
+    Event event = 2;
+    google.protobuf.Empty heartbeat = 3;
+  }
+}
+
+// =============================================================================
+// Request/Response Messages - Container Operations
+// =============================================================================
+
+// CreateContainerRequest
+message CreateContainerRequest {
+  string session_id = 1;
+  ContainerConfig config = 2;
+}
+
+// CreateContainerResponse
+message CreateContainerResponse {
+  string container_id = 1;
+  Container container = 2;
+}
+
+// GetContainerRequest
+message GetContainerRequest {
+  string container_id = 1;
+}
+
+// GetContainerResponse
+message GetContainerResponse {
+  Container container = 1;
+}
+
+// ListContainersRequest
+message ListContainersRequest {
+  ContainerFilter filter = 1;
+}
+
+// ContainerFilter defines filters for querying containers
+message ContainerFilter {
+  string session_id = 1;         // Optional
+  ContainerState state = 2;      // Optional
+  Status status = 3;             // Optional
+  map<string, string> labels = 4; // Optional, match all if empty
+}
+
+// ListContainersResponse
+message ListContainersResponse {
+  repeated Container containers = 1;
+  int32 total_count = 2;
+}
+
+// StopContainerRequest
+message StopContainerRequest {
+  string container_id = 1;
+  int64 timeout_ns = 2;  // Optional, timeout in nanoseconds
+}
+
+// StopContainerResponse
+message StopContainerResponse {
+  string container_id = 1;
+  ContainerState state = 2;
+}
+
+// RemoveContainerRequest
+message RemoveContainerRequest {
+  string container_id = 1;
+  bool force = 2;  // Optional, force removal
+}
+
+// RemoveContainerResponse
+message RemoveContainerResponse {
+  string container_id = 1;
+}
+
+// =============================================================================
+// Request/Response Messages - Event Subscription
+// =============================================================================
+
+// SubscribeEventsRequest
+message SubscribeEventsRequest {
+  EventFilter filter = 1;
+}
+
+// =============================================================================
+// Request/Response Messages - Health and Status
+// =============================================================================
+
+// HealthCheckResponse
+message HealthCheckResponse {
+  Health health = 1;
+  string version = 2;
+  repeated string subsystems = 3;
+}
+
+// StatusResponse
+message StatusResponse {
+  Status status = 1;
+  int32 active_sessions = 2;
+  int32 active_containers = 3;
+  google.protobuf.Timestamp started_at = 4;
+  google.protobuf.Timestamp uptime = 5;
+}
