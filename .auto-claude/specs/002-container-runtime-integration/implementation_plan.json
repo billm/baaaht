@@ -300,7 +300,7 @@
             "command": "go test -v ./pkg/container -run TestRuntime",
             "expected": "All runtime tests pass"
           },
-          "status": "pending"
+          "status": "completed"
         },
         {
           "id": "subtask-5-2",
