@@ -177,7 +177,7 @@ func DefaultSessionConfig() SessionConfig {
 		MaxSessions:        DefaultMaxSessions,
 		CleanupInterval:    5 * time.Minute,
 		IdleTimeout:        10 * time.Minute,
-		PersistenceEnabled: false,
+		PersistenceEnabled: true,
 		StoragePath:        storagePath,
 	}
 }
