@@ -112,13 +112,13 @@ req := &proto.CreateSessionRequest{
     Metadata: &proto.SessionMetadata{
         Name:        "my-session",
         Description: "Example session",
-        OwnerID:     "user-123",
+        OwnerId:     "user-123",
     },
     Config: &proto.SessionConfig{
         MaxContainers:  10,
         IdleTimeoutNs:  3600_000_000_000, // 1 hour
         ResourceLimits: &common.v1.ResourceLimits{
-            NanoCpu:    1_000_000_000, // 1 CPU
+            NanoCpus:    1_000_000_000, // 1 CPU
             MemoryBytes: 1024_1024_1024, // 1GB
         },
     },
@@ -140,7 +140,7 @@ resp, err := orchClient.GetSession(ctx, &proto.GetSessionRequest{
 resp, err := orchClient.ListSessions(ctx, &proto.ListSessionsRequest{
     Filter: &proto.SessionFilter{
         State:   proto.SessionState_SESSION_STATE_ACTIVE,
-        OwnerID: "user-123",
+        OwnerId: "user-123",
     },
 })
 ```
@@ -223,7 +223,7 @@ req := &proto.CreateContainerRequest{
             "PYTHONUNBUFFERED": "1",
         },
         ResourceLimits: &common.v1.ResourceLimits{
-            NanoCpu:     500_000_000, // 0.5 CPU
+            NanoCpus:     500_000_000, // 0.5 CPU
             MemoryBytes: 512_1024_1024, // 512MB
         },
     },
@@ -346,7 +346,7 @@ resp, err := gatewayClient.CreateGatewaySession(ctx, &proto.CreateGatewaySession
         Name:        "web-session",
         ClientType:  "web",
         ClientVersion: "1.0.0",
-        UserID:      "user-123",
+        UserId:      "user-123",
     },
     Config: &proto.GatewaySessionConfig{
         EnableStreaming: true,

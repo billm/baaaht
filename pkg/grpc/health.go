@@ -102,7 +102,8 @@ func (s *HealthServer) Check(ctx context.Context, req *grpc_health_v1.HealthChec
 }
 
 // Watch implements the health watch RPC
-// It streams health status changes for the requested service
+// It sends the current health status and then closes the stream.
+// Note: This is a simplified implementation that does not stream ongoing status changes.
 func (s *HealthServer) Watch(req *grpc_health_v1.HealthCheckRequest, stream grpc_health_v1.Health_WatchServer) error {
 	service := req.Service
 
