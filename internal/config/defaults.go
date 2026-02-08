@@ -71,6 +71,10 @@ const (
 	EnvRuntimeTLSKey     = "CONTAINER_RUNTIME_TLS_KEY"
 	EnvRuntimeTLSCA      = "CONTAINER_RUNTIME_TLS_CA"
 	EnvRuntimeTLSEnabled = "CONTAINER_RUNTIME_TLS_ENABLED"
+	EnvMemoryStoragePath = "MEMORY_STORAGE_PATH"
+	EnvMemoryEnabled     = "MEMORY_ENABLED"
+	EnvMemoryMaxFileSize = "MEMORY_MAX_FILE_SIZE"
+	EnvMemoryFileFormat  = "MEMORY_FILE_FORMAT"
 	EnvSessionPersistence = "SESSION_PERSISTENCE"
 	EnvSessionStoragePath = "SESSION_STORAGE_PATH"
 )
@@ -121,6 +125,11 @@ const (
 	// Default Runtime settings
 	DefaultRuntimeType    = "auto"
 	DefaultRuntimeTimeout = 30 * time.Second
+
+	// Default Memory settings
+	DefaultMemoryEnabled    = true
+	DefaultMemoryMaxFileSize = 100 // KB
+	DefaultMemoryFileFormat = "markdown"
 )
 
 // DefaultDockerConfig returns the default Docker configuration
@@ -293,5 +302,21 @@ func DefaultRuntimeConfig() RuntimeConfig {
 		TLSCertPath: "",
 		TLSKeyPath:  "",
 		TLSCAPath:   "",
+	}
+}
+
+// DefaultMemoryConfig returns the default memory configuration
+func DefaultMemoryConfig() MemoryConfig {
+	storagePath := "/var/lib/baaaht/memory" // fallback
+	if configDir, err := GetConfigDir(); err == nil {
+		storagePath = filepath.Join(configDir, "memory")
+	}
+	return MemoryConfig{
+		StoragePath:     storagePath,
+		UserMemoryPath:  filepath.Join(storagePath, "users"),
+		GroupMemoryPath: filepath.Join(storagePath, "groups"),
+		Enabled:         DefaultMemoryEnabled,
+		MaxFileSize:     DefaultMemoryMaxFileSize, // KB
+		FileFormat:      DefaultMemoryFileFormat,
 	}
 }
