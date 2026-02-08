@@ -24,6 +24,7 @@ type Config struct {
 	Metrics      MetricsConfig      `json:"metrics"`
 	Tracing      TracingConfig      `json:"tracing"`
 	Orchestrator OrchestratorConfig `json:"orchestrator"`
+	Runtime      RuntimeConfig      `json:"runtime"`
 }
 
 // DockerConfig contains Docker client configuration
@@ -148,6 +149,19 @@ type OrchestratorConfig struct {
 	ProfilingPort         int           `json:"profiling_port"`
 }
 
+// RuntimeConfig contains container runtime configuration
+type RuntimeConfig struct {
+	Type        string        `json:"type"`         // auto, docker, apple
+	SocketPath  string        `json:"socket_path,omitempty"`
+	Timeout     time.Duration `json:"timeout"`
+	MaxRetries  int           `json:"max_retries"`
+	RetryDelay  time.Duration `json:"retry_delay"`
+	TLSEnabled  bool          `json:"tls_enabled"`
+	TLSCertPath string        `json:"tls_cert_path,omitempty"`
+	TLSKeyPath  string        `json:"tls_key_path,omitempty"`
+	TLSCAPath   string        `json:"tls_ca_path,omitempty"`
+}
+
 // Load creates a new Config by loading defaults and overriding with environment variables
 func Load() (*Config, error) {
 	cfg := &Config{
@@ -163,6 +177,7 @@ func Load() (*Config, error) {
 		Metrics:      DefaultMetricsConfig(),
 		Tracing:      DefaultTracingConfig(),
 		Orchestrator: DefaultOrchestratorConfig(),
+		Runtime:      DefaultRuntimeConfig(),
 	}
 
 	// Load Docker configuration
@@ -265,6 +280,25 @@ func Load() (*Config, error) {
 		if d, err := time.ParseDuration(v); err == nil {
 			cfg.Orchestrator.ShutdownTimeout = d
 		}
+	}
+
+	// Load Runtime configuration
+	if v := os.Getenv(EnvRuntimeType); v != "" {
+		cfg.Runtime.Type = v
+	}
+	if v := os.Getenv(EnvRuntimeSocketPath); v != "" {
+		cfg.Runtime.SocketPath = v
+	}
+	if v := os.Getenv(EnvRuntimeTimeout); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			cfg.Runtime.Timeout = d
+		}
+	}
+	cfg.Runtime.TLSCertPath = os.Getenv(EnvRuntimeTLSCert)
+	cfg.Runtime.TLSKeyPath = os.Getenv(EnvRuntimeTLSKey)
+	cfg.Runtime.TLSCAPath = os.Getenv(EnvRuntimeTLSCA)
+	if v := os.Getenv(EnvRuntimeTLSEnabled); v != "" {
+		cfg.Runtime.TLSEnabled = strings.ToLower(v) == "true" || v == "1"
 	}
 
 	// Validate the configuration
@@ -388,6 +422,23 @@ func (c *Config) Validate() error {
 		return types.NewError(types.ErrCodeInvalidArgument, "shutdown timeout must be positive")
 	}
 
+	// Validate Runtime configuration
+	validRuntimeTypes := map[string]bool{
+		"auto":  true,
+		"docker": true,
+		"apple": true,
+	}
+	if !validRuntimeTypes[c.Runtime.Type] {
+		return types.NewError(types.ErrCodeInvalidArgument,
+			fmt.Sprintf("invalid runtime type: %s (must be auto, docker, or apple)", c.Runtime.Type))
+	}
+	if c.Runtime.Timeout <= 0 {
+		return types.NewError(types.ErrCodeInvalidArgument, "runtime timeout must be positive")
+	}
+	if c.Runtime.MaxRetries < 0 {
+		return types.NewError(types.ErrCodeInvalidArgument, "runtime max retries cannot be negative")
+	}
+
 	return nil
 }
 
@@ -408,7 +459,7 @@ func (c *Config) ProfilingAddress() string {
 
 // String returns a string representation of the configuration (sensitive data is hidden)
 func (c *Config) String() string {
-	return fmt.Sprintf("Config{Docker: %s, API: %s, Logging: %s, Session: %s, Event: %s, IPC: %s, Scheduler: %s, Credentials: %s, Policy: %s, Metrics: %s, Tracing: %s, Orchestrator: %s}",
+	return fmt.Sprintf("Config{Docker: %s, API: %s, Logging: %s, Session: %s, Event: %s, IPC: %s, Scheduler: %s, Credentials: %s, Policy: %s, Metrics: %s, Tracing: %s, Orchestrator: %s, Runtime: %s}",
 		c.Docker.String(),
 		c.APIServer.String(),
 		c.Logging.String(),
@@ -421,6 +472,7 @@ func (c *Config) String() string {
 		c.Metrics.String(),
 		c.Tracing.String(),
 		c.Orchestrator.String(),
+		c.Runtime.String(),
 	)
 }
 
@@ -482,4 +534,9 @@ func (c TracingConfig) String() string {
 func (c OrchestratorConfig) String() string {
 	return fmt.Sprintf("OrchestratorConfig{ShutdownTimeout: %s, EnableProfiling: %v, ProfilingPort: %d}",
 		c.ShutdownTimeout, c.EnableProfiling, c.ProfilingPort)
+}
+
+func (c RuntimeConfig) String() string {
+	return fmt.Sprintf("RuntimeConfig{Type: %s, SocketPath: %s, Timeout: %s, MaxRetries: %d, TLSEnabled: %v}",
+		c.Type, c.SocketPath, c.Timeout, c.MaxRetries, c.TLSEnabled)
 }
