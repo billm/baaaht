@@ -603,7 +603,9 @@ func (s *Store) getFilePath(mem *types.Memory) string {
 	
 	// First, check if the memory is in a topic directory
 	if mem.Topic != "" {
-		topicPath := filepath.Join(basePath, sanitizeOwnerID(mem.OwnerID), mem.Topic)
+		// Sanitize topic to prevent path traversal
+		sanitizedTopic := sanitizeTopic(mem.Topic)
+		topicPath := filepath.Join(basePath, sanitizeOwnerID(mem.OwnerID), sanitizedTopic)
 		topicFilePath := filepath.Join(topicPath, filename)
 		if _, err := os.Stat(topicFilePath); err == nil {
 			return topicFilePath
@@ -621,23 +623,23 @@ func deepCopyMemory(mem *types.Memory) *types.Memory {
 	}
 
 	// Create a shallow copy first
-	copy := *mem
+	result := *mem
 
 	// Deep copy the Labels map
 	if mem.Metadata.Labels != nil {
-		copy.Metadata.Labels = make(map[string]string, len(mem.Metadata.Labels))
+		result.Metadata.Labels = make(map[string]string, len(mem.Metadata.Labels))
 		for k, v := range mem.Metadata.Labels {
-			copy.Metadata.Labels[k] = v
+			result.Metadata.Labels[k] = v
 		}
 	}
 
 	// Deep copy the Tags slice
 	if mem.Metadata.Tags != nil {
-		copy.Metadata.Tags = make([]string, len(mem.Metadata.Tags))
-		copy.Metadata.Tags = append(copy.Metadata.Tags[:0], mem.Metadata.Tags...)
+		result.Metadata.Tags = make([]string, len(mem.Metadata.Tags))
+		copy(result.Metadata.Tags, mem.Metadata.Tags)
 	}
 
-	return &copy
+	return &result
 }
 
 // serializeToMarkdown converts a memory to markdown format with frontmatter
