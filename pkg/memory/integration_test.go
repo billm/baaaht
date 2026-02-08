@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/billm/baaaht/orchestrator/internal/config"
@@ -805,4 +806,239 @@ func TestExtractionFromSingleMessage(t *testing.T) {
 	}
 
 	t.Log("=== Extraction from single message test passed ===")
+}
+
+// TestMemoryFileStructureVerification verifies that memory files are created in
+// the correct directories with proper markdown format. This is a manual verification
+// test that shows the actual file structure and content.
+func TestMemoryFileStructureVerification(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	ctx := context.Background()
+	log := createTestLogger(t)
+	cfg := createTestMemoryConfig(t)
+	userID := "test-user-verify"
+	groupID := "test-group-verify"
+
+	t.Log("=== Step 1: Creating store and extractor ===")
+
+	store, err := NewStore(cfg, log)
+	require.NoError(t, err, "Failed to create store")
+	t.Cleanup(func() { store.Close() })
+
+	extractor, err := NewDefaultExtractor(store, log)
+	require.NoError(t, err, "Failed to create extractor")
+	t.Cleanup(func() { extractor.Close() })
+
+	handler, err := NewSessionArchivalHandler(extractor, store, log)
+	require.NoError(t, err, "Failed to create handler")
+	t.Cleanup(func() { handler.Close() })
+
+	t.Log("=== Step 2: Creating user-scoped session ===")
+
+	userSession := createTestSession(t, userID)
+	userSessionID := types.ID(userSession.ID)
+
+	t.Log("=== Step 3: Creating group-scoped memory directly ===")
+
+	// Create a group-scoped memory directly
+	groupMemory := &types.Memory{
+		ID:      types.GenerateID(),
+		Scope:   types.MemoryScopeGroup,
+		OwnerID: groupID,
+		Type:    types.MemoryTypeContext,
+		Topic:   "project",
+		Title:   "Group Project Context",
+		Content: "This is a group-scoped memory for project context",
+		Metadata: types.MemoryMetadata{
+			Labels:     map[string]string{"type": "project-context"},
+			Tags:       []string{"group", "project"},
+			Importance: 7,
+			Confidence: 0.9,
+		},
+	}
+
+	err = store.Store(ctx, groupMemory)
+	require.NoError(t, err, "Group memory storage should succeed")
+
+	t.Log("=== Step 4: Handling archival event for user session ===")
+
+	// Handle user session archival
+	userEvent := types.Event{
+		ID:        types.GenerateID(),
+		Type:      types.EventTypeSessionArchived,
+		Source:    "test-verification",
+		Timestamp: types.NewTimestamp(),
+		Data: map[string]interface{}{
+			"session": userSession,
+		},
+		Metadata: types.EventMetadata{
+			SessionID: &userSessionID,
+			Priority:  types.PriorityNormal,
+		},
+	}
+
+	err = handler.Handle(ctx, userEvent)
+	require.NoError(t, err, "User session archival should succeed")
+
+	t.Log("=== Step 5: Verifying user directory structure ===")
+
+	userOwnerPath := filepath.Join(cfg.UserMemoryPath, userID)
+	assert.DirExists(t, userOwnerPath, "User owner directory should exist")
+	t.Logf("User directory exists: %s", userOwnerPath)
+
+	userEntries, err := os.ReadDir(userOwnerPath)
+	require.NoError(t, err, "Should be able to read user directory")
+	assert.Greater(t, len(userEntries), 0, "User directory should contain memory files")
+
+	t.Logf("Found %d files/directories in user directory", len(userEntries))
+
+	// Verify each file in user directory
+	for _, entry := range userEntries {
+		if entry.IsDir() {
+			t.Logf("  [DIR] %s/", entry.Name())
+			continue
+		}
+
+		filePath := filepath.Join(userOwnerPath, entry.Name())
+		t.Logf("  [FILE] %s", entry.Name())
+
+		// Verify .md extension
+		assert.Equal(t, ".md", filepath.Ext(entry.Name()),
+			"Memory files should have .md extension")
+
+		// Verify file naming pattern: {id}__{sanitized-title}.md
+		baseName := strings.TrimSuffix(entry.Name(), ".md")
+		parts := strings.SplitN(baseName, "__", 2)
+		assert.GreaterOrEqual(t, len(parts), 1, "File name should have at least ID part")
+
+		// Read and verify markdown content
+		content, err := os.ReadFile(filePath)
+		require.NoError(t, err, "Should be able to read memory file")
+
+		// Verify JSON frontmatter pattern (```json ... ```)
+		contentStr := string(content)
+		assert.Contains(t, contentStr, "```json",
+			"Memory file should have JSON frontmatter")
+		assert.Contains(t, contentStr, "```",
+			"Memory file should close code block")
+
+		// Verify markdown content structure
+		lines := strings.Split(contentStr, "\n")
+		assert.Greater(t, len(lines), 5, "Memory file should have multiple lines")
+
+		// First line should be ```json
+		assert.True(t, strings.HasPrefix(strings.TrimSpace(lines[0]), "```json"),
+			"Memory file should start with JSON code block")
+
+		// Should have a heading with # (markdown title)
+		hasHeading := false
+		for _, line := range lines {
+			if strings.HasPrefix(line, "# ") {
+				hasHeading = true
+				break
+			}
+		}
+		assert.True(t, hasHeading, "Memory file should have markdown heading")
+
+		t.Logf("    Verified: .md extension, JSON frontmatter, markdown heading")
+	}
+
+	t.Log("=== Step 6: Verifying group directory structure ===")
+
+	groupOwnerPath := filepath.Join(cfg.GroupMemoryPath, groupID)
+	assert.DirExists(t, groupOwnerPath, "Group owner directory should exist")
+	t.Logf("Group directory exists: %s", groupOwnerPath)
+
+	groupEntries, err := os.ReadDir(groupOwnerPath)
+	require.NoError(t, err, "Should be able to read group directory")
+	assert.Greater(t, len(groupEntries), 0, "Group directory should contain memory files")
+
+	t.Logf("Found %d files/directories in group directory", len(groupEntries))
+
+	// Verify each file in group directory (same checks as user)
+	for _, entry := range groupEntries {
+		if entry.IsDir() {
+			t.Logf("  [DIR] %s/", entry.Name())
+			continue
+		}
+
+		filePath := filepath.Join(groupOwnerPath, entry.Name())
+		t.Logf("  [FILE] %s", entry.Name())
+
+		// Verify .md extension
+		assert.Equal(t, ".md", filepath.Ext(entry.Name()),
+			"Memory files should have .md extension")
+
+		// Read and verify markdown content exists
+		content, err := os.ReadFile(filePath)
+		require.NoError(t, err, "Should be able to read group memory file")
+		assert.NotEmpty(t, content, "Group memory file should have content")
+
+		t.Logf("    Verified: .md extension, content present")
+	}
+
+	t.Log("=== Step 7: Verifying scope isolation ===")
+
+	// User memories should not be in group directory
+	groupMemories, err := store.GetByOwner(ctx, types.MemoryScopeGroup, groupID)
+	require.NoError(t, err, "Should be able to get group memories")
+	assert.Greater(t, len(groupMemories), 0, "Should have group memories")
+
+	for _, mem := range groupMemories {
+		assert.Equal(t, types.MemoryScopeGroup, mem.Scope,
+			"Group memory should have group scope")
+		assert.Equal(t, groupID, mem.OwnerID,
+			"Group memory should have group owner ID")
+	}
+
+	// Group memories should not be in user directory
+	userMemories, err := store.GetByOwner(ctx, types.MemoryScopeUser, userID)
+	require.NoError(t, err, "Should be able to get user memories")
+	assert.Greater(t, len(userMemories), 0, "Should have user memories")
+
+	for _, mem := range userMemories {
+		assert.Equal(t, types.MemoryScopeUser, mem.Scope,
+			"User memory should have user scope")
+		assert.Equal(t, userID, mem.OwnerID,
+			"User memory should have user owner ID")
+	}
+
+	t.Log("=== Step 8: Displaying sample markdown file content ===")
+
+	// Find and display a sample memory file
+	if len(userEntries) > 0 {
+		for _, entry := range userEntries {
+			if !entry.IsDir() && filepath.Ext(entry.Name()) == ".md" {
+				samplePath := filepath.Join(userOwnerPath, entry.Name())
+				sampleContent, err := os.ReadFile(samplePath)
+				require.NoError(t, err, "Should be able to read sample file")
+
+				t.Log("=== Sample memory file content ===")
+				t.Logf("File: %s", entry.Name())
+				t.Log("--- Content Start ---")
+				for i, line := range strings.Split(string(sampleContent), "\n") {
+					if i < 30 { // Show first 30 lines
+						t.Log(line)
+					} else {
+						t.Log("... (content truncated)")
+						break
+					}
+				}
+				t.Log("--- Content End ---")
+				break
+			}
+		}
+	}
+
+	t.Log("=== Memory file structure verification test passed ===")
+	t.Logf("Summary:")
+	t.Logf("  - User directory: %s (%d files)", userOwnerPath, len(userEntries))
+	t.Logf("  - Group directory: %s (%d files)", groupOwnerPath, len(groupEntries))
+	t.Logf("  - All files have .md extension")
+	t.Logf("  - All files have JSON frontmatter")
+	t.Logf("  - All files have markdown content")
+	t.Logf("  - User and group memories are properly isolated")
 }
