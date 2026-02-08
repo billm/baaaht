@@ -330,7 +330,7 @@ func (s *Store) LoadMessages(ctx context.Context, ownerID, sessionID string) ([]
 	if err != nil {
 		// If lock acquisition fails, return error with context
 		return nil, types.WrapError(types.ErrCodeUnavailable, 
-			fmt.Sprintf("failed to acquire read lock for session file at %s after %v timeout", sessionFile, DefaultLockTimeout), err)
+			fmt.Sprintf("failed to acquire read lock for session file at %s after %s timeout", sessionFile, DefaultLockTimeout), err)
 	}
 	defer s.releaseLock(lock)
 
