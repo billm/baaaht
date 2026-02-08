@@ -314,6 +314,7 @@ func (r *DockerRuntime) EventsStream(ctx context.Context, containerID string) (<
 
 	go func() {
 		defer close(eventCh)
+		defer close(errCh)
 		for {
 			select {
 			case event, ok := <-rawEventCh:
