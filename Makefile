@@ -1,11 +1,17 @@
 # Baaaht Monorepo Makefile
 
-.PHONY: all build test clean lint docker-build docker-run help build-orchestrator
+.PHONY: all build test clean lint docker-build docker-run help build-orchestrator proto-gen proto-clean
 
 # Variables
 BUILD_DIR=bin
 DOCKER_IMAGE=baaaht/orchestrator
 DOCKER_TAG=latest
+
+# Proto variables
+PROTO_DIR=proto
+PROTO_FILES=$(wildcard $(PROTO_DIR)/*.proto)
+PROTO_GO_FILES=$(patsubst $(PROTO_DIR)/%.proto,$(PROTO_DIR)/%.pb.go,$(PROTO_FILES))
+PROTO_GRPC_GO_FILES=$(patsubst $(PROTO_DIR)/%.proto,$(PROTO_DIR)/%_grpc.pb.go,$(PROTO_FILES))
 
 # Available tools (binaries to build)
 TOOLS=orchestrator
@@ -41,7 +47,7 @@ test-integration:
 	go test -v ./tests/integration/...
 
 ## clean: Clean build artifacts
-clean:
+clean: proto-clean
 	@echo "Cleaning..."
 	rm -rf $(BUILD_DIR)
 	rm -f coverage.out coverage.html
@@ -79,6 +85,22 @@ docker-run:
 deps:
 	@echo "Downloading dependencies..."
 	go mod download
+
+## proto-gen: Generate Go code from Protocol Buffer definitions
+proto-gen: $(PROTO_GO_FILES) $(PROTO_GRPC_GO_FILES)
+
+$(PROTO_DIR)/%.pb.go: $(PROTO_DIR)/%.proto
+	@echo "Generating $<..."
+	@protoc --go_out=. --go_opt=paths=source_relative $<
+
+$(PROTO_DIR)/%_grpc.pb.go: $(PROTO_DIR)/%.proto
+	@echo "Generating gRPC stubs for $<..."
+	@protoc --go-grpc_out=. --go-grpc_opt=paths=source_relative $<
+
+## proto-clean: Remove generated Protocol Buffer Go files
+proto-clean:
+	@echo "Cleaning generated proto files..."
+	@rm -f $(PROTO_DIR)/*.pb.go
 
 ## help: Show this help message
 help:

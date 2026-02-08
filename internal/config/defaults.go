@@ -77,6 +77,11 @@ const (
 	EnvMemoryFileFormat  = "MEMORY_FILE_FORMAT"
 	EnvSessionPersistence = "SESSION_PERSISTENCE"
 	EnvSessionStoragePath = "SESSION_STORAGE_PATH"
+	EnvGRPCSocketPath    = "GRPC_SOCKET_PATH"
+	EnvGRPCMaxRecvMsgSize = "GRPC_MAX_RECV_MSG_SIZE"
+	EnvGRPCMaxSendMsgSize = "GRPC_MAX_SEND_MSG_SIZE"
+	EnvGRPCTimeout       = "GRPC_TIMEOUT"
+	EnvGRPCMaxConnections = "GRPC_MAX_CONNECTIONS"
 )
 
 const (
@@ -130,6 +135,13 @@ const (
 	DefaultMemoryEnabled    = true
 	DefaultMemoryMaxFileSize = 100 // KB
 	DefaultMemoryFileFormat = "markdown"
+
+	// Default gRPC settings
+	DefaultGRPCSocketPath     = "/tmp/baaaht-grpc.sock"
+	DefaultGRPCMaxRecvMsgSize = 100 * 1024 * 1024 // 100 MB
+	DefaultGRPCMaxSendMsgSize = 100 * 1024 * 1024 // 100 MB
+	DefaultGRPCTimeout        = 30 * time.Second
+	DefaultGRPCMaxConnections = 100
 )
 
 // DefaultDockerConfig returns the default Docker configuration
@@ -319,4 +331,15 @@ func DefaultMemoryConfig() MemoryConfig {
 		MaxFileSize:     DefaultMemoryMaxFileSize, // KB
 		FileFormat:      DefaultMemoryFileFormat,
 	}
+}
+
+// DefaultGRPCConfig returns the default gRPC server configuration
+func DefaultGRPCConfig() GRPCConfig {
+	return GRPCConfig{
+		SocketPath:     DefaultGRPCSocketPath,
+		MaxRecvMsgSize: DefaultGRPCMaxRecvMsgSize,
+		MaxSendMsgSize: DefaultGRPCMaxSendMsgSize,
+		Timeout:        DefaultGRPCTimeout,
+		MaxConnections: DefaultGRPCMaxConnections,
+  }
 }
