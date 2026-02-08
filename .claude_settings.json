@@ -1,0 +1,34 @@
+{
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": true
+  },
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Read(./**)",
+      "Write(./**)",
+      "Edit(./**)",
+      "Glob(./**)",
+      "Grep(./**)",
+      "Read(/Users/billm/workspace/baaaht/.auto-claude/worktrees/tasks/001-orchestration-core/**)",
+      "Write(/Users/billm/workspace/baaaht/.auto-claude/worktrees/tasks/001-orchestration-core/**)",
+      "Edit(/Users/billm/workspace/baaaht/.auto-claude/worktrees/tasks/001-orchestration-core/**)",
+      "Glob(/Users/billm/workspace/baaaht/.auto-claude/worktrees/tasks/001-orchestration-core/**)",
+      "Grep(/Users/billm/workspace/baaaht/.auto-claude/worktrees/tasks/001-orchestration-core/**)",
+      "Read(/Users/billm/workspace/baaaht/.auto-claude/worktrees/tasks/001-orchestration-core/.auto-claude/specs/001-orchestration-core/**)",
+      "Write(/Users/billm/workspace/baaaht/.auto-claude/worktrees/tasks/001-orchestration-core/.auto-claude/specs/001-orchestration-core/**)",
+      "Edit(/Users/billm/workspace/baaaht/.auto-claude/worktrees/tasks/001-orchestration-core/.auto-claude/specs/001-orchestration-core/**)",
+      "Read(/Users/billm/workspace/baaaht/.auto-claude/**)",
+      "Write(/Users/billm/workspace/baaaht/.auto-claude/**)",
+      "Edit(/Users/billm/workspace/baaaht/.auto-claude/**)",
+      "Glob(/Users/billm/workspace/baaaht/.auto-claude/**)",
+      "Grep(/Users/billm/workspace/baaaht/.auto-claude/**)",
+      "Bash(*)",
+      "WebFetch(*)",
+      "WebSearch(*)",
+      "mcp__context7__resolve-library-id(*)",
+      "mcp__context7__get-library-docs(*)"
+    ]
+  }
+}

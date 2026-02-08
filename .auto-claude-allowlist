@@ -1,0 +1,8 @@
+# Go commands
+go
+gofmt
+golint
+gopls
+gotests
+# Make
+make
