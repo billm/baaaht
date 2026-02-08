@@ -114,6 +114,7 @@ func TestPrepareFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create logger: %v", err)
 	}
+	defer log.Close()
 
 	store := createTestStore(t)
 	defer store.Close()
