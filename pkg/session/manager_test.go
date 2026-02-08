@@ -1369,15 +1369,27 @@ func TestRestoreSessionsMultipleUsers(t *testing.T) {
 	ctx := context.Background()
 
 	// Create sessions for multiple users
-	user1SessionID, _ := manager.Create(ctx, types.SessionMetadata{Name: "user1-session", OwnerID: "user-1"}, types.SessionConfig{})
-	user2SessionID, _ := manager.Create(ctx, types.SessionMetadata{Name: "user2-session", OwnerID: "user-2"}, types.SessionConfig{})
+	user1SessionID, err := manager.Create(ctx, types.SessionMetadata{Name: "user1-session", OwnerID: "user-1"}, types.SessionConfig{})
+	if err != nil {
+		t.Fatalf("failed to create user1 session: %v", err)
+	}
+	user2SessionID, err := manager.Create(ctx, types.SessionMetadata{Name: "user2-session", OwnerID: "user-2"}, types.SessionConfig{})
+	if err != nil {
+		t.Fatalf("failed to create user2 session: %v", err)
+	}
 
 	// Add messages to both sessions
-	_ = manager.AddMessage(ctx, user1SessionID, types.Message{Role: types.MessageRoleUser, Content: "User 1 message"})
-	_ = manager.AddMessage(ctx, user2SessionID, types.Message{Role: types.MessageRoleUser, Content: "User 2 message"})
+	if err := manager.AddMessage(ctx, user1SessionID, types.Message{Role: types.MessageRoleUser, Content: "User 1 message"}); err != nil {
+		t.Fatalf("failed to add message to user1 session: %v", err)
+	}
+	if err := manager.AddMessage(ctx, user2SessionID, types.Message{Role: types.MessageRoleUser, Content: "User 2 message"}); err != nil {
+		t.Fatalf("failed to add message to user2 session: %v", err)
+	}
 
 	// Close the first manager
-	_ = manager.Close()
+	if err := manager.Close(); err != nil {
+		t.Fatalf("failed to close manager: %v", err)
+	}
 
 	// Create a new manager and restore
 	manager2, err := New(cfg, log)
@@ -1433,10 +1445,15 @@ func TestRestoreSessionsDoesNotDuplicate(t *testing.T) {
 		Name:    "test-session",
 		OwnerID: "user-123",
 	}
-	sessionID, _ := manager.Create(ctx, metadata, types.SessionConfig{})
+	sessionID, err := manager.Create(ctx, metadata, types.SessionConfig{})
+	if err != nil {
+		t.Fatalf("failed to create session: %v", err)
+	}
 
 	// Add a message
-	_ = manager.AddMessage(ctx, sessionID, types.Message{Role: types.MessageRoleUser, Content: "Hello"})
+	if err := manager.AddMessage(ctx, sessionID, types.Message{Role: types.MessageRoleUser, Content: "Hello"}); err != nil {
+		t.Fatalf("failed to add message: %v", err)
+	}
 
 	// Restore sessions while session is already in memory
 	err = manager.RestoreSessions(ctx)

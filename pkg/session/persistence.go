@@ -126,8 +126,18 @@ func (s *Store) ensureUserDir(ownerID string) error {
 	return nil
 }
 
-// acquireLock attempts to acquire a file lock with retry logic
+// acquireLock attempts to acquire an exclusive file lock with retry logic
 func (s *Store) acquireLock(lockPath string) (*fileLock, error) {
+	return s.acquireLockWithMode(lockPath, syscall.LOCK_EX)
+}
+
+// acquireReadLock attempts to acquire a shared file lock with retry logic
+func (s *Store) acquireReadLock(lockPath string) (*fileLock, error) {
+	return s.acquireLockWithMode(lockPath, syscall.LOCK_SH)
+}
+
+// acquireLockWithMode attempts to acquire a file lock with the specified mode and retry logic
+func (s *Store) acquireLockWithMode(lockPath string, lockMode int) (*fileLock, error) {
 	// Ensure the parent directory exists for the lock file
 	lockDir := filepath.Dir(lockPath)
 	if err := os.MkdirAll(lockDir, DefaultDirPermissions); err != nil {
@@ -140,7 +150,7 @@ func (s *Store) acquireLock(lockPath string) (*fileLock, error) {
 		return nil, types.WrapError(types.ErrCodeInternal, "failed to create lock file", err)
 	}
 
-	// Try to acquire exclusive lock with timeout
+	// Try to acquire lock with timeout
 	timeout := time.After(DefaultLockTimeout)
 	ticker := time.NewTicker(LockRetryInterval)
 	defer ticker.Stop()
@@ -151,8 +161,8 @@ func (s *Store) acquireLock(lockPath string) (*fileLock, error) {
 			lockFile.Close()
 			return nil, types.NewError(types.ErrCodeUnavailable, "timeout waiting to acquire file lock")
 		case <-ticker.C:
-			// Try to acquire exclusive flock
-			err := syscall.Flock(int(lockFile.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+			// Try to acquire flock (exclusive or shared)
+			err := syscall.Flock(int(lockFile.Fd()), lockMode|syscall.LOCK_NB)
 			if err == nil {
 				// Lock acquired successfully
 				return &fileLock{
@@ -179,11 +189,6 @@ func (s *Store) releaseLock(lock *fileLock) error {
 	// Close the file
 	if err := lock.file.Close(); err != nil {
 		s.logger.Warn("Failed to close lock file", "path", lock.path, "error", err)
-	}
-
-	// Remove the lock file
-	if err := os.Remove(lock.path); err != nil && !os.IsNotExist(err) {
-		s.logger.Warn("Failed to remove lock file", "path", lock.path, "error", err)
 	}
 
 	return nil
@@ -321,14 +326,12 @@ func (s *Store) LoadMessages(ctx context.Context, ownerID, sessionID string) ([]
 	lockPath := s.getLockFilePath(sessionFile)
 
 	// Acquire shared file lock for concurrent read safety
-	lock, err := s.acquireLock(lockPath)
+	lock, err := s.acquireReadLock(lockPath)
 	if err != nil {
-		// If lock acquisition fails, log and attempt to read anyway
-		// This handles cases where lock file exists but file is readable
-		s.logger.Warn("Failed to acquire read lock, attempting to read anyway", "error", err)
-	} else {
-		defer s.releaseLock(lock)
+		// If lock acquisition fails, return error instead of reading anyway
+		return nil, types.WrapError(types.ErrCodeUnavailable, "failed to acquire read lock", err)
 	}
+	defer s.releaseLock(lock)
 
 	// Read the file
 	data, err := os.ReadFile(sessionFile)
