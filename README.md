@@ -338,13 +338,17 @@ The container package supports custom runtime implementations through a factory 
 
 ```go
 // Register a custom runtime
-container.RegisterRuntime("custom", func(cfg container.RuntimeConfig) (container.Runtime, error) {
+container.RegisterCustomRuntime("custom", func(cfg container.RuntimeConfig) (container.Runtime, error) {
     return &MyCustomRuntime{config: cfg}, nil
 })
 
-// Use the custom runtime
-runtime, err := container.NewRuntime(ctx, container.RuntimeConfig{
-    Type:    "custom",
+// Use the custom runtime from the registry
+factory, err := container.GetRuntimeFromRegistry("custom")
+if err != nil {
+    // handle error
+}
+
+runtime, err := factory(ctx, container.RuntimeConfig{
     Timeout: 30 * time.Second,
 })
 ```
