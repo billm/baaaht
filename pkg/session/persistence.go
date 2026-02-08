@@ -239,6 +239,73 @@ func (s *Store) AppendMessage(ctx context.Context, ownerID, sessionID string, ms
 	return nil
 }
 
+// LoadMessages loads all messages from a session file
+func (s *Store) LoadMessages(ctx context.Context, ownerID, sessionID string) ([]types.Message, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if s.closed {
+		return nil, types.NewError(types.ErrCodeUnavailable, "persistence store is closed")
+	}
+
+	if !s.cfg.PersistenceEnabled {
+		// Return empty list if persistence is disabled
+		return []types.Message{}, nil
+	}
+
+	sessionFile := s.getSessionFilePath(ownerID, sessionID)
+
+	// Read the file
+	data, err := os.ReadFile(sessionFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// No file exists, return empty list
+			return []types.Message{}, nil
+		}
+		return nil, types.WrapError(types.ErrCodeInternal, "failed to read session file", err)
+	}
+
+	// Parse JSONL format - each line is a JSON object
+	messages := []types.Message{}
+	lines := splitLines(data)
+
+	for _, line := range lines {
+		if len(line) == 0 {
+			continue // Skip empty lines
+		}
+
+		// Unmarshal the persisted message
+		persistedMsg, err := s.unmarshalMessage(line)
+		if err != nil {
+			s.logger.Warn("Failed to unmarshal message, skipping", "error", err)
+			continue // Skip corrupted lines instead of failing entirely
+		}
+
+		// Convert to types.Message and append
+		msg := toMessage(persistedMsg)
+		messages = append(messages, msg)
+	}
+
+	s.logger.Debug("Loaded messages from session", "owner_id", ownerID, "session_id", sessionID, "count", len(messages))
+	return messages, nil
+}
+
+// splitLines splits data into lines
+func splitLines(data []byte) [][]byte {
+	lines := [][]byte{}
+	start := 0
+	for i, b := range data {
+		if b == '\n' {
+			lines = append(lines, data[start:i])
+			start = i + 1
+		}
+	}
+	if start < len(data) {
+		lines = append(lines, data[start:])
+	}
+	return lines
+}
+
 // IsEnabled returns true if persistence is enabled
 func (s *Store) IsEnabled() bool {
 	return s.cfg.PersistenceEnabled

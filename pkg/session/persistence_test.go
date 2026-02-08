@@ -498,6 +498,187 @@ func TestAppendMessageWhenDisabled(t *testing.T) {
 	}
 }
 
+// TestLoadMessages tests loading messages from a session file
+func TestLoadMessages(t *testing.T) {
+	store := createTestStore(t)
+	defer store.Close()
+
+	ctx := context.Background()
+	ownerID := "user123"
+	sessionID := "session456"
+
+	// First, append some messages
+	messages := []types.Message{
+		{
+			ID:        types.GenerateID(),
+			Timestamp: types.NewTimestamp(),
+			Role:      types.MessageRoleUser,
+			Content:   "First message",
+		},
+		{
+			ID:        types.GenerateID(),
+			Timestamp: types.NewTimestamp(),
+			Role:      types.MessageRoleAssistant,
+			Content:   "Second message",
+		},
+		{
+			ID:        types.GenerateID(),
+			Timestamp: types.NewTimestamp(),
+			Role:      types.MessageRoleUser,
+			Content:   "Third message",
+		},
+	}
+
+	for i, msg := range messages {
+		if err := store.AppendMessage(ctx, ownerID, sessionID, msg); err != nil {
+			t.Fatalf("failed to append message %d: %v", i, err)
+		}
+	}
+
+	// Load messages
+	loaded, err := store.LoadMessages(ctx, ownerID, sessionID)
+	if err != nil {
+		t.Fatalf("failed to load messages: %v", err)
+	}
+
+	if len(loaded) != len(messages) {
+		t.Errorf("expected %d messages, got %d", len(messages), len(loaded))
+	}
+
+	// Verify each message
+	for i, loadedMsg := range loaded {
+		if loadedMsg.ID.String() != messages[i].ID.String() {
+			t.Errorf("message %d: expected ID %s, got %s", i, messages[i].ID.String(), loadedMsg.ID.String())
+		}
+		if loadedMsg.Content != messages[i].Content {
+			t.Errorf("message %d: expected content %s, got %s", i, messages[i].Content, loadedMsg.Content)
+		}
+		if loadedMsg.Role != messages[i].Role {
+			t.Errorf("message %d: expected role %s, got %s", i, messages[i].Role, loadedMsg.Role)
+		}
+	}
+}
+
+// TestLoadMessagesEmptyFile tests loading from a non-existent file
+func TestLoadMessagesEmptyFile(t *testing.T) {
+	store := createTestStore(t)
+	defer store.Close()
+
+	ctx := context.Background()
+	ownerID := "user123"
+	sessionID := "nonexistent"
+
+	// Load from non-existent file
+	loaded, err := store.LoadMessages(ctx, ownerID, sessionID)
+	if err != nil {
+		t.Fatalf("expected no error for non-existent file, got %v", err)
+	}
+
+	if len(loaded) != 0 {
+		t.Errorf("expected 0 messages for non-existent file, got %d", len(loaded))
+	}
+}
+
+// TestLoadMessagesWhenClosed tests loading when store is closed
+func TestLoadMessagesWhenClosed(t *testing.T) {
+	store := createTestStore(t)
+
+	ctx := context.Background()
+	ownerID := "user123"
+	sessionID := "session456"
+
+	// Close the store
+	if err := store.Close(); err != nil {
+		t.Fatalf("failed to close store: %v", err)
+	}
+
+	// Try to load - should fail
+	if _, err := store.LoadMessages(ctx, ownerID, sessionID); err == nil {
+		t.Error("expected error when loading from closed store, got nil")
+	}
+}
+
+// TestLoadMessagesWhenDisabled tests loading when persistence is disabled
+func TestLoadMessagesWhenDisabled(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfg := config.DefaultSessionConfig()
+	cfg.StoragePath = filepath.Join(tmpDir, "sessions")
+	cfg.PersistenceEnabled = false
+
+	log, err := logger.NewDefault()
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
+
+	store, err := NewStore(cfg, log)
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	ctx := context.Background()
+	ownerID := "user123"
+	sessionID := "session456"
+
+	// Load should return empty list when persistence is disabled
+	loaded, err := store.LoadMessages(ctx, ownerID, sessionID)
+	if err != nil {
+		t.Errorf("expected no error when persistence is disabled, got %v", err)
+	}
+
+	if len(loaded) != 0 {
+		t.Errorf("expected 0 messages when persistence is disabled, got %d", len(loaded))
+	}
+}
+
+// TestLoadMessagesWithCorruptedFile tests loading with corrupted data in file
+func TestLoadMessagesWithCorruptedFile(t *testing.T) {
+	store := createTestStore(t)
+	defer store.Close()
+
+	ctx := context.Background()
+	ownerID := "user123"
+	sessionID := "session456"
+
+	// Append some valid messages first
+	validMsg := types.Message{
+		ID:        types.GenerateID(),
+		Timestamp: types.NewTimestamp(),
+		Role:      types.MessageRoleUser,
+		Content:   "Valid message",
+	}
+
+	if err := store.AppendMessage(ctx, ownerID, sessionID, validMsg); err != nil {
+		t.Fatalf("failed to append message: %v", err)
+	}
+
+	// Manually append some corrupted data to the file
+	sessionFile := store.getSessionFilePath(ownerID, sessionID)
+	file, err := os.OpenFile(sessionFile, os.O_APPEND|os.O_WRONLY, DefaultFilePermissions)
+	if err != nil {
+		t.Fatalf("failed to open session file: %v", err)
+	}
+	if _, err := file.Write([]byte("this is not valid json\n")); err != nil {
+		file.Close()
+		t.Fatalf("failed to write corrupted data: %v", err)
+	}
+	file.Close()
+
+	// Load messages - should skip the corrupted line and return only the valid one
+	loaded, err := store.LoadMessages(ctx, ownerID, sessionID)
+	if err != nil {
+		t.Fatalf("expected no error when loading file with corrupted data, got %v", err)
+	}
+
+	if len(loaded) != 1 {
+		t.Errorf("expected 1 valid message, got %d", len(loaded))
+	}
+
+	if len(loaded) > 0 && loaded[0].Content != validMsg.Content {
+		t.Errorf("expected content %s, got %s", validMsg.Content, loaded[0].Content)
+	}
+}
+
 // TestConstants tests the defined constants
 func TestConstants(t *testing.T) {
 	if DefaultFilePermissions != 0600 {
@@ -526,20 +707,4 @@ func countLines(data []byte) int {
 		}
 	}
 	return count
-}
-
-// splitLines splits data into lines
-func splitLines(data []byte) [][]byte {
-	lines := [][]byte{}
-	start := 0
-	for i, b := range data {
-		if b == '\n' {
-			lines = append(lines, data[start:i])
-			start = i + 1
-		}
-	}
-	if start < len(data) {
-		lines = append(lines, data[start:])
-	}
-	return lines
 }
