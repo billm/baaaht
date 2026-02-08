@@ -149,7 +149,6 @@ func (s *Store) acquireLock(lockPath string) (*fileLock, error) {
 		select {
 		case <-timeout:
 			lockFile.Close()
-			os.Remove(lockPath)
 			return nil, types.NewError(types.ErrCodeUnavailable, "timeout waiting to acquire file lock")
 		case <-ticker.C:
 			// Try to acquire exclusive flock
