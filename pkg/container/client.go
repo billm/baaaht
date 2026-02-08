@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -343,9 +344,14 @@ func (c *Client) String() string {
 var (
 	globalClient *Client
 	globalOnce   sync.Once
+
+	// Global runtime instance (new pattern using factory)
+	globalRuntime Runtime
+	globalRuntimeOnce sync.Once
 )
 
 // InitGlobal initializes the global Docker client with the specified configuration
+// This function is kept for backward compatibility. It uses the runtime factory internally.
 func InitGlobal(cfg config.DockerConfig, log *logger.Logger) error {
 	var initErr error
 	globalOnce.Do(func() {
@@ -360,6 +366,7 @@ func InitGlobal(cfg config.DockerConfig, log *logger.Logger) error {
 }
 
 // Global returns the global Docker client instance
+// This function is kept for backward compatibility
 func Global() *Client {
 	if globalClient == nil {
 		// Initialize with default settings if not already initialized
@@ -377,6 +384,182 @@ func Global() *Client {
 func SetGlobal(c *Client) {
 	globalClient = c
 	globalOnce = sync.Once{}
+}
+
+// InitGlobalRuntime initializes the global runtime using the runtime factory
+// This is the recommended way to initialize the global container runtime
+func InitGlobalRuntime(ctx context.Context, cfg RuntimeConfig) error {
+	var initErr error
+	globalRuntimeOnce.Do(func() {
+		rt, err := NewRuntime(ctx, cfg)
+		if err != nil {
+			initErr = err
+			return
+		}
+		globalRuntime = rt
+	})
+	return initErr
+}
+
+// InitGlobalRuntimeDefault initializes the global runtime with auto-detection
+// This is a convenience function that uses default configuration
+func InitGlobalRuntimeDefault(ctx context.Context) error {
+	log, err := logger.NewDefault()
+	if err != nil {
+		return types.WrapError(types.ErrCodeInternal, "failed to create default logger", err)
+	}
+
+	cfg := RuntimeConfig{
+		Type:    string(types.RuntimeTypeAuto),
+		Timeout: 30 * time.Second,
+		Logger:  log,
+	}
+
+	return InitGlobalRuntime(ctx, cfg)
+}
+
+// GlobalRuntime returns the global Runtime instance
+// If not yet initialized, it will create one with auto-detection
+func GlobalRuntime() Runtime {
+	if globalRuntime == nil {
+		// Initialize with auto-detection if not already initialized
+		ctx := context.Background()
+		rt, err := NewRuntimeDefault(ctx)
+		if err != nil {
+			// Return a mock runtime that always returns errors
+			return &errorRuntime{err: err}
+		}
+		globalRuntime = rt
+	}
+	return globalRuntime
+}
+
+// SetGlobalRuntime sets the global Runtime instance
+func SetGlobalRuntime(rt Runtime) {
+	globalRuntime = rt
+	globalRuntimeOnce = sync.Once{}
+}
+
+// GlobalClient returns the global Docker client from the runtime
+// This is a convenience function that extracts the client from the global runtime
+func GlobalClient() *Client {
+	rt := GlobalRuntime()
+	if drt, ok := rt.(*DockerRuntime); ok {
+		return drt.DockerClient()
+	}
+	// Fallback to legacy global client
+	return Global()
+}
+
+// errorRuntime is a runtime that always returns errors
+type errorRuntime struct {
+	err error
+}
+
+func (r *errorRuntime) Create(ctx context.Context, cfg CreateConfig) (*CreateResult, error) {
+	return nil, r.err
+}
+
+func (r *errorRuntime) Start(ctx context.Context, cfg StartConfig) error {
+	return r.err
+}
+
+func (r *errorRuntime) Stop(ctx context.Context, cfg StopConfig) error {
+	return r.err
+}
+
+func (r *errorRuntime) Restart(ctx context.Context, cfg RestartConfig) error {
+	return r.err
+}
+
+func (r *errorRuntime) Destroy(ctx context.Context, cfg DestroyConfig) error {
+	return r.err
+}
+
+func (r *errorRuntime) Pause(ctx context.Context, containerID string) error {
+	return r.err
+}
+
+func (r *errorRuntime) Unpause(ctx context.Context, containerID string) error {
+	return r.err
+}
+
+func (r *errorRuntime) Kill(ctx context.Context, cfg KillConfig) error {
+	return r.err
+}
+
+func (r *errorRuntime) Wait(ctx context.Context, containerID string) (int, error) {
+	return 0, r.err
+}
+
+func (r *errorRuntime) Status(ctx context.Context, containerID string) (types.ContainerState, error) {
+	return types.ContainerStateUnknown, r.err
+}
+
+func (r *errorRuntime) IsRunning(ctx context.Context, containerID string) (bool, error) {
+	return false, r.err
+}
+
+func (r *errorRuntime) HealthCheck(ctx context.Context, containerID string) (*HealthCheckResult, error) {
+	return nil, r.err
+}
+
+func (r *errorRuntime) HealthCheckWithRetry(ctx context.Context, containerID string, maxAttempts int, interval time.Duration) (*HealthCheckResult, error) {
+	return nil, r.err
+}
+
+func (r *errorRuntime) Stats(ctx context.Context, containerID string) (*types.ContainerStats, error) {
+	return nil, r.err
+}
+
+func (r *errorRuntime) StatsStream(ctx context.Context, containerID string, interval time.Duration) (<-chan *types.ContainerStats, <-chan error) {
+	errCh := make(chan error, 1)
+	statsCh := make(chan *types.ContainerStats)
+	close(statsCh)
+	errCh <- r.err
+	close(errCh)
+	return statsCh, errCh
+}
+
+func (r *errorRuntime) Logs(ctx context.Context, cfg LogsConfig) (io.ReadCloser, error) {
+	return nil, r.err
+}
+
+func (r *errorRuntime) LogsLines(ctx context.Context, cfg LogsConfig) ([]types.ContainerLog, error) {
+	return nil, r.err
+}
+
+func (r *errorRuntime) EventsStream(ctx context.Context, containerID string) (<-chan EventsMessage, <-chan error) {
+	errCh := make(chan error, 1)
+	eventCh := make(chan EventsMessage)
+	close(eventCh)
+	errCh <- r.err
+	close(errCh)
+	return eventCh, errCh
+}
+
+func (r *errorRuntime) PullImage(ctx context.Context, image string, timeout time.Duration) error {
+	return r.err
+}
+
+func (r *errorRuntime) ImageExists(ctx context.Context, image string) (bool, error) {
+	return false, r.err
+}
+
+func (r *errorRuntime) Client() interface{} {
+	return nil
+}
+
+func (r *errorRuntime) Type() string {
+	return "error"
+}
+
+func (r *errorRuntime) Info(ctx context.Context) (*RuntimeInfo, error) {
+	return nil, r.err
+}
+
+func (r *errorRuntime) Close() error {
+	return nil
 }
 
 // CheckEnvironment verifies that Docker is available in the environment
