@@ -734,3 +734,236 @@ func truncateString(s string, maxLen int) string {
 	}
 	return s[:maxLen] + "..."
 }
+
+// TestJSONLFormatIsHumanReadableAndParseable verifies that the JSONL format
+// used for session persistence is human-readable and can be parsed by external tools.
+// This test explicitly validates:
+// - Each line is valid JSON
+// - JSON structure is readable and well-formed
+// - Fields use descriptive names
+// - File can be read and processed line-by-line
+func TestJSONLFormatIsHumanReadableAndParseable(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping JSONL format test in short mode")
+	}
+
+	ctx := context.Background()
+	log, err := logger.New(config.DefaultLoggingConfig())
+	require.NoError(t, err, "Failed to create logger")
+
+	// Create a temporary directory for persistence
+	tmpDir := t.TempDir()
+	storagePath := filepath.Join(tmpDir, "sessions")
+
+	t.Log("=== Step 1: Create session and add messages ===")
+
+	cfg := config.SessionConfig{
+		StoragePath:        storagePath,
+		PersistenceEnabled: true,
+		MaxSessions:        100,
+		IdleTimeout:        30 * time.Minute,
+		Timeout:            24 * time.Hour,
+	}
+
+	manager, err := session.New(cfg, log)
+	require.NoError(t, err, "Failed to create session manager")
+	defer manager.Close()
+
+	// Create a test session with realistic message content
+	sessionMetadata := types.SessionMetadata{
+		Name:        "jsonl-format-test",
+		Description: "Testing JSONL format for human-readability",
+		OwnerID:     "test-user-format",
+		Labels: map[string]string{
+			"test": "jsonl-format",
+		},
+	}
+
+	sessionID, err := manager.Create(ctx, sessionMetadata, types.SessionConfig{})
+	require.NoError(t, err, "Failed to create session")
+
+	// Add messages with different types of content to verify format robustness
+	testMessages := []types.Message{
+		{
+			Role:    types.MessageRoleUser,
+			Content: "Simple text message",
+		},
+		{
+			Role:    types.MessageRoleAssistant,
+			Content: "Message with special characters: \"quotes\", 'apostrophes', {brackets}, <angles>",
+		},
+		{
+			Role:    types.MessageRoleUser,
+			Content: "Message with newlines and\n\ttabs\nand multiple\nlines",
+		},
+		{
+			Role:    types.MessageRoleAssistant,
+			Content: "Message with unicode: Hello 世界 🌍 Привет",
+		},
+		{
+			Role:    types.MessageRoleUser,
+			Content: "Message with emojis: 🎉 🚀 ✅ 💻",
+			Metadata: types.MessageMetadata{
+				Extra: map[string]string{
+					"custom_field": "custom_value",
+					"number":       "42",
+				},
+			},
+		},
+	}
+
+	for i, msg := range testMessages {
+		err := manager.AddMessage(ctx, sessionID, msg)
+		require.NoError(t, err, "Failed to add message %d", i)
+		t.Logf("Message %d added", i+1)
+	}
+
+	// Step 2: Read and verify JSONL file
+	t.Log("=== Step 2: Verify JSONL file format ===")
+
+	expectedFilePath := filepath.Join(storagePath, sessionMetadata.OwnerID, sessionID.String()+".jsonl")
+
+	fileContent, err := os.ReadFile(expectedFilePath)
+	require.NoError(t, err, "Failed to read JSONL file")
+
+	// Split into lines
+	lines := strings.Split(string(fileContent), "\n")
+	// Remove empty last line if present
+	if len(lines) > 0 && lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
+	}
+
+	require.Equal(t, len(testMessages), len(lines), "Should have one line per message")
+
+	t.Logf("JSONL file has %d lines", len(lines))
+
+	// Step 3: Verify each line is valid JSON and parseable
+	t.Log("=== Step 3: Verify each line is valid JSON ===")
+
+	type jsonlMessage struct {
+		ID        string    `json:"id"`
+		Timestamp time.Time `json:"timestamp"`
+		Role      string    `json:"role"`
+		Content   string    `json:"content"`
+	}
+
+	for i, line := range lines {
+		require.NotEmpty(t, line, "Line %d should not be empty", i)
+
+		// Verify it's valid JSON
+		var msg jsonlMessage
+		err := json.Unmarshal([]byte(line), &msg)
+		require.NoError(t, err, "Line %d should be valid JSON: %s", i, line)
+
+		// Verify required fields
+		require.NotEmpty(t, msg.ID, "Line %d should have non-empty id", i)
+		require.NotEmpty(t, msg.Role, "Line %d should have non-empty role", i)
+		require.NotEmpty(t, msg.Content, "Line %d should have non-empty content", i)
+
+		// Verify timestamp is recent (within last minute)
+		timeDiff := time.Since(msg.Timestamp)
+		require.Less(t, timeDiff, 2*time.Minute, "Line %d timestamp should be recent", i)
+		require.Greater(t, timeDiff, -time.Minute, "Line %d timestamp should not be in the future", i)
+
+		// Verify content matches
+		require.Equal(t, testMessages[i].Content, msg.Content, "Line %d content should match", i)
+		require.Equal(t, string(testMessages[i].Role), msg.Role, "Line %d role should match", i)
+
+		t.Logf("Line %d: ✓ Valid JSON - id=%s, role=%s, content_len=%d",
+			i+1, msg.ID, msg.Role, len(msg.Content))
+	}
+
+	// Step 4: Verify human-readability
+	t.Log("=== Step 4: Verify human-readability ===")
+
+	// Check that the JSON is properly formatted with readable field names
+	for i, line := range lines {
+		// Verify line has expected structure with readable field names
+		assert.Contains(t, line, `"id":`, "Line %d should have readable 'id' field", i)
+		assert.Contains(t, line, `"timestamp":`, "Line %d should have readable 'timestamp' field", i)
+		assert.Contains(t, line, `"role":`, "Line %d should have readable 'role' field", i)
+		assert.Contains(t, line, `"content":`, "Line %d should have readable 'content' field", i)
+	}
+
+	t.Log("✓ All lines have properly formatted, readable field names")
+
+	// Step 5: Display sample output for manual inspection
+	t.Log("=== Step 5: Sample JSONL output (for manual inspection) ===")
+	t.Log("---")
+	t.Logf("File: %s", expectedFilePath)
+	t.Log("Sample lines (first 3):")
+	for i := 0; i < min(3, len(lines)); i++ {
+		t.Logf("  Line %d: %s", i+1, truncateString(lines[i], 120))
+	}
+	t.Log("---")
+
+	// Step 6: Verify external tools can parse it (simulate jq/external parsing)
+	t.Log("=== Step 6: Verify external parseability ===")
+
+	// Simulate what an external tool like jq would do
+	lineCount := 0
+	for _, line := range lines {
+		var data map[string]interface{}
+		if err := json.Unmarshal([]byte(line), &data); err != nil {
+			t.Errorf("External parsing failed at line %d: %v", lineCount, err)
+		}
+		lineCount++
+	}
+
+	t.Logf("✓ All %d lines can be parsed by external JSON tools (e.g., jq)", lineCount)
+
+	// Step 7: Verify file characteristics
+	t.Log("=== Step 7: Verify file characteristics ===")
+
+	fileInfo, err := os.Stat(expectedFilePath)
+	require.NoError(t, err, "Failed to get file info")
+
+	// Verify file is not empty
+	require.Greater(t, fileInfo.Size(), int64(0), "File should not be empty")
+
+	// Verify file is reasonable size (not excessively large for 5 messages)
+	require.Less(t, fileInfo.Size(), int64(10000), "File should be reasonably sized")
+
+	// Calculate average line length
+	totalLineLength := 0
+	for _, line := range lines {
+		totalLineLength += len(line)
+	}
+	avgLineLength := totalLineLength / len(lines)
+
+	t.Logf("File size: %d bytes", fileInfo.Size())
+	t.Logf("Average line length: %d bytes", avgLineLength)
+	t.Logf("Messages per file: %d", len(lines))
+
+	// Verify format consistency
+	// All lines should start with the same structure
+	for i, line := range lines {
+		// Each line should start with {"id":" for consistency
+		assert.True(t, strings.HasPrefix(line, `{"id":"`),
+			"Line %d should start with standard format", i)
+
+		// Each line should end with } for valid JSON
+		assert.True(t, strings.HasSuffix(line, `}`),
+			"Line %d should end with valid JSON closing brace", i)
+	}
+
+	t.Log("✓ All lines follow consistent JSONL format")
+
+	// Test complete
+	t.Log("=== JSONL Format Verification Complete ===")
+	t.Log("Summary:")
+	t.Log("  ✓ All lines are valid JSON")
+	t.Log("  ✓ All fields are human-readable (id, timestamp, role, content)")
+	t.Log("  ✓ Special characters are properly escaped")
+	t.Log("  ✓ Unicode and emojis are properly encoded")
+	t.Log("  ✓ Format is consistent across all lines")
+	t.Log("  ✓ File can be parsed by external tools")
+	t.Log("  ✓ File size is reasonable")
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
