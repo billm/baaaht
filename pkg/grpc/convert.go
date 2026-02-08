@@ -1197,3 +1197,405 @@ func agentMetadataToProto(metadata map[string]interface{}) *proto.AgentMetadata 
 
 	return pb
 }
+
+// =============================================================================
+// Container Type Conversion Functions
+// =============================================================================
+
+// ContainerState conversion functions
+
+// protoToContainerState converts protobuf ContainerState to types.ContainerState
+func protoToContainerState(state proto.ContainerState) types.ContainerState {
+	switch state {
+	case proto.ContainerState_CONTAINER_STATE_CREATED:
+		return types.ContainerStateCreated
+	case proto.ContainerState_CONTAINER_STATE_RUNNING:
+		return types.ContainerStateRunning
+	case proto.ContainerState_CONTAINER_STATE_PAUSED:
+		return types.ContainerStatePaused
+	case proto.ContainerState_CONTAINER_STATE_RESTARTING:
+		return types.ContainerStateRestarting
+	case proto.ContainerState_CONTAINER_STATE_EXITED:
+		return types.ContainerStateExited
+	case proto.ContainerState_CONTAINER_STATE_REMOVING:
+		return types.ContainerStateRemoving
+	case proto.ContainerState_CONTAINER_STATE_UNKNOWN:
+		return types.ContainerStateUnknown
+	default:
+		return types.ContainerStateUnknown
+	}
+}
+
+// containerStateToProto converts types.ContainerState to protobuf ContainerState
+func containerStateToProto(state types.ContainerState) proto.ContainerState {
+	switch state {
+	case types.ContainerStateCreated:
+		return proto.ContainerState_CONTAINER_STATE_CREATED
+	case types.ContainerStateRunning:
+		return proto.ContainerState_CONTAINER_STATE_RUNNING
+	case types.ContainerStatePaused:
+		return proto.ContainerState_CONTAINER_STATE_PAUSED
+	case types.ContainerStateRestarting:
+		return proto.ContainerState_CONTAINER_STATE_RESTARTING
+	case types.ContainerStateExited:
+		return proto.ContainerState_CONTAINER_STATE_EXITED
+	case types.ContainerStateRemoving:
+		return proto.ContainerState_CONTAINER_STATE_REMOVING
+	case types.ContainerStateUnknown:
+		return proto.ContainerState_CONTAINER_STATE_UNKNOWN
+	default:
+		return proto.ContainerState_CONTAINER_STATE_UNSPECIFIED
+	}
+}
+
+// MountType conversion functions
+
+// protoToMountType converts protobuf MountType to types.MountType
+func protoToMountType(mountType proto.MountType) types.MountType {
+	switch mountType {
+	case proto.MountType_MOUNT_TYPE_BIND:
+		return types.MountTypeBind
+	case proto.MountType_MOUNT_TYPE_VOLUME:
+		return types.MountTypeVolume
+	case proto.MountType_MOUNT_TYPE_TMPFS:
+		return types.MountTypeTmpfs
+	default:
+		return types.MountTypeBind
+	}
+}
+
+// mountTypeToProto converts types.MountType to protobuf MountType
+func mountTypeToProto(mountType types.MountType) proto.MountType {
+	switch mountType {
+	case types.MountTypeBind:
+		return proto.MountType_MOUNT_TYPE_BIND
+	case types.MountTypeVolume:
+		return proto.MountType_MOUNT_TYPE_VOLUME
+	case types.MountTypeTmpfs:
+		return proto.MountType_MOUNT_TYPE_TMPFS
+	default:
+		return proto.MountType_MOUNT_TYPE_UNSPECIFIED
+	}
+}
+
+// Container conversion functions
+
+// protoToContainer converts protobuf Container to types.Container
+func protoToContainer(c *proto.Container) types.Container {
+	if c == nil {
+		return types.Container{}
+	}
+
+	container := types.Container{
+		ID:        types.ID(c.Id),
+		Name:      c.Name,
+		Image:     c.Image,
+		State:     protoToContainerState(c.State),
+		Status:    protoToStatus(c.Status),
+		Health:    protoToHealth(c.Health),
+		CreatedAt: *protoToTimestamp(c.CreatedAt),
+		Config:    protoToContainerConfig(c.Config),
+		Resources: protoToResourceUsage(c.Resources),
+		SessionID: types.ID(c.SessionId),
+	}
+
+	if c.StartedAt != nil {
+		container.StartedAt = protoToTimestamp(c.StartedAt)
+	}
+
+	if c.ExitedAt != nil {
+		container.ExitedAt = protoToTimestamp(c.ExitedAt)
+	}
+
+	if c.ExitCode != 0 {
+		exitCode := int(c.ExitCode)
+		container.ExitCode = &exitCode
+	}
+
+	return container
+}
+
+// containerToProto converts types.Container to protobuf Container
+func containerToProto(c types.Container) *proto.Container {
+	if c.ID == "" {
+		return nil
+	}
+
+	pb := &proto.Container{
+		Id:        string(c.ID),
+		Name:      c.Name,
+		Image:     c.Image,
+		State:     containerStateToProto(c.State),
+		Status:    statusToProto(c.Status),
+		Health:    healthToProto(c.Health),
+		CreatedAt: timestampToProto(&c.CreatedAt),
+		Config:    containerConfigToProto(c.Config),
+		Resources: resourceUsageToProto(c.Resources),
+		SessionId: string(c.SessionID),
+	}
+
+	if c.StartedAt != nil {
+		pb.StartedAt = timestampToProto(c.StartedAt)
+	}
+
+	if c.ExitedAt != nil {
+		pb.ExitedAt = timestampToProto(c.ExitedAt)
+	}
+
+	if c.ExitCode != nil {
+		pb.ExitCode = int32(*c.ExitCode)
+	}
+
+	return pb
+}
+
+// ContainerConfig conversion functions
+
+// protoToContainerConfig converts protobuf ContainerConfig to types.ContainerConfig
+func protoToContainerConfig(c *proto.ContainerConfig) types.ContainerConfig {
+	if c == nil {
+		return types.ContainerConfig{}
+	}
+
+	config := types.ContainerConfig{
+		Image:         c.Image,
+		WorkingDir:    c.WorkingDir,
+		NetworkMode:   c.NetworkMode,
+		ReadOnlyRootfs: c.ReadOnlyRootfs,
+		RemoveOnStop:  c.RemoveOnStop,
+	}
+
+	if c.Command != nil {
+		config.Command = make([]string, len(c.Command))
+		copy(config.Command, c.Command)
+	}
+
+	if c.Args != nil {
+		config.Args = make([]string, len(c.Args))
+		copy(config.Args, c.Args)
+	}
+
+	if c.Env != nil {
+		config.Env = make(map[string]string)
+		for k, v := range c.Env {
+			config.Env[k] = v
+		}
+	}
+
+	if c.Labels != nil {
+		config.Labels = make(map[string]string)
+		for k, v := range c.Labels {
+			config.Labels[k] = v
+		}
+	}
+
+	if c.Mounts != nil {
+		config.Mounts = make([]types.Mount, len(c.Mounts))
+		for i, m := range c.Mounts {
+			config.Mounts[i] = protoToMount(m)
+		}
+	}
+
+	if c.Ports != nil {
+		config.Ports = make([]types.PortBinding, len(c.Ports))
+		for i, p := range c.Ports {
+			config.Ports[i] = protoToPortBinding(p)
+		}
+	}
+
+	if c.Networks != nil {
+		config.Networks = make([]string, len(c.Networks))
+		copy(config.Networks, c.Networks)
+	}
+
+	if c.Resources != nil {
+		config.Resources = protoToResourceLimits(c.Resources)
+	}
+
+	if c.RestartPolicy != nil {
+		config.RestartPolicy = protoToRestartPolicy(c.RestartPolicy)
+	}
+
+	return config
+}
+
+// containerConfigToProto converts types.ContainerConfig to protobuf ContainerConfig
+func containerConfigToProto(c types.ContainerConfig) *proto.ContainerConfig {
+	pb := &proto.ContainerConfig{
+		Image:          c.Image,
+		WorkingDir:     c.WorkingDir,
+		NetworkMode:    c.NetworkMode,
+		ReadOnlyRootfs: c.ReadOnlyRootfs,
+		RemoveOnStop:   c.RemoveOnStop,
+	}
+
+	if c.Command != nil {
+		pb.Command = make([]string, len(c.Command))
+		copy(pb.Command, c.Command)
+	}
+
+	if c.Args != nil {
+		pb.Args = make([]string, len(c.Args))
+		copy(pb.Args, c.Args)
+	}
+
+	if c.Env != nil {
+		pb.Env = make(map[string]string)
+		for k, v := range c.Env {
+			pb.Env[k] = v
+		}
+	}
+
+	if c.Labels != nil {
+		pb.Labels = make(map[string]string)
+		for k, v := range c.Labels {
+			pb.Labels[k] = v
+		}
+	}
+
+	if c.Mounts != nil {
+		pb.Mounts = make([]*proto.Mount, len(c.Mounts))
+		for i, m := range c.Mounts {
+			pb.Mounts[i] = mountToProto(m)
+		}
+	}
+
+	if c.Ports != nil {
+		pb.Ports = make([]*proto.PortBinding, len(c.Ports))
+		for i, p := range c.Ports {
+			pb.Ports[i] = portBindingToProto(p)
+		}
+	}
+
+	if c.Networks != nil {
+		pb.Networks = make([]string, len(c.Networks))
+		copy(pb.Networks, c.Networks)
+	}
+
+	pb.Resources = resourceLimitsToProto(c.Resources)
+	pb.RestartPolicy = restartPolicyToProto(c.RestartPolicy)
+
+	return pb
+}
+
+// Mount conversion functions
+
+// protoToMount converts protobuf Mount to types.Mount
+func protoToMount(m *proto.Mount) types.Mount {
+	if m == nil {
+		return types.Mount{}
+	}
+
+	return types.Mount{
+		Type:     protoToMountType(m.Type),
+		Source:   m.Source,
+		Target:   m.Target,
+		ReadOnly: m.ReadOnly,
+	}
+}
+
+// mountToProto converts types.Mount to protobuf Mount
+func mountToProto(m types.Mount) *proto.Mount {
+	return &proto.Mount{
+		Type:     mountTypeToProto(m.Type),
+		Source:   m.Source,
+		Target:   m.Target,
+		ReadOnly: m.ReadOnly,
+	}
+}
+
+// PortBinding conversion functions
+
+// protoToPortBinding converts protobuf PortBinding to types.PortBinding
+func protoToPortBinding(p *proto.PortBinding) types.PortBinding {
+	if p == nil {
+		return types.PortBinding{}
+	}
+
+	return types.PortBinding{
+		ContainerPort: int(p.ContainerPort),
+		HostPort:      int(p.HostPort),
+		Protocol:      p.Protocol,
+		HostIP:        p.HostIp,
+	}
+}
+
+// portBindingToProto converts types.PortBinding to protobuf PortBinding
+func portBindingToProto(p types.PortBinding) *proto.PortBinding {
+	return &proto.PortBinding{
+		ContainerPort: int32(p.ContainerPort),
+		HostPort:      int32(p.HostPort),
+		Protocol:      p.Protocol,
+		HostIp:        p.HostIP,
+	}
+}
+
+// RestartPolicy conversion functions
+
+// protoToRestartPolicy converts protobuf RestartPolicy to types.RestartPolicy
+func protoToRestartPolicy(p *proto.RestartPolicy) types.RestartPolicy {
+	if p == nil {
+		return types.RestartPolicy{}
+	}
+
+	policy := types.RestartPolicy{
+		Name:              p.Name,
+		MaximumRetryCount: int(p.MaximumRetryCount),
+	}
+
+	if p.TimeoutNs > 0 {
+		timeout := time.Duration(p.TimeoutNs)
+		policy.Timeout = &timeout
+	}
+
+	return policy
+}
+
+// restartPolicyToProto converts types.RestartPolicy to protobuf RestartPolicy
+func restartPolicyToProto(p types.RestartPolicy) *proto.RestartPolicy {
+	pb := &proto.RestartPolicy{
+		Name:              p.Name,
+		MaximumRetryCount: int32(p.MaximumRetryCount),
+	}
+
+	if p.Timeout != nil {
+		pb.TimeoutNs = p.Timeout.Nanoseconds()
+	}
+
+	return pb
+}
+
+// ContainerFilter conversion functions
+
+// protoToContainerFilter converts protobuf ContainerFilter to types.ContainerFilter
+func protoToContainerFilter(f *proto.ContainerFilter) *types.ContainerFilter {
+	if f == nil {
+		return nil
+	}
+
+	filter := &types.ContainerFilter{}
+
+	if f.SessionId != "" {
+		sessionID := types.ID(f.SessionId)
+		filter.SessionID = &sessionID
+	}
+
+	if f.State != proto.ContainerState_CONTAINER_STATE_UNSPECIFIED {
+		state := protoToContainerState(f.State)
+		filter.State = &state
+	}
+
+	if f.Status != proto.Status_STATUS_UNSPECIFIED {
+		status := protoToStatus(f.Status)
+		filter.Status = &status
+	}
+
+	if f.Labels != nil {
+		filter.Label = make(map[string]string)
+		for k, v := range f.Labels {
+			filter.Label[k] = v
+		}
+	}
+
+	return filter
+}
