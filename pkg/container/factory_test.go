@@ -646,10 +646,10 @@ func TestRuntimeConfigWithOptions(t *testing.T) {
 		Logger:  log,
 		Timeout: 10 * time.Second,
 		Options: map[string]interface{}{
-			"tls_cert":    "/path/to/cert.pem",
-			"tls_key":     "/path/to/key.pem",
-			"tls_ca":      "/path/to/ca.pem",
-			"tls_verify":  true,
+			"tls_cert":   "/path/to/cert.pem",
+			"tls_key":    "/path/to/key.pem",
+			"tls_ca":     "/path/to/ca.pem",
+			"tls_verify": true,
 		},
 	}
 

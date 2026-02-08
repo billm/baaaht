@@ -21,30 +21,30 @@ const (
 
 // Policy represents a set of security rules and restrictions
 type Policy struct {
-	ID          string             `json:"id"`
-	Name        string             `json:"name"`
-	Description string             `json:"description,omitempty"`
-	Mode        EnforcementMode    `json:"mode"`
-	Quotas      ResourceQuota      `json:"quotas"`
-	Mounts      MountPolicy        `json:"mounts"`
-	Network     NetworkPolicy      `json:"network"`
-	Images      ImagePolicy        `json:"images"`
-	Security    SecurityPolicy     `json:"security"`
-	Labels      map[string]string  `json:"labels,omitempty"`
+	ID          string            `json:"id"`
+	Name        string            `json:"name"`
+	Description string            `json:"description,omitempty"`
+	Mode        EnforcementMode   `json:"mode"`
+	Quotas      ResourceQuota     `json:"quotas"`
+	Mounts      MountPolicy       `json:"mounts"`
+	Network     NetworkPolicy     `json:"network"`
+	Images      ImagePolicy       `json:"images"`
+	Security    SecurityPolicy    `json:"security"`
+	Labels      map[string]string `json:"labels,omitempty"`
 }
 
 // ResourceQuota defines resource limits
 type ResourceQuota struct {
 	// CPU limits in nanoseconds (1 CPU = 1,000,000,000 nanoseconds)
-	MaxCPUs      *int64 `json:"max_cpus,omitempty"`
-	MinCPUs      *int64 `json:"min_cpus,omitempty"`
+	MaxCPUs *int64 `json:"max_cpus,omitempty"`
+	MinCPUs *int64 `json:"min_cpus,omitempty"`
 	// Memory limits in bytes
-	MaxMemory     *int64 `json:"max_memory,omitempty"`
-	MinMemory     *int64 `json:"min_memory,omitempty"`
+	MaxMemory *int64 `json:"max_memory,omitempty"`
+	MinMemory *int64 `json:"min_memory,omitempty"`
 	// Memory swap limit in bytes (0 = disable, -1 = unlimited)
 	MaxMemorySwap *int64 `json:"max_memory_swap,omitempty"`
 	// Process limit
-	MaxPids       *int64 `json:"max_pids,omitempty"`
+	MaxPids *int64 `json:"max_pids,omitempty"`
 }
 
 // MountPolicy defines mount restrictions
@@ -119,15 +119,15 @@ type SecurityPolicy struct {
 type Violation struct {
 	Rule      string `json:"rule"`
 	Message   string `json:"message"`
-	Severity  string `json:"severity"` // error, warning, info
+	Severity  string `json:"severity"`  // error, warning, info
 	Component string `json:"component"` // quota, mount, network, image, security
 }
 
 // ValidationResult represents the result of a policy validation
 type ValidationResult struct {
-	Allowed     bool         `json:"allowed"`
-	Violations  []Violation  `json:"violations,omitempty"`
-	Warnings    []Violation  `json:"warnings,omitempty"`
+	Allowed    bool        `json:"allowed"`
+	Violations []Violation `json:"violations,omitempty"`
+	Warnings   []Violation `json:"warnings,omitempty"`
 }
 
 // Merge merges another policy into this one, with the other policy taking precedence
@@ -279,16 +279,16 @@ func DefaultPolicy() *Policy {
 		Description: "Default security policy with reasonable restrictions",
 		Mode:        EnforcementModeStrict,
 		Quotas: ResourceQuota{
-			MaxCPUs:      int64Ptr(4000000000), // 4 CPUs
-			MaxMemory:    int64Ptr(8589934592), // 8GB
+			MaxCPUs:       int64Ptr(4000000000), // 4 CPUs
+			MaxMemory:     int64Ptr(8589934592), // 8GB
 			MaxMemorySwap: int64Ptr(8589934592), // 8GB
-			MaxPids:      int64Ptr(1024),
+			MaxPids:       int64Ptr(1024),
 		},
 		Mounts: MountPolicy{
-			AllowBindMounts:    false,
-			AllowVolumes:       true,
-			AllowTmpfs:         true,
-			MaxTmpfsSize:       int64Ptr(268435456), // 256MB
+			AllowBindMounts:       false,
+			AllowVolumes:          true,
+			AllowTmpfs:            true,
+			MaxTmpfsSize:          int64Ptr(268435456), // 256MB
 			EnforceReadOnlyRootfs: false,
 		},
 		Network: NetworkPolicy{
@@ -314,10 +314,10 @@ func PermissivePolicy() *Policy {
 		Description: "Permissive security policy for development",
 		Mode:        EnforcementModePermissive,
 		Quotas: ResourceQuota{
-			MaxCPUs:      int64Ptr(16000000000), // 16 CPUs
-			MaxMemory:    int64Ptr(17179869184), // 16GB
-			MaxMemorySwap: int64Ptr(-1),         // Unlimited
-			MaxPids:      int64Ptr(4096),
+			MaxCPUs:       int64Ptr(16000000000), // 16 CPUs
+			MaxMemory:     int64Ptr(17179869184), // 16GB
+			MaxMemorySwap: int64Ptr(-1),          // Unlimited
+			MaxPids:       int64Ptr(4096),
 		},
 		Mounts: MountPolicy{
 			AllowBindMounts: true,

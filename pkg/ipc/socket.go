@@ -19,20 +19,20 @@ const (
 
 // Socket represents a Unix domain socket for IPC communication
 type Socket struct {
-	path        string
-	listener    net.Listener
-	conns       map[string]*connection
-	connCount   int
-	mu          sync.RWMutex
-	logger      *logger.Logger
-	closed      bool
-	wg          sync.WaitGroup
-	acceptCh    chan net.Conn
-	closeCh     chan struct{}
-	maxConns    int
-	bufferSize  int
-	timeout     time.Duration
-	enableAuth  bool
+	path       string
+	listener   net.Listener
+	conns      map[string]*connection
+	connCount  int
+	mu         sync.RWMutex
+	logger     *logger.Logger
+	closed     bool
+	wg         sync.WaitGroup
+	acceptCh   chan net.Conn
+	closeCh    chan struct{}
+	maxConns   int
+	bufferSize int
+	timeout    time.Duration
+	enableAuth bool
 }
 
 // connection represents an active socket connection
@@ -188,9 +188,9 @@ func (s *Socket) handleConnection(netConn net.Conn) {
 	s.connCount++
 	connID := fmt.Sprintf("%s-%d", netConn.RemoteAddr().String(), time.Now().UnixNano())
 	conn := &connection{
-		Conn:         netConn,
-		createdAt:    time.Now(),
-		lastActive:   time.Now(),
+		Conn:          netConn,
+		createdAt:     time.Now(),
+		lastActive:    time.Now(),
 		authenticated: !s.enableAuth, // If auth is disabled, auto-authenticate
 	}
 	s.conns[connID] = conn
@@ -475,7 +475,7 @@ func (s SocketStats) String() string {
 
 // SocketConfig contains socket configuration
 type SocketConfig struct {
-	Path          string
+	Path           string
 	MaxConnections int
 	BufferSize     int
 	Timeout        time.Duration

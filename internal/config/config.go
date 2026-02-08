@@ -55,15 +55,15 @@ type APIServerConfig struct {
 
 // LoggingConfig contains logging configuration
 type LoggingConfig struct {
-	Level            string `json:"level"`            // debug, info, warn, error
-	Format           string `json:"format"`           // json, text
-	Output           string `json:"output"`           // stdout, stderr, syslog, file path
-	SyslogFacility   string `json:"syslog_facility"`
-	RotationEnabled  bool   `json:"rotation_enabled"`
-	MaxSize          int    `json:"max_size"`         // MB
-	MaxBackups       int    `json:"max_backups"`
-	MaxAge           int    `json:"max_age"`          // days
-	Compress         bool   `json:"compress"`
+	Level           string `json:"level"`  // debug, info, warn, error
+	Format          string `json:"format"` // json, text
+	Output          string `json:"output"` // stdout, stderr, syslog, file path
+	SyslogFacility  string `json:"syslog_facility"`
+	RotationEnabled bool   `json:"rotation_enabled"`
+	MaxSize         int    `json:"max_size"` // MB
+	MaxBackups      int    `json:"max_backups"`
+	MaxAge          int    `json:"max_age"` // days
+	Compress        bool   `json:"compress"`
 }
 
 // SessionConfig contains session management configuration
@@ -116,20 +116,20 @@ type CredentialsConfig struct {
 
 // PolicyConfig contains policy engine configuration
 type PolicyConfig struct {
-	ConfigPath          string        `json:"config_path"`
-	ReloadOnChanges     bool          `json:"reload_on_changes"`
-	ReloadInterval      time.Duration `json:"reload_interval"`
-	EnforcementMode     string        `json:"enforcement_mode"` // strict, permissive, disabled
-	DefaultQuotaCPU     int64         `json:"default_quota_cpu"`
-	DefaultQuotaMemory  int64         `json:"default_quota_memory"`
+	ConfigPath         string        `json:"config_path"`
+	ReloadOnChanges    bool          `json:"reload_on_changes"`
+	ReloadInterval     time.Duration `json:"reload_interval"`
+	EnforcementMode    string        `json:"enforcement_mode"` // strict, permissive, disabled
+	DefaultQuotaCPU    int64         `json:"default_quota_cpu"`
+	DefaultQuotaMemory int64         `json:"default_quota_memory"`
 }
 
 // MetricsConfig contains metrics configuration
 type MetricsConfig struct {
-	Enabled         bool          `json:"enabled"`
-	Port            int           `json:"port"`
-	Path            string        `json:"path"`
-	ReportInterval  time.Duration `json:"report_interval"`
+	Enabled        bool          `json:"enabled"`
+	Port           int           `json:"port"`
+	Path           string        `json:"path"`
+	ReportInterval time.Duration `json:"report_interval"`
 }
 
 // TracingConfig contains distributed tracing configuration
@@ -142,16 +142,16 @@ type TracingConfig struct {
 
 // OrchestratorConfig contains orchestrator-specific configuration
 type OrchestratorConfig struct {
-	ShutdownTimeout       time.Duration `json:"shutdown_timeout"`
-	HealthCheckInterval   time.Duration `json:"health_check_interval"`
-	GracefulStopTimeout   time.Duration `json:"graceful_stop_timeout"`
-	EnableProfiling       bool          `json:"enable_profiling"`
-	ProfilingPort         int           `json:"profiling_port"`
+	ShutdownTimeout     time.Duration `json:"shutdown_timeout"`
+	HealthCheckInterval time.Duration `json:"health_check_interval"`
+	GracefulStopTimeout time.Duration `json:"graceful_stop_timeout"`
+	EnableProfiling     bool          `json:"enable_profiling"`
+	ProfilingPort       int           `json:"profiling_port"`
 }
 
 // RuntimeConfig contains container runtime configuration
 type RuntimeConfig struct {
-	Type        string        `json:"type"`         // auto, docker, apple
+	Type        string        `json:"type"` // auto, docker, apple
 	SocketPath  string        `json:"socket_path,omitempty"`
 	Timeout     time.Duration `json:"timeout"`
 	MaxRetries  int           `json:"max_retries"`
@@ -398,9 +398,9 @@ func (c *Config) Validate() error {
 		return types.NewError(types.ErrCodeInvalidArgument, "policy config path cannot be empty")
 	}
 	validEnforcementModes := map[string]bool{
-		"strict":      true,
-		"permissive":  true,
-		"disabled":    true,
+		"strict":     true,
+		"permissive": true,
+		"disabled":   true,
 	}
 	if !validEnforcementModes[c.Policy.EnforcementMode] {
 		return types.NewError(types.ErrCodeInvalidArgument,
@@ -424,9 +424,9 @@ func (c *Config) Validate() error {
 
 	// Validate Runtime configuration
 	validRuntimeTypes := map[string]bool{
-		"auto":  true,
+		"auto":   true,
 		"docker": true,
-		"apple": true,
+		"apple":  true,
 	}
 	if !validRuntimeTypes[c.Runtime.Type] {
 		return types.NewError(types.ErrCodeInvalidArgument,

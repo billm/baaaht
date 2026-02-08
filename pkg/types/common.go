@@ -23,11 +23,11 @@ const (
 type Health string
 
 const (
-	HealthUnknown   Health = "unknown"
-	Healthy         Health = "healthy"
-	Unhealthy       Health = "unhealthy"
-	Degraded        Health = "degraded"
-	HealthChecking  Health = "checking"
+	HealthUnknown  Health = "unknown"
+	Healthy        Health = "healthy"
+	Unhealthy      Health = "unhealthy"
+	Degraded       Health = "degraded"
+	HealthChecking Health = "checking"
 )
 
 // ID represents a unique identifier

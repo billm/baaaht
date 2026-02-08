@@ -53,7 +53,7 @@ func New(cfg config.IPCConfig, log *logger.Logger) (*Broker, error) {
 
 	// Create socket config
 	socketCfg := SocketConfig{
-		Path:          cfg.SocketPath,
+		Path:           cfg.SocketPath,
 		MaxConnections: cfg.MaxConnections,
 		BufferSize:     cfg.BufferSize,
 		Timeout:        cfg.Timeout,
@@ -481,12 +481,12 @@ func (b *Broker) String() string {
 
 // BrokerStats represents broker statistics
 type BrokerStats struct {
-	MessagesSent     int64         `json:"messages_sent"`
-	MessagesReceived int64         `json:"messages_received"`
-	MessagesFailed   int64         `json:"messages_failed"`
-	ActiveHandlers   int           `json:"active_handlers"`
-	QueueSize        int           `json:"queue_size"`
-	SocketStats      SocketStats   `json:"socket_stats"`
+	MessagesSent     int64       `json:"messages_sent"`
+	MessagesReceived int64       `json:"messages_received"`
+	MessagesFailed   int64       `json:"messages_failed"`
+	ActiveHandlers   int         `json:"active_handlers"`
+	QueueSize        int         `json:"queue_size"`
+	SocketStats      SocketStats `json:"socket_stats"`
 }
 
 // String returns a string representation of the stats

@@ -72,10 +72,10 @@ func (b *Bus) Subscribe(ctx context.Context, filter types.EventFilter, handler t
 	subID := types.GenerateID()
 
 	subscription := &types.EventSubscription{
-		ID:      subID,
-		Filter:  filter,
-		Handler: handler,
-		Active:  true,
+		ID:        subID,
+		Filter:    filter,
+		Handler:   handler,
+		Active:    true,
 		CreatedAt: types.NewTimestampFromTime(time.Now()),
 	}
 
@@ -172,7 +172,7 @@ func (b *Bus) Publish(ctx context.Context, event types.Event) error {
 		event.ID = types.GenerateID()
 	}
 	if event.Timestamp.IsZero() {
-			event.Timestamp = types.NewTimestampFromTime(time.Now())
+		event.Timestamp = types.NewTimestampFromTime(time.Now())
 	}
 
 	// Send to publish worker
@@ -200,7 +200,7 @@ func (b *Bus) PublishSync(ctx context.Context, event types.Event) error {
 		event.ID = types.GenerateID()
 	}
 	if event.Timestamp.IsZero() {
-			event.Timestamp = types.NewTimestampFromTime(time.Now())
+		event.Timestamp = types.NewTimestampFromTime(time.Now())
 	}
 
 	return b.dispatchEvent(ctx, event)
@@ -394,7 +394,7 @@ func (b *Bus) Stats() BusStats {
 	}
 
 	return BusStats{
-		TotalSubscriptions: len(b.subscriptions),
+		TotalSubscriptions:  len(b.subscriptions),
 		ActiveSubscriptions: activeCount,
 		PendingEvents:       len(b.publishCh),
 	}
@@ -402,7 +402,7 @@ func (b *Bus) Stats() BusStats {
 
 // BusStats represents event bus statistics
 type BusStats struct {
-	TotalSubscriptions int `json:"total_subscriptions"`
+	TotalSubscriptions  int `json:"total_subscriptions"`
 	ActiveSubscriptions int `json:"active_subscriptions"`
 	PendingEvents       int `json:"pending_events"`
 }

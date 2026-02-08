@@ -365,7 +365,7 @@
             "command": "make test && go test ./tests/integration/...",
             "expected": "All tests pass"
           },
-          "status": "pending"
+          "status": "completed"
         },
         {
           "id": "subtask-6-3",

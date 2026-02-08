@@ -175,10 +175,10 @@ func (l *LifecycleManager) Restart(ctx context.Context, cfg RestartConfig) error
 
 // DestroyConfig holds configuration for destroying a container
 type DestroyConfig struct {
-	ContainerID string
-	Name        string // Optional: for better logging
-	Force       bool   // Force removal even if running
-	RemoveVolumes bool // Remove associated volumes
+	ContainerID   string
+	Name          string // Optional: for better logging
+	Force         bool   // Force removal even if running
+	RemoveVolumes bool   // Remove associated volumes
 }
 
 // Destroy removes a container

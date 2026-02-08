@@ -15,16 +15,16 @@ const (
 
 // Session represents a user session with conversation context
 type Session struct {
-	ID          ID                `json:"id"`
-	State       SessionState      `json:"state"`
-	Status      Status            `json:"status"`
-	CreatedAt   Timestamp         `json:"created_at"`
-	UpdatedAt   Timestamp         `json:"updated_at"`
-	ExpiresAt   *Timestamp        `json:"expires_at,omitempty"`
-	ClosedAt    *Timestamp        `json:"closed_at,omitempty"`
-	Metadata    SessionMetadata   `json:"metadata"`
-	Context     SessionContext    `json:"context"`
-	Containers  []ID              `json:"containers,omitempty"`
+	ID         ID              `json:"id"`
+	State      SessionState    `json:"state"`
+	Status     Status          `json:"status"`
+	CreatedAt  Timestamp       `json:"created_at"`
+	UpdatedAt  Timestamp       `json:"updated_at"`
+	ExpiresAt  *Timestamp      `json:"expires_at,omitempty"`
+	ClosedAt   *Timestamp      `json:"closed_at,omitempty"`
+	Metadata   SessionMetadata `json:"metadata"`
+	Context    SessionContext  `json:"context"`
+	Containers []ID            `json:"containers,omitempty"`
 }
 
 // SessionMetadata contains descriptive information about a session
@@ -39,18 +39,18 @@ type SessionMetadata struct {
 // SessionContext holds the conversation and operational context
 type SessionContext struct {
 	// Conversation history and state
-	Messages      []Message       `json:"messages,omitempty"`
-	CurrentTaskID *ID             `json:"current_task_id,omitempty"`
-	TaskHistory   []ID            `json:"task_history,omitempty"`
+	Messages      []Message `json:"messages,omitempty"`
+	CurrentTaskID *ID       `json:"current_task_id,omitempty"`
+	TaskHistory   []ID      `json:"task_history,omitempty"`
 
 	// User preferences and settings
-	Preferences   UserPreferences `json:"preferences,omitempty"`
+	Preferences UserPreferences `json:"preferences,omitempty"`
 
 	// Session-specific configuration
-	Config        SessionConfig   `json:"config,omitempty"`
+	Config SessionConfig `json:"config,omitempty"`
 
 	// Resource usage tracking
-	ResourceUsage ResourceUsage   `json:"resource_usage,omitempty"`
+	ResourceUsage ResourceUsage `json:"resource_usage,omitempty"`
 }
 
 // Message represents a message in the conversation
@@ -82,37 +82,37 @@ type MessageMetadata struct {
 
 // UserPreferences contains user-specific preferences
 type UserPreferences struct {
-	Timezone     string `json:"timezone,omitempty"`
-	Language     string `json:"language,omitempty"`
-	Theme        string `json:"theme,omitempty"`
+	Timezone      string `json:"timezone,omitempty"`
+	Language      string `json:"language,omitempty"`
+	Theme         string `json:"theme,omitempty"`
 	Notifications bool   `json:"notifications,omitempty"`
 }
 
 // SessionConfig contains session-specific configuration
 type SessionConfig struct {
-	MaxContainers    int               `json:"max_containers,omitempty"`
-	MaxDuration      time.Duration     `json:"max_duration,omitempty"`
-	IdleTimeout      time.Duration     `json:"idle_timeout,omitempty"`
-	ResourceLimits   ResourceLimits    `json:"resource_limits,omitempty"`
-	AllowedImages    []string          `json:"allowed_images,omitempty"`
-	Policy           SessionPolicy     `json:"policy,omitempty"`
+	MaxContainers  int            `json:"max_containers,omitempty"`
+	MaxDuration    time.Duration  `json:"max_duration,omitempty"`
+	IdleTimeout    time.Duration  `json:"idle_timeout,omitempty"`
+	ResourceLimits ResourceLimits `json:"resource_limits,omitempty"`
+	AllowedImages  []string       `json:"allowed_images,omitempty"`
+	Policy         SessionPolicy  `json:"policy,omitempty"`
 }
 
 // SessionPolicy defines security policies for a session
 type SessionPolicy struct {
-	AllowNetwork     bool              `json:"allow_network"`
-	AllowedNetworks  []string          `json:"allowed_networks,omitempty"`
-	AllowVolumeMount bool              `json:"allow_volume_mount"`
-	AllowedPaths     []string          `json:"allowed_paths,omitempty"`
-	RequireApproval  bool              `json:"require_approval,omitempty"`
+	AllowNetwork     bool     `json:"allow_network"`
+	AllowedNetworks  []string `json:"allowed_networks,omitempty"`
+	AllowVolumeMount bool     `json:"allow_volume_mount"`
+	AllowedPaths     []string `json:"allowed_paths,omitempty"`
+	RequireApproval  bool     `json:"require_approval,omitempty"`
 }
 
 // SessionFilter defines filters for querying sessions
 type SessionFilter struct {
-	State    *SessionState     `json:"state,omitempty"`
-	Status   *Status           `json:"status,omitempty"`
-	OwnerID  *string           `json:"owner_id,omitempty"`
-	Label    map[string]string `json:"label,omitempty"`
+	State   *SessionState     `json:"state,omitempty"`
+	Status  *Status           `json:"status,omitempty"`
+	OwnerID *string           `json:"owner_id,omitempty"`
+	Label   map[string]string `json:"label,omitempty"`
 }
 
 // SessionStats represents statistics about a session

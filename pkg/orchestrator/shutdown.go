@@ -32,18 +32,18 @@ type ShutdownHook func(ctx context.Context) error
 
 // ShutdownManager manages the graceful shutdown process
 type ShutdownManager struct {
-	mu               sync.RWMutex
-	orch             *Orchestrator
-	state            ShutdownState
-	shutdownTimeout  time.Duration
-	hooks            []ShutdownHook
-	logger           *logger.Logger
-	signalChan       chan os.Signal
-	shutdownCtx      context.Context
-	shutdownCancel   context.CancelFunc
-	started          bool
-	completionChan   chan struct{}
-	shutdownReason   string
+	mu                sync.RWMutex
+	orch              *Orchestrator
+	state             ShutdownState
+	shutdownTimeout   time.Duration
+	hooks             []ShutdownHook
+	logger            *logger.Logger
+	signalChan        chan os.Signal
+	shutdownCtx       context.Context
+	shutdownCancel    context.CancelFunc
+	started           bool
+	completionChan    chan struct{}
+	shutdownReason    string
 	shutdownStartedAt time.Time
 }
 

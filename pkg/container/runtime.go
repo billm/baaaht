@@ -307,12 +307,12 @@ type EventsMessage interface{}
 
 // RuntimeInfo holds metadata about a runtime implementation
 type RuntimeInfo struct {
-	Type         string            `json:"type"`           // Runtime type (docker, apple, etc.)
-	Version      string            `json:"version"`        // Runtime version
-	Platform     string            `json:"platform"`       // Platform (linux, darwin, etc.)
-	APIVersion   string            `json:"api_version"`    // API version
-	Capabilities []string          `json:"capabilities"`   // Supported capabilities
-	Metadata     map[string]string `json:"metadata"`       // Additional runtime-specific metadata
+	Type         string            `json:"type"`         // Runtime type (docker, apple, etc.)
+	Version      string            `json:"version"`      // Runtime version
+	Platform     string            `json:"platform"`     // Platform (linux, darwin, etc.)
+	APIVersion   string            `json:"api_version"`  // API version
+	Capabilities []string          `json:"capabilities"` // Supported capabilities
+	Metadata     map[string]string `json:"metadata"`     // Additional runtime-specific metadata
 }
 
 // RuntimeConfig holds configuration for runtime initialization.

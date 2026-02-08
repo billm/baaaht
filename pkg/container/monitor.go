@@ -62,11 +62,11 @@ func NewMonitorFromRuntime(runtime Runtime, log *logger.Logger) (*Monitor, error
 
 // HealthCheckResult represents the result of a container health check
 type HealthCheckResult struct {
-	ContainerID string
-	Status      types.Health
+	ContainerID   string
+	Status        types.Health
 	FailingStreak int
-	LastOutput   string
-	CheckedAt    time.Time
+	LastOutput    string
+	CheckedAt     time.Time
 }
 
 // HealthCheck performs a health check on a container

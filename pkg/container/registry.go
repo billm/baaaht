@@ -11,10 +11,10 @@ import (
 // Registry manages container runtime implementations
 // It provides a centralized way to register, retrieve, and manage runtime instances
 type Registry struct {
-	mu       sync.RWMutex
+	mu        sync.RWMutex
 	factories map[string]RuntimeFactory
 	runtimes  map[string]Runtime
-	logger   *logger.Logger
+	logger    *logger.Logger
 }
 
 // NewRegistry creates a new runtime registry
