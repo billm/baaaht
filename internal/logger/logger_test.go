@@ -514,6 +514,9 @@ func TestDerivedLoggerCloser(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
+	t.Cleanup(func() {
+		_ = rootLogger.Close()
+	})
 
 	// Create derived loggers
 	derivedLogger := rootLogger.With("component", "test")
