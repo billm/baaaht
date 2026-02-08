@@ -148,21 +148,41 @@ type OrchestratorConfig struct {
 	ProfilingPort         int           `json:"profiling_port" yaml:"profiling_port"`
 }
 
-// Load creates a new Config by loading defaults and overriding with environment variables
+// Load creates a new Config by loading defaults, then YAML file if it exists, then overriding with environment variables
 func Load() (*Config, error) {
-	cfg := &Config{
-		Docker:       DefaultDockerConfig(),
-		APIServer:    DefaultAPIServerConfig(),
-		Logging:      DefaultLoggingConfig(),
-		Session:      DefaultSessionConfig(),
-		Event:        DefaultEventConfig(),
-		IPC:          DefaultIPCConfig(),
-		Scheduler:    DefaultSchedulerConfig(),
-		Credentials:  DefaultCredentialsConfig(),
-		Policy:       DefaultPolicyConfig(),
-		Metrics:      DefaultMetricsConfig(),
-		Tracing:      DefaultTracingConfig(),
-		Orchestrator: DefaultOrchestratorConfig(),
+	var cfg *Config
+
+	// Try to load from default config file if it exists
+	configPath, err := GetDefaultConfigPath()
+	if err == nil {
+		if _, err := os.Stat(configPath); err == nil {
+			// File exists, load from it
+			cfg, err = LoadFromFile(configPath)
+			if err != nil {
+				return nil, err
+			}
+		} else if !os.IsNotExist(err) {
+			// Some other error occurred while checking file
+			return nil, fmt.Errorf("failed to check config file: %w", err)
+		}
+	}
+
+	// If no config was loaded from file, use defaults
+	if cfg == nil {
+		cfg = &Config{
+			Docker:       DefaultDockerConfig(),
+			APIServer:    DefaultAPIServerConfig(),
+			Logging:      DefaultLoggingConfig(),
+			Session:      DefaultSessionConfig(),
+			Event:        DefaultEventConfig(),
+			IPC:          DefaultIPCConfig(),
+			Scheduler:    DefaultSchedulerConfig(),
+			Credentials:  DefaultCredentialsConfig(),
+			Policy:       DefaultPolicyConfig(),
+			Metrics:      DefaultMetricsConfig(),
+			Tracing:      DefaultTracingConfig(),
+			Orchestrator: DefaultOrchestratorConfig(),
+		}
 	}
 
 	// Load Docker configuration
