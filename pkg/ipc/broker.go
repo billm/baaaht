@@ -161,7 +161,9 @@ func (b *Broker) Send(ctx context.Context, msg *types.IPCMessage) error {
 
 	// Store in session history if session ID is present
 	if !msg.Metadata.SessionID.IsEmpty() {
+		b.mu.Lock()
 		b.storeMessage(msg)
+		b.mu.Unlock()
 	}
 
 	b.mu.Lock()
@@ -242,8 +244,11 @@ func (b *Broker) RegisterHandler(msgType string, handler MessageHandler) error {
 		return types.NewError(types.ErrCodeInvalid, "handler cannot be nil")
 	}
 
+	// Only increment if this is a new handler (not replacing an existing one)
+	if _, exists := b.handlers[msgType]; !exists {
+		b.stats.ActiveHandlers++
+	}
 	b.handlers[msgType] = handler
-	b.stats.ActiveHandlers++
 
 	b.logger.Debug("Handler registered", "message_type", msgType)
 	return nil
@@ -258,6 +263,7 @@ func (b *Broker) UnregisterHandler(msgType string) error {
 		return types.NewError(types.ErrCodeUnavailable, "broker is closed")
 	}
 
+	// Only decrement if the handler actually exists
 	if _, exists := b.handlers[msgType]; !exists {
 		return types.NewError(types.ErrCodeNotFound, fmt.Sprintf("handler not found for type: %s", msgType))
 	}
@@ -410,6 +416,7 @@ func (b *Broker) validateMessage(msg *types.IPCMessage) error {
 }
 
 // storeMessage stores a message in session history
+// Note: Must be called with b.mu held
 func (b *Broker) storeMessage(msg *types.IPCMessage) {
 	if msg.Metadata.SessionID.IsEmpty() {
 		return

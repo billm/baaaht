@@ -2,7 +2,9 @@ package credentials
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -200,13 +202,26 @@ func (inj *Injector) prepareFile(cred *Credential, cfg InjectionConfig, result *
 	}
 
 	// Full path for the file
-	fullPath := filepathWithBase(mountPath, filePath)
+	fullPath, err := filepathWithBase(mountPath, filePath)
+	if err != nil {
+		return types.WrapError(types.ErrCodeInvalidArgument, "invalid file path", err)
+	}
 
 	// Format the content based on the format setting
 	content := cred.Value
 	switch cfg.Format {
 	case "json":
-		content = fmt.Sprintf(`{"value":"%s","type":"%s","name":"%s"}`, cred.Value, cred.Type, cred.Name)
+		// Use proper JSON marshaling to ensure correct escaping
+		jsonData := map[string]string{
+			"value": cred.Value,
+			"type":  cred.Type,
+			"name":  cred.Name,
+		}
+		jsonBytes, err := json.Marshal(jsonData)
+		if err != nil {
+			return types.WrapError(types.ErrCodeInternal, "failed to marshal credential to JSON", err)
+		}
+		content = string(jsonBytes)
 	case "env":
 		content = fmt.Sprintf("%s=%s\n", strings.ToUpper(cred.Name), cred.Value)
 	case "raw", "":
@@ -245,12 +260,40 @@ func (inj *Injector) prepareFile(cred *Credential, cfg InjectionConfig, result *
 	return nil
 }
 
-// filepathWithBase joins base and path safely
-func filepathWithBase(base, path string) string {
+// filepathWithBase joins base and path safely, preventing path traversal
+func filepathWithBase(base, path string) (string, error) {
+	// Remove leading slash from path
 	if strings.HasPrefix(path, "/") {
 		path = path[1:]
 	}
-	return fmt.Sprintf("%s/%s", strings.TrimSuffix(base, "/"), path)
+
+	// Resolve the base directory to an absolute, cleaned path
+	cleanBase, err := filepath.Abs(filepath.Clean(base))
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve base path: %w", err)
+	}
+
+	// Join base and path for proper path handling
+	joined := filepath.Join(cleanBase, path)
+
+	// Resolve the full path to an absolute, cleaned path
+	fullPath, err := filepath.Abs(filepath.Clean(joined))
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve full path: %w", err)
+	}
+
+	// Ensure the final path is still within the base directory using
+	// a boundary-aware relative path check
+	rel, err := filepath.Rel(cleanBase, fullPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to compute relative path: %w", err)
+	}
+
+	if filepath.IsAbs(rel) || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		// Path traversal attempt detected - return error
+		return "", fmt.Errorf("path traversal attempt detected: %s escapes base directory %s", path, base)
+	}
+	return fullPath, nil
 }
 
 // ValidateConfig validates an injection configuration

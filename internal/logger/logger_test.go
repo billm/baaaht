@@ -3,6 +3,7 @@ package logger
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -494,5 +495,74 @@ func TestInitGlobal(t *testing.T) {
 	// Level should still be debug from first call
 	if globalLogger.GetLevel() != LevelDebug {
 		t.Errorf("InitGlobal() second call changed level, got %v, want %v", globalLogger.GetLevel(), LevelDebug)
+	}
+}
+
+// TestDerivedLoggerCloser tests that derived loggers don't have closer
+func TestDerivedLoggerCloser(t *testing.T) {
+	// Create a temporary file for logging
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "test-derived-logger.txt")
+
+	cfg := config.LoggingConfig{
+		Level:  "info",
+		Format: "json",
+		Output: tmpFile,
+	}
+
+	rootLogger, err := New(cfg)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = rootLogger.Close()
+	})
+
+	// Create derived loggers
+	derivedLogger := rootLogger.With("component", "test")
+	derivedLogger2 := rootLogger.WithGroup("testgroup")
+
+	// Verify derived loggers have nil closer
+	if derivedLogger.closer != nil {
+		t.Error("Derived logger from With() should have nil closer")
+	}
+	if derivedLogger2.closer != nil {
+		t.Error("Derived logger from WithGroup() should have nil closer")
+	}
+
+	// Closing derived loggers should be a no-op
+	if err := derivedLogger.Close(); err != nil {
+		t.Errorf("Closing derived logger should not error: %v", err)
+	}
+	if err := derivedLogger2.Close(); err != nil {
+		t.Errorf("Closing derived logger2 should not error: %v", err)
+	}
+
+	// Log with derived loggers to ensure they still work
+	derivedLogger.Info("test from derived")
+	derivedLogger2.Info("test from derived2")
+
+	// Close the root logger
+	if err := rootLogger.Close(); err != nil {
+		t.Errorf("Close() error = %v", err)
+	}
+
+	// Verify the file was created and has content
+	data, err := os.ReadFile(tmpFile)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+
+	if len(data) == 0 {
+		t.Error("Log file is empty")
+	}
+
+	// Verify both messages are present
+	content := string(data)
+	if !strings.Contains(content, "test from derived") {
+		t.Error("Log from derived logger not found")
+	}
+	if !strings.Contains(content, "test from derived2") {
+		t.Error("Log from derived logger2 not found")
 	}
 }

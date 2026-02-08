@@ -32,6 +32,7 @@ type Logger struct {
 	logger *slog.Logger
 	mu     sync.RWMutex
 	level  Level
+	closer io.Closer // File handle for closing when logging to a file
 }
 
 // New creates a new logger with the specified configuration
@@ -44,6 +45,7 @@ func New(cfg config.LoggingConfig) (*Logger, error) {
 
 	// Determine the output writer
 	var writer io.Writer
+	var closer io.Closer
 	switch cfg.Output {
 	case "stdout":
 		writer = os.Stdout
@@ -61,6 +63,7 @@ func New(cfg config.LoggingConfig) (*Logger, error) {
 			return nil, fmt.Errorf("failed to open log file: %w", err)
 		}
 		writer = file
+		closer = file // Store the file handle for closing later
 	}
 
 	// Create the handler options
@@ -85,6 +88,7 @@ func New(cfg config.LoggingConfig) (*Logger, error) {
 	return &Logger{
 		logger: sl,
 		level:  level,
+		closer: closer,
 	}, nil
 }
 
@@ -110,7 +114,10 @@ func parseLevel(level string) (Level, error) {
 	}
 }
 
-// With returns a new logger with additional key-value pairs
+// With returns a new logger with additional key-value pairs.
+// Note: The returned logger shares the same underlying handler as the parent logger,
+// but does not copy the closer field. Only the root logger (created by New()) should
+// be closed. Derived loggers created by With() or WithGroup() should NOT be closed.
 func (l *Logger) With(args ...any) *Logger {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
@@ -118,10 +125,14 @@ func (l *Logger) With(args ...any) *Logger {
 	return &Logger{
 		logger: l.logger.With(args...),
 		level:  l.level,
+		closer: nil, // Derived loggers should not close the file handle
 	}
 }
 
-// WithGroup returns a new logger with a group prefix
+// WithGroup returns a new logger with a group prefix.
+// Note: The returned logger shares the same underlying handler as the parent logger,
+// but does not copy the closer field. Only the root logger (created by New()) should
+// be closed. Derived loggers created by With() or WithGroup() should NOT be closed.
 func (l *Logger) WithGroup(name string) *Logger {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
@@ -129,6 +140,7 @@ func (l *Logger) WithGroup(name string) *Logger {
 	return &Logger{
 		logger: l.logger.WithGroup(name),
 		level:  l.level,
+		closer: nil, // Derived loggers should not close the file handle
 	}
 }
 
@@ -221,15 +233,21 @@ func (l *Logger) Flush() error {
 	return nil
 }
 
-// Close closes any open resources (file handles, etc.)
+// Close closes any open resources (file handles, etc.).
+// Important: Only call Close() on the root logger instance created by New().
+// Do NOT call Close() on derived loggers created by With() or WithGroup() as they
+// share the underlying file handle and do not have ownership of it.
+// Calling Close() on a derived logger is a no-op but should be avoided for clarity.
 func (l *Logger) Close() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	// Note: We can't easily access the underlying writer from slog's
-	// built-in handlers. This is a limitation of the current implementation.
-	// In production, you might want to track the writer separately to
-	// properly close file handles.
+	if l.closer != nil {
+		if err := l.closer.Close(); err != nil {
+			return fmt.Errorf("failed to close log file: %w", err)
+		}
+		l.closer = nil
+	}
 	return nil
 }
 

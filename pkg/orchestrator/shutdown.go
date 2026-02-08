@@ -32,18 +32,19 @@ type ShutdownHook func(ctx context.Context) error
 
 // ShutdownManager manages the graceful shutdown process
 type ShutdownManager struct {
-	mu              sync.RWMutex
-	orch            *Orchestrator
-	state           ShutdownState
-	shutdownTimeout time.Duration
-	hooks           []ShutdownHook
-	logger          *logger.Logger
-	signalChan      chan os.Signal
-	shutdownCtx     context.Context
-	shutdownCancel  context.CancelFunc
-	started         bool
-	completionChan  chan struct{}
-	shutdownReason  string
+	mu               sync.RWMutex
+	orch             *Orchestrator
+	state            ShutdownState
+	shutdownTimeout  time.Duration
+	hooks            []ShutdownHook
+	logger           *logger.Logger
+	signalChan       chan os.Signal
+	shutdownCtx      context.Context
+	shutdownCancel   context.CancelFunc
+	started          bool
+	completionChan   chan struct{}
+	shutdownReason   string
+	shutdownStartedAt time.Time
 }
 
 // NewShutdownManager creates a new shutdown manager
@@ -126,6 +127,7 @@ func (sm *ShutdownManager) Shutdown(ctx context.Context, reason string) error {
 
 	sm.state = ShutdownStateInitiated
 	sm.shutdownReason = reason
+	sm.shutdownStartedAt = time.Now()
 	sm.logger.Info("Shutdown initiated", "reason", reason)
 	sm.mu.Unlock()
 
@@ -156,7 +158,7 @@ func (sm *ShutdownManager) Shutdown(ctx context.Context, reason string) error {
 	sm.setState(ShutdownStateComplete)
 	close(sm.completionChan)
 
-	sm.logger.Info("Shutdown complete", "reason", reason)
+	sm.logger.Info("Shutdown complete", "reason", reason, "duration", time.Since(sm.shutdownStartedAt))
 
 	return nil
 }
@@ -315,8 +317,9 @@ func (sm *ShutdownManager) setState(state ShutdownState) {
 
 // getStartTime returns the time when shutdown was initiated
 func (sm *ShutdownManager) getStartTime() time.Time {
-	// This is a simplified version - in production you'd store the actual start time
-	return time.Now()
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+	return sm.shutdownStartedAt
 }
 
 // ShutdownGracefully initiates a graceful shutdown of the orchestrator.
