@@ -153,16 +153,15 @@ func loadConfig() (*config.Config, error) {
 		return nil, err
 	}
 
-	// Apply CLI overrides
-	if dockerHost != "" {
-		cfg.Docker.Host = dockerHost
-	}
-	if apiHost != "" {
-		cfg.APIServer.Host = apiHost
-	}
-	if apiPort > 0 {
-		cfg.APIServer.Port = apiPort
-	}
+	// Apply CLI overrides (highest precedence)
+	cfg.ApplyOverrides(config.OverrideOptions{
+		DockerHost:    dockerHost,
+		APIServerHost: apiHost,
+		APIServerPort: apiPort,
+		LogLevel:      logLevel,
+		LogFormat:     logFormat,
+		LogOutput:     logOutput,
+	})
 
 	return cfg, nil
 }

@@ -444,6 +444,50 @@ func (c *Config) String() string {
 	)
 }
 
+// ApplyOverrides applies CLI flag-style overrides to the configuration.
+// This is used by main.go to apply CLI flag values after loading from
+// defaults, YAML file, and environment variables.
+func (c *Config) ApplyOverrides(opts OverrideOptions) {
+	// Docker overrides
+	if opts.DockerHost != "" {
+		c.Docker.Host = opts.DockerHost
+	}
+
+	// API Server overrides
+	if opts.APIServerHost != "" {
+		c.APIServer.Host = opts.APIServerHost
+	}
+	if opts.APIServerPort > 0 {
+		c.APIServer.Port = opts.APIServerPort
+	}
+
+	// Logging overrides
+	if opts.LogLevel != "" {
+		c.Logging.Level = opts.LogLevel
+	}
+	if opts.LogFormat != "" {
+		c.Logging.Format = opts.LogFormat
+	}
+	if opts.LogOutput != "" {
+		c.Logging.Output = opts.LogOutput
+	}
+}
+
+// OverrideOptions contains override options typically set via CLI flags
+type OverrideOptions struct {
+	// Docker options
+	DockerHost string
+
+	// API Server options
+	APIServerHost string
+	APIServerPort int
+
+	// Logging options
+	LogLevel  string
+	LogFormat string
+	LogOutput string
+}
+
 func (c DockerConfig) String() string {
 	return fmt.Sprintf("DockerConfig{Host: %s, APIVersion: %s, Timeout: %s, MaxRetries: %d}",
 		c.Host, c.APIVersion, c.Timeout, c.MaxRetries)
