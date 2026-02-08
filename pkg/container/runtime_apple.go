@@ -113,7 +113,7 @@ func (c *AppleClient) Info(ctx context.Context) (*types.DockerInfo, error) {
 	// Use actual system values where possible to avoid misleading callers
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
-	
+
 	return &types.DockerInfo{
 		ServerVersion:     "1.0.0",
 		APIVersion:        "1.0.0",
@@ -121,7 +121,7 @@ func (c *AppleClient) Info(ctx context.Context) (*types.DockerInfo, error) {
 		KernelVersion:     "Darwin Kernel",
 		Architecture:      runtime.GOARCH,
 		NCPU:              runtime.NumCPU(),
-		Memory:            int64(memStats.Sys), // Total memory obtained from the OS
+		Memory:            int64(memStats.Sys), // Memory obtained from OS by Go runtime (not total system RAM)
 		ContainerCount:    0,
 		RunningContainers: 0,
 	}, nil
