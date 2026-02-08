@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1165,3 +1166,701 @@ orchestrator:
 		})
 	}
 }
+
+func TestReloadConfig(t *testing.T) {
+	// Create a temporary directory for test files
+	tmpDir := t.TempDir()
+
+	t.Run("reloads configuration from file", func(t *testing.T) {
+		// Create initial config file
+		configPath := filepath.Join(tmpDir, "reload-test.yaml")
+		initialContent := `
+docker:
+  host: unix:///var/run/docker.sock
+  api_version: "1.44"
+  timeout: 30s
+  max_retries: 3
+  retry_delay: 1s
+api_server:
+  host: 0.0.0.0
+  port: 8080
+  read_timeout: 30s
+  write_timeout: 30s
+  idle_timeout: 60s
+logging:
+  level: info
+  format: json
+  output: stdout
+session:
+  timeout: 30m
+  max_sessions: 100
+  cleanup_interval: 5m
+  idle_timeout: 10m
+event:
+  queue_size: 10000
+  workers: 4
+  buffer_size: 1000
+  timeout: 5s
+  retry_attempts: 3
+  retry_delay: 100ms
+ipc:
+  socket_path: /tmp/baaaht-ipc.sock
+  buffer_size: 65536
+  timeout: 30s
+  max_connections: 100
+scheduler:
+  queue_size: 1000
+  workers: 2
+  max_retries: 3
+  retry_delay: 1s
+  task_timeout: 5m
+  queue_timeout: 1m
+credentials:
+  store_path: /tmp/credentials
+  encryption_enabled: true
+  key_rotation_days: 90
+  max_credential_age: 365
+policy:
+  config_path: /tmp/policies.yaml
+  enforcement_mode: strict
+  default_quota_cpu: 1000000000
+  default_quota_memory: 1073741824
+metrics:
+  enabled: false
+  port: 9090
+  path: /metrics
+tracing:
+  enabled: false
+  sample_rate: 0.1
+  exporter: stdout
+orchestrator:
+  shutdown_timeout: 30s
+  health_check_interval: 30s
+  graceful_stop_timeout: 10s
+`
+		if err := os.WriteFile(configPath, []byte(initialContent), 0644); err != nil {
+			t.Fatalf("failed to create test config file: %v", err)
+		}
+
+		// Load initial config
+		initialConfig, err := LoadFromFile(configPath)
+		if err != nil {
+			t.Fatalf("failed to load initial config: %v", err)
+		}
+
+		// Verify initial values
+		if initialConfig.Logging.Level != "info" {
+			t.Errorf("initial Logging.Level = %s, want info", initialConfig.Logging.Level)
+		}
+		if initialConfig.APIServer.Port != 8080 {
+			t.Errorf("initial APIServer.Port = %d, want 8080", initialConfig.APIServer.Port)
+		}
+
+		// Create reloader
+		reloader := NewReloader(configPath, initialConfig)
+
+		// Track callback invocations
+		callbackCalled := false
+		var receivedConfig *Config
+
+		reloader.AddCallback(func(ctx context.Context, cfg *Config) error {
+			callbackCalled = true
+			receivedConfig = cfg
+			return nil
+		})
+
+		// Update config file with new values
+		updatedContent := `
+docker:
+  host: unix:///var/run/docker.sock
+  api_version: "1.44"
+  timeout: 30s
+  max_retries: 3
+  retry_delay: 1s
+api_server:
+  host: 0.0.0.0
+  port: 9090
+  read_timeout: 30s
+  write_timeout: 30s
+  idle_timeout: 60s
+logging:
+  level: debug
+  format: json
+  output: stdout
+session:
+  timeout: 30m
+  max_sessions: 100
+  cleanup_interval: 5m
+  idle_timeout: 10m
+event:
+  queue_size: 10000
+  workers: 4
+  buffer_size: 1000
+  timeout: 5s
+  retry_attempts: 3
+  retry_delay: 100ms
+ipc:
+  socket_path: /tmp/baaaht-ipc.sock
+  buffer_size: 65536
+  timeout: 30s
+  max_connections: 100
+scheduler:
+  queue_size: 1000
+  workers: 2
+  max_retries: 3
+  retry_delay: 1s
+  task_timeout: 5m
+  queue_timeout: 1m
+credentials:
+  store_path: /tmp/credentials
+  encryption_enabled: true
+  key_rotation_days: 90
+  max_credential_age: 365
+policy:
+  config_path: /tmp/policies.yaml
+  enforcement_mode: strict
+  default_quota_cpu: 1000000000
+  default_quota_memory: 1073741824
+metrics:
+  enabled: false
+  port: 9090
+  path: /metrics
+tracing:
+  enabled: false
+  sample_rate: 0.1
+  exporter: stdout
+orchestrator:
+  shutdown_timeout: 30s
+  health_check_interval: 30s
+  graceful_stop_timeout: 10s
+`
+		if err := os.WriteFile(configPath, []byte(updatedContent), 0644); err != nil {
+			t.Fatalf("failed to update config file: %v", err)
+		}
+
+		// Trigger reload
+		ctx := context.Background()
+		if err := reloader.Reload(ctx); err != nil {
+			t.Fatalf("Reload() error = %v", err)
+		}
+
+		// Verify callback was called
+		if !callbackCalled {
+			t.Error("callback was not called after reload")
+		}
+
+		// Verify config was updated
+		newConfig := reloader.GetConfig()
+		if newConfig.Logging.Level != "debug" {
+			t.Errorf("after reload Logging.Level = %s, want debug", newConfig.Logging.Level)
+		}
+		if newConfig.APIServer.Port != 9090 {
+			t.Errorf("after reload APIServer.Port = %d, want 9090", newConfig.APIServer.Port)
+		}
+
+		// Verify callback received the new config
+		if receivedConfig == nil {
+			t.Error("callback did not receive config")
+		} else {
+			if receivedConfig.Logging.Level != "debug" {
+				t.Errorf("callback received Logging.Level = %s, want debug", receivedConfig.Logging.Level)
+			}
+		}
+	})
+
+	t.Run("handles reload errors gracefully", func(t *testing.T) {
+		// Create initial config file
+		configPath := filepath.Join(tmpDir, "reload-error-test.yaml")
+		initialContent := `
+docker:
+  host: unix:///var/run/docker.sock
+  api_version: "1.44"
+  timeout: 30s
+  max_retries: 3
+  retry_delay: 1s
+api_server:
+  host: 0.0.0.0
+  port: 8080
+  read_timeout: 30s
+  write_timeout: 30s
+  idle_timeout: 60s
+logging:
+  level: info
+  format: json
+  output: stdout
+session:
+  timeout: 30m
+  max_sessions: 100
+  cleanup_interval: 5m
+  idle_timeout: 10m
+event:
+  queue_size: 10000
+  workers: 4
+  buffer_size: 1000
+  timeout: 5s
+  retry_attempts: 3
+  retry_delay: 100ms
+ipc:
+  socket_path: /tmp/baaaht-ipc.sock
+  buffer_size: 65536
+  timeout: 30s
+  max_connections: 100
+scheduler:
+  queue_size: 1000
+  workers: 2
+  max_retries: 3
+  retry_delay: 1s
+  task_timeout: 5m
+  queue_timeout: 1m
+credentials:
+  store_path: /tmp/credentials
+  encryption_enabled: true
+  key_rotation_days: 90
+  max_credential_age: 365
+policy:
+  config_path: /tmp/policies.yaml
+  enforcement_mode: strict
+  default_quota_cpu: 1000000000
+  default_quota_memory: 1073741824
+metrics:
+  enabled: false
+  port: 9090
+  path: /metrics
+tracing:
+  enabled: false
+  sample_rate: 0.1
+  exporter: stdout
+orchestrator:
+  shutdown_timeout: 30s
+  health_check_interval: 30s
+  graceful_stop_timeout: 10s
+`
+		if err := os.WriteFile(configPath, []byte(initialContent), 0644); err != nil {
+			t.Fatalf("failed to create test config file: %v", err)
+		}
+
+		// Load initial config
+		initialConfig, err := LoadFromFile(configPath)
+		if err != nil {
+			t.Fatalf("failed to load initial config: %v", err)
+		}
+
+		// Create reloader
+		reloader := NewReloader(configPath, initialConfig)
+
+		// Delete the config file to cause an error on reload
+		os.Remove(configPath)
+
+		// Trigger reload - should return error
+		ctx := context.Background()
+		err = reloader.Reload(ctx)
+		if err == nil {
+			t.Error("Reload() expected error for missing file, got nil")
+		}
+
+		// Verify state is back to idle
+		if reloader.State() != ReloadStateIdle {
+			t.Errorf("after failed reload, State = %s, want idle", reloader.State())
+		}
+
+		// Verify original config is still intact
+		currentConfig := reloader.GetConfig()
+		if currentConfig.Logging.Level != "info" {
+			t.Errorf("after failed reload, Logging.Level = %s, want original value info", currentConfig.Logging.Level)
+		}
+	})
+
+	t.Run("prevents concurrent reloads", func(t *testing.T) {
+		// Create initial config file
+		configPath := filepath.Join(tmpDir, "reload-concurrent-test.yaml")
+		initialContent := `
+docker:
+  host: unix:///var/run/docker.sock
+  api_version: "1.44"
+  timeout: 30s
+  max_retries: 3
+  retry_delay: 1s
+api_server:
+  host: 0.0.0.0
+  port: 8080
+  read_timeout: 30s
+  write_timeout: 30s
+  idle_timeout: 60s
+logging:
+  level: info
+  format: json
+  output: stdout
+session:
+  timeout: 30m
+  max_sessions: 100
+  cleanup_interval: 5m
+  idle_timeout: 10m
+event:
+  queue_size: 10000
+  workers: 4
+  buffer_size: 1000
+  timeout: 5s
+  retry_attempts: 3
+  retry_delay: 100ms
+ipc:
+  socket_path: /tmp/baaaht-ipc.sock
+  buffer_size: 65536
+  timeout: 30s
+  max_connections: 100
+scheduler:
+  queue_size: 1000
+  workers: 2
+  max_retries: 3
+  retry_delay: 1s
+  task_timeout: 5m
+  queue_timeout: 1m
+credentials:
+  store_path: /tmp/credentials
+  encryption_enabled: true
+  key_rotation_days: 90
+  max_credential_age: 365
+policy:
+  config_path: /tmp/policies.yaml
+  enforcement_mode: strict
+  default_quota_cpu: 1000000000
+  default_quota_memory: 1073741824
+metrics:
+  enabled: false
+  port: 9090
+  path: /metrics
+tracing:
+  enabled: false
+  sample_rate: 0.1
+  exporter: stdout
+orchestrator:
+  shutdown_timeout: 30s
+  health_check_interval: 30s
+  graceful_stop_timeout: 10s
+`
+		if err := os.WriteFile(configPath, []byte(initialContent), 0644); err != nil {
+			t.Fatalf("failed to create test config file: %v", err)
+		}
+
+		// Load initial config
+		initialConfig, err := LoadFromFile(configPath)
+		if err != nil {
+			t.Fatalf("failed to load initial config: %v", err)
+		}
+
+		// Create reloader
+		reloader := NewReloader(configPath, initialConfig)
+
+		// Add a slow callback
+		reloadStarted := make(chan struct{})
+		reloadComplete := make(chan struct{})
+
+		reloader.AddCallback(func(ctx context.Context, cfg *Config) error {
+			close(reloadStarted)
+			// Wait a bit to simulate slow callback
+			time.Sleep(100 * time.Millisecond)
+			close(reloadComplete)
+			return nil
+		})
+
+		// Start first reload in background
+		ctx := context.Background()
+		firstErr := make(chan error, 1)
+		go func() {
+			firstErr <- reloader.Reload(ctx)
+		}()
+
+		// Wait for first reload to start
+		<-reloadStarted
+
+		// Try second reload while first is in progress
+		secondErr := reloader.Reload(ctx)
+
+		// Second reload should return nil (skip, no error)
+		if secondErr != nil {
+			t.Errorf("concurrent Reload() should return nil, got %v", secondErr)
+		}
+
+		// Wait for first reload to complete
+		<-reloadComplete
+		if err := <-firstErr; err != nil {
+			t.Errorf("first Reload() error = %v", err)
+		}
+	})
+
+	t.Run("stops and starts signal handling", func(t *testing.T) {
+		// Create initial config file
+		configPath := filepath.Join(tmpDir, "reload-startstop-test.yaml")
+		initialContent := `
+docker:
+  host: unix:///var/run/docker.sock
+  api_version: "1.44"
+  timeout: 30s
+  max_retries: 3
+  retry_delay: 1s
+api_server:
+  host: 0.0.0.0
+  port: 8080
+  read_timeout: 30s
+  write_timeout: 30s
+  idle_timeout: 60s
+logging:
+  level: info
+  format: json
+  output: stdout
+session:
+  timeout: 30m
+  max_sessions: 100
+  cleanup_interval: 5m
+  idle_timeout: 10m
+event:
+  queue_size: 10000
+  workers: 4
+  buffer_size: 1000
+  timeout: 5s
+  retry_attempts: 3
+  retry_delay: 100ms
+ipc:
+  socket_path: /tmp/baaaht-ipc.sock
+  buffer_size: 65536
+  timeout: 30s
+  max_connections: 100
+scheduler:
+  queue_size: 1000
+  workers: 2
+  max_retries: 3
+  retry_delay: 1s
+  task_timeout: 5m
+  queue_timeout: 1m
+credentials:
+  store_path: /tmp/credentials
+  encryption_enabled: true
+  key_rotation_days: 90
+  max_credential_age: 365
+policy:
+  config_path: /tmp/policies.yaml
+  enforcement_mode: strict
+  default_quota_cpu: 1000000000
+  default_quota_memory: 1073741824
+metrics:
+  enabled: false
+  port: 9090
+  path: /metrics
+tracing:
+  enabled: false
+  sample_rate: 0.1
+  exporter: stdout
+orchestrator:
+  shutdown_timeout: 30s
+  health_check_interval: 30s
+  graceful_stop_timeout: 10s
+`
+		if err := os.WriteFile(configPath, []byte(initialContent), 0644); err != nil {
+			t.Fatalf("failed to create test config file: %v", err)
+		}
+
+		// Load initial config
+		initialConfig, err := LoadFromFile(configPath)
+		if err != nil {
+			t.Fatalf("failed to load initial config: %v", err)
+		}
+
+		// Create reloader
+		reloader := NewReloader(configPath, initialConfig)
+
+		// Start the reloader
+		reloader.Start()
+
+		// Verify started
+		if reloader.State() != ReloadStateIdle {
+			t.Errorf("after Start(), State = %s, want idle", reloader.State())
+		}
+
+		// Stop the reloader
+		reloader.Stop()
+
+		// Verify stopped
+		if reloader.State() != ReloadStateStopped {
+			t.Errorf("after Stop(), State = %s, want stopped", reloader.State())
+		}
+
+		// Starting again should be idempotent
+		reloader.Start()
+		if reloader.State() != ReloadStateIdle {
+			t.Errorf("after second Start(), State = %s, want idle", reloader.State())
+		}
+
+		reloader.Stop()
+	})
+
+	t.Run("callback error prevents config update", func(t *testing.T) {
+		// Create initial config file
+		configPath := filepath.Join(tmpDir, "reload-callback-error-test.yaml")
+		initialContent := `
+docker:
+  host: unix:///var/run/docker.sock
+  api_version: "1.44"
+  timeout: 30s
+  max_retries: 3
+  retry_delay: 1s
+api_server:
+  host: 0.0.0.0
+  port: 8080
+  read_timeout: 30s
+  write_timeout: 30s
+  idle_timeout: 60s
+logging:
+  level: info
+  format: json
+  output: stdout
+session:
+  timeout: 30m
+  max_sessions: 100
+  cleanup_interval: 5m
+  idle_timeout: 10m
+event:
+  queue_size: 10000
+  workers: 4
+  buffer_size: 1000
+  timeout: 5s
+  retry_attempts: 3
+  retry_delay: 100ms
+ipc:
+  socket_path: /tmp/baaaht-ipc.sock
+  buffer_size: 65536
+  timeout: 30s
+  max_connections: 100
+scheduler:
+  queue_size: 1000
+  workers: 2
+  max_retries: 3
+  retry_delay: 1s
+  task_timeout: 5m
+  queue_timeout: 1m
+credentials:
+  store_path: /tmp/credentials
+  encryption_enabled: true
+  key_rotation_days: 90
+  max_credential_age: 365
+policy:
+  config_path: /tmp/policies.yaml
+  enforcement_mode: strict
+  default_quota_cpu: 1000000000
+  default_quota_memory: 1073741824
+metrics:
+  enabled: false
+  port: 9090
+  path: /metrics
+tracing:
+  enabled: false
+  sample_rate: 0.1
+  exporter: stdout
+orchestrator:
+  shutdown_timeout: 30s
+  health_check_interval: 30s
+  graceful_stop_timeout: 10s
+`
+		if err := os.WriteFile(configPath, []byte(initialContent), 0644); err != nil {
+			t.Fatalf("failed to create test config file: %v", err)
+		}
+
+		// Load initial config
+		initialConfig, err := LoadFromFile(configPath)
+		if err != nil {
+			t.Fatalf("failed to load initial config: %v", err)
+		}
+
+		// Create reloader
+		reloader := NewReloader(configPath, initialConfig)
+
+		// Add a callback that returns an error
+		reloader.AddCallback(func(ctx context.Context, cfg *Config) error {
+			return types.NewError(types.ErrCodeInternal, "callback failed intentionally")
+		})
+
+		// Update config file
+		updatedContent := `
+docker:
+  host: unix:///var/run/docker.sock
+  api_version: "1.44"
+  timeout: 30s
+  max_retries: 3
+  retry_delay: 1s
+api_server:
+  host: 0.0.0.0
+  port: 9090
+  read_timeout: 30s
+  write_timeout: 30s
+  idle_timeout: 60s
+logging:
+  level: debug
+  format: json
+  output: stdout
+session:
+  timeout: 30m
+  max_sessions: 100
+  cleanup_interval: 5m
+  idle_timeout: 10m
+event:
+  queue_size: 10000
+  workers: 4
+  buffer_size: 1000
+  timeout: 5s
+  retry_attempts: 3
+  retry_delay: 100ms
+ipc:
+  socket_path: /tmp/baaaht-ipc.sock
+  buffer_size: 65536
+  timeout: 30s
+  max_connections: 100
+scheduler:
+  queue_size: 1000
+  workers: 2
+  max_retries: 3
+  retry_delay: 1s
+  task_timeout: 5m
+  queue_timeout: 1m
+credentials:
+  store_path: /tmp/credentials
+  encryption_enabled: true
+  key_rotation_days: 90
+  max_credential_age: 365
+policy:
+  config_path: /tmp/policies.yaml
+  enforcement_mode: strict
+  default_quota_cpu: 1000000000
+  default_quota_memory: 1073741824
+metrics:
+  enabled: false
+  port: 9090
+  path: /metrics
+tracing:
+  enabled: false
+  sample_rate: 0.1
+  exporter: stdout
+orchestrator:
+  shutdown_timeout: 30s
+  health_check_interval: 30s
+  graceful_stop_timeout: 10s
+`
+		if err := os.WriteFile(configPath, []byte(updatedContent), 0644); err != nil {
+			t.Fatalf("failed to update config file: %v", err)
+		}
+
+		// Trigger reload - should fail due to callback error
+		ctx := context.Background()
+		err = reloader.Reload(ctx)
+		if err == nil {
+			t.Error("Reload() expected error from callback, got nil")
+		}
+
+		// Verify config was NOT updated
+		currentConfig := reloader.GetConfig()
+		if currentConfig.Logging.Level != "info" {
+			t.Errorf("after failed callback, Logging.Level = %s, want original info", currentConfig.Logging.Level)
+		}
+		if currentConfig.APIServer.Port != 8080 {
+			t.Errorf("after failed callback, APIServer.Port = %d, want original 8080", currentConfig.APIServer.Port)
+		}
+	})
+}
+
