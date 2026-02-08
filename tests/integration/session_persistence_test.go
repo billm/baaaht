@@ -158,20 +158,13 @@ func TestSessionPersistence(t *testing.T) {
 
 	t.Logf("JSONL file has %d lines (one per message)", len(lines))
 
-	// Verify each line is valid JSON and human-readable
-	// Use a local type since PersistedMessage is not exported
-	type persistedMessage struct {
-		ID        string    `json:"id"`
-		Timestamp time.Time `json:"timestamp"`
-		Role      string    `json:"role"`
-		Content   string    `json:"content"`
-	}
+	// Verify each line is valid JSON and human-readable using PersistedMessage
 
 	for i, line := range lines {
 		require.NotEmpty(t, line, "Line %d should not be empty", i)
 
 		// Verify it's valid JSON
-		var persistedMsg persistedMessage
+		var persistedMsg session.PersistedMessage
 		err := json.Unmarshal([]byte(line), &persistedMsg)
 		require.NoError(t, err, "Line %d should be valid JSON", i)
 
