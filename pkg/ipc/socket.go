@@ -89,7 +89,7 @@ func NewSocket(path string, cfg SocketConfig, log *logger.Logger) (*Socket, erro
 	s.logger.Info("IPC socket initialized",
 		"path", path,
 		"max_connections", cfg.MaxConnections,
-		"buffer_size", cfg.BufferSize,
+		"buffer_size", s.bufferSize,
 		"timeout", cfg.Timeout.String(),
 		"auth_enabled", cfg.EnableAuth)
 

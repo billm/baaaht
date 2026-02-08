@@ -114,7 +114,10 @@ func parseLevel(level string) (Level, error) {
 	}
 }
 
-// With returns a new logger with additional key-value pairs
+// With returns a new logger with additional key-value pairs.
+// Note: The returned logger shares the same underlying handler as the parent logger,
+// but does not copy the closer field. Only the root logger (created by New()) should
+// be closed. Derived loggers created by With() or WithGroup() should NOT be closed.
 func (l *Logger) With(args ...any) *Logger {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
@@ -122,10 +125,14 @@ func (l *Logger) With(args ...any) *Logger {
 	return &Logger{
 		logger: l.logger.With(args...),
 		level:  l.level,
+		closer: nil, // Derived loggers should not close the file handle
 	}
 }
 
-// WithGroup returns a new logger with a group prefix
+// WithGroup returns a new logger with a group prefix.
+// Note: The returned logger shares the same underlying handler as the parent logger,
+// but does not copy the closer field. Only the root logger (created by New()) should
+// be closed. Derived loggers created by With() or WithGroup() should NOT be closed.
 func (l *Logger) WithGroup(name string) *Logger {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
@@ -133,6 +140,7 @@ func (l *Logger) WithGroup(name string) *Logger {
 	return &Logger{
 		logger: l.logger.WithGroup(name),
 		level:  l.level,
+		closer: nil, // Derived loggers should not close the file handle
 	}
 }
 
@@ -225,7 +233,11 @@ func (l *Logger) Flush() error {
 	return nil
 }
 
-// Close closes any open resources (file handles, etc.)
+// Close closes any open resources (file handles, etc.).
+// Important: Only call Close() on the root logger instance created by New().
+// Do NOT call Close() on derived loggers created by With() or WithGroup() as they
+// share the underlying file handle and do not have ownership of it.
+// Calling Close() on a derived logger is a no-op but should be avoided for clarity.
 func (l *Logger) Close() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
