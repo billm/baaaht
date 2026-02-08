@@ -2,7 +2,9 @@ package config
 
 import (
 	"os"
+	"path/filepath"
 	"regexp"
+	"strings"
 
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 	"gopkg.in/yaml.v3"
@@ -37,21 +39,91 @@ func interpolateEnvVars(s string) string {
 	})
 }
 
+// validateFilePath checks if the file path is valid and has the correct extension
+func validateFilePath(path string) error {
+	// Check if the path is empty
+	if path == "" {
+		return types.NewError(types.ErrCodeInvalidArgument, "configuration file path cannot be empty")
+	}
+
+	// Check file extension
+	ext := strings.ToLower(filepath.Ext(path))
+	if ext != ".yaml" && ext != ".yml" {
+		return types.NewError(types.ErrCodeInvalidArgument,
+			"configuration file must have .yaml or .yml extension, got: "+ext)
+	}
+
+	return nil
+}
+
+// validateYAMLContent validates the YAML content and provides detailed error messages
+func validateYAMLContent(data []byte, path string) error {
+	// Check for empty file
+	if len(data) == 0 {
+		return types.NewError(types.ErrCodeInvalid, "configuration file is empty: "+path)
+	}
+
+	// Check for file that's only whitespace
+	trimmed := strings.TrimSpace(string(data))
+	if trimmed == "" {
+		return types.NewError(types.ErrCodeInvalid, "configuration file contains only whitespace: "+path)
+	}
+
+	// Parse YAML to validate syntax
+	var node yaml.Node
+	if err := yaml.Unmarshal(data, &node); err != nil {
+		// Enhance YAML error with context
+		return types.WrapError(types.ErrCodeInvalid, "invalid YAML syntax in "+path, err)
+	}
+
+	// Check if the document is empty (no actual content)
+	if node.Kind == 0 && len(node.Content) == 0 {
+		return types.NewError(types.ErrCodeInvalid, "configuration file contains no valid YAML content: "+path)
+	}
+
+	return nil
+}
+
+// formatYAMLError formats a YAML error with file context
+func formatYAMLError(err error, path string) error {
+	if err == nil {
+		return nil
+	}
+
+	// Check if it's a YAML parse error with line/column information
+	if yamlErr, ok := err.(*yaml.TypeError); ok {
+		return types.WrapError(types.ErrCodeInvalid, "YAML type error in "+path, yamlErr)
+	}
+
+	// For other errors, wrap with file context
+	return types.WrapError(types.ErrCodeInvalid, "failed to parse YAML configuration from "+path, err)
+}
+
 // LoadFromFile loads configuration from a YAML file
 func LoadFromFile(path string) (*Config, error) {
+	// Validate file path
+	if err := validateFilePath(path); err != nil {
+		return nil, err
+	}
+
 	// Read the file
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, types.WrapError(types.ErrCodeNotFound, "configuration file not found", err)
+			return nil, types.WrapError(types.ErrCodeNotFound, "configuration file not found: "+path, err)
 		}
-		return nil, types.WrapError(types.ErrCodeInvalidArgument, "failed to read configuration file", err)
+		return nil, types.WrapError(types.ErrCodeInvalidArgument, "failed to read configuration file: "+path, err)
+	}
+
+	// Validate YAML content before parsing
+	if err := validateYAMLContent(data, path); err != nil {
+		return nil, err
 	}
 
 	// Parse YAML
 	var cfg Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, types.WrapError(types.ErrCodeInvalid, "failed to parse YAML configuration", err)
+		return nil, formatYAMLError(err, path)
 	}
 
 	// Interpolate environment variables in all string fields
@@ -59,7 +131,7 @@ func LoadFromFile(path string) (*Config, error) {
 
 	// Validate the configuration
 	if err := cfg.Validate(); err != nil {
-		return nil, types.WrapError(types.ErrCodeInvalid, "configuration validation failed", err)
+		return nil, types.WrapError(types.ErrCodeInvalid, "configuration validation failed for "+path, err)
 	}
 
 	return &cfg, nil
