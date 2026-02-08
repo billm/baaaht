@@ -170,7 +170,7 @@ func TestSessionPersistence(t *testing.T) {
 
 		// Verify message content matches
 		require.Equal(t, messages[i].Content, persistedMsg.Content, "Message %d content should match", i)
-		require.Equal(t, string(messages[i].Role), persistedMsg.Role, "Message %d role should match", i)
+		require.Equal(t, messages[i].Role, persistedMsg.Role, "Message %d role should match", i)
 
 		// Verify the line is human-readable (contains expected fields)
 		assert.Contains(t, line, `"id":`, "Line should contain id field")

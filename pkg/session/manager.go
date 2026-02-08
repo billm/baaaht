@@ -12,6 +12,11 @@ import (
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 )
 
+const (
+	// SessionIDPrefixLength is the length of the session ID prefix used in display names
+	SessionIDPrefixLength = 8
+)
+
 // Manager manages session lifecycles
 type Manager struct {
 	mu              sync.RWMutex
@@ -373,7 +378,7 @@ func (m *Manager) AddMessage(ctx context.Context, sessionID types.ID, message ty
 
 	session := sessionWithSM.Session()
 
-	// Ensure message has ID and timestamp
+	// Ensure message has ID and timestamp before persisting
 	if message.ID.IsEmpty() {
 		message.ID = types.GenerateID()
 	}
@@ -381,10 +386,7 @@ func (m *Manager) AddMessage(ctx context.Context, sessionID types.ID, message ty
 		message.Timestamp = types.NewTimestampFromTime(time.Now())
 	}
 
-	session.Context.Messages = append(session.Context.Messages, message)
-	session.UpdatedAt = types.NewTimestampFromTime(time.Now())
-
-	// Persist message to storage if enabled
+	// Persist message to storage first if enabled
 	if m.store != nil {
 		if err := m.store.AppendMessage(ctx, session.Metadata.OwnerID, sessionID.String(), message); err != nil {
 			m.logger.Error("Failed to persist message to storage",
@@ -394,6 +396,10 @@ func (m *Manager) AddMessage(ctx context.Context, sessionID types.ID, message ty
 			return err
 		}
 	}
+
+	// Only update in-memory state after successful persistence
+	session.Context.Messages = append(session.Context.Messages, message)
+	session.UpdatedAt = types.NewTimestampFromTime(time.Now())
 
 	// Transition from idle to active when a message is added
 	if sessionWithSM.CurrentState() == types.SessionStateIdle {
@@ -771,6 +777,12 @@ func (m *Manager) RestoreSessions(ctx context.Context) error {
 				createdAt = now
 			}
 
+			// Create a short session ID prefix for display name
+			sessionPrefix := sessionIDStr
+			if len(sessionIDStr) > SessionIDPrefixLength {
+				sessionPrefix = sessionIDStr[:SessionIDPrefixLength]
+			}
+
 			session := &types.Session{
 				ID:        sessionID,
 				State:     types.SessionStateIdle, // Restored sessions start in idle state
@@ -779,7 +791,7 @@ func (m *Manager) RestoreSessions(ctx context.Context) error {
 				UpdatedAt: now,
 				Metadata: types.SessionMetadata{
 					OwnerID: ownerID,
-					Name:    fmt.Sprintf("restored-%s", sessionIDStr[:8]),
+					Name:    fmt.Sprintf("restored-%s", sessionPrefix),
 				},
 				Context: types.SessionContext{
 					Config:   types.SessionConfig{}, // Use default config
