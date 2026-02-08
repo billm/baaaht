@@ -25,6 +25,7 @@ type Config struct {
 	Tracing      TracingConfig      `json:"tracing" yaml:"tracing"`
 	Orchestrator OrchestratorConfig `json:"orchestrator" yaml:"orchestrator"`
 	Runtime      RuntimeConfig      `json:"runtime" yaml:"runtime"`
+	GRPC         GRPCConfig         `json:"grpc" yaml:"grpc"`
 }
 
 // DockerConfig contains Docker client configuration
@@ -162,6 +163,15 @@ type RuntimeConfig struct {
 	TLSCAPath   string        `json:"tls_ca_path,omitempty"`
 }
 
+// GRPCConfig contains gRPC server configuration
+type GRPCConfig struct {
+	SocketPath     string        `json:"socket_path" yaml:"socket_path"`
+	MaxRecvMsgSize int           `json:"max_recv_msg_size" yaml:"max_recv_msg_size"` // bytes
+	MaxSendMsgSize int           `json:"max_send_msg_size" yaml:"max_send_msg_size"` // bytes
+	Timeout        time.Duration `json:"timeout" yaml:"timeout"`
+	MaxConnections int           `json:"max_connections" yaml:"max_connections"`
+}
+
 // Load creates a new Config by loading defaults and overriding with environment variables
 func Load() (*Config, error) {
 	var cfg *Config
@@ -197,6 +207,7 @@ func Load() (*Config, error) {
 			Tracing:      DefaultTracingConfig(),
 			Orchestrator: DefaultOrchestratorConfig(),
 			Runtime:      DefaultRuntimeConfig(),
+			GRPC:         DefaultGRPCConfig(),
 		}
 	}
 
@@ -319,6 +330,31 @@ func Load() (*Config, error) {
 	cfg.Runtime.TLSCAPath = os.Getenv(EnvRuntimeTLSCA)
 	if v := os.Getenv(EnvRuntimeTLSEnabled); v != "" {
 		cfg.Runtime.TLSEnabled = strings.ToLower(v) == "true" || v == "1"
+	}
+
+	// Load gRPC configuration
+	if v := os.Getenv(EnvGRPCSocketPath); v != "" {
+		cfg.GRPC.SocketPath = v
+	}
+	if v := os.Getenv(EnvGRPCMaxRecvMsgSize); v != "" {
+		if size, err := strconv.Atoi(v); err == nil {
+			cfg.GRPC.MaxRecvMsgSize = size
+		}
+	}
+	if v := os.Getenv(EnvGRPCMaxSendMsgSize); v != "" {
+		if size, err := strconv.Atoi(v); err == nil {
+			cfg.GRPC.MaxSendMsgSize = size
+		}
+	}
+	if v := os.Getenv(EnvGRPCTimeout); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			cfg.GRPC.Timeout = d
+		}
+	}
+	if v := os.Getenv(EnvGRPCMaxConnections); v != "" {
+		if conns, err := strconv.Atoi(v); err == nil {
+			cfg.GRPC.MaxConnections = conns
+		}
 	}
 
 	// Validate the configuration
@@ -459,6 +495,23 @@ func (c *Config) Validate() error {
 		return types.NewError(types.ErrCodeInvalidArgument, "runtime max retries cannot be negative")
 	}
 
+	// Validate gRPC configuration
+	if c.GRPC.SocketPath == "" {
+		return types.NewError(types.ErrCodeInvalidArgument, "grpc socket path cannot be empty")
+	}
+	if c.GRPC.MaxRecvMsgSize <= 0 {
+		return types.NewError(types.ErrCodeInvalidArgument, "grpc max recv message size must be positive")
+	}
+	if c.GRPC.MaxSendMsgSize <= 0 {
+		return types.NewError(types.ErrCodeInvalidArgument, "grpc max send message size must be positive")
+	}
+	if c.GRPC.Timeout <= 0 {
+		return types.NewError(types.ErrCodeInvalidArgument, "grpc timeout must be positive")
+	}
+	if c.GRPC.MaxConnections <= 0 {
+		return types.NewError(types.ErrCodeInvalidArgument, "grpc max connections must be positive")
+	}
+
 	return nil
 }
 
@@ -479,7 +532,7 @@ func (c *Config) ProfilingAddress() string {
 
 // String returns a string representation of the configuration (sensitive data is hidden)
 func (c *Config) String() string {
-	return fmt.Sprintf("Config{Docker: %s, API: %s, Logging: %s, Session: %s, Event: %s, IPC: %s, Scheduler: %s, Credentials: %s, Policy: %s, Metrics: %s, Tracing: %s, Orchestrator: %s, Runtime: %s}",
+	return fmt.Sprintf("Config{Docker: %s, API: %s, Logging: %s, Session: %s, Event: %s, IPC: %s, Scheduler: %s, Credentials: %s, Policy: %s, Metrics: %s, Tracing: %s, Orchestrator: %s, Runtime: %s, GRPC: %s}",
 		c.Docker.String(),
 		c.APIServer.String(),
 		c.Logging.String(),
@@ -493,6 +546,7 @@ func (c *Config) String() string {
 		c.Tracing.String(),
 		c.Orchestrator.String(),
 		c.Runtime.String(),
+		c.GRPC.String(),
 	)
 }
 
@@ -603,4 +657,9 @@ func (c OrchestratorConfig) String() string {
 func (c RuntimeConfig) String() string {
 	return fmt.Sprintf("RuntimeConfig{Type: %s, SocketPath: %s, Timeout: %s, MaxRetries: %d, TLSEnabled: %v}",
 		c.Type, c.SocketPath, c.Timeout, c.MaxRetries, c.TLSEnabled)
+}
+
+func (c GRPCConfig) String() string {
+	return fmt.Sprintf("GRPCConfig{SocketPath: %s, MaxRecvMsgSize: %d, MaxSendMsgSize: %d, Timeout: %s, MaxConnections: %d}",
+		c.SocketPath, c.MaxRecvMsgSize, c.MaxSendMsgSize, c.Timeout, c.MaxConnections)
 }

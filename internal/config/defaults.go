@@ -71,6 +71,11 @@ const (
 	EnvRuntimeTLSKey     = "CONTAINER_RUNTIME_TLS_KEY"
 	EnvRuntimeTLSCA      = "CONTAINER_RUNTIME_TLS_CA"
 	EnvRuntimeTLSEnabled = "CONTAINER_RUNTIME_TLS_ENABLED"
+	EnvGRPCSocketPath    = "GRPC_SOCKET_PATH"
+	EnvGRPCMaxRecvMsgSize = "GRPC_MAX_RECV_MSG_SIZE"
+	EnvGRPCMaxSendMsgSize = "GRPC_MAX_SEND_MSG_SIZE"
+	EnvGRPCTimeout       = "GRPC_TIMEOUT"
+	EnvGRPCMaxConnections = "GRPC_MAX_CONNECTIONS"
 )
 
 const (
@@ -119,6 +124,13 @@ const (
 	// Default Runtime settings
 	DefaultRuntimeType    = "auto"
 	DefaultRuntimeTimeout = 30 * time.Second
+
+	// Default gRPC settings
+	DefaultGRPCSocketPath     = "/tmp/baaaht-grpc.sock"
+	DefaultGRPCMaxRecvMsgSize = 100 * 1024 * 1024 // 100 MB
+	DefaultGRPCMaxSendMsgSize = 100 * 1024 * 1024 // 100 MB
+	DefaultGRPCTimeout        = 30 * time.Second
+	DefaultGRPCMaxConnections = 100
 )
 
 // DefaultDockerConfig returns the default Docker configuration
@@ -291,5 +303,16 @@ func DefaultRuntimeConfig() RuntimeConfig {
 		TLSCertPath: "",
 		TLSKeyPath:  "",
 		TLSCAPath:   "",
+	}
+}
+
+// DefaultGRPCConfig returns the default gRPC server configuration
+func DefaultGRPCConfig() GRPCConfig {
+	return GRPCConfig{
+		SocketPath:     DefaultGRPCSocketPath,
+		MaxRecvMsgSize: DefaultGRPCMaxRecvMsgSize,
+		MaxSendMsgSize: DefaultGRPCMaxSendMsgSize,
+		Timeout:        DefaultGRPCTimeout,
+		MaxConnections: DefaultGRPCMaxConnections,
 	}
 }
