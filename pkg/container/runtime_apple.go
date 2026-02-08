@@ -121,7 +121,7 @@ func (c *AppleClient) Info(ctx context.Context) (*types.DockerInfo, error) {
 		KernelVersion:     "Darwin Kernel",
 		Architecture:      runtime.GOARCH,
 		NCPU:              runtime.NumCPU(),
-		Memory:            memStats.Sys, // Total memory obtained from the OS
+		Memory:            int64(memStats.Sys), // Total memory obtained from the OS
 		ContainerCount:    0,
 		RunningContainers: 0,
 	}, nil
