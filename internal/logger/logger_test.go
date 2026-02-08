@@ -3,6 +3,7 @@ package logger
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -500,8 +501,8 @@ func TestInitGlobal(t *testing.T) {
 // TestDerivedLoggerCloser tests that derived loggers don't have closer
 func TestDerivedLoggerCloser(t *testing.T) {
 	// Create a temporary file for logging
-	tmpFile := "/tmp/test-derived-logger.txt"
-	defer os.Remove(tmpFile)
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "test-derived-logger.txt")
 
 	cfg := config.LoggingConfig{
 		Level:  "info",

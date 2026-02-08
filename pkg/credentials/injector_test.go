@@ -3,6 +3,7 @@ package credentials
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/billm/baaaht/orchestrator/internal/logger"
@@ -85,7 +86,7 @@ func TestFilepathWithBase(t *testing.T) {
 					t.Errorf("filepathWithBase() expected error but got none, result: %s", result)
 					return
 				}
-				if tt.errString != "" && !contains(err.Error(), tt.errString) {
+				if tt.errString != "" && !strings.Contains(err.Error(), tt.errString) {
 					t.Errorf("filepathWithBase() error = %v, should contain %s", err, tt.errString)
 				}
 			} else {
@@ -105,20 +106,6 @@ func TestFilepathWithBase(t *testing.T) {
 			}
 		})
 	}
-}
-
-// contains is a helper function to check if a string contains a substring
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && 
-		(s[:len(substr)] == substr || s[len(s)-len(substr):] == substr || 
-		len(s) > len(substr)+1 && (func() bool {
-			for i := 0; i <= len(s)-len(substr); i++ {
-				if s[i:i+len(substr)] == substr {
-					return true
-				}
-			}
-			return false
-		}())))
 }
 
 // TestPrepareFile tests file preparation with path validation
@@ -199,7 +186,7 @@ func TestPrepareFile(t *testing.T) {
 					t.Errorf("Prepare() expected error but got none")
 					return
 				}
-				if tt.errString != "" && !contains(err.Error(), tt.errString) {
+				if tt.errString != "" && !strings.Contains(err.Error(), tt.errString) {
 					t.Errorf("Prepare() error = %v, should contain %s", err, tt.errString)
 				}
 			} else {
