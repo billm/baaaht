@@ -105,11 +105,21 @@ func NewServer(path string, cfg ServerConfig, log *logger.Logger) (*Server, erro
 		shutdownTimeout = DefaultShutdownTimeout
 	}
 
-	// Remove existing socket file if it exists
-	if _, err := os.Stat(path); err == nil {
-		if err := os.Remove(path); err != nil {
-			return nil, types.WrapError(types.ErrCodeInternal, "failed to remove existing socket file", err)
+	// Remove existing socket file if it exists and is a Unix domain socket
+	if fi, err := os.Lstat(path); err == nil {
+		if fi.Mode()&os.ModeSocket != 0 {
+			if err := os.Remove(path); err != nil {
+				return nil, types.WrapError(types.ErrCodeInternal, "failed to remove existing socket file", err)
+			}
+		} else {
+			return nil, types.WrapError(
+				types.ErrCodeInternal,
+				fmt.Sprintf("refusing to remove existing non-socket path %q (mode: %v)", path, fi.Mode()),
+				nil,
+			)
 		}
+	} else if !os.IsNotExist(err) {
+		return nil, types.WrapError(types.ErrCodeInternal, "failed to stat existing socket path", err)
 	}
 
 	s := &Server{
