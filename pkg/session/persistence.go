@@ -159,7 +159,12 @@ func (s *Store) acquireLockWithMode(lockPath string, lockMode int) (*fileLock, e
 		select {
 		case <-timeout:
 			lockFile.Close()
-			return nil, types.NewError(types.ErrCodeUnavailable, "timeout waiting to acquire file lock")
+			lockType := "exclusive"
+			if lockMode&syscall.LOCK_SH != 0 {
+				lockType = "shared"
+			}
+			errMsg := fmt.Sprintf("timeout after %s waiting to acquire %s file lock on %s", DefaultLockTimeout, lockType, lockPath)
+			return nil, types.NewError(types.ErrCodeUnavailable, errMsg)
 		case <-ticker.C:
 			// Try to acquire flock (exclusive or shared)
 			err := syscall.Flock(int(lockFile.Fd()), lockMode|syscall.LOCK_NB)
