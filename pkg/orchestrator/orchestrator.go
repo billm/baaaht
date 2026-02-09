@@ -291,8 +291,33 @@ func (o *Orchestrator) initPolicyEnforcer(ctx context.Context) error {
 		return err
 	}
 
+	// Load policy from YAML if ConfigPath is set
+	if o.cfg.Policy.ConfigPath != "" {
+		o.logger.Debug("Loading policy from file", "path", o.cfg.Policy.ConfigPath)
+		pol, err := policy.LoadFromFile(o.cfg.Policy.ConfigPath)
+		if err != nil {
+			// Close the enforcer before returning error
+			_ = enforcer.Close()
+			return types.WrapError(types.ErrCodeInvalidArgument, "failed to load policy from "+o.cfg.Policy.ConfigPath, err)
+		}
+
+		// Set the loaded policy on the enforcer
+		if err := enforcer.SetPolicy(ctx, pol); err != nil {
+			// Close the enforcer before returning error
+			_ = enforcer.Close()
+			return types.WrapError(types.ErrCodeInternal, "failed to set policy", err)
+		}
+
+		o.logger.Info("Policy enforcer initialized with policy from file",
+			"policy_id", pol.ID,
+			"name", pol.Name,
+			"mode", pol.Mode,
+			"path", o.cfg.Policy.ConfigPath)
+	} else {
+		o.logger.Info("Policy enforcer initialized with default policy")
+	}
+
 	o.policyEnforcer = enforcer
-	o.logger.Info("Policy enforcer initialized")
 	return nil
 }
 
