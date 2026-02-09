@@ -328,7 +328,7 @@ func (o *Orchestrator) initPolicyEnforcer(ctx context.Context) error {
 					"policy_id", newPolicy.ID,
 					"name", newPolicy.Name,
 					"mode", newPolicy.Mode)
-				return o.policyEnforcer.SetPolicy(reloadCtx, newPolicy)
+				return enforcer.SetPolicy(reloadCtx, newPolicy)
 			})
 
 			// Start the reloader
