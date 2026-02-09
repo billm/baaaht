@@ -628,7 +628,7 @@ func (p *openaiProvider) convertContentBlock(block ContentBlock) (interface{}, e
 		return map[string]interface{}{
 			"type": "image_url",
 			"image_url": map[string]string{
-				"url": block.Source.Type + ":" + block.Source.MediaType + "," + block.Source.Data,
+				"url": block.Source.Type + ":" + block.Source.MediaType + ";base64," + block.Source.Data,
 			},
 		}, nil
 	default:
