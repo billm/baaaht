@@ -106,6 +106,7 @@ func NewDefault(log *logger.Logger) (*Orchestrator, error) {
 // 8. Credential Store
 // 9. Scheduler
 // 10. Memory System
+// 11. LLM Gateway (optional)
 func (o *Orchestrator) Initialize(ctx context.Context) error {
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -207,6 +208,14 @@ func (o *Orchestrator) Initialize(ctx context.Context) error {
 		_ = o.cleanupEventBus()
 		_ = o.cleanupDockerClient()
 		return types.WrapError(types.ErrCodeInternal, "failed to initialize memory system", err)
+	}
+
+	// 10. Initialize LLM Gateway (optional, non-critical)
+	if err := o.initLLMGateway(ctx); err != nil {
+		// LLM Gateway initialization failures are non-critical
+		// Log a warning and continue with LLM disabled
+		o.logger.Warn("LLM Gateway initialization failed, continuing with LLM disabled",
+			"error", err)
 	}
 
 	o.started = true
@@ -366,6 +375,62 @@ func (o *Orchestrator) initMemorySystem(ctx context.Context) error {
 		"enabled", o.cfg.Memory.Enabled,
 		"user_path", o.cfg.Memory.UserMemoryPath,
 		"group_path", o.cfg.Memory.GroupMemoryPath)
+
+	return nil
+}
+
+// initLLMGateway initializes the LLM Gateway manager if LLM is enabled in configuration.
+// This is a non-critical initialization - failures will log a warning but not prevent
+// the orchestrator from starting. The LLM Gateway provides isolated API credential
+// management for LLM providers.
+func (o *Orchestrator) initLLMGateway(ctx context.Context) error {
+	// Check if LLM is enabled in configuration
+	if !o.cfg.LLM.Enabled {
+		o.logger.Info("LLM Gateway is disabled in configuration")
+		return nil
+	}
+
+	o.logger.Debug("Initializing LLM Gateway",
+		"container_image", o.cfg.LLM.ContainerImage,
+		"default_provider", o.cfg.LLM.DefaultProvider,
+		"default_model", o.cfg.LLM.DefaultModel)
+
+	// Create LLM credential manager
+	o.llmCredentialManager = credentials.NewLLMCredentialManager(
+		o.credStore,
+		o.cfg.LLM,
+		o.logger,
+	)
+
+	// Validate that LLM credentials exist for enabled providers
+	if err := o.llmCredentialManager.ValidateLLMCredentials(); err != nil {
+		o.logger.Warn("LLM credential validation failed, LLM Gateway will not be started",
+			"error", err)
+		// Don't fail - continue with LLM disabled
+		return nil
+	}
+
+	// Create LLM Gateway manager
+	llmGatewayMgr, err := NewLLMGatewayManager(
+		o.dockerClient,
+		o.cfg.LLM,
+		o.credStore,
+		o.logger,
+	)
+	if err != nil {
+		return types.WrapError(types.ErrCodeInternal, "failed to create LLM Gateway manager", err)
+	}
+
+	o.llmGateway = llmGatewayMgr
+
+	// Start the LLM Gateway container
+	if err := o.llmGateway.Start(ctx); err != nil {
+		return types.WrapError(types.ErrCodeInternal, "failed to start LLM Gateway", err)
+	}
+
+	o.logger.Info("LLM Gateway initialized successfully",
+		"container_id", o.llmGateway.GetContainerID(),
+		"enabled", true)
 
 	return nil
 }
@@ -868,6 +933,13 @@ func (o *Orchestrator) cleanupMemorySystem() error {
 	}
 	if o.memoryStore != nil {
 		return o.memoryStore.Close()
+	}
+	return nil
+}
+
+func (o *Orchestrator) cleanupLLMGateway() error {
+	if o.llmGateway != nil {
+		return o.llmGateway.Close()
 	}
 	return nil
 }
