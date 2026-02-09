@@ -662,6 +662,15 @@ func (s *GatewayService) StreamChat(stream proto.GatewayService_StreamChatServer
 			// Convert gateway message to orchestrator message
 			message := protoToGatewayMessage(req.GetMessage())
 
+			// Generate ID and timestamp before adding to avoid race conditions
+			// (AddMessage would generate these internally, but we need them for the response)
+			if message.ID.IsEmpty() {
+				message.ID = types.GenerateID()
+			}
+			if message.Timestamp.IsZero() {
+				message.Timestamp = types.NewTimestampFromTime(time.Now())
+			}
+
 			// Add message to orchestrator session
 			if err := mgr.AddMessage(streamCtx, orchSessionID, message); err != nil {
 				s.logger.Error("Failed to add message in stream", "session_id", sessionID, "error", err)

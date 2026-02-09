@@ -410,6 +410,15 @@ func (s *OrchestratorService) StreamMessages(stream proto.OrchestratorService_St
 			message := protoToMessage(req.GetMessage())
 			mgr := s.deps.SessionManager()
 
+			// Generate ID and timestamp before adding to avoid race conditions
+			// (AddMessage would generate these internally, but we need them for the response)
+			if message.ID.IsEmpty() {
+				message.ID = types.GenerateID()
+			}
+			if message.Timestamp.IsZero() {
+				message.Timestamp = types.NewTimestampFromTime(time.Now())
+			}
+
 			// Add message to session
 			if err := mgr.AddMessage(streamCtx, sessionID, message); err != nil {
 				s.logger.Error("Failed to add message in stream", "session_id", sessionID, "error", err)
