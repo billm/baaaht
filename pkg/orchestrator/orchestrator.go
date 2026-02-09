@@ -30,6 +30,7 @@ type Orchestrator struct {
 
 	// Core subsystems
 	dockerClient   *container.Client
+	runtime        container.Runtime
 	sessionMgr     *session.Manager
 	eventBus       *events.Bus
 	eventRouter    *events.Router
@@ -224,17 +225,19 @@ func (o *Orchestrator) Initialize(ctx context.Context) error {
 	return nil
 }
 
-// initDockerClient initializes the Docker client
+// initDockerClient initializes the Docker client and runtime
 func (o *Orchestrator) initDockerClient(ctx context.Context) error {
-	o.logger.Debug("Initializing Docker client", "host", o.cfg.Docker.Host)
+	o.logger.Debug("Initializing Docker client and runtime", "host", o.cfg.Docker.Host)
 
-	cli, err := container.New(o.cfg.Docker, o.logger)
+	// Create Docker runtime (which includes the client)
+	runtime, err := container.NewDockerRuntime(o.cfg.Docker, o.logger)
 	if err != nil {
 		return err
 	}
 
-	o.dockerClient = cli
-	o.logger.Info("Docker client initialized")
+	o.runtime = runtime
+	o.dockerClient = runtime.DockerClient()
+	o.logger.Info("Docker client and runtime initialized")
 	return nil
 }
 
@@ -412,7 +415,7 @@ func (o *Orchestrator) initLLMGateway(ctx context.Context) error {
 
 	// Create LLM Gateway manager
 	llmGatewayMgr, err := NewLLMGatewayManager(
-		o.dockerClient,
+		o.runtime,
 		o.cfg.LLM,
 		o.credStore,
 		o.logger,
@@ -520,9 +523,9 @@ func (o *Orchestrator) Close() error {
 		}
 	}
 
-	if o.dockerClient != nil {
-		if err := o.dockerClient.Close(); err != nil {
-			o.logger.Error("Failed to close Docker client", "error", err)
+	if o.runtime != nil {
+		if err := o.runtime.Close(); err != nil {
+			o.logger.Error("Failed to close container runtime", "error", err)
 		}
 	}
 
@@ -872,8 +875,8 @@ func (o *Orchestrator) String() string {
 // Helper cleanup methods (called during initialization failures)
 
 func (o *Orchestrator) cleanupDockerClient() error {
-	if o.dockerClient != nil {
-		return o.dockerClient.Close()
+	if o.runtime != nil {
+		return o.runtime.Close()
 	}
 	return nil
 }

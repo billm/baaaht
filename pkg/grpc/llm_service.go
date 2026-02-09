@@ -438,8 +438,6 @@ func (s *LLMService) handleStreamingRequest(ctx context.Context, stream proto.LL
 
 // CompleteLLM sends a non-streaming LLM request and receives a complete response
 func (s *LLMService) CompleteLLM(ctx context.Context, req *proto.CompleteLLMRequest) (*proto.CompleteLLMResponse, error) {
-	s.logger.Debug("CompleteLLM called", "request_id", req.Request.RequestId)
-
 	llmReq := req.Request
 	if llmReq == nil {
 		return nil, errInvalidArgument("request is required")
@@ -450,6 +448,7 @@ func (s *LLMService) CompleteLLM(ctx context.Context, req *proto.CompleteLLMRequ
 	}
 
 	requestID := llmReq.RequestId
+	s.logger.Debug("CompleteLLM called", "request_id", requestID)
 
 	// Create request info
 	info := &LLMRequestInfo{
@@ -524,13 +523,10 @@ func (s *LLMService) ListModels(ctx context.Context, req *proto.ListModelsReques
 			Name: "Claude Sonnet 4",
 			Provider: "anthropic",
 			Capabilities: &proto.ModelCapabilities{
-				SupportsStreaming:  true,
-				SupportsTools:      true,
-				SupportsVision:     true,
-				SupportsThinking:   true,
-				MaxTokens:         8192,
-				ContextLength:     200000,
-				SupportedFeatures: []string{"cache_control", "tool_use", "vision"},
+				Streaming: true,
+				Tools:     true,
+				Vision:    true,
+				Thinking:  true,
 			},
 			Metadata: map[string]string{
 				"context_window": "200000",
@@ -543,13 +539,10 @@ func (s *LLMService) ListModels(ctx context.Context, req *proto.ListModelsReques
 			Name: "Claude 3.5 Sonnet",
 			Provider: "anthropic",
 			Capabilities: &proto.ModelCapabilities{
-				SupportsStreaming:  true,
-				SupportsTools:      true,
-				SupportsVision:     true,
-				SupportsThinking:   false,
-				MaxTokens:         8192,
-				ContextLength:     200000,
-				SupportedFeatures: []string{"cache_control", "tool_use", "vision"},
+				Streaming: true,
+				Tools:     true,
+				Vision:    true,
+				Thinking:  false,
 			},
 			Metadata: map[string]string{
 				"context_window": "200000",
@@ -560,13 +553,10 @@ func (s *LLMService) ListModels(ctx context.Context, req *proto.ListModelsReques
 			Name: "GPT-4o",
 			Provider: "openai",
 			Capabilities: &proto.ModelCapabilities{
-				SupportsStreaming:  true,
-				SupportsTools:      true,
-				SupportsVision:     true,
-				SupportsThinking:   false,
-				MaxTokens:         4096,
-				ContextLength:     128000,
-				SupportedFeatures: []string{"tool_use", "vision", "audio"},
+				Streaming: true,
+				Tools:     true,
+				Vision:    true,
+				Thinking:  false,
 			},
 			Metadata: map[string]string{
 				"context_window": "128000",
@@ -605,12 +595,10 @@ func (s *LLMService) GetCapabilities(ctx context.Context, req *proto.GetCapabili
 					Name: "Claude Sonnet 4",
 					Provider: "anthropic",
 					Capabilities: &proto.ModelCapabilities{
-						SupportsStreaming: true,
-						SupportsTools:     true,
-						SupportsVision:    true,
-						SupportsThinking:  true,
-						MaxTokens:        8192,
-						ContextLength:    200000,
+						Streaming: true,
+						Tools:     true,
+						Vision:    true,
+						Thinking:  true,
 					},
 				},
 			},
@@ -627,12 +615,10 @@ func (s *LLMService) GetCapabilities(ctx context.Context, req *proto.GetCapabili
 					Name: "GPT-4o",
 					Provider: "openai",
 					Capabilities: &proto.ModelCapabilities{
-						SupportsStreaming: true,
-						SupportsTools:     true,
-						SupportsVision:    true,
-						SupportsThinking:  false,
-						MaxTokens:        4096,
-						ContextLength:    128000,
+						Streaming: true,
+						Tools:     true,
+						Vision:    true,
+						Thinking:  false,
 					},
 				},
 			},

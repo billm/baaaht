@@ -55,7 +55,7 @@ message LLMRequest {
   string request_id = 1;               // Unique identifier for this request
   string session_id = 2;               // Session identifier for tracking
   string model = 3;                    // Model identifier (e.g., "anthropic/claude-sonnet-4-20250514")
-  repeated Message messages = 4;       // Conversation messages
+  repeated LLMMessage messages = 4;    // Conversation messages
   LLMParameters parameters = 5;        // Generation parameters
   repeated Tool tools = 6;             // Available tools for the LLM
   string provider = 7;                 // Provider override (optional)
@@ -63,8 +63,8 @@ message LLMRequest {
   LLMMetadata metadata = 9;            // Additional metadata
 }
 
-// Message represents a message in the conversation
-message Message {
+// LLMMessage represents a message in the conversation
+message LLMMessage {
   string role = 1;                     // Role: "user", "assistant", "system"
   string content = 2;                  // Message content
   map<string, string> extra = 3;       // Additional fields (e.g., cache_control)
@@ -116,7 +116,7 @@ message LLMResponse {
   string request_id = 1;               // Correlates with the request
   string content = 2;                  // Response content
   repeated ToolCall tool_calls = 3;    // Tool calls made by the LLM
-  TokenUsage usage = 4;                // Token usage information
+  common.v1.TokenUsage usage = 4;      // Token usage information
   FinishReason finish_reason = 5;      // Reason generation stopped
   string provider = 6;                 // Provider that handled the request
   string model = 7;                    // Model that handled the request
@@ -131,14 +131,6 @@ message ToolCall {
   string arguments = 3;                // JSON string of arguments
 }
 
-// TokenUsage represents token usage statistics
-message TokenUsage {
-  int32 input_tokens = 1;              // Input prompt tokens
-  int32 output_tokens = 2;             // Output generation tokens
-  int32 total_tokens = 3;              // Total tokens used
-  int32 cache_read_tokens = 4;         // Optional: Cache read tokens (Anthropic)
-  int32 cache_write_tokens = 5;        // Optional: Cache write tokens (Anthropic)
-}
 
 // FinishReason represents the reason generation stopped
 enum FinishReason {
@@ -193,7 +185,7 @@ message StreamToolCall {
 // StreamUsage represents token usage during streaming
 message StreamUsage {
   string request_id = 1;
-  TokenUsage usage = 2;                // Current usage totals
+  common.v1.TokenUsage usage = 2;      // Current usage totals
 }
 
 // StreamError represents an error during streaming
@@ -244,20 +236,10 @@ message ModelInfo {
   string id = 1;                       // Model identifier
   string name = 2;                     // Human-readable name
   string provider = 3;                 // Provider name
-  ModelCapabilities capabilities = 4;   // Model capabilities
+  common.v1.ModelCapabilities capabilities = 4; // Model capabilities
   map<string, string> metadata = 5;    // Additional model metadata
 }
 
-// ModelCapabilities describes what a model can do
-message ModelCapabilities {
-  bool supports_streaming = 1;
-  bool supports_tools = 2;
-  bool supports_vision = 3;
-  bool supports_thinking = 4;          // Extended thinking mode
-  int32 max_tokens = 5;                // Maximum output tokens
-  int32 context_length = 6;            // Maximum context length
-  repeated string supported_features = 7;
-}
 
 // GetCapabilitiesRequest requests provider capabilities
 message GetCapabilitiesRequest {

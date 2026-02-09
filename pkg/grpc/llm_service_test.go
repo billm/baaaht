@@ -9,11 +9,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	"github.com/billm/baaaht/orchestrator/internal/config"
 	"github.com/billm/baaaht/orchestrator/internal/logger"
-	"github.com/billm/baaaht/orchestrator/pkg/events"
-	"github.com/billm/baaaht/orchestrator/pkg/ipc"
-	"github.com/billm/baaaht/orchestrator/pkg/session"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 	"github.com/billm/baaaht/orchestrator/proto"
 )
@@ -38,7 +34,7 @@ func TestLLMService_CompleteLLM(t *testing.T) {
 					RequestId: string(types.GenerateID()),
 					SessionId: "test-session",
 					Model:     "anthropic/claude-sonnet-4-20250514",
-					Messages: []*proto.Message{
+					Messages: []*proto.LLMMessage{
 						{
 							Role:    "user",
 							Content: "Hello, LLM!",
@@ -60,7 +56,7 @@ func TestLLMService_CompleteLLM(t *testing.T) {
 					SessionId: "test-session",
 					Model:     "claude-sonnet-4-20250514",
 					Provider:  "anthropic",
-					Messages: []*proto.Message{
+					Messages: []*proto.LLMMessage{
 						{
 							Role:    "user",
 							Content: "Hello!",
@@ -77,7 +73,7 @@ func TestLLMService_CompleteLLM(t *testing.T) {
 					RequestId: string(types.GenerateID()),
 					SessionId: "test-session",
 					Model:     "openai/gpt-4o",
-					Messages: []*proto.Message{
+					Messages: []*proto.LLMMessage{
 						{
 							Role:    "user",
 							Content: "What's the weather?",
@@ -207,7 +203,7 @@ func TestLLMService_StreamLLM(t *testing.T) {
 						RequestId: string(types.GenerateID()),
 						SessionId: "test-session",
 						Model:     "anthropic/claude-sonnet-4-20250514",
-						Messages: []*proto.Message{
+						Messages: []*proto.LLMMessage{
 							{
 								Role:    "user",
 								Content: "Hello, streaming LLM!",
@@ -604,7 +600,7 @@ func TestLLMService_GetStatus_AfterRequests(t *testing.T) {
 				RequestId: string(types.GenerateID()),
 				SessionId: "test-session",
 				Model:     "anthropic/claude-sonnet-4-20250514",
-				Messages: []*proto.Message{
+				Messages: []*proto.LLMMessage{
 					{
 						Role:    "user",
 						Content: "Test message",
@@ -784,7 +780,7 @@ func TestLLMService_ConcurrentRequests(t *testing.T) {
 					RequestId: string(types.GenerateID()),
 					SessionId: "test-session",
 					Model:     "anthropic/claude-sonnet-4-20250514",
-					Messages: []*proto.Message{
+					Messages: []*proto.LLMMessage{
 						{
 							Role:    "user",
 							Content: "Test message",

@@ -2611,12 +2611,12 @@ func TestLLMValidation(t *testing.T) {
 			config: LLMConfig{
 				Enabled:               true,
 				ContainerImage:        "baaaht/llm-gateway:latest",
-				DefaultProvider:       "anthropic",
+				DefaultProvider:       "emptyprovider",
 				DefaultModel:          "anthropic/claude-sonnet-4-20250514",
 				Timeout:               120 * time.Second,
 				MaxConcurrentRequests: 10,
 				Providers: map[string]ProviderConfig{
-					"": {
+					"emptyprovider": {
 						Name:    "",
 						APIKey:  "sk-test-key",
 						Enabled: true,
