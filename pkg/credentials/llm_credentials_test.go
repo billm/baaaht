@@ -34,7 +34,7 @@ func createTestLLMCredentialManager(t *testing.T) (*LLMCredentialManager, *Store
 		Enabled:       true,
 		DefaultModel:  "anthropic/claude-sonnet-4-20250514",
 		DefaultProvider: LLMProviderAnthropic,
-		Providers: map[string]config.ProviderConfig{
+		Providers: map[string]config.LLMProviderConfig{
 			LLMProviderAnthropic: {
 				Name:    LLMProviderAnthropic,
 				BaseURL: "https://api.anthropic.com",
@@ -264,7 +264,7 @@ func TestLLMCredentialManager_ValidateLLMCredentials_LocalProviders(t *testing.T
 	// Create LLM config with only local providers
 	llmCfg := config.LLMConfig{
 		Enabled: true,
-		Providers: map[string]config.ProviderConfig{
+		Providers: map[string]config.LLMProviderConfig{
 			LLMProviderOllama: {
 				Name:    LLMProviderOllama,
 				BaseURL: "http://localhost:11434",
