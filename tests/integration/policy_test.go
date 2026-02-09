@@ -145,7 +145,9 @@ images:
 	require.Error(t, err, "Container creation with latest tag should fail")
 
 	// Verify it's a permission error
-	require.Contains(t, err.Error(), "PERMISSION", "Error should be a permission error")
+	var customErr *types.Error
+	require.ErrorAs(t, err, &customErr, "Error should be a types.Error")
+	require.Equal(t, types.ErrCodePermission, customErr.Code, "Error code should indicate permission error")
 	require.Contains(t, err.Error(), "policy", "Error should mention policy")
 	t.Log("Container creation with latest tag correctly failed with policy error")
 
