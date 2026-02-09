@@ -82,6 +82,12 @@ const (
 	EnvGRPCMaxSendMsgSize = "GRPC_MAX_SEND_MSG_SIZE"
 	EnvGRPCTimeout       = "GRPC_TIMEOUT"
 	EnvGRPCMaxConnections = "GRPC_MAX_CONNECTIONS"
+	EnvLLMEnabled        = "LLM_ENABLED"
+	EnvLLMContainerImage = "LLM_CONTAINER_IMAGE"
+	EnvLLMDefaultModel   = "LLM_DEFAULT_MODEL"
+	EnvLLMDefaultProvider = "LLM_DEFAULT_PROVIDER"
+	EnvLLMTimeout        = "LLM_TIMEOUT"
+	EnvLLMMaxConcurrent  = "LLM_MAX_CONCURRENT_REQUESTS"
 )
 
 const (
@@ -142,6 +148,14 @@ const (
 	DefaultGRPCMaxSendMsgSize = 100 * 1024 * 1024 // 100 MB
 	DefaultGRPCTimeout        = 30 * time.Second
 	DefaultGRPCMaxConnections = 100
+
+	// Default LLM settings
+	DefaultLLMEnabled            = false
+	DefaultLLMContainerImage     = "baaaht/llm-gateway:latest"
+	DefaultLLMDefaultProvider    = "anthropic"
+	DefaultLLMDefaultModel       = "anthropic/claude-sonnet-4-20250514"
+	DefaultLLMTimeout            = 120 * time.Second
+	DefaultLLMMaxConcurrent      = 10
 )
 
 // DefaultDockerConfig returns the default Docker configuration
@@ -342,4 +356,40 @@ func DefaultGRPCConfig() GRPCConfig {
 		Timeout:        DefaultGRPCTimeout,
 		MaxConnections: DefaultGRPCMaxConnections,
   }
+}
+
+// DefaultLLMConfig returns the default LLM Gateway configuration
+func DefaultLLMConfig() LLMConfig {
+	return LLMConfig{
+		Enabled:               DefaultLLMEnabled,
+		ContainerImage:        DefaultLLMContainerImage,
+		Providers: map[string]ProviderConfig{
+			"anthropic": {
+				Name:    "anthropic",
+				APIKey:  "", // Loaded from ANTHROPIC_API_KEY environment variable
+				BaseURL: "https://api.anthropic.com",
+				Enabled: true,
+				Models:  []string{"anthropic/claude-sonnet-4-20250514", "anthropic/claude-3-5-sonnet-20241022"},
+			},
+			"openai": {
+				Name:    "openai",
+				APIKey:  "", // Loaded from OPENAI_API_KEY environment variable
+				BaseURL: "https://api.openai.com/v1",
+				Enabled: true,
+				Models:  []string{"openai/gpt-4o", "openai/gpt-4o-mini", "openai/gpt-4-turbo"},
+			},
+		},
+		DefaultModel:          DefaultLLMDefaultModel,
+		DefaultProvider:       DefaultLLMDefaultProvider,
+		Timeout:               DefaultLLMTimeout,
+		MaxConcurrentRequests: DefaultLLMMaxConcurrent,
+		RateLimits: map[string]int{
+			"anthropic": 60,  // 60 requests per minute
+			"openai":    60,  // 60 requests per minute
+		},
+		FallbackChains: map[string][]string{
+			"anthropic/*": {"openai"},
+			"openai/*":    {"anthropic"},
+		},
+	}
 }
