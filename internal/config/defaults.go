@@ -82,6 +82,19 @@ const (
 	EnvGRPCMaxSendMsgSize = "GRPC_MAX_SEND_MSG_SIZE"
 	EnvGRPCTimeout       = "GRPC_TIMEOUT"
 	EnvGRPCMaxConnections = "GRPC_MAX_CONNECTIONS"
+	EnvProviderDefaultProvider = "PROVIDER_DEFAULT"
+	EnvProviderFailoverEnabled = "PROVIDER_FAILOVER_ENABLED"
+	EnvProviderFailoverThreshold = "PROVIDER_FAILOVER_THRESHOLD"
+	EnvAnthropicAPIKey    = "ANTHROPIC_API_KEY"
+	EnvAnthropicBaseURL   = "ANTHROPIC_BASE_URL"
+	EnvAnthropicTimeout   = "ANTHROPIC_TIMEOUT"
+	EnvAnthropicMaxRetries = "ANTHROPIC_MAX_RETRIES"
+	EnvAnthropicEnabled   = "ANTHROPIC_ENABLED"
+	EnvOpenAIAPIKey       = "OPENAI_API_KEY"
+	EnvOpenAIBaseURL      = "OPENAI_BASE_URL"
+	EnvOpenAITimeout      = "OPENAI_TIMEOUT"
+	EnvOpenAIMaxRetries   = "OPENAI_MAX_RETRIES"
+	EnvOpenAIEnabled      = "OPENAI_ENABLED"
 )
 
 const (
@@ -142,6 +155,27 @@ const (
 	DefaultGRPCMaxSendMsgSize = 100 * 1024 * 1024 // 100 MB
 	DefaultGRPCTimeout        = 30 * time.Second
 	DefaultGRPCMaxConnections = 100
+
+	// Default Provider settings
+	DefaultProviderDefaultProvider = "anthropic"
+	DefaultProviderFailoverEnabled = true
+	DefaultProviderFailoverThreshold = 3
+	DefaultProviderHealthCheckInterval = 30 * time.Second
+	DefaultProviderCircuitBreakerTimeout = 60 * time.Second
+
+	// Default Anthropic settings
+	DefaultAnthropicBaseURL   = "https://api.anthropic.com"
+	DefaultAnthropicTimeout   = 60 // seconds
+	DefaultAnthropicMaxRetries = 3
+	DefaultAnthropicEnabled   = true
+	DefaultAnthropicPriority  = 10
+
+	// Default OpenAI settings
+	DefaultOpenAIBaseURL      = "https://api.openai.com"
+	DefaultOpenAITimeout      = 60 // seconds
+	DefaultOpenAIMaxRetries   = 3
+	DefaultOpenAIEnabled      = true
+	DefaultOpenAIPriority     = 20
 )
 
 // DefaultDockerConfig returns the default Docker configuration
@@ -341,5 +375,30 @@ func DefaultGRPCConfig() GRPCConfig {
 		MaxSendMsgSize: DefaultGRPCMaxSendMsgSize,
 		Timeout:        DefaultGRPCTimeout,
 		MaxConnections: DefaultGRPCMaxConnections,
-  }
+	}
+}
+
+// DefaultProviderConfig returns the default provider configuration
+func DefaultProviderConfig() ProviderConfig {
+	return ProviderConfig{
+		DefaultProvider:        DefaultProviderDefaultProvider,
+		FailoverEnabled:        DefaultProviderFailoverEnabled,
+		FailoverThreshold:      DefaultProviderFailoverThreshold,
+		HealthCheckInterval:    DefaultProviderHealthCheckInterval,
+		CircuitBreakerTimeout:  DefaultProviderCircuitBreakerTimeout,
+		Anthropic: ProviderSpecificConfig{
+			Enabled:    DefaultAnthropicEnabled,
+			BaseURL:    DefaultAnthropicBaseURL,
+			Timeout:    DefaultAnthropicTimeout,
+			MaxRetries: DefaultAnthropicMaxRetries,
+			Priority:   DefaultAnthropicPriority,
+		},
+		OpenAI: ProviderSpecificConfig{
+			Enabled:    DefaultOpenAIEnabled,
+			BaseURL:    DefaultOpenAIBaseURL,
+			Timeout:    DefaultOpenAITimeout,
+			MaxRetries: DefaultOpenAIMaxRetries,
+			Priority:   DefaultOpenAIPriority,
+		},
+	}
 }
