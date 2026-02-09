@@ -281,7 +281,7 @@ func TestLLMGatewayHealth_MonitoringEnabled(t *testing.T) {
 		ContainerImage:  "test-image:latest",
 		DefaultProvider: "anthropic",
 		DefaultModel:    "claude-3-5-sonnet-20241022",
-		Providers: map[string]config.ProviderConfig{
+		Providers: map[string]config.LLMProviderConfig{
 			"anthropic": {
 				Name:    "anthropic",
 				Enabled: true,
@@ -337,7 +337,7 @@ func TestLLMGatewayHealth_AutoRestart(t *testing.T) {
 		ContainerImage:  "test-image:latest",
 		DefaultProvider: "anthropic",
 		DefaultModel:    "claude-3-5-sonnet-20241022",
-		Providers: map[string]config.ProviderConfig{
+		Providers: map[string]config.LLMProviderConfig{
 			"anthropic": {
 				Name:    "anthropic",
 				Enabled: true,
@@ -409,7 +409,7 @@ func TestLLMGatewayHealth_HealthRestoration(t *testing.T) {
 		ContainerImage:  "test-image:latest",
 		DefaultProvider: "anthropic",
 		DefaultModel:    "claude-3-5-sonnet-20241022",
-		Providers: map[string]config.ProviderConfig{
+		Providers: map[string]config.LLMProviderConfig{
 			"anthropic": {
 				Name:    "anthropic",
 				Enabled: true,
@@ -469,7 +469,7 @@ func TestLLMGatewayHealth_StopStopsMonitoring(t *testing.T) {
 		ContainerImage:  "test-image:latest",
 		DefaultProvider: "anthropic",
 		DefaultModel:    "claude-3-5-sonnet-20241022",
-		Providers: map[string]config.ProviderConfig{
+		Providers: map[string]config.LLMProviderConfig{
 			"anthropic": {
 				Name:    "anthropic",
 				Enabled: true,
@@ -532,7 +532,7 @@ func TestLLMGatewayHealth_MultipleUnhealthyChecks(t *testing.T) {
 		ContainerImage:  "test-image:latest",
 		DefaultProvider: "anthropic",
 		DefaultModel:    "claude-3-5-sonnet-20241022",
-		Providers: map[string]config.ProviderConfig{
+		Providers: map[string]config.LLMProviderConfig{
 			"anthropic": {
 				Name:    "anthropic",
 				Enabled: true,

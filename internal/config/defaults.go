@@ -421,7 +421,7 @@ func DefaultLLMConfig() LLMConfig {
 	return LLMConfig{
 		Enabled:               DefaultLLMEnabled,
 		ContainerImage:        DefaultLLMContainerImage,
-		Providers: map[string]ProviderConfig{
+		Providers: map[string]LLMProviderConfig{
 			"anthropic": {
 				Name:    "anthropic",
 				APIKey:  "", // Loaded from ANTHROPIC_API_KEY environment variable

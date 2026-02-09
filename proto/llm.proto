@@ -12,6 +12,7 @@ package llm.v1;
 option go_package = "github.com/billm/baaaht/orchestrator/proto";
 
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
 import "google/protobuf/empty.proto";
 import "proto/common.proto";
 
@@ -276,7 +277,7 @@ message LLMHealthCheckResponse {
 message LLMStatusResponse {
   common.v1.Status status = 1;
   google.protobuf.Timestamp started_at = 2;
-  google.protobuf.Timestamp uptime = 3;
+  google.protobuf.Duration uptime = 3;
   int32 active_requests = 4;
   int64 total_requests = 5;
   int64 total_tokens_used = 6;         // Total tokens across all requests
