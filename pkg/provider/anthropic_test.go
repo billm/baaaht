@@ -916,6 +916,256 @@ func TestMapStopReason(t *testing.T) {
 	}
 }
 
+func TestAnthropicTokens(t *testing.T) {
+	t.Run("regular completion records token usage", func(t *testing.T) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			resp := anthropicMessageResponse{
+				ID:   "msg-123",
+				Type: "message",
+				Role: "assistant",
+				Content: []anthropicContentBlock{
+					{Type: "text", Text: "Hello!"},
+				},
+				StopReason: "end_turn",
+				Usage: anthropicUsage{
+					InputTokens:              100,
+					OutputTokens:             50,
+					CacheReadInputTokens:     500,
+					CacheCreationInputTokens: 100,
+				},
+				Model: "claude-3-5-sonnet-20241022",
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(resp)
+		}))
+		defer server.Close()
+
+		config := ProviderConfig{
+			Provider: ProviderAnthropic,
+			APIKey:   "test-api-key",
+			BaseURL:  server.URL,
+			Timeout:  60,
+		}
+		log, err := logger.NewDefault()
+		require.NoError(t, err)
+
+		provider, err := NewAnthropicProvider(config, log)
+		require.NoError(t, err)
+
+		req := &CompletionRequest{
+			Model: ModelClaude3_5Sonnet,
+			Messages: []Message{
+				{Role: MessageRoleUser, Content: "Hello"},
+			},
+			MaxTokens: 100,
+		}
+
+		resp, err := provider.Complete(context.Background(), req)
+		require.NoError(t, err)
+
+		// Get the token account via type assertion
+		anthropicProvider, ok := provider.(*anthropicProvider)
+		require.True(t, ok, "Provider should be anthropicProvider")
+
+		account := anthropicProvider.GetTokenAccount()
+		require.NotNil(t, account)
+
+		// Verify usage was recorded
+		totalUsage := account.GetTotalUsage()
+		assert.Equal(t, 100, totalUsage.InputTokens)
+		assert.Equal(t, 50, totalUsage.OutputTokens)
+		assert.Equal(t, 500, totalUsage.CacheReadTokens)
+		assert.Equal(t, 100, totalUsage.CacheWriteTokens)
+
+		// Verify request count
+		assert.Equal(t, int64(1), account.GetRequestCount())
+
+		// Verify response has correct usage
+		assert.Equal(t, 100, resp.Usage.InputTokens)
+		assert.Equal(t, 50, resp.Usage.OutputTokens)
+		assert.Equal(t, 500, resp.Usage.CacheReadTokens)
+		assert.Equal(t, 100, resp.Usage.CacheWriteTokens)
+		assert.Equal(t, 750, resp.Usage.TotalTokens) // 100 + 50 + 500 + 100
+	})
+
+	t.Run("streaming completion records token usage", func(t *testing.T) {
+		streamEnded := make(chan bool, 1)
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/event-stream")
+			w.Header().Set("Cache-Control", "no-cache")
+			w.Header().Set("Connection", "keep-alive")
+			fflush(w)
+
+			// Send streaming events
+			fmt.Fprintln(w, "event: message_start")
+			fmt.Fprintln(w, "data: {\"type\":\"message_start\",\"message\":{\"id\":\"msg-456\",\"type\":\"message\",\"role\":\"assistant\"}}")
+			fmt.Fprintln(w)
+			fflush(w)
+
+			fmt.Fprintln(w, "event: content_block_start")
+			fmt.Fprintln(w, "data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}")
+			fmt.Fprintln(w)
+			fflush(w)
+
+			fmt.Fprintln(w, "event: content_block_delta")
+			fmt.Fprintln(w, "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"Hello\"}}")
+			fmt.Fprintln(w)
+			fflush(w)
+
+			fmt.Fprintln(w, "event: content_block_stop")
+			fmt.Fprintln(w, "data: {\"type\":\"content_block_stop\",\"index\":0}")
+			fmt.Fprintln(w)
+			fflush(w)
+
+			fmt.Fprintln(w, "event: message_delta")
+			fmt.Fprintln(w, "data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"input_tokens\":200,\"output_tokens\":30,\"cache_read_input_tokens\":1000,\"cache_creation_input_tokens\":200}}")
+			fmt.Fprintln(w)
+			fflush(w)
+
+			fmt.Fprintln(w, "event: message_stop")
+			fmt.Fprintln(w, "data: {\"type\":\"message_stop\"}")
+			fmt.Fprintln(w)
+			fflush(w)
+		}))
+		defer server.Close()
+
+		config := ProviderConfig{
+			Provider: ProviderAnthropic,
+			APIKey:   "test-api-key",
+			BaseURL:  server.URL,
+			Timeout:  60,
+		}
+		log, err := logger.NewDefault()
+		require.NoError(t, err)
+
+		provider, err := NewAnthropicProvider(config, log)
+		require.NoError(t, err)
+
+		req := &CompletionRequest{
+			Model: ModelClaude3_5Sonnet,
+			Messages: []Message{
+				{Role: MessageRoleUser, Content: "Hello"},
+			},
+			MaxTokens: 100,
+		}
+
+		chunkChan, err := provider.CompleteStream(context.Background(), req)
+		require.NoError(t, err)
+
+		// Collect chunks
+		go func() {
+			for range chunkChan {
+			}
+			streamEnded <- true
+		}()
+
+		select {
+		case <-streamEnded:
+		case <-time.After(5 * time.Second):
+			t.Fatal("Stream did not complete within timeout")
+		}
+
+		// Get the token account via type assertion
+		anthropicProvider, ok := provider.(*anthropicProvider)
+		require.True(t, ok, "Provider should be anthropicProvider")
+
+		account := anthropicProvider.GetTokenAccount()
+		require.NotNil(t, account)
+
+		// Verify usage was recorded
+		totalUsage := account.GetTotalUsage()
+		assert.Equal(t, 200, totalUsage.InputTokens)
+		assert.Equal(t, 30, totalUsage.OutputTokens)
+		assert.Equal(t, 1000, totalUsage.CacheReadTokens)
+		assert.Equal(t, 200, totalUsage.CacheWriteTokens)
+
+		// Verify request count
+		assert.Equal(t, int64(1), account.GetRequestCount())
+	})
+
+	t.Run("token account persists across multiple requests", func(t *testing.T) {
+		requestCount := 0
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			requestCount++
+
+			resp := anthropicMessageResponse{
+				ID:   fmt.Sprintf("msg-%d", requestCount),
+				Type: "message",
+				Role: "assistant",
+				Content: []anthropicContentBlock{
+					{Type: "text", Text: "Response"},
+				},
+				StopReason: "end_turn",
+				Usage: anthropicUsage{
+					InputTokens:  50 * requestCount,
+					OutputTokens: 25 * requestCount,
+				},
+				Model: "claude-3-5-sonnet-20241022",
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(resp)
+		}))
+		defer server.Close()
+
+		config := ProviderConfig{
+			Provider: ProviderAnthropic,
+			APIKey:   "test-api-key",
+			BaseURL:  server.URL,
+			Timeout:  60,
+		}
+		log, err := logger.NewDefault()
+		require.NoError(t, err)
+
+		provider, err := NewAnthropicProvider(config, log)
+		require.NoError(t, err)
+
+		req := &CompletionRequest{
+			Model: ModelClaude3_5Sonnet,
+			Messages: []Message{
+				{Role: MessageRoleUser, Content: "Test"},
+			},
+			MaxTokens: 100,
+		}
+
+		// Make first request
+		_, err = provider.Complete(context.Background(), req)
+		require.NoError(t, err)
+
+		// Make second request
+		_, err = provider.Complete(context.Background(), req)
+		require.NoError(t, err)
+
+		// Make third request
+		_, err = provider.Complete(context.Background(), req)
+		require.NoError(t, err)
+
+		// Get the token account
+		anthropicProvider, ok := provider.(*anthropicProvider)
+		require.True(t, ok)
+
+		account := anthropicProvider.GetTokenAccount()
+		require.NotNil(t, account)
+
+		// Verify accumulated usage across all requests
+		totalUsage := account.GetTotalUsage()
+		assert.Equal(t, 300, totalUsage.InputTokens)    // 50 + 100 + 150
+		assert.Equal(t, 150, totalUsage.OutputTokens)   // 25 + 50 + 75
+
+		// Verify request count
+		assert.Equal(t, int64(3), account.GetRequestCount())
+
+		// Verify average tokens per request
+		avgTokens := account.GetAverageTokensPerRequest()
+		assert.InDelta(t, 150.0, avgTokens, 0.01) // (300+150)/3 = 150
+	})
+}
+
 func TestAnthropicSSEReader_ParseEvents(t *testing.T) {
 	tests := []struct {
 		name       string

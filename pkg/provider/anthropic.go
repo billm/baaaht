@@ -29,12 +29,13 @@ const (
 
 // anthropicProvider implements the LLMProvider interface for Anthropic Claude
 type anthropicProvider struct {
-	config ProviderConfig
-	client *http.Client
-	logger *logger.Logger
-	status ProviderStatus
-	mu     sync.RWMutex
-	closed bool
+	config       ProviderConfig
+	client       *http.Client
+	logger       *logger.Logger
+	status       ProviderStatus
+	mu           sync.RWMutex
+	closed       bool
+	tokenAccount *TokenAccount
 }
 
 // NewAnthropicProvider creates a new Anthropic provider instance
@@ -65,11 +66,12 @@ func NewAnthropicProvider(config ProviderConfig, log *logger.Logger) (LLMProvide
 	}
 
 	provider := &anthropicProvider{
-		config: config,
-		client: client,
-		logger: log.With("component", "anthropic_provider", "provider", ProviderAnthropic),
-		status: ProviderStatusAvailable,
-		closed: false,
+		config:       config,
+		client:       client,
+		logger:       log.With("component", "anthropic_provider", "provider", ProviderAnthropic),
+		status:       ProviderStatusAvailable,
+		closed:       false,
+		tokenAccount: NewTokenAccount(ProviderAnthropic),
 	}
 
 	provider.logger.Info("Anthropic provider initialized",
@@ -178,6 +180,9 @@ func (p *anthropicProvider) Complete(ctx context.Context, req *CompletionRequest
 
 	// Update status to available on success
 	p.updateStatus(ProviderStatusAvailable)
+
+	// Record token usage
+	p.tokenAccount.Record(completion.ID, req.Model, completion.Usage)
 
 	p.logger.Debug("Anthropic completion successful",
 		"model", completion.Model,
@@ -409,6 +414,9 @@ func (p *anthropicProvider) processStreamEvent(event *anthropicStreamEvent, mode
 					CacheWriteTokens: event.MessageDelta.Usage.CacheCreationInputTokens,
 				}
 				chunk.Usage.TotalTokens = chunk.Usage.Total()
+
+				// Record token usage for streaming completion
+				p.tokenAccount.Record(*messageID, model, *chunk.Usage)
 			}
 
 			chunkChan <- chunk
@@ -515,6 +523,13 @@ func (p *anthropicProvider) Close() error {
 
 	p.logger.Info("Anthropic provider closed")
 	return nil
+}
+
+// GetTokenAccount returns the token account for this provider
+func (p *anthropicProvider) GetTokenAccount() *TokenAccount {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.tokenAccount
 }
 
 // validateRequest validates the completion request
