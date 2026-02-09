@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"context"
 	"testing"
 
 	"github.com/billm/baaaht/orchestrator/pkg/types"
@@ -387,4 +388,284 @@ func TestModelIsEmpty(t *testing.T) {
 // Helper function
 func float64Ptr(f float64) *float64 {
 	return &f
+}
+
+func TestStreamingEventFilterMatches(t *testing.T) {
+	tests := []struct {
+		name   string
+		filter *StreamingEventFilter
+		event  StreamingEvent
+		want   bool
+	}{
+		{
+			name:   "no filter matches all",
+			filter: &StreamingEventFilter{},
+			event: StreamingEvent{
+				Type:     StreamingEventStreamChunk,
+				StreamID: "stream-123",
+			},
+			want: true,
+		},
+		{
+			name: "type filter matches",
+			filter: &StreamingEventFilter{
+				Type: streamingEventTypePtr(StreamingEventStreamChunk),
+			},
+			event: StreamingEvent{
+				Type:     StreamingEventStreamChunk,
+				StreamID: "stream-123",
+			},
+			want: true,
+		},
+		{
+			name: "type filter does not match",
+			filter: &StreamingEventFilter{
+				Type: streamingEventTypePtr(StreamingEventStreamStart),
+			},
+			event: StreamingEvent{
+				Type:     StreamingEventStreamChunk,
+				StreamID: "stream-123",
+			},
+			want: false,
+		},
+		{
+			name: "stream ID filter matches",
+			filter: &StreamingEventFilter{
+				StreamID: stringPtr("stream-123"),
+			},
+			event: StreamingEvent{
+				Type:     StreamingEventStreamChunk,
+				StreamID: "stream-123",
+			},
+			want: true,
+		},
+		{
+			name: "stream ID filter does not match",
+			filter: &StreamingEventFilter{
+				StreamID: stringPtr("stream-456"),
+			},
+			event: StreamingEvent{
+				Type:     StreamingEventStreamChunk,
+				StreamID: "stream-123",
+			},
+			want: false,
+		},
+		{
+			name: "provider filter matches",
+			filter: &StreamingEventFilter{
+				Provider: providerPtr(ProviderAnthropic),
+			},
+			event: StreamingEvent{
+				Type:     StreamingEventStreamChunk,
+				Provider: ProviderAnthropic,
+			},
+			want: true,
+		},
+		{
+			name: "provider filter does not match",
+			filter: &StreamingEventFilter{
+				Provider: providerPtr(ProviderOpenAI),
+			},
+			event: StreamingEvent{
+				Type:     StreamingEventStreamChunk,
+				Provider: ProviderAnthropic,
+			},
+			want: false,
+		},
+		{
+			name: "model filter matches",
+			filter: &StreamingEventFilter{
+				Model: modelPtr(ModelClaude3_5Sonnet),
+			},
+			event: StreamingEvent{
+				Type:  StreamingEventStreamChunk,
+				Model: ModelClaude3_5Sonnet,
+			},
+			want: true,
+		},
+		{
+			name: "model filter does not match",
+			filter: &StreamingEventFilter{
+				Model: modelPtr(ModelGPT4o),
+			},
+			event: StreamingEvent{
+				Type:  StreamingEventStreamChunk,
+				Model: ModelClaude3_5Sonnet,
+			},
+			want: false,
+		},
+		{
+			name: "labels filter matches",
+			filter: &StreamingEventFilter{
+				Labels: map[string]string{"key": "value"},
+			},
+			event: StreamingEvent{
+				Type: StreamingEventStreamChunk,
+				Metadata: StreamingEventMetadata{
+					Labels: map[string]string{"key": "value"},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "labels filter does not match",
+			filter: &StreamingEventFilter{
+				Labels: map[string]string{"key": "value"},
+			},
+			event: StreamingEvent{
+				Type: StreamingEventStreamChunk,
+				Metadata: StreamingEventMetadata{
+					Labels: map[string]string{"key": "other"},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "multiple filters match",
+			filter: &StreamingEventFilter{
+				Type:     streamingEventTypePtr(StreamingEventStreamChunk),
+				Provider: providerPtr(ProviderAnthropic),
+				Model:    modelPtr(ModelClaude3_5Sonnet),
+			},
+			event: StreamingEvent{
+				Type:     StreamingEventStreamChunk,
+				Provider: ProviderAnthropic,
+				Model:    ModelClaude3_5Sonnet,
+			},
+			want: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.filter.Matches(tt.event); got != tt.want {
+				t.Errorf("StreamingEventFilter.Matches() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestStreamingEventFunc(t *testing.T) {
+	called := false
+	fn := StreamingEventFunc(func(ctx context.Context, event StreamingEvent) error {
+		called = true
+		return nil
+	})
+
+	if !fn.CanHandle(StreamingEventStreamChunk) {
+		t.Error("StreamingEventFunc.CanHandle should always return true")
+	}
+
+	ctx := context.Background()
+	err := fn.Handle(ctx, StreamingEvent{})
+	if err != nil {
+		t.Errorf("Handle returned error: %v", err)
+	}
+	if !called {
+		t.Error("Handle was not called")
+	}
+}
+
+func TestStreamingMiddlewareFunc(t *testing.T) {
+	fn := StreamingMiddlewareFunc(func(ctx context.Context, event StreamingEvent) (StreamingEvent, error) {
+		event.Data = map[string]interface{}{"processed": true}
+		return event, nil
+	})
+
+	ctx := context.Background()
+	event := StreamingEvent{}
+	result, err := fn.Process(ctx, event)
+	if err != nil {
+		t.Errorf("Process returned error: %v", err)
+	}
+	if result.Data["processed"] != true {
+		t.Error("Process did not modify event")
+	}
+}
+
+func TestDefaultStreamingOptions(t *testing.T) {
+	opts := DefaultStreamingOptions()
+	if opts.BufferSize != 10 {
+		t.Errorf("BufferSize = %v, want 10", opts.BufferSize)
+	}
+	if !opts.IncludeUsage {
+		t.Error("IncludeUsage should be true by default")
+	}
+	if opts.IncludeRaw {
+		t.Error("IncludeRaw should be false by default")
+	}
+}
+
+func TestStreamingOptionsMerge(t *testing.T) {
+	defaults := DefaultStreamingOptions()
+
+	// Merge with nil
+	result := defaults.Merge(nil)
+	if result != defaults {
+		t.Error("Merge with nil should return original")
+	}
+
+	// Merge with custom options
+	custom := &StreamingOptions{
+		BufferSize: 20,
+		IncludeRaw: true,
+	}
+	result = defaults.Merge(custom)
+	if result.BufferSize != 20 {
+		t.Errorf("BufferSize = %v, want 20", result.BufferSize)
+	}
+	if !result.IncludeUsage {
+		t.Error("IncludeUsage should remain true")
+	}
+	if !result.IncludeRaw {
+		t.Error("IncludeRaw should be true")
+	}
+}
+
+func TestStreamHandleClose(t *testing.T) {
+	handle := &StreamHandle{
+		ID:       "stream-123",
+		Provider: ProviderAnthropic,
+		Model:    ModelClaude3_5Sonnet,
+		Active:   true,
+	}
+
+	err := handle.Close()
+	if err != nil {
+		t.Errorf("Close returned error: %v", err)
+	}
+	if handle.Active {
+		t.Error("Active should be false after Close")
+	}
+}
+
+func TestStreamingContextWithCancel(t *testing.T) {
+	ctx := &StreamingContext{
+		RequestID: "req-123",
+		Provider:  ProviderAnthropic,
+		Model:     ModelClaude3_5Sonnet,
+	}
+
+	_, cancel := ctx.WithCancel()
+	if cancel == nil {
+		t.Error("WithCancel should return a cancel function")
+	}
+	cancel()
+}
+
+// Helper functions for tests
+func streamingEventTypePtr(e StreamingEventType) *StreamingEventType {
+	return &e
+}
+
+func stringPtr(s string) *string {
+	return &s
+}
+
+func providerPtr(p Provider) *Provider {
+	return &p
+}
+
+func modelPtr(m Model) *Model {
+	return &m
 }
