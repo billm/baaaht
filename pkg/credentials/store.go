@@ -680,3 +680,212 @@ func SetGlobal(s *Store) {
 	globalStore = s
 	storeGlobalOnce = sync.Once{}
 }
+
+// LLM provider names
+const (
+	LLMProviderAnthropic = "anthropic"
+	LLMProviderOpenAI    = "openai"
+	LLMProviderOpenRouter = "openrouter"
+	LLMProviderOllama    = "ollama"
+	LLMProviderLMStudio  = "lmstudio"
+)
+
+// llmCredentialPrefix is the prefix used for LLM credential names
+const llmCredentialPrefix = "llm/"
+
+// StoreLLMCredential stores an API key for an LLM provider
+func (s *Store) StoreLLMCredential(ctx context.Context, provider, apiKey string) error {
+	if provider == "" {
+		return types.NewError(types.ErrCodeInvalidArgument, "provider name is required")
+	}
+	if apiKey == "" {
+		return types.NewError(types.ErrCodeInvalidArgument, "API key is required")
+	}
+
+	credName := llmCredentialPrefix + provider
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.closed {
+		return types.NewError(types.ErrCodeUnavailable, "credential store is closed")
+	}
+
+	// Check if credential already exists and get its ID for update
+	var existingID string
+	for id, cred := range s.credentials {
+		if cred.Name == credName {
+			existingID = id
+			break
+		}
+	}
+
+	now := time.Now()
+
+	// If updating existing credential
+	if existingID != "" {
+		existing := s.credentials[existingID]
+		existing.Name = credName
+		existing.Type = "llm_api_key"
+		existing.Metadata = map[string]string{
+			"provider": provider,
+		}
+		existing.UpdatedAt = now
+		existing.Tags = []string{"llm", provider}
+
+		// Encrypt and store the value
+		encrypted, err := s.encrypt(apiKey)
+		if err != nil {
+			return err
+		}
+		existing.Value = encrypted
+
+		s.logger.Info("LLM credential updated", "provider", provider)
+
+		// Persist to disk
+		if err := s.saveToDisk(); err != nil {
+			s.logger.Error("Failed to persist credentials to disk", "error", err)
+			return err
+		}
+		return nil
+	}
+
+	// Create new credential
+	cred := &Credential{
+		ID:     types.GenerateID().String(),
+		Name:   credName,
+		Type:   "llm_api_key",
+		Value:  apiKey,
+		Metadata: map[string]string{
+			"provider": provider,
+		},
+		Tags:      []string{"llm", provider},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+
+	// Encrypt the value
+	encrypted, err := s.encrypt(apiKey)
+	if err != nil {
+		return err
+	}
+	cred.Value = encrypted
+
+	s.credentials[cred.ID] = cred
+	s.logger.Info("LLM credential stored", "id", cred.ID, "provider", provider)
+
+	// Persist to disk
+	if err := s.saveToDisk(); err != nil {
+		s.logger.Error("Failed to persist credentials to disk", "error", err)
+		return err
+	}
+
+	return nil
+}
+
+// GetLLMCredential retrieves the API key for an LLM provider
+func (s *Store) GetLLMCredential(ctx context.Context, provider string) (string, error) {
+	if provider == "" {
+		return "", types.NewError(types.ErrCodeInvalidArgument, "provider name is required")
+	}
+
+	credName := llmCredentialPrefix + provider
+	cred, err := s.GetByName(ctx, credName)
+	if err != nil {
+		if types.IsErrCode(err, types.ErrCodeNotFound) {
+			return "", types.NewError(types.ErrCodeNotFound, fmt.Sprintf("LLM credential not found for provider: %s", provider))
+		}
+		return "", err
+	}
+
+	return cred.Value, nil
+}
+
+// ListLLMProviders returns a list of providers that have credentials stored
+func (s *Store) ListLLMProviders(ctx context.Context) ([]string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if s.closed {
+		return nil, types.NewError(types.ErrCodeUnavailable, "credential store is closed")
+	}
+
+	providers := make(map[string]bool)
+	for _, cred := range s.credentials {
+		if cred.Type == "llm_api_key" {
+			if provider, ok := cred.Metadata["provider"]; ok {
+				providers[provider] = true
+			}
+		}
+	}
+
+	result := make([]string, 0, len(providers))
+	for provider := range providers {
+		result = append(result, provider)
+	}
+
+	return result, nil
+}
+
+// HasLLMCredential checks if a credential exists for the given provider
+func (s *Store) HasLLMCredential(ctx context.Context, provider string) (bool, error) {
+	if provider == "" {
+		return false, types.NewError(types.ErrCodeInvalidArgument, "provider name is required")
+	}
+
+	credName := llmCredentialPrefix + provider
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if s.closed {
+		return false, types.NewError(types.ErrCodeUnavailable, "credential store is closed")
+	}
+
+	for _, cred := range s.credentials {
+		if cred.Name == credName {
+			return !cred.IsExpired(), nil
+		}
+	}
+
+	return false, nil
+}
+
+// DeleteLLMCredential removes the API key for an LLM provider
+func (s *Store) DeleteLLMCredential(ctx context.Context, provider string) error {
+	if provider == "" {
+		return types.NewError(types.ErrCodeInvalidArgument, "provider name is required")
+	}
+
+	credName := llmCredentialPrefix + provider
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.closed {
+		return types.NewError(types.ErrCodeUnavailable, "credential store is closed")
+	}
+
+	// Find the credential by name
+	var credID string
+	for id, cred := range s.credentials {
+		if cred.Name == credName {
+			credID = id
+			break
+		}
+	}
+
+	if credID == "" {
+		return types.NewError(types.ErrCodeNotFound, fmt.Sprintf("LLM credential not found for provider: %s", provider))
+	}
+
+	delete(s.credentials, credID)
+	s.logger.Info("LLM credential deleted", "provider", provider)
+
+	// Persist to disk
+	if err := s.saveToDisk(); err != nil {
+		s.logger.Error("Failed to persist credentials to disk", "error", err)
+		return err
+	}
+
+	return nil
+}

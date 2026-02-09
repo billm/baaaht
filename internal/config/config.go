@@ -28,6 +28,7 @@ type Config struct {
 	Runtime      RuntimeConfig      `json:"runtime" yaml:"runtime"`
 	Memory       MemoryConfig       `json:"memory" yaml:"memory"`
 	GRPC         GRPCConfig         `json:"grpc" yaml:"grpc"`
+	LLM          LLMConfig          `json:"llm" yaml:"llm"`
 	Provider     ProviderConfig     `json:"provider" yaml:"provider"`
 }
 
@@ -185,6 +186,28 @@ type GRPCConfig struct {
 	MaxConnections int           `json:"max_connections" yaml:"max_connections"`
 }
 
+// LLMConfig contains LLM Gateway configuration
+type LLMConfig struct {
+	Enabled                bool                          `json:"enabled" yaml:"enabled"`
+	ContainerImage         string                        `json:"container_image" yaml:"container_image"`
+	Providers              map[string]LLMProviderConfig  `json:"providers" yaml:"providers"`
+	DefaultModel           string                        `json:"default_model" yaml:"default_model"`
+	DefaultProvider        string                        `json:"default_provider" yaml:"default_provider"`
+	Timeout                time.Duration                 `json:"timeout" yaml:"timeout"`
+	MaxConcurrentRequests  int                           `json:"max_concurrent_requests" yaml:"max_concurrent_requests"`
+	RateLimits             map[string]int                `json:"rate_limits" yaml:"rate_limits"` // provider -> requests per minute
+	FallbackChains         map[string][]string           `json:"fallback_chains" yaml:"fallback_chains"` // model -> []provider names
+}
+
+// LLMProviderConfig contains configuration for a specific LLM provider
+type LLMProviderConfig struct {
+	Name     string   `json:"name" yaml:"name"`
+	APIKey   string   `json:"api_key,omitempty" yaml:"api_key,omitempty"` // From environment variable
+	BaseURL  string   `json:"base_url,omitempty" yaml:"base_url,omitempty"`
+	Enabled  bool     `json:"enabled" yaml:"enabled"`
+	Models   []string `json:"models" yaml:"models"`
+}
+
 // ProviderConfig contains provider configuration
 type ProviderConfig struct {
 	DefaultProvider        string                       `json:"default_provider" yaml:"default_provider"`
@@ -299,6 +322,33 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.GRPC.MaxConnections == 0 {
 		cfg.GRPC.MaxConnections = defaultGRPC.MaxConnections
+	}
+
+	// LLM defaults - NEW field, may not exist in older YAML files
+	defaultLLM := DefaultLLMConfig()
+	if cfg.LLM.Providers == nil {
+		cfg.LLM.Providers = defaultLLM.Providers
+	}
+	if cfg.LLM.ContainerImage == "" {
+		cfg.LLM.ContainerImage = defaultLLM.ContainerImage
+	}
+	if cfg.LLM.DefaultModel == "" {
+		cfg.LLM.DefaultModel = defaultLLM.DefaultModel
+	}
+	if cfg.LLM.DefaultProvider == "" {
+		cfg.LLM.DefaultProvider = defaultLLM.DefaultProvider
+	}
+	if cfg.LLM.Timeout == 0 {
+		cfg.LLM.Timeout = defaultLLM.Timeout
+	}
+	if cfg.LLM.MaxConcurrentRequests == 0 {
+		cfg.LLM.MaxConcurrentRequests = defaultLLM.MaxConcurrentRequests
+	}
+	if cfg.LLM.RateLimits == nil {
+		cfg.LLM.RateLimits = defaultLLM.RateLimits
+	}
+	if cfg.LLM.FallbackChains == nil {
+		cfg.LLM.FallbackChains = defaultLLM.FallbackChains
 	}
 
 	// Provider defaults - NEW field, may not exist in older YAML files
@@ -520,6 +570,45 @@ func applyEnvOverrides(cfg *Config) error {
 		}
 	}
 
+	// Load LLM configuration
+	if v := os.Getenv(EnvLLMEnabled); v != "" {
+		cfg.LLM.Enabled = strings.ToLower(v) == "true" || v == "1"
+	}
+	if v := os.Getenv(EnvLLMContainerImage); v != "" {
+		cfg.LLM.ContainerImage = v
+	}
+	if v := os.Getenv(EnvLLMDefaultModel); v != "" {
+		cfg.LLM.DefaultModel = v
+	}
+	if v := os.Getenv(EnvLLMDefaultProvider); v != "" {
+		cfg.LLM.DefaultProvider = v
+	}
+	if v := os.Getenv(EnvLLMTimeout); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			cfg.LLM.Timeout = d
+		}
+	}
+	if v := os.Getenv(EnvLLMMaxConcurrent); v != "" {
+		if max, err := strconv.Atoi(v); err == nil {
+			cfg.LLM.MaxConcurrentRequests = max
+		}
+	}
+	// Load API keys from environment variables for configured providers
+	for name, provider := range cfg.LLM.Providers {
+		switch name {
+		case "anthropic":
+			if key := os.Getenv("ANTHROPIC_API_KEY"); key != "" {
+				provider.APIKey = key
+				cfg.LLM.Providers[name] = provider
+			}
+		case "openai":
+			if key := os.Getenv("OPENAI_API_KEY"); key != "" {
+				provider.APIKey = key
+				cfg.LLM.Providers[name] = provider
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -560,6 +649,7 @@ func Load() (*Config, error) {
 			Runtime:      DefaultRuntimeConfig(),
 			Memory:       DefaultMemoryConfig(),
 			GRPC:         DefaultGRPCConfig(),
+			LLM:          DefaultLLMConfig(),
 			Provider:     DefaultProviderConfig(),
 		}
 	}
@@ -740,6 +830,51 @@ func (c *Config) Validate() error {
 		return types.NewError(types.ErrCodeInvalidArgument, "grpc max connections must be positive")
 	}
 
+	// Validate LLM configuration
+	if c.LLM.Enabled {
+		if c.LLM.ContainerImage == "" {
+			return types.NewError(types.ErrCodeInvalidArgument, "llm container image cannot be empty when llm is enabled")
+		}
+		if c.LLM.DefaultProvider == "" {
+			return types.NewError(types.ErrCodeInvalidArgument, "llm default provider cannot be empty when llm is enabled")
+		}
+		if c.LLM.DefaultModel == "" {
+			return types.NewError(types.ErrCodeInvalidArgument, "llm default model cannot be empty when llm is enabled")
+		}
+		if c.LLM.Timeout <= 0 {
+			return types.NewError(types.ErrCodeInvalidArgument, "llm timeout must be positive")
+		}
+		if c.LLM.MaxConcurrentRequests <= 0 {
+			return types.NewError(types.ErrCodeInvalidArgument, "llm max concurrent requests must be positive")
+		}
+		// Validate that default provider exists
+		if _, exists := c.LLM.Providers[c.LLM.DefaultProvider]; !exists {
+			return types.NewError(types.ErrCodeInvalidArgument,
+				fmt.Sprintf("llm default provider '%s' not found in providers configuration", c.LLM.DefaultProvider))
+		}
+		// Validate provider configurations
+		for name, provider := range c.LLM.Providers {
+			if provider.Name == "" {
+				return types.NewError(types.ErrCodeInvalidArgument,
+					fmt.Sprintf("llm provider '%s' has empty name", name))
+			}
+			if provider.Enabled && provider.APIKey == "" {
+				// Check if API key can be loaded from environment
+				envKey := ""
+				switch name {
+				case "anthropic":
+					envKey = os.Getenv("ANTHROPIC_API_KEY")
+				case "openai":
+					envKey = os.Getenv("OPENAI_API_KEY")
+				}
+				if envKey == "" {
+					return types.NewError(types.ErrCodeInvalidArgument,
+						fmt.Sprintf("llm provider '%s' is enabled but no API key configured", name))
+				}
+			}
+		}
+	}
+
 	// Validate Provider configuration
 	// Only validate if provider config is explicitly set (not all zero values)
 	// This allows backward compatibility with configs that don't use provider features
@@ -782,7 +917,7 @@ func (c *Config) ProfilingAddress() string {
 
 // String returns a string representation of the configuration (sensitive data is hidden)
 func (c *Config) String() string {
-	return fmt.Sprintf("Config{Docker: %s, API: %s, Logging: %s, Session: %s, Event: %s, IPC: %s, Scheduler: %s, Credentials: %s, Policy: %s, Metrics: %s, Tracing: %s, Orchestrator: %s, Runtime: %s, Memory: %s, GRPC: %s, Provider: %s}",
+	return fmt.Sprintf("Config{Docker: %s, API: %s, Logging: %s, Session: %s, Event: %s, IPC: %s, Scheduler: %s, Credentials: %s, Policy: %s, Metrics: %s, Tracing: %s, Orchestrator: %s, Runtime: %s, Memory: %s, GRPC: %s, LLM: %s, Provider: %s}",
 		c.Docker.String(),
 		c.APIServer.String(),
 		c.Logging.String(),
@@ -798,6 +933,7 @@ func (c *Config) String() string {
 		c.Runtime.String(),
 		c.Memory.String(),
 		c.GRPC.String(),
+		c.LLM.String(),
 		c.Provider.String(),
 	)
 }
@@ -945,6 +1081,18 @@ func (c MemoryConfig) String() string {
 func (c GRPCConfig) String() string {
 	return fmt.Sprintf("GRPCConfig{SocketPath: %s, MaxRecvMsgSize: %d, MaxSendMsgSize: %d, Timeout: %s, MaxConnections: %d}",
 		c.SocketPath, c.MaxRecvMsgSize, c.MaxSendMsgSize, c.Timeout, c.MaxConnections)
+}
+
+func (c LLMConfig) String() string {
+	providerCount := len(c.Providers)
+	enabledProviders := 0
+	for _, p := range c.Providers {
+		if p.Enabled {
+			enabledProviders++
+		}
+	}
+	return fmt.Sprintf("LLMConfig{Enabled: %v, ContainerImage: %s, DefaultProvider: %s, DefaultModel: %s, Timeout: %s, Providers: %d/%d enabled}",
+		c.Enabled, c.ContainerImage, c.DefaultProvider, c.DefaultModel, c.Timeout, enabledProviders, providerCount)
 }
 
 func (c ProviderConfig) String() string {

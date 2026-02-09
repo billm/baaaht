@@ -809,3 +809,414 @@ func BenchmarkGetOperation(b *testing.B) {
 		}
 	}
 }
+
+// TestLLM_StoreCredential tests storing LLM credentials
+func TestLLM_StoreCredential(t *testing.T) {
+	store := createTestStore(t)
+	defer store.Close()
+
+	ctx := context.Background()
+
+	// Store Anthropic credential
+	err := store.StoreLLMCredential(ctx, LLMProviderAnthropic, "sk-ant-test-12345")
+	if err != nil {
+		t.Fatalf("failed to store Anthropic credential: %v", err)
+	}
+
+	// Store OpenAI credential
+	err = store.StoreLLMCredential(ctx, LLMProviderOpenAI, "sk-openai-test-67890")
+	if err != nil {
+		t.Fatalf("failed to store OpenAI credential: %v", err)
+	}
+
+	// Retrieve and verify
+	anthropicKey, err := store.GetLLMCredential(ctx, LLMProviderAnthropic)
+	if err != nil {
+		t.Fatalf("failed to get Anthropic credential: %v", err)
+	}
+	if anthropicKey != "sk-ant-test-12345" {
+		t.Errorf("Anthropic key mismatch: got %s, want sk-ant-test-12345", anthropicKey)
+	}
+
+	openaiKey, err := store.GetLLMCredential(ctx, LLMProviderOpenAI)
+	if err != nil {
+		t.Fatalf("failed to get OpenAI credential: %v", err)
+	}
+	if openaiKey != "sk-openai-test-67890" {
+		t.Errorf("OpenAI key mismatch: got %s, want sk-openai-test-67890", openaiKey)
+	}
+}
+
+// TestLLM_GetCredentialNotFound tests getting a non-existent LLM credential
+func TestLLM_GetCredentialNotFound(t *testing.T) {
+	store := createTestStore(t)
+	defer store.Close()
+
+	ctx := context.Background()
+
+	_, err := store.GetLLMCredential(ctx, "nonexistent")
+	if err == nil {
+		t.Fatal("expected error when getting non-existent LLM credential")
+	}
+	if !types.IsErrCode(err, types.ErrCodeNotFound) {
+		t.Errorf("expected not found error, got: %v", err)
+	}
+}
+
+// TestLLM_StoreCredentialEmptyProvider tests storing with empty provider name
+func TestLLM_StoreCredentialEmptyProvider(t *testing.T) {
+	store := createTestStore(t)
+	defer store.Close()
+
+	ctx := context.Background()
+
+	err := store.StoreLLMCredential(ctx, "", "some-api-key")
+	if err == nil {
+		t.Fatal("expected error when storing LLM credential with empty provider")
+	}
+	if !types.IsErrCode(err, types.ErrCodeInvalidArgument) {
+		t.Errorf("expected invalid argument error, got: %v", err)
+	}
+}
+
+// TestLLM_StoreCredentialEmptyKey tests storing with empty API key
+func TestLLM_StoreCredentialEmptyKey(t *testing.T) {
+	store := createTestStore(t)
+	defer store.Close()
+
+	ctx := context.Background()
+
+	err := store.StoreLLMCredential(ctx, LLMProviderAnthropic, "")
+	if err == nil {
+		t.Fatal("expected error when storing LLM credential with empty API key")
+	}
+	if !types.IsErrCode(err, types.ErrCodeInvalidArgument) {
+		t.Errorf("expected invalid argument error, got: %v", err)
+	}
+}
+
+// TestLLM_ListProviders tests listing LLM providers
+func TestLLM_ListProviders(t *testing.T) {
+	store := createTestStore(t)
+	defer store.Close()
+
+	ctx := context.Background()
+
+	// Initially no providers
+	providers, err := store.ListLLMProviders(ctx)
+	if err != nil {
+		t.Fatalf("failed to list providers: %v", err)
+	}
+	if len(providers) != 0 {
+		t.Errorf("expected 0 providers, got %d", len(providers))
+	}
+
+	// Add credentials for multiple providers
+	providersToAdd := []string{LLMProviderAnthropic, LLMProviderOpenAI, LLMProviderOllama}
+	for _, provider := range providersToAdd {
+		err := store.StoreLLMCredential(ctx, provider, "test-key-"+provider)
+		if err != nil {
+			t.Fatalf("failed to store credential for %s: %v", provider, err)
+		}
+	}
+
+	// List providers
+	providers, err = store.ListLLMProviders(ctx)
+	if err != nil {
+		t.Fatalf("failed to list providers: %v", err)
+	}
+	if len(providers) != 3 {
+		t.Errorf("expected 3 providers, got %d", len(providers))
+	}
+
+	// Verify providers are in the list
+	providerMap := make(map[string]bool)
+	for _, p := range providers {
+		providerMap[p] = true
+	}
+	for _, expected := range providersToAdd {
+		if !providerMap[expected] {
+			t.Errorf("expected provider %s not found in list", expected)
+		}
+	}
+}
+
+// TestLLM_HasCredential tests checking if LLM credential exists
+func TestLLM_HasCredential(t *testing.T) {
+	store := createTestStore(t)
+	defer store.Close()
+
+	ctx := context.Background()
+
+	// Initially no credential
+	has, err := store.HasLLMCredential(ctx, LLMProviderAnthropic)
+	if err != nil {
+		t.Fatalf("failed to check credential: %v", err)
+	}
+	if has {
+		t.Error("expected has to be false for non-existent credential")
+	}
+
+	// Store a credential
+	err = store.StoreLLMCredential(ctx, LLMProviderAnthropic, "sk-ant-test")
+	if err != nil {
+		t.Fatalf("failed to store credential: %v", err)
+	}
+
+	// Now should have it
+	has, err = store.HasLLMCredential(ctx, LLMProviderAnthropic)
+	if err != nil {
+		t.Fatalf("failed to check credential: %v", err)
+	}
+	if !has {
+		t.Error("expected has to be true for existing credential")
+	}
+}
+
+// TestLLM_HasCredentialEmptyProvider tests checking credential with empty provider
+func TestLLM_HasCredentialEmptyProvider(t *testing.T) {
+	store := createTestStore(t)
+	defer store.Close()
+
+	ctx := context.Background()
+
+	_, err := store.HasLLMCredential(ctx, "")
+	if err == nil {
+		t.Fatal("expected error when checking credential with empty provider")
+	}
+	if !types.IsErrCode(err, types.ErrCodeInvalidArgument) {
+		t.Errorf("expected invalid argument error, got: %v", err)
+	}
+}
+
+// TestLLM_DeleteCredential tests deleting LLM credentials
+func TestLLM_DeleteCredential(t *testing.T) {
+	store := createTestStore(t)
+	defer store.Close()
+
+	ctx := context.Background()
+
+	// Store a credential
+	err := store.StoreLLMCredential(ctx, LLMProviderOpenAI, "sk-test-key")
+	if err != nil {
+		t.Fatalf("failed to store credential: %v", err)
+	}
+
+	// Verify it exists
+	has, _ := store.HasLLMCredential(ctx, LLMProviderOpenAI)
+	if !has {
+		t.Error("expected credential to exist before deletion")
+	}
+
+	// Delete the credential
+	err = store.DeleteLLMCredential(ctx, LLMProviderOpenAI)
+	if err != nil {
+		t.Fatalf("failed to delete credential: %v", err)
+	}
+
+	// Verify it's gone
+	has, _ = store.HasLLMCredential(ctx, LLMProviderOpenAI)
+	if has {
+		t.Error("expected credential to be deleted")
+	}
+
+	_, err = store.GetLLMCredential(ctx, LLMProviderOpenAI)
+	if err == nil {
+		t.Fatal("expected error when getting deleted credential")
+	}
+}
+
+// TestLLM_DeleteCredentialNotFound tests deleting non-existent credential
+func TestLLM_DeleteCredentialNotFound(t *testing.T) {
+	store := createTestStore(t)
+	defer store.Close()
+
+	ctx := context.Background()
+
+	err := store.DeleteLLMCredential(ctx, "nonexistent")
+	if err == nil {
+		t.Fatal("expected error when deleting non-existent credential")
+	}
+	if !types.IsErrCode(err, types.ErrCodeNotFound) {
+		t.Errorf("expected not found error, got: %v", err)
+	}
+}
+
+// TestLLM_DeleteCredentialEmptyProvider tests deleting with empty provider
+func TestLLM_DeleteCredentialEmptyProvider(t *testing.T) {
+	store := createTestStore(t)
+	defer store.Close()
+
+	ctx := context.Background()
+
+	err := store.DeleteLLMCredential(ctx, "")
+	if err == nil {
+		t.Fatal("expected error when deleting credential with empty provider")
+	}
+	if !types.IsErrCode(err, types.ErrCodeInvalidArgument) {
+		t.Errorf("expected invalid argument error, got: %v", err)
+	}
+}
+
+// TestLLM_UpdateCredential tests updating an existing LLM credential
+func TestLLM_UpdateCredential(t *testing.T) {
+	store := createTestStore(t)
+	defer store.Close()
+
+	ctx := context.Background()
+
+	// Store initial credential
+	err := store.StoreLLMCredential(ctx, LLMProviderAnthropic, "old-key")
+	if err != nil {
+		t.Fatalf("failed to store initial credential: %v", err)
+	}
+
+	// Update with new key
+	err = store.StoreLLMCredential(ctx, LLMProviderAnthropic, "new-key")
+	if err != nil {
+		t.Fatalf("failed to update credential: %v", err)
+	}
+
+	// Verify the update
+	key, err := store.GetLLMCredential(ctx, LLMProviderAnthropic)
+	if err != nil {
+		t.Fatalf("failed to get credential: %v", err)
+	}
+	if key != "new-key" {
+		t.Errorf("key mismatch after update: got %s, want new-key", key)
+	}
+}
+
+// TestLLM_CredentialPersistence tests that LLM credentials persist across store restarts
+func TestLLM_CredentialPersistence(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfg := config.DefaultCredentialsConfig()
+	cfg.StorePath = filepath.Join(tmpDir, "credentials.json")
+
+	log, _ := logger.NewDefault()
+	ctx := context.Background()
+
+	// Create first store and save credential
+	store1, err := NewStore(cfg, log)
+	if err != nil {
+		t.Fatalf("failed to create first store: %v", err)
+	}
+
+	err = store1.StoreLLMCredential(ctx, LLMProviderOpenAI, "persistent-key")
+	if err != nil {
+		t.Fatalf("failed to store credential: %v", err)
+	}
+
+	err = store1.Close()
+	if err != nil {
+		t.Fatalf("failed to close first store: %v", err)
+	}
+
+	// Create second store and verify credential persists
+	store2, err := NewStore(cfg, log)
+	if err != nil {
+		t.Fatalf("failed to create second store: %v", err)
+	}
+	defer store2.Close()
+
+	key, err := store2.GetLLMCredential(ctx, LLMProviderOpenAI)
+	if err != nil {
+		t.Fatalf("failed to get persisted credential: %v", err)
+	}
+	if key != "persistent-key" {
+		t.Errorf("persisted key mismatch: got %s, want persistent-key", key)
+	}
+}
+
+// TestLLM_CredentialEncryption tests that LLM credentials are encrypted
+func TestLLM_CredentialEncryption(t *testing.T) {
+	store := createTestStore(t)
+	defer store.Close()
+
+	ctx := context.Background()
+
+	// Store a credential
+	err := store.StoreLLMCredential(ctx, LLMProviderAnthropic, "secret-api-key-12345")
+	if err != nil {
+		t.Fatalf("failed to store credential: %v", err)
+	}
+
+	// Access the internal storage to verify encryption
+	store.mu.RLock()
+	var storedCred *Credential
+	for _, cred := range store.credentials {
+		if cred.Name == llmCredentialPrefix+LLMProviderAnthropic {
+			storedCred = cred
+			break
+		}
+	}
+	store.mu.RUnlock()
+
+	if storedCred == nil {
+		t.Fatal("credential not found in store")
+	}
+
+	// The stored value should be encrypted (not equal to original)
+	if storedCred.Value == "secret-api-key-12345" {
+		t.Error("credential value should be encrypted in storage")
+	}
+
+	// But we can still retrieve the decrypted value
+	retrieved, err := store.GetLLMCredential(ctx, LLMProviderAnthropic)
+	if err != nil {
+		t.Fatalf("failed to retrieve credential: %v", err)
+	}
+	if retrieved != "secret-api-key-12345" {
+		t.Errorf("retrieved value mismatch: got %s, want secret-api-key-12345", retrieved)
+	}
+}
+
+// TestLLM_CredentialWithTags tests that LLM credentials have appropriate tags
+func TestLLM_CredentialWithTags(t *testing.T) {
+	store := createTestStore(t)
+	defer store.Close()
+
+	ctx := context.Background()
+
+	err := store.StoreLLMCredential(ctx, LLMProviderAnthropic, "test-key")
+	if err != nil {
+		t.Fatalf("failed to store credential: %v", err)
+	}
+
+	// List credentials to check tags
+	creds, err := store.List(ctx)
+	if err != nil {
+		t.Fatalf("failed to list credentials: %v", err)
+	}
+
+	var llmCred *Credential
+	for _, cred := range creds {
+		if cred.Name == llmCredentialPrefix+LLMProviderAnthropic {
+			llmCred = cred
+			break
+		}
+	}
+
+	if llmCred == nil {
+		t.Fatal("LLM credential not found in list")
+	}
+
+	// Check for expected tags
+	hasLLMTag := false
+	hasProviderTag := false
+	for _, tag := range llmCred.Tags {
+		if tag == "llm" {
+			hasLLMTag = true
+		}
+		if tag == LLMProviderAnthropic {
+			hasProviderTag = true
+		}
+	}
+
+	if !hasLLMTag {
+		t.Error("LLM credential should have 'llm' tag")
+	}
+	if !hasProviderTag {
+		t.Errorf("LLM credential should have '%s' tag", LLMProviderAnthropic)
+	}
+}

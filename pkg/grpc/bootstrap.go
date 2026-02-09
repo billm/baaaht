@@ -176,6 +176,18 @@ func Bootstrap(ctx context.Context, cfg BootstrapConfig) (*BootstrapResult, erro
 	// Set health status for gateway service
 	health.SetServingStatus("gateway", grpc_health.HealthCheckResponse_SERVING)
 
+	// Create and register LLMService
+	llmSvc := NewLLMService(deps, log)
+	if err := server.RegisterService(&proto.LLMService_ServiceDesc, llmSvc); err != nil {
+		result.Error = types.WrapError(types.ErrCodeInternal, "failed to register LLM service", err)
+		// Cleanup on failure
+		_ = server.Stop()
+		return result, result.Error
+	}
+
+	// Set health status for LLM service
+	health.SetServingStatus("llm", grpc_health.HealthCheckResponse_SERVING)
+
 	// Start the gRPC server
 	if err := server.Start(ctx); err != nil {
 		result.Error = types.WrapError(types.ErrCodeInternal, "failed to start gRPC server", err)

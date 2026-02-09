@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/billm/baaaht/orchestrator/internal/config"
 	"github.com/billm/baaaht/orchestrator/internal/logger"
@@ -28,18 +29,20 @@ type Orchestrator struct {
 	closed bool
 
 	// Core subsystems
-	dockerClient    *container.Client
-	sessionMgr      *session.Manager
-	eventBus        *events.Bus
-	eventRouter     *events.Router
-	ipcBroker       *ipc.Broker
-	policyEnforcer  *policy.Enforcer
-	policyReloader  *policy.Reloader
-	credStore       *credentials.Store
-	scheduler       *scheduler.Scheduler
-	memoryStore     *memory.Store
+	dockerClient   *container.Client
+	runtime        container.Runtime
+	sessionMgr     *session.Manager
+	eventBus       *events.Bus
+	eventRouter    *events.Router
+	ipcBroker      *ipc.Broker
+	policyEnforcer *policy.Enforcer
+	credStore      *credentials.Store
+	scheduler      *scheduler.Scheduler
+	memoryStore    *memory.Store
 	memoryExtractor *memory.Extractor
-	memoryHandler   *memory.SessionArchivalHandler
+	memoryHandler  *memory.SessionArchivalHandler
+	llmGateway     *LLMGatewayManager
+	llmCredentialManager *credentials.LLMCredentialManager
 
 	// Lifecycle management
 	started        bool
@@ -104,6 +107,7 @@ func NewDefault(log *logger.Logger) (*Orchestrator, error) {
 // 8. Credential Store
 // 9. Scheduler
 // 10. Memory System
+// 11. LLM Gateway (optional)
 func (o *Orchestrator) Initialize(ctx context.Context) error {
 	o.mu.Lock()
 	defer o.mu.Unlock()
@@ -207,23 +211,33 @@ func (o *Orchestrator) Initialize(ctx context.Context) error {
 		return types.WrapError(types.ErrCodeInternal, "failed to initialize memory system", err)
 	}
 
+	// 10. Initialize LLM Gateway (optional, non-critical)
+	if err := o.initLLMGateway(ctx); err != nil {
+		// LLM Gateway initialization failures are non-critical
+		// Log a warning and continue with LLM disabled
+		o.logger.Warn("LLM Gateway initialization failed, continuing with LLM disabled",
+			"error", err)
+	}
+
 	o.started = true
 	o.logger.Info("Orchestrator subsystems initialized successfully")
 
 	return nil
 }
 
-// initDockerClient initializes the Docker client
+// initDockerClient initializes the Docker client and runtime
 func (o *Orchestrator) initDockerClient(ctx context.Context) error {
-	o.logger.Debug("Initializing Docker client", "host", o.cfg.Docker.Host)
+	o.logger.Debug("Initializing Docker client and runtime", "host", o.cfg.Docker.Host)
 
-	cli, err := container.New(o.cfg.Docker, o.logger)
+	// Create Docker runtime (which includes the client)
+	runtime, err := container.NewDockerRuntime(o.cfg.Docker, o.logger)
 	if err != nil {
 		return err
 	}
 
-	o.dockerClient = cli
-	o.logger.Info("Docker client initialized")
+	o.runtime = runtime
+	o.dockerClient = runtime.DockerClient()
+	o.logger.Info("Docker client and runtime initialized")
 	return nil
 }
 
@@ -417,6 +431,62 @@ func (o *Orchestrator) initMemorySystem(ctx context.Context) error {
 	return nil
 }
 
+// initLLMGateway initializes the LLM Gateway manager if LLM is enabled in configuration.
+// This is a non-critical initialization - failures will log a warning but not prevent
+// the orchestrator from starting. The LLM Gateway provides isolated API credential
+// management for LLM providers.
+func (o *Orchestrator) initLLMGateway(ctx context.Context) error {
+	// Check if LLM is enabled in configuration
+	if !o.cfg.LLM.Enabled {
+		o.logger.Info("LLM Gateway is disabled in configuration")
+		return nil
+	}
+
+	o.logger.Debug("Initializing LLM Gateway",
+		"container_image", o.cfg.LLM.ContainerImage,
+		"default_provider", o.cfg.LLM.DefaultProvider,
+		"default_model", o.cfg.LLM.DefaultModel)
+
+	// Create LLM credential manager
+	o.llmCredentialManager = credentials.NewLLMCredentialManager(
+		o.credStore,
+		o.cfg.LLM,
+		o.logger,
+	)
+
+	// Validate that LLM credentials exist for enabled providers
+	if err := o.llmCredentialManager.ValidateLLMCredentials(); err != nil {
+		o.logger.Warn("LLM credential validation failed, LLM Gateway will not be started",
+			"error", err)
+		// Don't fail - continue with LLM disabled
+		return nil
+	}
+
+	// Create LLM Gateway manager
+	llmGatewayMgr, err := NewLLMGatewayManager(
+		o.runtime,
+		o.cfg.LLM,
+		o.credStore,
+		o.logger,
+	)
+	if err != nil {
+		return types.WrapError(types.ErrCodeInternal, "failed to create LLM Gateway manager", err)
+	}
+
+	o.llmGateway = llmGatewayMgr
+
+	// Start the LLM Gateway container
+	if err := o.llmGateway.Start(ctx); err != nil {
+		return types.WrapError(types.ErrCodeInternal, "failed to start LLM Gateway", err)
+	}
+
+	o.logger.Info("LLM Gateway initialized successfully",
+		"container_id", o.llmGateway.GetContainerID(),
+		"enabled", true)
+
+	return nil
+}
+
 // Close gracefully shuts down the orchestrator and all subsystems
 // Subsystems are closed in reverse dependency order
 func (o *Orchestrator) Close() error {
@@ -451,6 +521,12 @@ func (o *Orchestrator) Close() error {
 	if o.memoryStore != nil {
 		if err := o.memoryStore.Close(); err != nil {
 			o.logger.Error("Failed to close memory store", "error", err)
+		}
+	}
+
+	if o.llmGateway != nil {
+		if err := o.llmGateway.Close(); err != nil {
+			o.logger.Error("Failed to close LLM Gateway", "error", err)
 		}
 	}
 
@@ -500,9 +576,9 @@ func (o *Orchestrator) Close() error {
 		}
 	}
 
-	if o.dockerClient != nil {
-		if err := o.dockerClient.Close(); err != nil {
-			o.logger.Error("Failed to close Docker client", "error", err)
+	if o.runtime != nil {
+		if err := o.runtime.Close(); err != nil {
+			o.logger.Error("Failed to close container runtime", "error", err)
 		}
 	}
 
@@ -651,6 +727,20 @@ func (o *Orchestrator) MemoryHandler() *memory.SessionArchivalHandler {
 	return o.memoryHandler
 }
 
+// LLMGateway returns the LLM Gateway manager
+func (o *Orchestrator) LLMGateway() *LLMGatewayManager {
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	return o.llmGateway
+}
+
+// LLMCredentialManager returns the LLM credential manager
+func (o *Orchestrator) LLMCredentialManager() *credentials.LLMCredentialManager {
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	return o.llmCredentialManager
+}
+
 // ShutdownContext returns the shutdown context for cancellation
 func (o *Orchestrator) ShutdownContext() context.Context {
 	return o.shutdownCtx
@@ -730,6 +820,20 @@ func (o *Orchestrator) HealthCheck(ctx context.Context) map[string]types.Health 
 		health["memory"] = types.Unhealthy
 	}
 
+	// Check LLM Gateway
+	if o.llmGateway != nil && o.llmGateway.IsEnabled() {
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		result, err := o.llmGateway.HealthCheck(ctx)
+		if err != nil {
+			health["llm_gateway"] = types.Unhealthy
+		} else {
+			health["llm_gateway"] = result.Status
+		}
+	} else {
+		health["llm_gateway"] = types.Healthy // Disabled is healthy
+	}
+
 	return health
 }
 
@@ -790,6 +894,18 @@ func (o *Orchestrator) Stats(ctx context.Context) map[string]interface{} {
 		stats["scheduler"] = schedStats
 	}
 
+	// LLM Gateway stats
+	if o.llmGateway != nil {
+		stats["llm_gateway"] = map[string]interface{}{
+			"enabled":       o.llmGateway.IsEnabled(),
+			"started":       o.llmGateway.IsStarted(),
+			"container_id":  o.llmGateway.GetContainerID(),
+			"container_image": o.cfg.LLM.ContainerImage,
+			"default_provider": o.cfg.LLM.DefaultProvider,
+			"default_model":    o.cfg.LLM.DefaultModel,
+		}
+	}
+
 	return stats
 }
 
@@ -808,18 +924,19 @@ func (o *Orchestrator) String() string {
 		closed = "yes"
 	}
 
-	return fmt.Sprintf("Orchestrator{started: %s, closed: %s, docker: %v, sessions: %v, scheduler: %v}",
+	return fmt.Sprintf("Orchestrator{started: %s, closed: %s, docker: %v, sessions: %v, scheduler: %v, llm_gateway: %v}",
 		started, closed,
 		o.dockerClient != nil,
 		o.sessionMgr != nil,
-		o.scheduler != nil)
+		o.scheduler != nil,
+		o.llmGateway != nil)
 }
 
 // Helper cleanup methods (called during initialization failures)
 
 func (o *Orchestrator) cleanupDockerClient() error {
-	if o.dockerClient != nil {
-		return o.dockerClient.Close()
+	if o.runtime != nil {
+		return o.runtime.Close()
 	}
 	return nil
 }
@@ -882,6 +999,13 @@ func (o *Orchestrator) cleanupMemorySystem() error {
 	}
 	if o.memoryStore != nil {
 		return o.memoryStore.Close()
+	}
+	return nil
+}
+
+func (o *Orchestrator) cleanupLLMGateway() error {
+	if o.llmGateway != nil {
+		return o.llmGateway.Close()
 	}
 	return nil
 }

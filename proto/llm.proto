@@ -1,0 +1,295 @@
+// llm.proto - gRPC service definitions for LLM Gateway communication
+//
+// This file defines the LLMService which provides streaming LLM request handling,
+// token tracking, and provider abstraction for agent communication.
+//
+// Copyright 2026 baaaht project
+
+syntax = "proto3";
+
+package llm.v1;
+
+option go_package = "github.com/billm/baaaht/orchestrator/proto";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/empty.proto";
+import "proto/common.proto";
+
+// =============================================================================
+// LLM Service
+// =============================================================================
+
+// LLMService provides core LLM operations for agent communication
+service LLMService {
+  // LLM Request/Response
+
+  // StreamLLM establishes a bidirectional stream for LLM request/response handling
+  rpc StreamLLM(stream StreamLLMRequest) returns (stream StreamLLMResponse);
+
+  // CompleteLLM sends a non-streaming LLM request and receives a complete response
+  rpc CompleteLLM(CompleteLLMRequest) returns (CompleteLLMResponse);
+
+  // Configuration and Capabilities
+
+  // ListModels lists all available models for the specified provider
+  rpc ListModels(ListModelsRequest) returns (ListModelsResponse);
+
+  // GetCapabilities returns the capabilities of available LLM providers
+  rpc GetCapabilities(GetCapabilitiesRequest) returns (GetCapabilitiesResponse);
+
+  // Health and Status
+
+  // HealthCheck returns the health status of the LLM Gateway
+  rpc HealthCheck(google.protobuf.Empty) returns (LLMHealthCheckResponse);
+
+  // GetStatus returns the current status of the LLM Gateway
+  rpc GetStatus(google.protobuf.Empty) returns (LLMStatusResponse);
+}
+
+// =============================================================================
+// LLM Request/Response Types
+// =============================================================================
+
+// LLMRequest represents a request to an LLM provider
+message LLMRequest {
+  string request_id = 1;               // Unique identifier for this request
+  string session_id = 2;               // Session identifier for tracking
+  string model = 3;                    // Model identifier (e.g., "anthropic/claude-sonnet-4-20250514")
+  repeated LLMMessage messages = 4;    // Conversation messages
+  LLMParameters parameters = 5;        // Generation parameters
+  repeated Tool tools = 6;             // Available tools for the LLM
+  string provider = 7;                 // Provider override (optional)
+  repeated string fallback_providers = 8; // Fallback provider chain (optional)
+  LLMMetadata metadata = 9;            // Additional metadata
+}
+
+// LLMMessage represents a message in the conversation
+message LLMMessage {
+  string role = 1;                     // Role: "user", "assistant", "system"
+  string content = 2;                  // Message content
+  map<string, string> extra = 3;       // Additional fields (e.g., cache_control)
+}
+
+// LLMParameters contains generation parameters for the LLM
+message LLMParameters {
+  int32 max_tokens = 1;                // Maximum tokens to generate
+  double temperature = 2;              // Sampling temperature (0.0 to 1.0)
+  double top_p = 3;                    // Nucleus sampling threshold
+  int32 top_k = 4;                     // Top-k sampling parameter
+  repeated string stop_sequences = 5;  // Sequences that stop generation
+  bool stream = 6;                     // Whether to stream responses
+}
+
+// Tool represents a tool/function available to the LLM
+message Tool {
+  string name = 1;                     // Tool name
+  string description = 2;              // Tool description
+  ToolInputSchema input_schema = 3;    // JSON schema for tool input
+}
+
+// ToolInputSchema represents the JSON schema for tool input
+message ToolInputSchema {
+  string type = 1;                     // JSON Schema type (e.g., "object")
+  map<string, ToolProperty> properties = 2; // Input properties
+  repeated string required = 3;        // Required properties
+}
+
+// ToolProperty represents a property in the tool input schema
+message ToolProperty {
+  string type = 1;                     // Property type
+  string description = 2;              // Property description
+  repeated string enum = 3;            // Enum values (if applicable)
+}
+
+// LLMMetadata contains additional metadata for LLM requests
+message LLMMetadata {
+  google.protobuf.Timestamp created_at = 1;
+  string agent_id = 2;                 // Optional: Agent making the request
+  string container_id = 3;             // Optional: Container making the request
+  map<string, string> labels = 4;      // Optional labels for tracking
+  int64 timeout_ms = 5;                // Request timeout in milliseconds
+  string correlation_id = 6;           // For correlating requests/responses
+}
+
+// LLMResponse represents a response from an LLM provider
+message LLMResponse {
+  string request_id = 1;               // Correlates with the request
+  string content = 2;                  // Response content
+  repeated ToolCall tool_calls = 3;    // Tool calls made by the LLM
+  common.v1.TokenUsage usage = 4;      // Token usage information
+  FinishReason finish_reason = 5;      // Reason generation stopped
+  string provider = 6;                 // Provider that handled the request
+  string model = 7;                    // Model that handled the request
+  google.protobuf.Timestamp completed_at = 8;
+  LLMMetadata metadata = 9;            // Request metadata echoed back
+}
+
+// ToolCall represents a tool call made by the LLM
+message ToolCall {
+  string id = 1;                       // Tool call ID
+  string name = 2;                     // Tool/function name
+  string arguments = 3;                // JSON string of arguments
+}
+
+
+// FinishReason represents the reason generation stopped
+enum FinishReason {
+  FINISH_REASON_UNSPECIFIED = 0;
+  FINISH_REASON_STOP = 1;              // Natural stop
+  FINISH_REASON_LENGTH = 2;            // Max tokens reached
+  FINISH_REASON_TOOL_USES = 3;         // Tool use requested
+  FINISH_REASON_ERROR = 4;             // Error occurred
+  FINISH_REASON_FILTER = 5;            // Content filtered
+}
+
+// =============================================================================
+// Streaming Types
+// =============================================================================
+
+// StreamLLMRequest is a request in the streaming LLM flow
+message StreamLLMRequest {
+  oneof payload {
+    LLMRequest request = 1;            // Initial request
+    google.protobuf.Empty heartbeat = 2; // Keep-alive
+  }
+}
+
+// StreamLLMResponse is a response in the streaming LLM flow
+message StreamLLMResponse {
+  oneof payload {
+    StreamChunk chunk = 1;             // Response content chunk
+    StreamToolCall tool_call = 2;      // Tool call during streaming
+    StreamUsage usage = 3;             // Token usage update
+    StreamError error = 4;             // Error during streaming
+    StreamComplete complete = 5;       // Stream completion
+    google.protobuf.Empty heartbeat = 6; // Keep-alive
+  }
+}
+
+// StreamChunk represents a content chunk in streaming response
+message StreamChunk {
+  string request_id = 1;
+  string content = 2;                  // Content delta
+  int32 index = 3;                     // Chunk index (for ordering)
+  bool is_last = 4;                    // Whether this is the last content chunk
+}
+
+// StreamToolCall represents a tool call during streaming
+message StreamToolCall {
+  string request_id = 1;
+  string tool_call_id = 2;
+  string name = 3;
+  string arguments_delta = 4;          // Partial arguments (JSON string)
+}
+
+// StreamUsage represents token usage during streaming
+message StreamUsage {
+  string request_id = 1;
+  common.v1.TokenUsage usage = 2;      // Current usage totals
+}
+
+// StreamError represents an error during streaming
+message StreamError {
+  string request_id = 1;
+  string code = 2;                     // Error code
+  string message = 3;                  // Error message
+  bool retryable = 4;                  // Whether the request can be retried
+  string suggested_provider = 5;       // Optional: Suggested fallback provider
+}
+
+// StreamComplete indicates the stream has completed
+message StreamComplete {
+  string request_id = 1;
+  LLMResponse response = 2;            // Final complete response
+}
+
+// =============================================================================
+// Non-Streaming Types
+// =============================================================================
+
+// CompleteLLMRequest is a non-streaming LLM request
+message CompleteLLMRequest {
+  LLMRequest request = 1;
+}
+
+// CompleteLLMResponse is a non-streaming LLM response
+message CompleteLLMResponse {
+  LLMResponse response = 1;
+}
+
+// =============================================================================
+// Configuration and Capabilities Types
+// =============================================================================
+
+// ListModelsRequest requests available models
+message ListModelsRequest {
+  string provider = 1;                 // Optional: Filter by provider
+}
+
+// ListModelsResponse returns available models
+message ListModelsResponse {
+  repeated ModelInfo models = 1;
+}
+
+// ModelInfo contains information about a model
+message ModelInfo {
+  string id = 1;                       // Model identifier
+  string name = 2;                     // Human-readable name
+  string provider = 3;                 // Provider name
+  common.v1.ModelCapabilities capabilities = 4; // Model capabilities
+  map<string, string> metadata = 5;    // Additional model metadata
+}
+
+
+// GetCapabilitiesRequest requests provider capabilities
+message GetCapabilitiesRequest {
+  string provider = 1;                 // Optional: Specific provider
+}
+
+// GetCapabilitiesResponse returns provider capabilities
+message GetCapabilitiesResponse {
+  repeated ProviderCapabilities providers = 1;
+}
+
+// ProviderCapabilities describes a provider's capabilities
+message ProviderCapabilities {
+  string name = 1;                     // Provider name
+  bool available = 2;                  // Whether provider is configured
+  repeated ModelInfo models = 3;       // Available models
+  map<string, string> metadata = 4;    // Additional provider metadata
+}
+
+// =============================================================================
+// Health and Status Types
+// =============================================================================
+
+// LLMHealthCheckResponse contains health check information
+message LLMHealthCheckResponse {
+  common.v1.Health health = 1;
+  string version = 2;
+  repeated string available_providers = 3;
+  repeated string unavailable_providers = 4;
+  google.protobuf.Timestamp timestamp = 5;
+}
+
+// LLMStatusResponse contains status information
+message LLMStatusResponse {
+  common.v1.Status status = 1;
+  google.protobuf.Timestamp started_at = 2;
+  google.protobuf.Duration uptime = 3;
+  int32 active_requests = 4;
+  int64 total_requests = 5;
+  int64 total_tokens_used = 6;         // Total tokens across all requests
+  map<string, ProviderStatus> providers = 7;
+}
+
+// ProviderStatus contains status for a specific provider
+message ProviderStatus {
+  bool available = 1;
+  common.v1.Health health = 2;
+  int32 active_requests = 3;
+  int64 total_requests = 4;
+  double avg_response_time_ms = 5;     // Average response time
+  google.protobuf.Timestamp last_request_at = 6;
+}

@@ -207,6 +207,65 @@ func (Priority) EnumDescriptor() ([]byte, []int) {
 	return file_proto_common_proto_rawDescGZIP(), []int{2}
 }
 
+// Provider represents the LLM provider
+type Provider int32
+
+const (
+	Provider_PROVIDER_UNSPECIFIED Provider = 0
+	Provider_PROVIDER_ANTHROPIC   Provider = 1
+	Provider_PROVIDER_OPENAI      Provider = 2
+	Provider_PROVIDER_OPENROUTER  Provider = 3
+	Provider_PROVIDER_OLLAMA      Provider = 4
+	Provider_PROVIDER_LMSTUDIO    Provider = 5
+)
+
+// Enum value maps for Provider.
+var (
+	Provider_name = map[int32]string{
+		0: "PROVIDER_UNSPECIFIED",
+		1: "PROVIDER_ANTHROPIC",
+		2: "PROVIDER_OPENAI",
+		3: "PROVIDER_OPENROUTER",
+		4: "PROVIDER_OLLAMA",
+		5: "PROVIDER_LMSTUDIO",
+	}
+	Provider_value = map[string]int32{
+		"PROVIDER_UNSPECIFIED": 0,
+		"PROVIDER_ANTHROPIC":   1,
+		"PROVIDER_OPENAI":      2,
+		"PROVIDER_OPENROUTER":  3,
+		"PROVIDER_OLLAMA":      4,
+		"PROVIDER_LMSTUDIO":    5,
+	}
+)
+
+func (x Provider) Enum() *Provider {
+	p := new(Provider)
+	*p = x
+	return p
+}
+
+func (x Provider) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (Provider) Descriptor() protoreflect.EnumDescriptor {
+	return file_proto_common_proto_enumTypes[3].Descriptor()
+}
+
+func (Provider) Type() protoreflect.EnumType {
+	return &file_proto_common_proto_enumTypes[3]
+}
+
+func (x Provider) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use Provider.Descriptor instead.
+func (Provider) EnumDescriptor() ([]byte, []int) {
+	return file_proto_common_proto_rawDescGZIP(), []int{3}
+}
+
 // ResourceLimits defines resource constraints for a container/session
 type ResourceLimits struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -385,6 +444,136 @@ func (x *ResourceUsage) GetPidsCount() int64 {
 	return 0
 }
 
+// ModelCapabilities describes the capabilities of a model
+type ModelCapabilities struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Streaming     bool                   `protobuf:"varint,1,opt,name=streaming,proto3" json:"streaming,omitempty"` // Supports streaming responses
+	Tools         bool                   `protobuf:"varint,2,opt,name=tools,proto3" json:"tools,omitempty"`         // Supports function/tool calling
+	Vision        bool                   `protobuf:"varint,3,opt,name=vision,proto3" json:"vision,omitempty"`       // Supports image/vision input
+	Thinking      bool                   `protobuf:"varint,4,opt,name=thinking,proto3" json:"thinking,omitempty"`   // Supports extended thinking/reasoning
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ModelCapabilities) Reset() {
+	*x = ModelCapabilities{}
+	mi := &file_proto_common_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ModelCapabilities) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ModelCapabilities) ProtoMessage() {}
+
+func (x *ModelCapabilities) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_common_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ModelCapabilities.ProtoReflect.Descriptor instead.
+func (*ModelCapabilities) Descriptor() ([]byte, []int) {
+	return file_proto_common_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *ModelCapabilities) GetStreaming() bool {
+	if x != nil {
+		return x.Streaming
+	}
+	return false
+}
+
+func (x *ModelCapabilities) GetTools() bool {
+	if x != nil {
+		return x.Tools
+	}
+	return false
+}
+
+func (x *ModelCapabilities) GetVision() bool {
+	if x != nil {
+		return x.Vision
+	}
+	return false
+}
+
+func (x *ModelCapabilities) GetThinking() bool {
+	if x != nil {
+		return x.Thinking
+	}
+	return false
+}
+
+// TokenUsage represents token consumption for an LLM request
+type TokenUsage struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	InputTokens   int32                  `protobuf:"varint,1,opt,name=input_tokens,json=inputTokens,proto3" json:"input_tokens,omitempty"`    // Tokens sent in the request
+	OutputTokens  int32                  `protobuf:"varint,2,opt,name=output_tokens,json=outputTokens,proto3" json:"output_tokens,omitempty"` // Tokens received in the response
+	TotalTokens   int32                  `protobuf:"varint,3,opt,name=total_tokens,json=totalTokens,proto3" json:"total_tokens,omitempty"`    // Sum of input and output tokens
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TokenUsage) Reset() {
+	*x = TokenUsage{}
+	mi := &file_proto_common_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TokenUsage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TokenUsage) ProtoMessage() {}
+
+func (x *TokenUsage) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_common_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TokenUsage.ProtoReflect.Descriptor instead.
+func (*TokenUsage) Descriptor() ([]byte, []int) {
+	return file_proto_common_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *TokenUsage) GetInputTokens() int32 {
+	if x != nil {
+		return x.InputTokens
+	}
+	return 0
+}
+
+func (x *TokenUsage) GetOutputTokens() int32 {
+	if x != nil {
+		return x.OutputTokens
+	}
+	return 0
+}
+
+func (x *TokenUsage) GetTotalTokens() int32 {
+	if x != nil {
+		return x.TotalTokens
+	}
+	return 0
+}
+
 var File_proto_common_proto protoreflect.FileDescriptor
 
 const file_proto_common_proto_rawDesc = "" +
@@ -412,7 +601,17 @@ const file_proto_common_proto_rawDesc = "" +
 	"\vblock_write\x18\b \x01(\x03R\n" +
 	"blockWrite\x12\x1d\n" +
 	"\n" +
-	"pids_count\x18\t \x01(\x03R\tpidsCount*\xaf\x01\n" +
+	"pids_count\x18\t \x01(\x03R\tpidsCount\"{\n" +
+	"\x11ModelCapabilities\x12\x1c\n" +
+	"\tstreaming\x18\x01 \x01(\bR\tstreaming\x12\x14\n" +
+	"\x05tools\x18\x02 \x01(\bR\x05tools\x12\x16\n" +
+	"\x06vision\x18\x03 \x01(\bR\x06vision\x12\x1a\n" +
+	"\bthinking\x18\x04 \x01(\bR\bthinking\"w\n" +
+	"\n" +
+	"TokenUsage\x12!\n" +
+	"\finput_tokens\x18\x01 \x01(\x05R\vinputTokens\x12#\n" +
+	"\routput_tokens\x18\x02 \x01(\x05R\foutputTokens\x12!\n" +
+	"\ftotal_tokens\x18\x03 \x01(\x05R\vtotalTokens*\xaf\x01\n" +
 	"\x06Status\x12\x16\n" +
 	"\x12STATUS_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0eSTATUS_UNKNOWN\x10\x01\x12\x13\n" +
@@ -434,7 +633,14 @@ const file_proto_common_proto_rawDesc = "" +
 	"\fPRIORITY_LOW\x10\x01\x12\x13\n" +
 	"\x0fPRIORITY_NORMAL\x10\x02\x12\x11\n" +
 	"\rPRIORITY_HIGH\x10\x03\x12\x15\n" +
-	"\x11PRIORITY_CRITICAL\x10\x04B,Z*github.com/billm/baaaht/orchestrator/protob\x06proto3"
+	"\x11PRIORITY_CRITICAL\x10\x04*\x96\x01\n" +
+	"\bProvider\x12\x18\n" +
+	"\x14PROVIDER_UNSPECIFIED\x10\x00\x12\x16\n" +
+	"\x12PROVIDER_ANTHROPIC\x10\x01\x12\x13\n" +
+	"\x0fPROVIDER_OPENAI\x10\x02\x12\x17\n" +
+	"\x13PROVIDER_OPENROUTER\x10\x03\x12\x13\n" +
+	"\x0fPROVIDER_OLLAMA\x10\x04\x12\x15\n" +
+	"\x11PROVIDER_LMSTUDIO\x10\x05B,Z*github.com/billm/baaaht/orchestrator/protob\x06proto3"
 
 var (
 	file_proto_common_proto_rawDescOnce sync.Once
@@ -448,14 +654,17 @@ func file_proto_common_proto_rawDescGZIP() []byte {
 	return file_proto_common_proto_rawDescData
 }
 
-var file_proto_common_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_proto_common_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_proto_common_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
+var file_proto_common_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_proto_common_proto_goTypes = []any{
-	(Status)(0),            // 0: common.v1.Status
-	(Health)(0),            // 1: common.v1.Health
-	(Priority)(0),          // 2: common.v1.Priority
-	(*ResourceLimits)(nil), // 3: common.v1.ResourceLimits
-	(*ResourceUsage)(nil),  // 4: common.v1.ResourceUsage
+	(Status)(0),               // 0: common.v1.Status
+	(Health)(0),               // 1: common.v1.Health
+	(Priority)(0),             // 2: common.v1.Priority
+	(Provider)(0),             // 3: common.v1.Provider
+	(*ResourceLimits)(nil),    // 4: common.v1.ResourceLimits
+	(*ResourceUsage)(nil),     // 5: common.v1.ResourceUsage
+	(*ModelCapabilities)(nil), // 6: common.v1.ModelCapabilities
+	(*TokenUsage)(nil),        // 7: common.v1.TokenUsage
 }
 var file_proto_common_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type
@@ -475,8 +684,8 @@ func file_proto_common_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_common_proto_rawDesc), len(file_proto_common_proto_rawDesc)),
-			NumEnums:      3,
-			NumMessages:   2,
+			NumEnums:      4,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -2406,3 +2406,309 @@ func TestConfigFullString(t *testing.T) {
 		t.Errorf("String() should contain docker host, got %s", str)
 	}
 }
+
+func TestLLMValidation(t *testing.T) {
+	tests := []struct {
+		name    string
+		config  LLMConfig
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name: "valid LLM config when disabled",
+			config: LLMConfig{
+				Enabled: false,
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid LLM config when enabled with valid provider",
+			config: LLMConfig{
+				Enabled:               true,
+				ContainerImage:        "baaaht/llm-gateway:latest",
+				DefaultProvider:       "anthropic",
+				DefaultModel:          "anthropic/claude-sonnet-4-20250514",
+				Timeout:               120 * time.Second,
+				MaxConcurrentRequests: 10,
+				Providers: map[string]ProviderConfig{
+					"anthropic": {
+						Name:    "anthropic",
+						APIKey:  "sk-test-key",
+						BaseURL: "https://api.anthropic.com",
+						Enabled: true,
+						Models:  []string{"anthropic/claude-sonnet-4-20250514"},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "enabled but missing container image",
+			config: LLMConfig{
+				Enabled:               true,
+				ContainerImage:        "",
+				DefaultProvider:       "anthropic",
+				DefaultModel:          "anthropic/claude-sonnet-4-20250514",
+				Timeout:               120 * time.Second,
+				MaxConcurrentRequests: 10,
+				Providers: map[string]ProviderConfig{
+					"anthropic": {
+						Name:    "anthropic",
+						APIKey:  "sk-test-key",
+						Enabled: true,
+					},
+				},
+			},
+			wantErr: true,
+			errMsg:  "container image cannot be empty",
+		},
+		{
+			name: "enabled but missing default provider",
+			config: LLMConfig{
+				Enabled:               true,
+				ContainerImage:        "baaaht/llm-gateway:latest",
+				DefaultProvider:       "",
+				DefaultModel:          "anthropic/claude-sonnet-4-20250514",
+				Timeout:               120 * time.Second,
+				MaxConcurrentRequests: 10,
+				Providers: map[string]ProviderConfig{
+					"anthropic": {
+						Name:    "anthropic",
+						APIKey:  "sk-test-key",
+						Enabled: true,
+					},
+				},
+			},
+			wantErr: true,
+			errMsg:  "default provider cannot be empty",
+		},
+		{
+			name: "enabled but missing default model",
+			config: LLMConfig{
+				Enabled:               true,
+				ContainerImage:        "baaaht/llm-gateway:latest",
+				DefaultProvider:       "anthropic",
+				DefaultModel:          "",
+				Timeout:               120 * time.Second,
+				MaxConcurrentRequests: 10,
+				Providers: map[string]ProviderConfig{
+					"anthropic": {
+						Name:    "anthropic",
+						APIKey:  "sk-test-key",
+						Enabled: true,
+					},
+				},
+			},
+			wantErr: true,
+			errMsg:  "default model cannot be empty",
+		},
+		{
+			name: "enabled but timeout is zero",
+			config: LLMConfig{
+				Enabled:               true,
+				ContainerImage:        "baaaht/llm-gateway:latest",
+				DefaultProvider:       "anthropic",
+				DefaultModel:          "anthropic/claude-sonnet-4-20250514",
+				Timeout:               0,
+				MaxConcurrentRequests: 10,
+				Providers: map[string]ProviderConfig{
+					"anthropic": {
+						Name:    "anthropic",
+						APIKey:  "sk-test-key",
+						Enabled: true,
+					},
+				},
+			},
+			wantErr: true,
+			errMsg:  "timeout must be positive",
+		},
+		{
+			name: "enabled but max concurrent requests is zero",
+			config: LLMConfig{
+				Enabled:               true,
+				ContainerImage:        "baaaht/llm-gateway:latest",
+				DefaultProvider:       "anthropic",
+				DefaultModel:          "anthropic/claude-sonnet-4-20250514",
+				Timeout:               120 * time.Second,
+				MaxConcurrentRequests: 0,
+				Providers: map[string]ProviderConfig{
+					"anthropic": {
+						Name:    "anthropic",
+						APIKey:  "sk-test-key",
+						Enabled: true,
+					},
+				},
+			},
+			wantErr: true,
+			errMsg:  "max concurrent requests must be positive",
+		},
+		{
+			name: "enabled but default provider not in providers",
+			config: LLMConfig{
+				Enabled:               true,
+				ContainerImage:        "baaaht/llm-gateway:latest",
+				DefaultProvider:       "openai",
+				DefaultModel:          "openai/gpt-4o",
+				Timeout:               120 * time.Second,
+				MaxConcurrentRequests: 10,
+				Providers: map[string]ProviderConfig{
+					"anthropic": {
+						Name:    "anthropic",
+						APIKey:  "sk-test-key",
+						Enabled: true,
+					},
+				},
+			},
+			wantErr: true,
+			errMsg:  "default provider 'openai' not found",
+		},
+		{
+			name: "enabled provider without API key",
+			config: LLMConfig{
+				Enabled:               true,
+				ContainerImage:        "baaaht/llm-gateway:latest",
+				DefaultProvider:       "anthropic",
+				DefaultModel:          "anthropic/claude-sonnet-4-20250514",
+				Timeout:               120 * time.Second,
+				MaxConcurrentRequests: 10,
+				Providers: map[string]ProviderConfig{
+					"anthropic": {
+						Name:    "anthropic",
+						APIKey:  "",
+						Enabled: true,
+					},
+				},
+			},
+			wantErr: true,
+			errMsg:  "no API key configured",
+		},
+		{
+			name: "disabled provider without API key is valid",
+			config: LLMConfig{
+				Enabled:               true,
+				ContainerImage:        "baaaht/llm-gateway:latest",
+				DefaultProvider:       "anthropic",
+				DefaultModel:          "anthropic/claude-sonnet-4-20250514",
+				Timeout:               120 * time.Second,
+				MaxConcurrentRequests: 10,
+				Providers: map[string]ProviderConfig{
+					"anthropic": {
+						Name:    "anthropic",
+						APIKey:  "sk-test-key",
+						Enabled: true,
+					},
+					"openai": {
+						Name:    "openai",
+						APIKey:  "",
+						Enabled: false,
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "provider with empty name",
+			config: LLMConfig{
+				Enabled:               true,
+				ContainerImage:        "baaaht/llm-gateway:latest",
+				DefaultProvider:       "emptyprovider",
+				DefaultModel:          "anthropic/claude-sonnet-4-20250514",
+				Timeout:               120 * time.Second,
+				MaxConcurrentRequests: 10,
+				Providers: map[string]ProviderConfig{
+					"emptyprovider": {
+						Name:    "",
+						APIKey:  "sk-test-key",
+						Enabled: true,
+					},
+				},
+			},
+			wantErr: true,
+			errMsg:  "empty name",
+		},
+		{
+			name: "valid LLM config with multiple providers",
+			config: LLMConfig{
+				Enabled:               true,
+				ContainerImage:        "baaaht/llm-gateway:latest",
+				DefaultProvider:       "anthropic",
+				DefaultModel:          "anthropic/claude-sonnet-4-20250514",
+				Timeout:               120 * time.Second,
+				MaxConcurrentRequests: 10,
+				Providers: map[string]ProviderConfig{
+					"anthropic": {
+						Name:    "anthropic",
+						APIKey:  "sk-ant-test-key",
+						BaseURL: "https://api.anthropic.com",
+						Enabled: true,
+						Models:  []string{"anthropic/claude-sonnet-4-20250514"},
+					},
+					"openai": {
+						Name:    "openai",
+						APIKey:  "sk-openai-test-key",
+						BaseURL: "https://api.openai.com/v1",
+						Enabled: true,
+						Models:  []string{"openai/gpt-4o"},
+					},
+				},
+				RateLimits: map[string]int{
+					"anthropic": 60,
+					"openai":    60,
+				},
+				FallbackChains: map[string][]string{
+					"anthropic/*": {"openai"},
+					"openai/*":    {"anthropic"},
+				},
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{
+				Docker: DefaultDockerConfig(),
+				APIServer: APIServerConfig{
+					Host:         "0.0.0.0",
+					Port:         8080,
+					ReadTimeout:  30 * time.Second,
+					WriteTimeout: 30 * time.Second,
+				},
+				Logging:   DefaultLoggingConfig(),
+				Session:   DefaultSessionConfig(),
+				Event:     DefaultEventConfig(),
+				IPC:       DefaultIPCConfig(),
+				Scheduler: DefaultSchedulerConfig(),
+				Credentials: CredentialsConfig{
+					StorePath:       "/tmp/credentials",
+					KeyRotationDays: 90,
+				},
+				Policy: PolicyConfig{
+					ConfigPath:      "/tmp/policies.yaml",
+					EnforcementMode: "strict",
+				},
+				Metrics:      DefaultMetricsConfig(),
+				Tracing:      DefaultTracingConfig(),
+				Orchestrator: DefaultOrchestratorConfig(),
+				Runtime:      DefaultRuntimeConfig(),
+				Memory:       DefaultMemoryConfig(),
+				GRPC:         DefaultGRPCConfig(),
+				LLM:          tt.config,
+			}
+
+			err := cfg.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if tt.wantErr && tt.errMsg != "" {
+				if err == nil {
+					t.Errorf("Validate() expected error containing %q, got nil", tt.errMsg)
+				} else if !strings.Contains(err.Error(), tt.errMsg) {
+					t.Errorf("Validate() error = %q, want it to contain %q", err.Error(), tt.errMsg)
+				}
+			}
+		})
+	}
+}

@@ -466,3 +466,49 @@ func SetGlobalInjector(inj *Injector) {
 	globalInjector = inj
 	injectorGlobalOnce = sync.Once{}
 }
+
+// InjectLLMCredentials returns environment variables for LLM providers
+// It retrieves stored LLM credentials and returns them as a map suitable for container injection
+func (inj *Injector) InjectLLMCredentials(ctx context.Context) (map[string]string, error) {
+	inj.mu.RLock()
+	defer inj.mu.RUnlock()
+
+	if inj.closed {
+		return nil, types.NewError(types.ErrCodeUnavailable, "credential injector is closed")
+	}
+
+	if inj.store.IsClosed() {
+		return nil, types.NewError(types.ErrCodeUnavailable, "credential store is closed")
+	}
+
+	// Get all providers that have stored credentials
+	providers, err := inj.store.ListLLMProviders(ctx)
+	if err != nil {
+		return nil, types.WrapError(types.ErrCodeInternal, "failed to list LLM providers", err)
+	}
+
+	result := make(map[string]string, len(providers))
+
+	// For each stored provider, get the API key and add to environment
+	for _, provider := range providers {
+		envVar, ok := llmProviderEnvVar[provider]
+		if !ok || envVar == "" {
+			// Provider doesn't use environment variable for credentials
+			continue
+		}
+
+		// Get the API key from the store
+		apiKey, err := inj.store.GetLLMCredential(ctx, provider)
+		if err != nil {
+			inj.logger.Warn("Failed to retrieve LLM credential for injection", "provider", provider, "error", err)
+			continue
+		}
+
+		// Add to result
+		result[envVar] = apiKey
+		inj.logger.Debug("Prepared LLM credential for injection", "provider", provider, "env_var", envVar)
+	}
+
+	inj.logger.Info("Prepared LLM credentials for injection", "count", len(result))
+	return result, nil
+}
