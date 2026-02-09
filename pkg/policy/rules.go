@@ -19,115 +19,127 @@ const (
 	EnforcementModeDisabled EnforcementMode = "disabled"
 )
 
+// Severity defines the severity level of a policy violation
+type Severity string
+
+const (
+	// SeverityError indicates a critical violation
+	SeverityError Severity = "error"
+	// SeverityWarning indicates a non-critical violation
+	SeverityWarning Severity = "warning"
+	// SeverityInfo indicates informational notice
+	SeverityInfo Severity = "info"
+)
+
 // Policy represents a set of security rules and restrictions
 type Policy struct {
-	ID          string            `json:"id"`
-	Name        string            `json:"name"`
-	Description string            `json:"description,omitempty"`
-	Mode        EnforcementMode   `json:"mode"`
-	Quotas      ResourceQuota     `json:"quotas"`
-	Mounts      MountPolicy       `json:"mounts"`
-	Network     NetworkPolicy     `json:"network"`
-	Images      ImagePolicy       `json:"images"`
-	Security    SecurityPolicy    `json:"security"`
-	Labels      map[string]string `json:"labels,omitempty"`
+	ID          string            `json:"id" yaml:"id"`
+	Name        string            `json:"name" yaml:"name"`
+	Description string            `json:"description,omitempty" yaml:"description,omitempty"`
+	Mode        EnforcementMode   `json:"mode" yaml:"mode"`
+	Quotas      ResourceQuota     `json:"quotas" yaml:"quotas"`
+	Mounts      MountPolicy       `json:"mounts" yaml:"mounts"`
+	Network     NetworkPolicy     `json:"network" yaml:"network"`
+	Images      ImagePolicy       `json:"images" yaml:"images"`
+	Security    SecurityPolicy    `json:"security" yaml:"security"`
+	Labels      map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
 }
 
 // ResourceQuota defines resource limits
 type ResourceQuota struct {
 	// CPU limits in nanoseconds (1 CPU = 1,000,000,000 nanoseconds)
-	MaxCPUs *int64 `json:"max_cpus,omitempty"`
-	MinCPUs *int64 `json:"min_cpus,omitempty"`
+	MaxCPUs *int64 `json:"max_cpus,omitempty" yaml:"max_cpus,omitempty"`
+	MinCPUs *int64 `json:"min_cpus,omitempty" yaml:"min_cpus,omitempty"`
 	// Memory limits in bytes
-	MaxMemory *int64 `json:"max_memory,omitempty"`
-	MinMemory *int64 `json:"min_memory,omitempty"`
+	MaxMemory *int64 `json:"max_memory,omitempty" yaml:"max_memory,omitempty"`
+	MinMemory *int64 `json:"min_memory,omitempty" yaml:"min_memory,omitempty"`
 	// Memory swap limit in bytes (0 = disable, -1 = unlimited)
-	MaxMemorySwap *int64 `json:"max_memory_swap,omitempty"`
+	MaxMemorySwap *int64 `json:"max_memory_swap,omitempty" yaml:"max_memory_swap,omitempty"`
 	// Process limit
-	MaxPids *int64 `json:"max_pids,omitempty"`
+	MaxPids *int64 `json:"max_pids,omitempty" yaml:"max_pids,omitempty"`
 }
 
 // MountPolicy defines mount restrictions
 type MountPolicy struct {
 	// Allow bind mounts from host
-	AllowBindMounts bool `json:"allow_bind_mounts"`
+	AllowBindMounts bool `json:"allow_bind_mounts" yaml:"allow_bind_mounts"`
 	// Allowed bind mount sources (empty = all allowed)
-	AllowedBindSources []string `json:"allowed_bind_sources,omitempty"`
+	AllowedBindSources []string `json:"allowed_bind_sources,omitempty" yaml:"allowed_bind_sources,omitempty"`
 	// Deny bind mount sources (takes precedence)
-	DeniedBindSources []string `json:"denied_bind_sources,omitempty"`
+	DeniedBindSources []string `json:"denied_bind_sources,omitempty" yaml:"denied_bind_sources,omitempty"`
 	// Allow volume mounts
-	AllowVolumes bool `json:"allow_volumes"`
+	AllowVolumes bool `json:"allow_volumes" yaml:"allow_volumes"`
 	// Allowed volume names/patterns (empty = all allowed)
-	AllowedVolumes []string `json:"allowed_volumes,omitempty"`
+	AllowedVolumes []string `json:"allowed_volumes,omitempty" yaml:"allowed_volumes,omitempty"`
 	// Deny volume names/patterns (takes precedence)
-	DeniedVolumes []string `json:"denied_volumes,omitempty"`
+	DeniedVolumes []string `json:"denied_volumes,omitempty" yaml:"denied_volumes,omitempty"`
 	// Allow tmpfs mounts
-	AllowTmpfs bool `json:"allow_tmpfs"`
+	AllowTmpfs bool `json:"allow_tmpfs" yaml:"allow_tmpfs"`
 	// Maximum tmpfs size in bytes
-	MaxTmpfsSize *int64 `json:"max_tmpfs_size,omitempty"`
+	MaxTmpfsSize *int64 `json:"max_tmpfs_size,omitempty" yaml:"max_tmpfs_size,omitempty"`
 	// Read-only root filesystem enforcement
-	EnforceReadOnlyRootfs bool `json:"enforce_read_only_rootfs,omitempty"`
+	EnforceReadOnlyRootfs bool `json:"enforce_read_only_rootfs,omitempty" yaml:"enforce_read_only_rootfs,omitempty"`
 }
 
 // NetworkPolicy defines network restrictions
 type NetworkPolicy struct {
 	// Allow network access
-	AllowNetwork bool `json:"allow_network"`
+	AllowNetwork bool `json:"allow_network" yaml:"allow_network"`
 	// Allowed networks (CIDR notation)
-	AllowedNetworks []string `json:"allowed_networks,omitempty"`
+	AllowedNetworks []string `json:"allowed_networks,omitempty" yaml:"allowed_networks,omitempty"`
 	// Denied networks (takes precedence)
-	DeniedNetworks []string `json:"denied_networks,omitempty"`
+	DeniedNetworks []string `json:"denied_networks,omitempty" yaml:"denied_networks,omitempty"`
 	// Allow host networking
-	AllowHostNetwork bool `json:"allow_host_network"`
+	AllowHostNetwork bool `json:"allow_host_network" yaml:"allow_host_network"`
 }
 
 // ImagePolicy defines container image restrictions
 type ImagePolicy struct {
 	// Allowed image patterns (e.g., "docker.io/library/*", "registry.example.com/*")
-	AllowedImages []string `json:"allowed_images,omitempty"`
+	AllowedImages []string `json:"allowed_images,omitempty" yaml:"allowed_images,omitempty"`
 	// Denied image patterns (takes precedence)
-	DeniedImages []string `json:"denied_images,omitempty"`
+	DeniedImages []string `json:"denied_images,omitempty" yaml:"denied_images,omitempty"`
 	// Require image digest pinning
-	RequireDigest bool `json:"require_digest,omitempty"`
+	RequireDigest bool `json:"require_digest,omitempty" yaml:"require_digest,omitempty"`
 	// Allow latest tag
-	AllowLatestTag bool `json:"allow_latest_tag"`
+	AllowLatestTag bool `json:"allow_latest_tag" yaml:"allow_latest_tag"`
 }
 
 // SecurityPolicy defines security restrictions
 type SecurityPolicy struct {
 	// Allow privileged containers
-	AllowPrivileged bool `json:"allow_privileged"`
+	AllowPrivileged bool `json:"allow_privileged" yaml:"allow_privileged"`
 	// Allowed Linux capabilities
-	AllowedCapabilities []string `json:"allowed_capabilities,omitempty"`
+	AllowedCapabilities []string `json:"allowed_capabilities,omitempty" yaml:"allowed_capabilities,omitempty"`
 	// Add required capabilities
-	AddCapabilities []string `json:"add_capabilities,omitempty"`
+	AddCapabilities []string `json:"add_capabilities,omitempty" yaml:"add_capabilities,omitempty"`
 	// Drop capabilities
-	DropCapabilities []string `json:"drop_capabilities,omitempty"`
+	DropCapabilities []string `json:"drop_capabilities,omitempty" yaml:"drop_capabilities,omitempty"`
 	// Allow running as root
-	AllowRoot bool `json:"allow_root"`
+	AllowRoot bool `json:"allow_root" yaml:"allow_root"`
 	// Require non-root user
-	RequireNonRoot bool `json:"require_non_root"`
+	RequireNonRoot bool `json:"require_non_root" yaml:"require_non_root"`
 	// Allowed user IDs (UIDs)
-	AllowedUIDs []int64 `json:"allowed_uids,omitempty"`
+	AllowedUIDs []int64 `json:"allowed_uids,omitempty" yaml:"allowed_uids,omitempty"`
 	// Allowed group IDs (GIDs)
-	AllowedGIDs []int64 `json:"allowed_gids,omitempty"`
+	AllowedGIDs []int64 `json:"allowed_gids,omitempty" yaml:"allowed_gids,omitempty"`
 	// Read-only root filesystem
-	ReadOnlyRootfs bool `json:"read_only_rootfs"`
+	ReadOnlyRootfs bool `json:"read_only_rootfs" yaml:"read_only_rootfs"`
 }
 
 // Violation represents a policy violation
 type Violation struct {
-	Rule      string `json:"rule"`
-	Message   string `json:"message"`
-	Severity  string `json:"severity"`  // error, warning, info
-	Component string `json:"component"` // quota, mount, network, image, security
+	Rule      string `json:"rule" yaml:"rule"`
+	Message   string `json:"message" yaml:"message"`
+	Severity  string `json:"severity" yaml:"severity"`   // error, warning, info
+	Component string `json:"component" yaml:"component"` // quota, mount, network, image, security
 }
 
 // ValidationResult represents the result of a policy validation
 type ValidationResult struct {
-	Allowed    bool        `json:"allowed"`
-	Violations []Violation `json:"violations,omitempty"`
-	Warnings   []Violation `json:"warnings,omitempty"`
+	Allowed    bool        `json:"allowed" yaml:"allowed"`
+	Violations []Violation `json:"violations,omitempty" yaml:"violations,omitempty"`
+	Warnings   []Violation `json:"warnings,omitempty" yaml:"warnings,omitempty"`
 }
 
 // Merge merges another policy into this one, with the other policy taking precedence

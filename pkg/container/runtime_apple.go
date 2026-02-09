@@ -19,8 +19,8 @@ import (
 
 const (
 	// Darwin sysctl constants for querying system information
-	ctlHW      = 6  // CTL_HW - hardware-related information
-	hwMemsize  = 24 // HW_MEMSIZE - physical RAM size in bytes
+	ctlHW     = 6  // CTL_HW - hardware-related information
+	hwMemsize = 24 // HW_MEMSIZE - physical RAM size in bytes
 )
 
 // AppleClient represents a client for Apple Containers

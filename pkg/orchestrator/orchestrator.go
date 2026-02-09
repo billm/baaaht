@@ -28,17 +28,18 @@ type Orchestrator struct {
 	closed bool
 
 	// Core subsystems
-	dockerClient   *container.Client
-	sessionMgr     *session.Manager
-	eventBus       *events.Bus
-	eventRouter    *events.Router
-	ipcBroker      *ipc.Broker
-	policyEnforcer *policy.Enforcer
-	credStore      *credentials.Store
-	scheduler      *scheduler.Scheduler
-	memoryStore    *memory.Store
+	dockerClient    *container.Client
+	sessionMgr      *session.Manager
+	eventBus        *events.Bus
+	eventRouter     *events.Router
+	ipcBroker       *ipc.Broker
+	policyEnforcer  *policy.Enforcer
+	policyReloader  *policy.Reloader
+	credStore       *credentials.Store
+	scheduler       *scheduler.Scheduler
+	memoryStore     *memory.Store
 	memoryExtractor *memory.Extractor
-	memoryHandler  *memory.SessionArchivalHandler
+	memoryHandler   *memory.SessionArchivalHandler
 
 	// Lifecycle management
 	started        bool
@@ -291,8 +292,57 @@ func (o *Orchestrator) initPolicyEnforcer(ctx context.Context) error {
 		return err
 	}
 
+	// Load policy from YAML if ConfigPath is set
+	if o.cfg.Policy.ConfigPath != "" {
+		o.logger.Debug("Loading policy from file", "path", o.cfg.Policy.ConfigPath)
+		pol, err := policy.LoadFromFile(o.cfg.Policy.ConfigPath)
+		if err != nil {
+			// Close the enforcer before returning error
+			_ = enforcer.Close()
+			return types.WrapError(types.ErrCodeInvalidArgument, "failed to load policy from "+o.cfg.Policy.ConfigPath, err)
+		}
+
+		// Set the loaded policy on the enforcer
+		if err := enforcer.SetPolicy(ctx, pol); err != nil {
+			// Close the enforcer before returning error
+			_ = enforcer.Close()
+			return types.WrapError(types.ErrCodeInternal, "failed to set policy", err)
+		}
+
+		o.logger.Info("Policy enforcer initialized with policy from file",
+			"policy_id", pol.ID,
+			"name", pol.Name,
+			"mode", pol.Mode,
+			"path", o.cfg.Policy.ConfigPath)
+
+		// Initialize policy reloader if ReloadOnChanges is enabled
+		if o.cfg.Policy.ReloadOnChanges {
+			o.logger.Info("Policy hot-reload enabled",
+				"policy_path", o.cfg.Policy.ConfigPath)
+
+			reloader := policy.NewReloader(o.cfg.Policy.ConfigPath, pol, o.logger)
+
+			// Add callback to update the enforcer when policy is reloaded
+			reloader.AddCallback(func(reloadCtx context.Context, newPolicy *policy.Policy) error {
+				o.logger.Info("Reloading policy",
+					"policy_id", newPolicy.ID,
+					"name", newPolicy.Name,
+					"mode", newPolicy.Mode)
+				return enforcer.SetPolicy(reloadCtx, newPolicy)
+			})
+
+			// Start the reloader
+			reloader.Start()
+			o.policyReloader = reloader
+
+			o.logger.Info("Policy reloader started",
+				"policy_path", o.cfg.Policy.ConfigPath)
+		}
+	} else {
+		o.logger.Info("Policy enforcer initialized with default policy")
+	}
+
 	o.policyEnforcer = enforcer
-	o.logger.Info("Policy enforcer initialized")
 	return nil
 }
 
@@ -414,6 +464,10 @@ func (o *Orchestrator) Close() error {
 		if err := o.credStore.Close(); err != nil {
 			o.logger.Error("Failed to close credential store", "error", err)
 		}
+	}
+
+	if o.policyReloader != nil {
+		o.policyReloader.Stop()
 	}
 
 	if o.policyEnforcer != nil {
@@ -553,6 +607,13 @@ func (o *Orchestrator) PolicyEnforcer() *policy.Enforcer {
 	o.mu.RLock()
 	defer o.mu.RUnlock()
 	return o.policyEnforcer
+}
+
+// PolicyReloader returns the policy reloader
+func (o *Orchestrator) PolicyReloader() *policy.Reloader {
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	return o.policyReloader
 }
 
 // CredentialStore returns the credential store
@@ -792,6 +853,9 @@ func (o *Orchestrator) cleanupIPCBroker() error {
 }
 
 func (o *Orchestrator) cleanupPolicyEnforcer() error {
+	if o.policyReloader != nil {
+		o.policyReloader.Stop()
+	}
 	if o.policyEnforcer != nil {
 		return o.policyEnforcer.Close()
 	}
