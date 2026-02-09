@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/billm/baaaht/orchestrator/internal/logger"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
@@ -621,11 +622,12 @@ func TestGlobalRegistry(t *testing.T) {
 
 // mockLLMProvider is a mock implementation of LLMProvider for testing
 type mockLLMProvider struct {
-	id           Provider
-	name         string
-	status       ProviderStatus
-	closed       bool
-	tokenAccount *TokenAccount
+	id                  Provider
+	name                string
+	status              ProviderStatus
+	closed              bool
+	tokenAccount        *TokenAccount
+	supportsAllModels   bool
 }
 
 func (m *mockLLMProvider) Provider() Provider {
@@ -675,7 +677,24 @@ func (m *mockLLMProvider) CompleteStream(ctx context.Context, req *CompletionReq
 }
 
 func (m *mockLLMProvider) SupportsModel(model Model) bool {
-	return true
+	if m.supportsAllModels {
+		return true
+	}
+	// Default behavior - support Anthropic models for Anthropic provider
+	if m.id == ProviderAnthropic {
+		switch model {
+		case ModelClaude3_5Sonnet, ModelClaude3_5SonnetNew, ModelClaude3Opus, ModelClaude3Sonnet, ModelClaude3Haiku:
+			return true
+		}
+	}
+	// Support OpenAI models for OpenAI provider
+	if m.id == ProviderOpenAI {
+		switch model {
+		case ModelGPT4o, ModelGPT4oMini, ModelGPT4Turbo, ModelGPT4, ModelGPT35Turbo:
+			return true
+		}
+	}
+	return false
 }
 
 func (m *mockLLMProvider) ModelInfo(model Model) (*ModelInfo, error) {
@@ -706,4 +725,404 @@ func (m *mockLLMProvider) GetTokenAccount() *TokenAccount {
 		m.tokenAccount = NewTokenAccount(m.id)
 	}
 	return m.tokenAccount
+}
+
+func TestRegistry_GetProviderByModel(t *testing.T) {
+	log, err := logger.NewDefault()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	t.Run("get provider for Anthropic model", func(t *testing.T) {
+		cfg := RegistryConfig{
+			Providers: map[Provider]ProviderConfig{},
+		}
+		registry, err := NewRegistry(cfg, log)
+		require.NoError(t, err)
+
+		anthropic := &mockLLMProvider{
+			id:     ProviderAnthropic,
+			name:   "Anthropic",
+			status: ProviderStatusAvailable,
+		}
+
+		err = registry.Register(ctx, anthropic)
+		require.NoError(t, err)
+
+		provider, err := registry.GetProviderByModel(ctx, ModelClaude3_5Sonnet)
+		assert.NoError(t, err)
+		assert.Equal(t, anthropic, provider)
+	})
+
+	t.Run("get provider for OpenAI model", func(t *testing.T) {
+		cfg := RegistryConfig{
+			Providers: map[Provider]ProviderConfig{},
+		}
+		registry, err := NewRegistry(cfg, log)
+		require.NoError(t, err)
+
+		openai := &mockLLMProvider{
+			id:     ProviderOpenAI,
+			name:   "OpenAI",
+			status: ProviderStatusAvailable,
+		}
+
+		err = registry.Register(ctx, openai)
+		require.NoError(t, err)
+
+		provider, err := registry.GetProviderByModel(ctx, ModelGPT4o)
+		assert.NoError(t, err)
+		assert.Equal(t, openai, provider)
+	})
+
+	t.Run("empty model returns error", func(t *testing.T) {
+		cfg := RegistryConfig{
+			Providers: map[Provider]ProviderConfig{},
+		}
+		registry, err := NewRegistry(cfg, log)
+		require.NoError(t, err)
+
+		anthropic := &mockLLMProvider{
+			id:     ProviderAnthropic,
+			name:   "Anthropic",
+			status: ProviderStatusAvailable,
+		}
+
+		err = registry.Register(ctx, anthropic)
+		require.NoError(t, err)
+
+		_, err = registry.GetProviderByModel(ctx, Model(""))
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "model cannot be empty")
+	})
+
+	t.Run("unknown model returns error", func(t *testing.T) {
+		cfg := RegistryConfig{
+			Providers: map[Provider]ProviderConfig{},
+		}
+		registry, err := NewRegistry(cfg, log)
+		require.NoError(t, err)
+
+		anthropic := &mockLLMProvider{
+			id:     ProviderAnthropic,
+			name:   "Anthropic",
+			status: ProviderStatusAvailable,
+		}
+
+		err = registry.Register(ctx, anthropic)
+		require.NoError(t, err)
+
+		_, err = registry.GetProviderByModel(ctx, Model("unknown-model"))
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "no available provider found")
+	})
+
+	t.Run("provider unavailable returns error", func(t *testing.T) {
+		cfg := RegistryConfig{
+			Providers: map[Provider]ProviderConfig{},
+		}
+		registry, err := NewRegistry(cfg, log)
+		require.NoError(t, err)
+
+		anthropic := &mockLLMProvider{
+			id:     ProviderAnthropic,
+			name:   "Anthropic",
+			status: ProviderStatusUnavailable,
+		}
+
+		err = registry.Register(ctx, anthropic)
+		require.NoError(t, err)
+
+		_, err = registry.GetProviderByModel(ctx, ModelClaude3_5Sonnet)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "no available provider found")
+	})
+
+	t.Run("closed registry returns error", func(t *testing.T) {
+		cfg := RegistryConfig{
+			Providers: map[Provider]ProviderConfig{},
+		}
+		registry, err := NewRegistry(cfg, log)
+		require.NoError(t, err)
+		registry.Close()
+
+		_, err = registry.GetProviderByModel(ctx, ModelClaude3_5Sonnet)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "registry is closed")
+	})
+}
+
+func TestRegistry_Config(t *testing.T) {
+	log, err := logger.NewDefault()
+	require.NoError(t, err)
+
+	t.Run("get config returns expected values", func(t *testing.T) {
+		expectedCfg := RegistryConfig{
+			DefaultProvider:      ProviderOpenAI,
+			FailoverEnabled:      true,
+			FailoverThreshold:    5,
+			CircuitBreakerTimeout: 120 * time.Second,
+			Providers: map[Provider]ProviderConfig{
+				ProviderAnthropic: {
+					Provider: ProviderAnthropic,
+					Enabled:  true,
+					Priority: 10,
+				},
+			},
+		}
+
+		registry, err := NewRegistry(expectedCfg, log)
+		require.NoError(t, err)
+
+		actualCfg := registry.Config()
+
+		assert.Equal(t, expectedCfg.DefaultProvider, actualCfg.DefaultProvider)
+		assert.Equal(t, expectedCfg.FailoverEnabled, actualCfg.FailoverEnabled)
+		assert.Equal(t, expectedCfg.FailoverThreshold, actualCfg.FailoverThreshold)
+		assert.Equal(t, expectedCfg.CircuitBreakerTimeout, actualCfg.CircuitBreakerTimeout)
+		assert.Contains(t, actualCfg.Providers, ProviderAnthropic)
+	})
+
+	t.Run("config is independent of registry state", func(t *testing.T) {
+		cfg := RegistryConfig{
+			DefaultProvider: ProviderAnthropic,
+			Providers:       map[Provider]ProviderConfig{},
+		}
+		registry, err := NewRegistry(cfg, log)
+		require.NoError(t, err)
+
+		// Get config
+		retrievedCfg := registry.Config()
+
+		// Modify retrieved config (should not affect registry)
+		retrievedCfg.DefaultProvider = ProviderOpenAI
+
+		// Get config again
+		cfg2 := registry.Config()
+
+		// Should still be Anthropic
+		assert.Equal(t, ProviderAnthropic, cfg2.DefaultProvider)
+	})
+}
+
+func TestRegistry_ResetAllFailover(t *testing.T) {
+	log, err := logger.NewDefault()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	cfg := RegistryConfig{
+		Providers:       map[Provider]ProviderConfig{},
+		FailoverEnabled: true,
+	}
+	registry, err := NewRegistry(cfg, log)
+	require.NoError(t, err)
+
+	// Register multiple providers
+	anthropic := &mockLLMProvider{
+		id:     ProviderAnthropic,
+		name:   "Anthropic",
+		status: ProviderStatusAvailable,
+	}
+	openai := &mockLLMProvider{
+		id:     ProviderOpenAI,
+		name:   "OpenAI",
+		status: ProviderStatusAvailable,
+	}
+
+	err = registry.Register(ctx, anthropic)
+	require.NoError(t, err)
+	err = registry.Register(ctx, openai)
+	require.NoError(t, err)
+
+	// Record failures for all providers
+	registry.RecordProviderFailure(ProviderAnthropic, "error 1")
+	registry.RecordProviderFailure(ProviderAnthropic, "error 2")
+	registry.RecordProviderFailure(ProviderOpenAI, "error 1")
+
+	// Verify failures are recorded
+	state1 := registry.GetFailoverState(ProviderAnthropic)
+	state2 := registry.GetFailoverState(ProviderOpenAI)
+	assert.Equal(t, 2, state1.ConsecutiveFailures)
+	assert.Equal(t, 1, state2.ConsecutiveFailures)
+
+	// Reset all
+	registry.ResetAllFailover()
+
+	// Verify all states are reset
+	state1 = registry.GetFailoverState(ProviderAnthropic)
+	state2 = registry.GetFailoverState(ProviderOpenAI)
+	assert.Equal(t, 0, state1.ConsecutiveFailures)
+	assert.Equal(t, 0, state2.ConsecutiveFailures)
+	assert.Empty(t, state1.LastFailureReason)
+	assert.Empty(t, state2.LastFailureReason)
+}
+
+func TestRegistry_FailoverWithPriority(t *testing.T) {
+	log, err := logger.NewDefault()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	t.Run("failover selects higher priority backup", func(t *testing.T) {
+		cfg := RegistryConfig{
+			DefaultProvider:   ProviderAnthropic,
+			Providers: map[Provider]ProviderConfig{
+				ProviderAnthropic: {Provider: ProviderAnthropic, Priority: 10},
+				ProviderOpenAI:    {Provider: ProviderOpenAI, Priority: 5},  // Higher priority (lower number)
+			},
+			FailoverEnabled:   true,
+			FailoverThreshold: 3,
+		}
+		registry, err := NewRegistry(cfg, log)
+		require.NoError(t, err)
+
+		primary := &mockLLMProvider{
+			id:     ProviderAnthropic,
+			name:   "Primary",
+			status: ProviderStatusUnavailable,
+		}
+		backup1 := &mockLLMProvider{
+			id:     ProviderOpenAI,
+			name:   "Backup1",
+			status: ProviderStatusAvailable,
+		}
+		backup2 := &mockLLMProvider{
+			id:     Provider("other"),
+			name:   "Backup2",
+			status: ProviderStatusAvailable,
+		}
+		backup2.supportsAllModels = true
+
+		err = registry.Register(ctx, primary)
+		require.NoError(t, err)
+		err = registry.Register(ctx, backup1)
+		require.NoError(t, err)
+		err = registry.Register(ctx, backup2)
+		require.NoError(t, err)
+
+		// With failover, should select the higher priority backup (OpenAI with priority 5)
+		provider, failover, err := registry.GetWithFailover(ctx, ProviderAnthropic)
+		assert.NoError(t, err)
+		assert.True(t, failover)
+		assert.Equal(t, backup1, provider) // OpenAI has higher priority (lower number)
+	})
+
+	t.Run("failover with all backups unavailable returns error", func(t *testing.T) {
+		cfg := RegistryConfig{
+			DefaultProvider:   ProviderAnthropic,
+			Providers:         map[Provider]ProviderConfig{},
+			FailoverEnabled:   true,
+			FailoverThreshold: 3,
+		}
+		registry, err := NewRegistry(cfg, log)
+		require.NoError(t, err)
+
+		primary := &mockLLMProvider{
+			id:     ProviderAnthropic,
+			name:   "Primary",
+			status: ProviderStatusUnavailable,
+		}
+		backup := &mockLLMProvider{
+			id:     ProviderOpenAI,
+			name:   "Backup",
+			status: ProviderStatusUnavailable, // Also unavailable
+		}
+
+		err = registry.Register(ctx, primary)
+		require.NoError(t, err)
+		err = registry.Register(ctx, backup)
+		require.NoError(t, err)
+
+		provider, failover, err := registry.GetWithFailover(ctx, ProviderAnthropic)
+		assert.Error(t, err)
+		assert.False(t, failover)
+		assert.Nil(t, provider)
+		assert.Contains(t, err.Error(), "all providers are unavailable")
+	})
+}
+
+func TestRegistry_FailoverWithCircuitBreaker(t *testing.T) {
+	log, err := logger.NewDefault()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	t.Run("circuit breaker prevents provider selection", func(t *testing.T) {
+		cfg := RegistryConfig{
+			DefaultProvider:      ProviderAnthropic,
+			Providers:            map[Provider]ProviderConfig{},
+			FailoverEnabled:      true,
+			FailoverThreshold:    2,
+			CircuitBreakerTimeout: 100 * time.Millisecond,
+		}
+		registry, err := NewRegistry(cfg, log)
+		require.NoError(t, err)
+
+		primary := &mockLLMProvider{
+			id:     ProviderAnthropic,
+			name:   "Primary",
+			status: ProviderStatusAvailable,
+		}
+		backup := &mockLLMProvider{
+			id:     ProviderOpenAI,
+			name:   "Backup",
+			status: ProviderStatusAvailable,
+		}
+
+		err = registry.Register(ctx, primary)
+		require.NoError(t, err)
+		err = registry.Register(ctx, backup)
+		require.NoError(t, err)
+
+		// Trigger circuit breaker on primary
+		registry.RecordProviderFailure(ProviderAnthropic, "error 1")
+		registry.RecordProviderFailure(ProviderAnthropic, "error 2")
+
+		// Circuit should be open now
+		state := registry.GetFailoverState(ProviderAnthropic)
+		assert.True(t, state.CircuitOpen)
+
+		// Request with failover should use backup
+		provider, failover, err := registry.GetWithFailover(ctx, ProviderAnthropic)
+		assert.NoError(t, err)
+		assert.True(t, failover)
+		assert.Equal(t, backup, provider)
+	})
+
+	t.Run("circuit expires after timeout", func(t *testing.T) {
+		cfg := RegistryConfig{
+			DefaultProvider:      ProviderAnthropic,
+			Providers:            map[Provider]ProviderConfig{},
+			FailoverEnabled:      true,
+			FailoverThreshold:    2,
+			CircuitBreakerTimeout: 50 * time.Millisecond,
+		}
+		registry, err := NewRegistry(cfg, log)
+		require.NoError(t, err)
+
+		primary := &mockLLMProvider{
+			id:     ProviderAnthropic,
+			name:   "Primary",
+			status: ProviderStatusAvailable,
+		}
+
+		err = registry.Register(ctx, primary)
+		require.NoError(t, err)
+
+		// Trigger circuit breaker
+		registry.RecordProviderFailure(ProviderAnthropic, "error 1")
+		registry.RecordProviderFailure(ProviderAnthropic, "error 2")
+
+		// Circuit should be open
+		state := registry.GetFailoverState(ProviderAnthropic)
+		assert.True(t, state.CircuitOpen)
+
+		// Wait for circuit to expire
+		time.Sleep(60 * time.Millisecond)
+
+		// Circuit should be closed now
+		state = registry.GetFailoverState(ProviderAnthropic)
+		assert.False(t, state.CircuitOpen)
+	})
 }
