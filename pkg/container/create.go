@@ -123,7 +123,7 @@ func (c *Creator) Create(ctx context.Context, cfg CreateConfig) (*CreateResult, 
 
 		// Log violations (these may or may not be fatal depending on mode)
 		for _, violation := range result.Violations {
-			if violation.Severity == "error" {
+			if violation.Severity == string(policy.SeverityError) {
 				c.logger.Warn("Policy violation detected",
 					"rule", violation.Rule,
 					"message", violation.Message,

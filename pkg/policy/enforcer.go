@@ -207,7 +207,7 @@ func (e *Enforcer) validateQuotas(policy *Policy, config types.ContainerConfig, 
 				Rule: "quota.cpu.max",
 				Message: fmt.Sprintf("CPU quota exceeds maximum: requested %.2f, maximum %.2f",
 					float64(config.Resources.NanoCPUs)/1e9, float64(*policy.Quotas.MaxCPUs)/1e9),
-				Severity:  "error",
+				Severity:  string(SeverityError),
 				Component: "quota",
 			}
 			result.Violations = append(result.Violations, violation)
@@ -217,7 +217,7 @@ func (e *Enforcer) validateQuotas(policy *Policy, config types.ContainerConfig, 
 				Rule: "quota.cpu.min",
 				Message: fmt.Sprintf("CPU quota below minimum: requested %.2f, minimum %.2f",
 					float64(config.Resources.NanoCPUs)/1e9, float64(*policy.Quotas.MinCPUs)/1e9),
-				Severity:  "warning",
+				Severity:  string(SeverityWarning),
 				Component: "quota",
 			}
 			result.Violations = append(result.Violations, violation)
@@ -230,7 +230,7 @@ func (e *Enforcer) validateQuotas(policy *Policy, config types.ContainerConfig, 
 				Rule: "quota.memory.max",
 				Message: fmt.Sprintf("memory quota exceeds maximum: requested %d, maximum %d",
 					config.Resources.MemoryBytes, *policy.Quotas.MaxMemory),
-				Severity:  "error",
+				Severity:  string(SeverityError),
 				Component: "quota",
 			}
 			result.Violations = append(result.Violations, violation)
@@ -240,7 +240,7 @@ func (e *Enforcer) validateQuotas(policy *Policy, config types.ContainerConfig, 
 				Rule: "quota.memory.min",
 				Message: fmt.Sprintf("memory quota below minimum: requested %d, minimum %d",
 					config.Resources.MemoryBytes, *policy.Quotas.MinMemory),
-				Severity:  "warning",
+				Severity:  string(SeverityWarning),
 				Component: "quota",
 			}
 			result.Violations = append(result.Violations, violation)
@@ -253,7 +253,7 @@ func (e *Enforcer) validateQuotas(policy *Policy, config types.ContainerConfig, 
 				Rule: "quota.memory_swap.max",
 				Message: fmt.Sprintf("memory swap quota exceeds maximum: requested %d, maximum %d",
 					config.Resources.MemorySwap, *policy.Quotas.MaxMemorySwap),
-				Severity:  "error",
+				Severity:  string(SeverityError),
 				Component: "quota",
 			}
 			result.Violations = append(result.Violations, violation)
@@ -266,7 +266,7 @@ func (e *Enforcer) validateQuotas(policy *Policy, config types.ContainerConfig, 
 				Rule: "quota.pids.max",
 				Message: fmt.Sprintf("PIDs limit exceeds maximum: requested %d, maximum %d",
 					*config.Resources.PidsLimit, *policy.Quotas.MaxPids),
-				Severity:  "error",
+				Severity:  string(SeverityError),
 				Component: "quota",
 			}
 			result.Violations = append(result.Violations, violation)
@@ -283,7 +283,7 @@ func (e *Enforcer) validateMounts(policy *Policy, config types.ContainerConfig, 
 				violation := Violation{
 					Rule:      "mount.bind.disabled",
 					Message:   fmt.Sprintf("bind mounts are not allowed: %s -> %s", mount.Source, mount.Target),
-					Severity:  "error",
+					Severity:  string(SeverityError),
 					Component: "mount",
 				}
 				result.Violations = append(result.Violations, violation)
@@ -295,7 +295,7 @@ func (e *Enforcer) validateMounts(policy *Policy, config types.ContainerConfig, 
 				violation := Violation{
 					Rule:      "mount.bind.source_not_allowed",
 					Message:   fmt.Sprintf("bind mount source not allowed: %s", mount.Source),
-					Severity:  "error",
+					Severity:  string(SeverityError),
 					Component: "mount",
 				}
 				result.Violations = append(result.Violations, violation)
@@ -306,7 +306,7 @@ func (e *Enforcer) validateMounts(policy *Policy, config types.ContainerConfig, 
 				violation := Violation{
 					Rule:      "mount.volume.disabled",
 					Message:   fmt.Sprintf("volume mounts are not allowed: %s", mount.Source),
-					Severity:  "error",
+					Severity:  string(SeverityError),
 					Component: "mount",
 				}
 				result.Violations = append(result.Violations, violation)
@@ -318,7 +318,7 @@ func (e *Enforcer) validateMounts(policy *Policy, config types.ContainerConfig, 
 				violation := Violation{
 					Rule:      "mount.volume.not_allowed",
 					Message:   fmt.Sprintf("volume not allowed: %s", mount.Source),
-					Severity:  "error",
+					Severity:  string(SeverityError),
 					Component: "mount",
 				}
 				result.Violations = append(result.Violations, violation)
@@ -329,7 +329,7 @@ func (e *Enforcer) validateMounts(policy *Policy, config types.ContainerConfig, 
 				violation := Violation{
 					Rule:      "mount.tmpfs.disabled",
 					Message:   fmt.Sprintf("tmpfs mounts are not allowed: %s", mount.Target),
-					Severity:  "error",
+					Severity:  string(SeverityError),
 					Component: "mount",
 				}
 				result.Violations = append(result.Violations, violation)
@@ -353,7 +353,7 @@ func (e *Enforcer) validateMounts(policy *Policy, config types.ContainerConfig, 
 						Rule: "mount.tmpfs.size_exceeded",
 						Message: fmt.Sprintf("tmpfs size exceeds maximum: requested %d, maximum %d",
 							size, *policy.Mounts.MaxTmpfsSize),
-						Severity:  "error",
+						Severity:  string(SeverityError),
 						Component: "mount",
 					}
 					result.Violations = append(result.Violations, violation)
@@ -367,7 +367,7 @@ func (e *Enforcer) validateMounts(policy *Policy, config types.ContainerConfig, 
 		violation := Violation{
 			Rule:      "mount.readonly_rootfs.required",
 			Message:   "read-only root filesystem is required but not set",
-			Severity:  "error",
+			Severity:  string(SeverityError),
 			Component: "mount",
 		}
 		result.Violations = append(result.Violations, violation)
@@ -381,7 +381,7 @@ func (e *Enforcer) validateNetwork(policy *Policy, config types.ContainerConfig,
 		violation := Violation{
 			Rule:      "network.host.disabled",
 			Message:   "host networking is not allowed",
-			Severity:  "error",
+			Severity:  string(SeverityError),
 			Component: "network",
 		}
 		result.Violations = append(result.Violations, violation)
@@ -392,7 +392,7 @@ func (e *Enforcer) validateNetwork(policy *Policy, config types.ContainerConfig,
 		violation := Violation{
 			Rule:      "network.disabled",
 			Message:   "network access is disabled but networks are configured",
-			Severity:  "warning",
+			Severity:  string(SeverityWarning),
 			Component: "network",
 		}
 		result.Warnings = append(result.Warnings, violation)
@@ -403,7 +403,7 @@ func (e *Enforcer) validateNetwork(policy *Policy, config types.ContainerConfig,
 		violation := Violation{
 			Rule:      "network.ports.disabled",
 			Message:   "network access is disabled but ports are exposed",
-			Severity:  "warning",
+			Severity:  string(SeverityWarning),
 			Component: "network",
 		}
 		result.Warnings = append(result.Warnings, violation)
@@ -420,7 +420,7 @@ func (e *Enforcer) validateImage(policy *Policy, config types.ContainerConfig, r
 			violation := Violation{
 				Rule:      "image.denied",
 				Message:   fmt.Sprintf("image is denied by policy: %s matches pattern %s", image, pattern),
-				Severity:  "error",
+				Severity:  string(SeverityError),
 				Component: "image",
 			}
 			result.Violations = append(result.Violations, violation)
@@ -441,7 +441,7 @@ func (e *Enforcer) validateImage(policy *Policy, config types.ContainerConfig, r
 			violation := Violation{
 				Rule:      "image.not_allowed",
 				Message:   fmt.Sprintf("image is not in allowed list: %s", image),
-				Severity:  "error",
+				Severity:  string(SeverityError),
 				Component: "image",
 			}
 			result.Violations = append(result.Violations, violation)
@@ -454,7 +454,7 @@ func (e *Enforcer) validateImage(policy *Policy, config types.ContainerConfig, r
 			violation := Violation{
 				Rule:      "image.latest_tag",
 				Message:   "images with 'latest' tag or no tag are not allowed",
-				Severity:  "error",
+				Severity:  string(SeverityError),
 				Component: "image",
 			}
 			result.Violations = append(result.Violations, violation)
@@ -466,7 +466,7 @@ func (e *Enforcer) validateImage(policy *Policy, config types.ContainerConfig, r
 		violation := Violation{
 			Rule:      "image.digest_required",
 			Message:   "image digest pinning is required but not present",
-			Severity:  "error",
+			Severity:  string(SeverityError),
 			Component: "image",
 		}
 		result.Violations = append(result.Violations, violation)
@@ -482,7 +482,7 @@ func (e *Enforcer) validateSecurity(policy *Policy, config types.ContainerConfig
 				violation := Violation{
 					Rule:      "security.privileged.disabled",
 					Message:   "privileged containers are not allowed",
-					Severity:  "error",
+					Severity:  string(SeverityError),
 					Component: "security",
 				}
 				result.Violations = append(result.Violations, violation)
@@ -498,7 +498,7 @@ func (e *Enforcer) validateSecurity(policy *Policy, config types.ContainerConfig
 				violation := Violation{
 					Rule:      "security.root.disabled",
 					Message:   "running as root is not allowed",
-					Severity:  "error",
+					Severity:  string(SeverityError),
 					Component: "security",
 				}
 				result.Violations = append(result.Violations, violation)
@@ -507,7 +507,7 @@ func (e *Enforcer) validateSecurity(policy *Policy, config types.ContainerConfig
 				violation := Violation{
 					Rule:      "security.non_root_required",
 					Message:   "running as non-root user is required",
-					Severity:  "error",
+					Severity:  string(SeverityError),
 					Component: "security",
 				}
 				result.Violations = append(result.Violations, violation)
@@ -520,7 +520,7 @@ func (e *Enforcer) validateSecurity(policy *Policy, config types.ContainerConfig
 		violation := Violation{
 			Rule:      "security.readonly_rootfs.required",
 			Message:   "read-only root filesystem is required by security policy",
-			Severity:  "error",
+			Severity:  string(SeverityError),
 			Component: "security",
 		}
 		result.Violations = append(result.Violations, violation)

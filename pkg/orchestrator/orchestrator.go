@@ -320,7 +320,7 @@ func (o *Orchestrator) initPolicyEnforcer(ctx context.Context) error {
 			o.logger.Info("Policy hot-reload enabled",
 				"policy_path", o.cfg.Policy.ConfigPath)
 
-			reloader := policy.NewReloader(o.cfg.Policy.ConfigPath, pol)
+			reloader := policy.NewReloader(o.cfg.Policy.ConfigPath, pol, o.logger)
 
 			// Add callback to update the enforcer when policy is reloaded
 			reloader.AddCallback(func(reloadCtx context.Context, newPolicy *policy.Policy) error {

@@ -3,11 +3,13 @@ package policy
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
+
+	"github.com/billm/baaaht/orchestrator/internal/logger"
 )
 
 // ReloadState represents the current state of the policy reloader
@@ -37,10 +39,11 @@ type Reloader struct {
 	reloadCancel  context.CancelFunc
 	started       bool
 	callbacks     []ReloadCallback
+	logger        *logger.Logger
 }
 
 // NewReloader creates a new policy reloader
-func NewReloader(policyPath string, initialPolicy *Policy) *Reloader {
+func NewReloader(policyPath string, initialPolicy *Policy, log *logger.Logger) *Reloader {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Reloader{
@@ -52,6 +55,7 @@ func NewReloader(policyPath string, initialPolicy *Policy) *Reloader {
 		reloadCancel:  cancel,
 		started:       false,
 		callbacks:     make([]ReloadCallback, 0),
+		logger:        log,
 	}
 }
 
@@ -76,7 +80,7 @@ func (r *Reloader) Start() {
 	signal.Notify(r.signalChan, syscall.SIGHUP)
 
 	r.started = true
-	log.Printf("[policy_reloader] started, policy_path=%s", r.policyPath)
+	r.logger.Info("Policy reloader started", "policy_path", r.policyPath)
 
 	// Start signal handler goroutine
 	go r.handleSignals()
@@ -96,7 +100,7 @@ func (r *Reloader) Stop() {
 	r.started = false
 	r.state = ReloadStateStopped
 
-	log.Print("[policy_reloader] stopped")
+	r.logger.Info("Policy reloader stopped")
 }
 
 // Reload reloads the policy from the file
@@ -105,12 +109,12 @@ func (r *Reloader) Reload(ctx context.Context) error {
 
 	if r.state == ReloadStateReloading {
 		r.mu.Unlock()
-		log.Print("[policy_reloader] reload already in progress, skipping")
+		r.logger.Info("Policy reload already in progress, skipping")
 		return nil
 	}
 
 	r.state = ReloadStateReloading
-	log.Printf("[policy_reloader] policy reload initiated, policy_path=%s", r.policyPath)
+	r.logger.Info("Policy reload initiated", "policy_path", r.policyPath)
 	r.mu.Unlock()
 
 	// Load the new policy from the reloader's policy path
@@ -122,7 +126,7 @@ func (r *Reloader) Reload(ctx context.Context) error {
 
 	// Execute callbacks with the new policy
 	if err := r.executeCallbacks(ctx, newPolicy); err != nil {
-		log.Printf("[policy_reloader] reload callbacks failed: %v", err)
+		r.logger.Error("Policy reload callbacks failed", "error", err)
 		r.setState(ReloadStateIdle)
 		return fmt.Errorf("reload callbacks failed: %w", err)
 	}
@@ -133,7 +137,7 @@ func (r *Reloader) Reload(ctx context.Context) error {
 	r.state = ReloadStateIdle
 	r.mu.Unlock()
 
-	log.Print("[policy_reloader] policy reloaded successfully")
+	r.logger.Info("Policy reloaded successfully")
 
 	return nil
 }
@@ -144,7 +148,7 @@ func (r *Reloader) AddCallback(callback ReloadCallback) {
 	defer r.mu.Unlock()
 
 	r.callbacks = append(r.callbacks, callback)
-	log.Printf("[policy_reloader] reload callback registered, total_callbacks=%d", len(r.callbacks))
+	r.logger.Info("Reload callback registered", "total_callbacks", len(r.callbacks))
 }
 
 // GetPolicy returns the current policy
@@ -171,19 +175,19 @@ func (r *Reloader) handleSignals() {
 	for {
 		select {
 		case sig := <-r.signalChan:
-			log.Printf("[policy_reloader] reload signal received, signal=%v", sig)
+			r.logger.Info("Reload signal received", "signal", sig)
 
 			// Initiate reload in goroutine to avoid blocking signal handling
 			go func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 30)
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 				defer cancel()
 				if err := r.Reload(ctx); err != nil {
-					log.Printf("[policy_reloader] policy reload failed: %v", err)
+					r.logger.Error("Policy reload failed", "error", err)
 				}
 			}()
 
 		case <-r.reloadCtx.Done():
-			log.Print("[policy_reloader] signal handler stopping")
+			r.logger.Info("Signal handler stopping")
 			return
 		}
 	}
@@ -196,14 +200,14 @@ func (r *Reloader) executeCallbacks(ctx context.Context, newPolicy *Policy) erro
 	copy(callbacks, r.callbacks)
 	r.mu.RUnlock()
 
-	log.Printf("[policy_reloader] executing reload callbacks, count=%d", len(callbacks))
+	r.logger.Info("Executing reload callbacks", "count", len(callbacks))
 
 	for i, callback := range callbacks {
 		callbackName := fmt.Sprintf("callback-%d", i)
-		log.Printf("[policy_reloader] executing reload callback, callback=%s", callbackName)
+		r.logger.Info("Executing reload callback", "callback", callbackName)
 
 		if err := callback(ctx, newPolicy); err != nil {
-			log.Printf("[policy_reloader] reload callback failed, callback=%s, error=%v", callbackName, err)
+			r.logger.Error("Reload callback failed", "callback", callbackName, "error", err)
 			return err
 		}
 	}
@@ -216,7 +220,7 @@ func (r *Reloader) setState(state ReloadState) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.state = state
-	log.Printf("[policy_reloader] reload state changed, state=%s", state)
+	r.logger.Info("Reload state changed", "state", state)
 }
 
 // String returns a string representation of the reload state

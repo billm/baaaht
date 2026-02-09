@@ -11,8 +11,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/billm/baaaht/orchestrator/internal/logger"
 	"gopkg.in/yaml.v3"
 )
+
+// testLogger creates a logger for testing purposes
+func testLogger() *logger.Logger {
+	log, err := logger.NewDefault()
+	if err != nil {
+		panic(err)
+	}
+	return log
+}
 
 // TestPolicyReloader is a comprehensive test for policy reloader functionality
 func TestPolicyReloader(t *testing.T) {
@@ -27,7 +37,7 @@ func TestPolicyReloader(t *testing.T) {
 		writePolicyFile(t, policyPath, initialPolicy)
 
 		// Create reloader with initial policy
-		reloader := NewReloader(policyPath, initialPolicy)
+		reloader := NewReloader(policyPath, initialPolicy, testLogger())
 
 		// Start the reloader
 		reloader.Start()
@@ -84,7 +94,7 @@ func TestNewReloader(t *testing.T) {
 		policy := DefaultPolicy()
 		policyPath := "/tmp/test-policy.yaml"
 
-		reloader := NewReloader(policyPath, policy)
+		reloader := NewReloader(policyPath, policy, testLogger())
 
 		if reloader == nil {
 			t.Fatal("NewReloader() returned nil")
@@ -114,7 +124,7 @@ func TestNewReloader(t *testing.T) {
 	t.Run("creates reloader with nil policy", func(t *testing.T) {
 		policyPath := "/tmp/test-policy.yaml"
 
-		reloader := NewReloader(policyPath, nil)
+		reloader := NewReloader(policyPath, nil, testLogger())
 
 		if reloader == nil {
 			t.Fatal("NewReloader() returned nil")
@@ -129,7 +139,7 @@ func TestNewReloader(t *testing.T) {
 func TestReloaderStartStop(t *testing.T) {
 	t.Run("start starts signal handler", func(t *testing.T) {
 		policy := DefaultPolicy()
-		reloader := NewReloader("/tmp/test-policy.yaml", policy)
+		reloader := NewReloader("/tmp/test-policy.yaml", policy, testLogger())
 
 		reloader.Start()
 
@@ -146,7 +156,7 @@ func TestReloaderStartStop(t *testing.T) {
 
 	t.Run("stop stops signal handler", func(t *testing.T) {
 		policy := DefaultPolicy()
-		reloader := NewReloader("/tmp/test-policy.yaml", policy)
+		reloader := NewReloader("/tmp/test-policy.yaml", policy, testLogger())
 
 		reloader.Start()
 		reloader.Stop()
@@ -162,7 +172,7 @@ func TestReloaderStartStop(t *testing.T) {
 
 	t.Run("start is idempotent", func(t *testing.T) {
 		policy := DefaultPolicy()
-		reloader := NewReloader("/tmp/test-policy.yaml", policy)
+		reloader := NewReloader("/tmp/test-policy.yaml", policy, testLogger())
 
 		reloader.Start()
 		firstStarted := reloader.started
@@ -178,7 +188,7 @@ func TestReloaderStartStop(t *testing.T) {
 
 	t.Run("stop is idempotent", func(t *testing.T) {
 		policy := DefaultPolicy()
-		reloader := NewReloader("/tmp/test-policy.yaml", policy)
+		reloader := NewReloader("/tmp/test-policy.yaml", policy, testLogger())
 
 		reloader.Start()
 		reloader.Stop()
@@ -191,7 +201,7 @@ func TestReloaderStartStop(t *testing.T) {
 
 	t.Run("restart after stop works correctly", func(t *testing.T) {
 		policy := DefaultPolicy()
-		reloader := NewReloader("/tmp/test-policy.yaml", policy)
+		reloader := NewReloader("/tmp/test-policy.yaml", policy, testLogger())
 
 		reloader.Start()
 		if reloader.state != ReloadStateIdle {
@@ -224,7 +234,7 @@ func TestReloaderReload(t *testing.T) {
 		writePolicyFile(t, policyPath, initialPolicy)
 
 		// Create reloader
-		reloader := NewReloader(policyPath, initialPolicy)
+		reloader := NewReloader(policyPath, initialPolicy, testLogger())
 
 		// Reload policy
 		ctx := context.Background()
@@ -255,7 +265,7 @@ func TestReloaderReload(t *testing.T) {
 		writePolicyFile(t, policyPath, initialPolicy)
 
 		// Create reloader with initial policy
-		reloader := NewReloader(policyPath, initialPolicy)
+		reloader := NewReloader(policyPath, initialPolicy, testLogger())
 
 		// Update policy file
 		updatedPolicy := DefaultPolicy()
@@ -291,7 +301,7 @@ func TestReloaderReload(t *testing.T) {
 		}
 
 		initialPolicy := DefaultPolicy()
-		reloader := NewReloader(policyPath, initialPolicy)
+		reloader := NewReloader(policyPath, initialPolicy, testLogger())
 
 		ctx := context.Background()
 		err := reloader.Reload(ctx)
@@ -310,7 +320,7 @@ func TestReloaderReload(t *testing.T) {
 		initialPolicy.ID = "test"
 		writePolicyFile(t, policyPath, initialPolicy)
 
-		reloader := NewReloader(policyPath, initialPolicy)
+		reloader := NewReloader(policyPath, initialPolicy, testLogger())
 
 		ctx := context.Background()
 		var wg sync.WaitGroup
@@ -349,7 +359,7 @@ func TestReloaderReload(t *testing.T) {
 		initialPolicy.ID = "test"
 		writePolicyFile(t, policyPath, initialPolicy)
 
-		reloader := NewReloader(policyPath, initialPolicy)
+		reloader := NewReloader(policyPath, initialPolicy, testLogger())
 
 		// Check initial state
 		if !reloader.IsReloading() {
@@ -378,7 +388,7 @@ func TestReloaderAddCallback(t *testing.T) {
 		initialPolicy.ID = "initial"
 		writePolicyFile(t, policyPath, initialPolicy)
 
-		reloader := NewReloader(policyPath, initialPolicy)
+		reloader := NewReloader(policyPath, initialPolicy, testLogger())
 
 		callbackCalled := false
 		var receivedPolicy *Policy
@@ -413,7 +423,7 @@ func TestReloaderAddCallback(t *testing.T) {
 		initialPolicy := DefaultPolicy()
 		writePolicyFile(t, policyPath, initialPolicy)
 
-		reloader := NewReloader(policyPath, initialPolicy)
+		reloader := NewReloader(policyPath, initialPolicy, testLogger())
 
 		callCount := int32(0)
 
@@ -444,7 +454,7 @@ func TestReloaderAddCallback(t *testing.T) {
 		initialPolicy.ID = "initial"
 		writePolicyFile(t, policyPath, initialPolicy)
 
-		reloader := NewReloader(policyPath, initialPolicy)
+		reloader := NewReloader(policyPath, initialPolicy, testLogger())
 
 		// Add callback that returns error
 		reloader.AddCallback(func(ctx context.Context, newPolicy *Policy) error {
@@ -476,7 +486,7 @@ func TestReloaderAddCallback(t *testing.T) {
 		initialPolicy := DefaultPolicy()
 		writePolicyFile(t, policyPath, initialPolicy)
 
-		reloader := NewReloader(policyPath, initialPolicy)
+		reloader := NewReloader(policyPath, initialPolicy, testLogger())
 
 		order := make([]int, 0, 3)
 
@@ -513,7 +523,7 @@ func TestReloaderGetPolicy(t *testing.T) {
 	t.Run("GetPolicy returns current policy", func(t *testing.T) {
 		policy := DefaultPolicy()
 		policy.ID = "test-policy"
-		reloader := NewReloader("/tmp/test-policy.yaml", policy)
+		reloader := NewReloader("/tmp/test-policy.yaml", policy, testLogger())
 
 		retrievedPolicy := reloader.GetPolicy()
 
@@ -529,7 +539,7 @@ func TestReloaderGetPolicy(t *testing.T) {
 	t.Run("GetPolicy is thread-safe", func(t *testing.T) {
 		policy := DefaultPolicy()
 		policy.ID = "test-policy"
-		reloader := NewReloader("/tmp/test-policy.yaml", policy)
+		reloader := NewReloader("/tmp/test-policy.yaml", policy, testLogger())
 
 		// Concurrent reads
 		var wg sync.WaitGroup
@@ -551,7 +561,7 @@ func TestReloaderGetPolicy(t *testing.T) {
 func TestReloaderState(t *testing.T) {
 	t.Run("State returns current state", func(t *testing.T) {
 		policy := DefaultPolicy()
-		reloader := NewReloader("/tmp/test-policy.yaml", policy)
+		reloader := NewReloader("/tmp/test-policy.yaml", policy, testLogger())
 
 		if reloader.State() != ReloadStateIdle {
 			t.Errorf("State() = %s, want %s", reloader.State(), ReloadStateIdle)
@@ -577,7 +587,7 @@ func TestReloaderState(t *testing.T) {
 		initialPolicy := DefaultPolicy()
 		writePolicyFile(t, policyPath, initialPolicy)
 
-		reloader := NewReloader(policyPath, initialPolicy)
+		reloader := NewReloader(policyPath, initialPolicy, testLogger())
 
 		// Not reloading initially
 		if reloader.IsReloading() {
@@ -606,7 +616,7 @@ func TestReloaderSignalHandling(t *testing.T) {
 		initialPolicy.ID = "initial"
 		writePolicyFile(t, policyPath, initialPolicy)
 
-		reloader := NewReloader(policyPath, initialPolicy)
+		reloader := NewReloader(policyPath, initialPolicy, testLogger())
 
 		reloadTriggered := make(chan bool, 1)
 		reloader.AddCallback(func(ctx context.Context, newPolicy *Policy) error {
@@ -656,7 +666,7 @@ func TestReloaderString(t *testing.T) {
 	t.Run("String returns valid representation", func(t *testing.T) {
 		policyPath := "/tmp/test-policy.yaml"
 		policy := DefaultPolicy()
-		reloader := NewReloader(policyPath, policy)
+		reloader := NewReloader(policyPath, policy, testLogger())
 
 		str := reloader.String()
 
@@ -679,7 +689,7 @@ func TestReloaderString(t *testing.T) {
 
 	t.Run("String reflects callback count", func(t *testing.T) {
 		policy := DefaultPolicy()
-		reloader := NewReloader("/tmp/test-policy.yaml", policy)
+		reloader := NewReloader("/tmp/test-policy.yaml", policy, testLogger())
 
 		reloader.AddCallback(func(ctx context.Context, newPolicy *Policy) error {
 			return nil

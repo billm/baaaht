@@ -19,6 +19,18 @@ const (
 	EnforcementModeDisabled EnforcementMode = "disabled"
 )
 
+// Severity defines the severity level of a policy violation
+type Severity string
+
+const (
+	// SeverityError indicates a critical violation
+	SeverityError Severity = "error"
+	// SeverityWarning indicates a non-critical violation
+	SeverityWarning Severity = "warning"
+	// SeverityInfo indicates informational notice
+	SeverityInfo Severity = "info"
+)
+
 // Policy represents a set of security rules and restrictions
 type Policy struct {
 	ID          string            `json:"id" yaml:"id"`
