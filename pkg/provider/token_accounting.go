@@ -87,11 +87,13 @@ func (a *TokenAccount) RecordWithMetadata(requestID string, model Model, usage T
 	defer a.mu.Unlock()
 
 	now := time.Now()
+	totalDelta := usage.Total()
+
 	a.TotalUsage.InputTokens += usage.InputTokens
 	a.TotalUsage.CacheReadTokens += usage.CacheReadTokens
 	a.TotalUsage.CacheWriteTokens += usage.CacheWriteTokens
 	a.TotalUsage.OutputTokens += usage.OutputTokens
-	a.TotalUsage.TotalTokens += usage.TotalTokens
+	a.TotalUsage.TotalTokens += totalDelta
 	a.RequestCount++
 	a.LastRequestTime = now
 
