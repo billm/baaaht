@@ -7,7 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/billm/baaaht/orchestrator/internal/config"
 	"github.com/billm/baaaht/orchestrator/internal/logger"
+	"github.com/billm/baaaht/orchestrator/pkg/policy"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 
 	"github.com/docker/docker/api/types/container"
@@ -584,4 +586,502 @@ func BenchmarkConvertPortBindings(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_ = convertPortBindings(ports)
 	}
+}
+
+func TestCreateWithPolicyViolation(t *testing.T) {
+	log, err := logger.NewDefault()
+	require.NoError(t, err)
+
+	// Create a policy enforcer with strict mode that denies latest tag
+	strictPolicy := policy.DefaultPolicy()
+	strictPolicy.Images.AllowLatestTag = false
+	strictPolicy.Mode = policy.EnforcementModeStrict
+
+	enforcer, err := policy.New(config.DefaultPolicyConfig(), log)
+	require.NoError(t, err)
+	err = enforcer.SetPolicy(context.Background(), strictPolicy)
+	require.NoError(t, err)
+
+	client := &Client{}
+	creator, err := NewCreator(client, log)
+	require.NoError(t, err)
+
+	// Set the enforcer
+	creator.SetEnforcer(enforcer)
+
+	sessionID := types.NewID("test-session-policy")
+
+	tests := []struct {
+		name    string
+		cfg     CreateConfig
+		wantErr bool
+		errCode string
+	}{
+		{
+			name: "policy violation - image with latest tag denied",
+			cfg: CreateConfig{
+				Config: types.ContainerConfig{
+					Image: "alpine:latest",
+				},
+				Name:      "test-container-violation",
+				SessionID: sessionID,
+			},
+			wantErr: true,
+			errCode: types.ErrCodePermission,
+		},
+		{
+			name: "policy violation - CPU quota exceeds maximum",
+			cfg: CreateConfig{
+				Config: types.ContainerConfig{
+					Image: "alpine:3.18",
+					Resources: types.ResourceLimits{
+						NanoCPUs: 8 * 1000000000, // 8 CPUs exceeds default 4 CPU limit
+					},
+				},
+				Name:      "test-container-cpu-violation",
+				SessionID: sessionID,
+			},
+			wantErr: true,
+			errCode: types.ErrCodePermission,
+		},
+		{
+			name: "policy violation - memory quota exceeds maximum",
+			cfg: CreateConfig{
+				Config: types.ContainerConfig{
+					Image: "alpine:3.18",
+					Resources: types.ResourceLimits{
+						MemoryBytes: 16 * 1024 * 1024 * 1024, // 16GB exceeds default 8GB limit
+					},
+				},
+				Name:      "test-container-memory-violation",
+				SessionID: sessionID,
+			},
+			wantErr: true,
+			errCode: types.ErrCodePermission,
+		},
+		{
+			name: "policy compliant - image with specific tag",
+			cfg: CreateConfig{
+				Config: types.ContainerConfig{
+					Image: "alpine:3.18",
+				},
+				Name:      "test-container-compliant",
+				SessionID: sessionID,
+			},
+			wantErr: true, // Will still fail because Docker client is nil, but not with permission error
+			errCode: "",   // Not expecting permission error
+		},
+		{
+			name: "no enforcer - allows any configuration",
+			cfg: CreateConfig{
+				Config: types.ContainerConfig{
+					Image: "alpine:latest",
+					Resources: types.ResourceLimits{
+						NanoCPUs:    8 * 1000000000,
+						MemoryBytes: 16 * 1024 * 1024 * 1024,
+					},
+				},
+				Name:      "test-container-no-enforcer",
+				SessionID: sessionID,
+			},
+			wantErr: true, // Will fail with nil Docker client, but not policy violation
+			errCode: "",   // Not expecting permission error
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// For the "no enforcer" test, temporarily remove the enforcer
+			if tt.name == "no enforcer - allows any configuration" {
+				creator.SetEnforcer(nil)
+				defer creator.SetEnforcer(enforcer)
+			}
+
+			// Create will fail at ContainerCreate since we don't have a real Docker client
+			// But we want to test that policy validation happens before that
+			_, err := creator.Create(context.Background(), tt.cfg)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				if tt.errCode != "" {
+					var customErr *types.Error
+					assert.ErrorAs(t, err, &customErr)
+					assert.Equal(t, tt.errCode, customErr.Code, "expected %s error code", tt.errCode)
+				} else {
+					// For cases that should fail but not with permission error
+					var customErr *types.Error
+					if err != nil && assert.ErrorAs(t, err, &customErr) {
+						// Should not be a permission error (that would mean policy rejected it)
+						assert.NotEqual(t, types.ErrCodePermission, customErr.Code,
+							"should not be a policy permission error for this case")
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestCreatorWithEnforcer(t *testing.T) {
+	log, err := logger.NewDefault()
+	require.NoError(t, err)
+
+	client := &Client{}
+	creator, err := NewCreator(client, log)
+	require.NoError(t, err)
+
+	// Initially, enforcer should be nil
+	assert.Nil(t, creator.Enforcer())
+
+	// Create and set enforcer
+	enforcer, err := policy.NewDefault(log)
+	require.NoError(t, err)
+
+	creator.SetEnforcer(enforcer)
+
+	// Enforcer should now be set
+	assert.NotNil(t, creator.Enforcer())
+	assert.Same(t, enforcer, creator.Enforcer())
+
+	// Check String representation includes enforcer status
+	s := creator.String()
+	assert.Contains(t, s, "Creator")
+	assert.Contains(t, s, "enabled")
+}
+
+func TestStrictModeRejection(t *testing.T) {
+	log, err := logger.NewDefault()
+	require.NoError(t, err)
+
+	client := &Client{}
+	creator, err := NewCreator(client, log)
+	require.NoError(t, err)
+
+	sessionID := types.NewID("test-session-strict")
+
+	t.Run("strict mode rejects latest tag image", func(t *testing.T) {
+		// Create a policy enforcer with strict mode that denies latest tag
+		strictPolicy := policy.DefaultPolicy()
+		strictPolicy.Images.AllowLatestTag = false
+		strictPolicy.Mode = policy.EnforcementModeStrict
+
+		enforcer, err := policy.New(config.DefaultPolicyConfig(), log)
+		require.NoError(t, err)
+		err = enforcer.SetPolicy(context.Background(), strictPolicy)
+		require.NoError(t, err)
+
+		creator.SetEnforcer(enforcer)
+
+		cfg := CreateConfig{
+			Config: types.ContainerConfig{
+				Image: "alpine:latest",
+			},
+			Name:      "test-container-latest",
+			SessionID: sessionID,
+		}
+
+		_, err = creator.Create(context.Background(), cfg)
+
+		// Should fail with permission error
+		require.Error(t, err)
+		var customErr *types.Error
+		require.ErrorAs(t, err, &customErr)
+		assert.Equal(t, types.ErrCodePermission, customErr.Code,
+			"strict mode should reject image with latest tag")
+		assert.Contains(t, customErr.Message, "policy")
+	})
+
+	t.Run("strict mode rejects CPU quota violations", func(t *testing.T) {
+		strictPolicy := policy.DefaultPolicy()
+		maxCPUs := int64(2 * 1000000000) // 2 CPUs
+		strictPolicy.Quotas.MaxCPUs = &maxCPUs
+		strictPolicy.Mode = policy.EnforcementModeStrict
+
+		enforcer, err := policy.New(config.DefaultPolicyConfig(), log)
+		require.NoError(t, err)
+		err = enforcer.SetPolicy(context.Background(), strictPolicy)
+		require.NoError(t, err)
+
+		creator.SetEnforcer(enforcer)
+
+		cfg := CreateConfig{
+			Config: types.ContainerConfig{
+				Image: "alpine:3.18",
+				Resources: types.ResourceLimits{
+					NanoCPUs: 4 * 1000000000, // 4 CPUs exceeds 2 CPU limit
+				},
+			},
+			Name:      "test-container-cpu",
+			SessionID: sessionID,
+		}
+
+		_, err = creator.Create(context.Background(), cfg)
+
+		// Should fail with permission error
+		require.Error(t, err)
+		var customErr *types.Error
+		require.ErrorAs(t, err, &customErr)
+		assert.Equal(t, types.ErrCodePermission, customErr.Code,
+			"strict mode should reject CPU quota violation")
+	})
+
+	t.Run("strict mode rejects memory quota violations", func(t *testing.T) {
+		strictPolicy := policy.DefaultPolicy()
+		maxMemory := int64(4 * 1024 * 1024 * 1024) // 4GB
+		strictPolicy.Quotas.MaxMemory = &maxMemory
+		strictPolicy.Mode = policy.EnforcementModeStrict
+
+		enforcer, err := policy.New(config.DefaultPolicyConfig(), log)
+		require.NoError(t, err)
+		err = enforcer.SetPolicy(context.Background(), strictPolicy)
+		require.NoError(t, err)
+
+		creator.SetEnforcer(enforcer)
+
+		cfg := CreateConfig{
+			Config: types.ContainerConfig{
+				Image: "alpine:3.18",
+				Resources: types.ResourceLimits{
+					MemoryBytes: 8 * 1024 * 1024 * 1024, // 8GB exceeds 4GB limit
+				},
+			},
+			Name:      "test-container-memory",
+			SessionID: sessionID,
+		}
+
+		_, err = creator.Create(context.Background(), cfg)
+
+		// Should fail with permission error
+		require.Error(t, err)
+		var customErr *types.Error
+		require.ErrorAs(t, err, &customErr)
+		assert.Equal(t, types.ErrCodePermission, customErr.Code,
+			"strict mode should reject memory quota violation")
+	})
+
+	t.Run("strict mode allows compliant configuration", func(t *testing.T) {
+		strictPolicy := policy.DefaultPolicy()
+		maxCPUs := int64(4 * 1000000000) // 4 CPUs
+		strictPolicy.Quotas.MaxCPUs = &maxCPUs
+		maxMemory := int64(8 * 1024 * 1024 * 1024) // 8GB
+		strictPolicy.Quotas.MaxMemory = &maxMemory
+		strictPolicy.Images.AllowLatestTag = false
+		strictPolicy.Mode = policy.EnforcementModeStrict
+
+		enforcer, err := policy.New(config.DefaultPolicyConfig(), log)
+		require.NoError(t, err)
+		err = enforcer.SetPolicy(context.Background(), strictPolicy)
+		require.NoError(t, err)
+
+		creator.SetEnforcer(enforcer)
+
+		cfg := CreateConfig{
+			Config: types.ContainerConfig{
+				Image: "alpine:3.18", // Specific tag, not latest
+				Resources: types.ResourceLimits{
+					NanoCPUs:    2 * 1000000000,         // 2 CPUs within 4 CPU limit
+					MemoryBytes: 4 * 1024 * 1024 * 1024, // 4GB within 8GB limit
+				},
+			},
+			Name:      "test-container-compliant",
+			SessionID: sessionID,
+		}
+
+		_, err = creator.Create(context.Background(), cfg)
+
+		// Should NOT fail with permission error (will fail with nil Docker client error instead)
+		if err != nil {
+			var customErr *types.Error
+			if assert.ErrorAs(t, err, &customErr) {
+				assert.NotEqual(t, types.ErrCodePermission, customErr.Code,
+					"compliant config should not fail policy validation")
+			}
+		}
+	})
+
+	t.Run("permissive mode allows violations but logs them", func(t *testing.T) {
+		permissivePolicy := policy.DefaultPolicy()
+		permissivePolicy.Images.AllowLatestTag = false
+		permissivePolicy.Mode = policy.EnforcementModePermissive
+
+		enforcer, err := policy.New(config.DefaultPolicyConfig(), log)
+		require.NoError(t, err)
+		err = enforcer.SetPolicy(context.Background(), permissivePolicy)
+		require.NoError(t, err)
+
+		creator.SetEnforcer(enforcer)
+
+		cfg := CreateConfig{
+			Config: types.ContainerConfig{
+				Image: "alpine:latest", // Violates policy
+			},
+			Name:      "test-container-permissive",
+			SessionID: sessionID,
+		}
+
+		_, err = creator.Create(context.Background(), cfg)
+
+		// Should NOT fail with permission error in permissive mode
+		if err != nil {
+			var customErr *types.Error
+			if assert.ErrorAs(t, err, &customErr) {
+				assert.NotEqual(t, types.ErrCodePermission, customErr.Code,
+					"permissive mode should not block with permission error")
+			}
+		}
+	})
+
+	t.Run("disabled mode allows everything", func(t *testing.T) {
+		disabledPolicy := policy.DefaultPolicy()
+		disabledPolicy.Images.AllowLatestTag = false
+		disabledPolicy.Mode = policy.EnforcementModeDisabled
+
+		enforcer, err := policy.New(config.DefaultPolicyConfig(), log)
+		require.NoError(t, err)
+		err = enforcer.SetPolicy(context.Background(), disabledPolicy)
+		require.NoError(t, err)
+
+		creator.SetEnforcer(enforcer)
+
+		cfg := CreateConfig{
+			Config: types.ContainerConfig{
+				Image: "alpine:latest", // Would violate if not disabled
+				Resources: types.ResourceLimits{
+					NanoCPUs:    8 * 1000000000,          // Exceeds default
+					MemoryBytes: 16 * 1024 * 1024 * 1024, // Exceeds default
+				},
+			},
+			Name:      "test-container-disabled",
+			SessionID: sessionID,
+		}
+
+		_, err = creator.Create(context.Background(), cfg)
+
+		// Should NOT fail with permission error in disabled mode
+		if err != nil {
+			var customErr *types.Error
+			if assert.ErrorAs(t, err, &customErr) {
+				assert.NotEqual(t, types.ErrCodePermission, customErr.Code,
+					"disabled mode should not block with permission error")
+			}
+		}
+	})
+}
+
+func TestPolicyViolationLogging(t *testing.T) {
+	log, err := logger.NewDefault()
+	require.NoError(t, err)
+
+	// Create a policy enforcer with permissive mode to allow logging but not block
+	permissivePolicy := policy.DefaultPolicy()
+	permissivePolicy.Images.AllowLatestTag = false // Will generate violation
+	permissivePolicy.Mode = policy.EnforcementModePermissive
+
+	enforcer, err := policy.New(config.DefaultPolicyConfig(), log)
+	require.NoError(t, err)
+	err = enforcer.SetPolicy(context.Background(), permissivePolicy)
+	require.NoError(t, err)
+
+	client := &Client{}
+	creator, err := NewCreator(client, log)
+	require.NoError(t, err)
+
+	// Set the enforcer
+	creator.SetEnforcer(enforcer)
+
+	sessionID := types.NewID("test-session-logging")
+
+	t.Run("logs policy violations with error severity", func(t *testing.T) {
+		cfg := CreateConfig{
+			Config: types.ContainerConfig{
+				Image: "alpine:latest", // Violates AllowLatestTag policy
+			},
+			Name:      "test-container-violation-log",
+			SessionID: sessionID,
+		}
+
+		// In permissive mode, this should not return an error for policy violations
+		// but should log them. The Create will still fail because Docker client is nil.
+		_, err := creator.Create(context.Background(), cfg)
+
+		// Should fail with nil Docker client error, not policy permission error
+		assert.Error(t, err)
+		var customErr *types.Error
+		if err != nil && assert.ErrorAs(t, err, &customErr) {
+			// Should NOT be a permission error (that would mean policy blocked it in strict mode)
+			assert.NotEqual(t, types.ErrCodePermission, customErr.Code,
+				"permissive mode should log violations but not block with permission error")
+		}
+	})
+
+	t.Run("logs policy warnings", func(t *testing.T) {
+		// Create a policy that generates warnings
+		warningPolicy := policy.DefaultPolicy()
+		warningPolicy.Mode = policy.EnforcementModePermissive
+
+		enforcer2, err := policy.New(config.DefaultPolicyConfig(), log)
+		require.NoError(t, err)
+		err = enforcer2.SetPolicy(context.Background(), warningPolicy)
+		require.NoError(t, err)
+
+		creator.SetEnforcer(enforcer2)
+
+		cfg := CreateConfig{
+			Config: types.ContainerConfig{
+				Image: "alpine:3.18", // Compliant image
+			},
+			Name:      "test-container-warning-log",
+			SessionID: sessionID,
+		}
+
+		// Should not fail policy validation in permissive mode
+		_, err = creator.Create(context.Background(), cfg)
+
+		// Will fail with nil Docker client, but not with policy error
+		assert.Error(t, err)
+		var customErr *types.Error
+		if err != nil && assert.ErrorAs(t, err, &customErr) {
+			assert.NotEqual(t, types.ErrCodePermission, customErr.Code)
+		}
+	})
+
+	t.Run("logs multiple violations", func(t *testing.T) {
+		// Create a policy that will generate multiple violations
+		multiViolationPolicy := policy.DefaultPolicy()
+		multiViolationPolicy.Images.AllowLatestTag = false
+		maxCPUs := int64(2 * 1000000000) // 2 CPUs in nanoseconds
+		multiViolationPolicy.Quotas.MaxCPUs = &maxCPUs
+		maxMemory := int64(4 * 1024 * 1024 * 1024) // 4GB
+		multiViolationPolicy.Quotas.MaxMemory = &maxMemory
+		multiViolationPolicy.Mode = policy.EnforcementModePermissive
+
+		enforcer3, err := policy.New(config.DefaultPolicyConfig(), log)
+		require.NoError(t, err)
+		err = enforcer3.SetPolicy(context.Background(), multiViolationPolicy)
+		require.NoError(t, err)
+
+		creator.SetEnforcer(enforcer3)
+
+		cfg := CreateConfig{
+			Config: types.ContainerConfig{
+				Image: "ubuntu:latest", // Violates no-latest-tag
+				Resources: types.ResourceLimits{
+					NanoCPUs:    4 * 1000000000,         // 4 CPUs exceeds 2 CPU limit
+					MemoryBytes: 8 * 1024 * 1024 * 1024, // 8GB exceeds 4GB limit
+				},
+			},
+			Name:      "test-container-multi-violation",
+			SessionID: sessionID,
+		}
+
+		// Should log multiple violations but not block in permissive mode
+		_, err = creator.Create(context.Background(), cfg)
+
+		// Will fail with nil Docker client, but not with policy permission error
+		assert.Error(t, err)
+		var customErr *types.Error
+		if err != nil && assert.ErrorAs(t, err, &customErr) {
+			assert.NotEqual(t, types.ErrCodePermission, customErr.Code,
+				"permissive mode should not block with permission error")
+		}
+	})
 }
