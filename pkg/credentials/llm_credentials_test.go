@@ -2,7 +2,6 @@ package credentials
 
 import (
 	"context"
-	"fmt"
 	"path/filepath"
 	"testing"
 
@@ -228,7 +227,9 @@ func TestLLMCredentialManager_ValidateLLMCredentials_DisabledProvider(t *testing
 	ctx := context.Background()
 
 	// Disable OpenAI provider
-	manager.cfg.Providers[LLMProviderOpenAI].Enabled = false
+	providerCfg := manager.cfg.Providers[LLMProviderOpenAI]
+	providerCfg.Enabled = false
+	manager.cfg.Providers[LLMProviderOpenAI] = providerCfg
 
 	// Store only Anthropic credential
 	err := store.StoreLLMCredential(ctx, LLMProviderAnthropic, "sk-ant-test")
@@ -440,7 +441,9 @@ func TestLLMCredentialManager_ListConfiguredProviders_Disabled(t *testing.T) {
 	}
 
 	// Disable OpenAI
-	manager.cfg.Providers[LLMProviderOpenAI].Enabled = false
+	providerCfg := manager.cfg.Providers[LLMProviderOpenAI]
+	providerCfg.Enabled = false
+	manager.cfg.Providers[LLMProviderOpenAI] = providerCfg
 
 	// Should only list Anthropic
 	providers, err := manager.ListConfiguredProviders()

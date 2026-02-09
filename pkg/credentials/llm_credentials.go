@@ -28,7 +28,16 @@ type LLMCredentialManager struct {
 // NewLLMCredentialManager creates a new LLM credential manager
 func NewLLMCredentialManager(store *Store, cfg config.LLMConfig, log *logger.Logger) *LLMCredentialManager {
 	if log == nil {
-		log = logger.NewDefault()
+		var err error
+		log, err = logger.NewDefault()
+		if err != nil {
+			// If we can't create a logger, return a manager with nil logger
+			// This will cause issues if used, but allows initialization to continue
+			return &LLMCredentialManager{
+				store: store,
+				cfg:   cfg,
+			}
+		}
 	}
 	return &LLMCredentialManager{
 		store:  store,
