@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 
@@ -493,4 +494,285 @@ images:
 	})
 
 	t.Log("Disabled mode test passed")
+}
+
+// TestPolicyHotReload tests policy hot-reload during orchestrator operation
+func TestPolicyHotReload(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	// Check if Docker is available
+	if err := container.CheckEnvironment(); err != nil {
+		t.Skip("Docker not available:", err)
+	}
+
+	ctx := context.Background()
+	log, err := logger.New(config.DefaultLoggingConfig())
+	require.NoError(t, err, "Failed to create logger")
+
+	t.Log("=== Testing Policy Hot-Reload ===")
+
+	// Step 1: Create initial policy YAML file
+	t.Log("=== Step 1: Creating initial policy YAML file ===")
+
+	tmpDir := t.TempDir()
+	policyPath := filepath.Join(tmpDir, "hotreload-policy.yaml")
+
+	// Initial policy: allow specific images, allow latest tag
+	initialPolicyYAML := `
+id: hotreload-policy
+name: Hot Reload Test Policy
+description: Policy for testing hot-reload functionality
+mode: strict
+
+quotas:
+  max_cpus: 4000000000  # 4 CPUs
+  max_memory: 8589934592  # 8GB
+
+images:
+  allow_latest_tag: true  # Initially allow latest tag
+`
+
+	err = os.WriteFile(policyPath, []byte(initialPolicyYAML), 0644)
+	require.NoError(t, err, "Failed to write initial policy file")
+	t.Logf("Initial policy file created: %s", policyPath)
+
+	// Step 2: Load config and set policy path
+	t.Log("=== Step 2: Loading config with policy path ===")
+
+	cfg, err := config.Load()
+	require.NoError(t, err, "Failed to load config")
+
+	// Override paths for testing
+	cfg.Credentials.StorePath = filepath.Join(tmpDir, "credentials")
+	cfg.Session.StoragePath = filepath.Join(tmpDir, "sessions")
+	cfg.IPC.SocketPath = filepath.Join(tmpDir, "ipc.sock")
+	cfg.Policy.ConfigPath = policyPath
+	// Ensure hot-reload is enabled (should be default, but be explicit)
+	cfg.Policy.ReloadOnChanges = true
+
+	// Step 3: Bootstrap orchestrator with policy enforcement
+	t.Log("=== Step 3: Bootstrapping orchestrator with policy hot-reload ===")
+
+	bootstrapCfg := orchestrator.BootstrapConfig{
+		Config:            *cfg,
+		Logger:            log,
+		Version:           "test-hotreload-1.0.0",
+		ShutdownTimeout:   10 * time.Second,
+		EnableHealthCheck: false,
+	}
+
+	result, err := orchestrator.Bootstrap(ctx, bootstrapCfg)
+	require.NoError(t, err, "Failed to bootstrap orchestrator")
+	orch := result.Orchestrator
+
+	defer func() {
+		t.Log("=== Cleanup: Shutting down orchestrator ===")
+		_ = orch.Close()
+	}()
+
+	// Verify policy enforcer is initialized
+	policyEnforcer := orch.PolicyEnforcer()
+	require.NotNil(t, policyEnforcer, "Policy enforcer should not be nil")
+
+	// Verify policy reloader is initialized
+	policyReloader := orch.PolicyReloader()
+	require.NotNil(t, policyReloader, "Policy reloader should not be nil")
+	t.Log("Policy reloader initialized successfully")
+
+	// Verify initial policy was loaded
+	currentPolicy, err := policyEnforcer.GetPolicy(ctx)
+	require.NoError(t, err, "Failed to get current policy")
+	require.Equal(t, "hotreload-policy", currentPolicy.ID)
+	require.True(t, currentPolicy.Images.AllowLatestTag, "Initial policy should allow latest tag")
+	t.Logf("Initial policy loaded: id=%s, allow_latest=%v", currentPolicy.ID, currentPolicy.Images.AllowLatestTag)
+
+	// Step 4: Create a test session
+	t.Log("=== Step 4: Creating test session ===")
+
+	sessionMgr := orch.SessionManager()
+	sessionID, err := sessionMgr.Create(ctx, types.SessionMetadata{
+		Name:    "hotreload-test-session",
+		OwnerID: "hotreload-test-user",
+	}, types.SessionConfig{
+		MaxContainers: 5,
+	})
+	require.NoError(t, err, "Failed to create session")
+	t.Logf("Session created: %s", sessionID)
+
+	// Step 5: Create container allowed by initial policy (with latest tag)
+	t.Log("=== Step 5: Creating container allowed by initial policy ===")
+
+	dockerClient := orch.DockerClient()
+	creator, err := container.NewCreator(dockerClient, log)
+	require.NoError(t, err, "Failed to create container creator")
+
+	// Set the policy enforcer on the creator
+	creator.SetEnforcer(policyEnforcer)
+
+	containerName1 := "hotreload-test-1-" + time.Now().Format("20060102150405")
+	createCfg1 := container.CreateConfig{
+		Config: types.ContainerConfig{
+			Image:   "alpine:latest", // Allowed by initial policy
+			Command: []string{"sleep", "300"},
+			Env:     make(map[string]string),
+			Labels:  make(map[string]string),
+		},
+		Name:        containerName1,
+		SessionID:   sessionID,
+		AutoPull:    true,
+		PullTimeout: 5 * time.Minute,
+	}
+	createCfg1.Config.Labels["baaaht.session_id"] = sessionID.String()
+	createCfg1.Config.Labels["baaaht.managed"] = "true"
+
+	createResult1, err := creator.Create(ctx, createCfg1)
+	require.NoError(t, err, "Container creation with latest tag should succeed with initial policy")
+	require.NotNil(t, createResult1, "Create result should not be nil")
+	t.Logf("Container created successfully with initial policy: %s", createResult1.ContainerID)
+
+	// Cleanup container
+	defer func() {
+		lifecycleMgr, _ := container.NewLifecycleManager(dockerClient, log)
+		_ = lifecycleMgr.Destroy(ctx, container.DestroyConfig{
+			ContainerID:   createResult1.ContainerID,
+			Name:          containerName1,
+			Force:         true,
+			RemoveVolumes: true,
+		})
+	}()
+
+	// Step 6: Modify policy YAML file (disallow latest tag)
+	t.Log("=== Step 6: Modifying policy YAML file ===")
+
+	updatedPolicyYAML := `
+id: hotreload-policy
+name: Hot Reload Test Policy
+description: Policy for testing hot-reload functionality (updated)
+mode: strict
+
+quotas:
+  max_cpus: 4000000000  # 4 CPUs
+  max_memory: 8589934592  # 8GB
+
+images:
+  allow_latest_tag: false  # Now disallow latest tag
+`
+
+	err = os.WriteFile(policyPath, []byte(updatedPolicyYAML), 0644)
+	require.NoError(t, err, "Failed to write updated policy file")
+	t.Logf("Policy file updated: %s", policyPath)
+
+	// Step 7: Trigger reload by sending SIGHUP to self
+	t.Log("=== Step 7: Triggering policy reload via SIGHUP ===")
+
+	// Get the current process
+	process, err := os.FindProcess(os.Getpid())
+	require.NoError(t, err, "Failed to find current process")
+
+	// Send SIGHUP to trigger reload
+	err = process.Signal(syscall.SIGHUP)
+	require.NoError(t, err, "Failed to send SIGHUP signal")
+	t.Log("SIGHUP signal sent to trigger reload")
+
+	// Step 8: Wait for reload to complete
+	t.Log("=== Step 8: Waiting for policy reload ===")
+
+	// Wait up to 5 seconds for the policy to be reloaded
+	reloadCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	reloaded := false
+	for i := 0; i < 50; i++ {
+		updatedPolicy, err := policyEnforcer.GetPolicy(reloadCtx)
+		require.NoError(t, err, "Failed to get policy during reload check")
+
+		if !updatedPolicy.Images.AllowLatestTag {
+			reloaded = true
+			t.Logf("Policy reloaded successfully: allow_latest=%v", updatedPolicy.Images.AllowLatestTag)
+			break
+		}
+
+		// Wait a bit before checking again
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	require.True(t, reloaded, "Policy was not reloaded within timeout")
+
+	// Verify policy reloader state
+	require.Equal(t, policy.ReloadStateIdle, policyReloader.State(), "Reloader should be in idle state after reload")
+	require.False(t, policyReloader.IsReloading(), "Reloader should not be reloading")
+
+	// Step 9: Attempt to create container that violates new policy
+	t.Log("=== Step 9: Attempting to create container that violates new policy ===")
+
+	containerName2 := "hotreload-test-2-" + time.Now().Format("20060102150405")
+	createCfg2 := container.CreateConfig{
+		Config: types.ContainerConfig{
+			Image:   "alpine:latest", // Now disallowed by updated policy
+			Command: []string{"sleep", "300"},
+			Env:     make(map[string]string),
+			Labels:  make(map[string]string),
+		},
+		Name:        containerName2,
+		SessionID:   sessionID,
+		AutoPull:    false,
+		PullTimeout: 1 * time.Minute,
+	}
+
+	_, err = creator.Create(ctx, createCfg2)
+	require.Error(t, err, "Container creation with latest tag should fail after policy update")
+
+	// Verify it's a permission error
+	require.Contains(t, err.Error(), "PERMISSION", "Error should be a permission error")
+	require.Contains(t, err.Error(), "policy", "Error should mention policy")
+	t.Log("Container creation with latest tag correctly failed after hot-reload")
+
+	// Step 10: Verify container with specific tag still works
+	t.Log("=== Step 10: Verifying container with specific tag still works ===")
+
+	containerName3 := "hotreload-test-3-" + time.Now().Format("20060102150405")
+	createCfg3 := container.CreateConfig{
+		Config: types.ContainerConfig{
+			Image:   "alpine:3.18", // Specific tag, should still work
+			Command: []string{"sleep", "300"},
+			Env:     make(map[string]string),
+			Labels:  make(map[string]string),
+		},
+		Name:        containerName3,
+		SessionID:   sessionID,
+		AutoPull:    true,
+		PullTimeout: 5 * time.Minute,
+	}
+	createCfg3.Config.Labels["baaaht.session_id"] = sessionID.String()
+	createCfg3.Config.Labels["baaaht.managed"] = "true"
+
+	createResult3, err := creator.Create(ctx, createCfg3)
+	require.NoError(t, err, "Container creation with specific tag should succeed")
+	require.NotNil(t, createResult3, "Create result should not be nil")
+	t.Logf("Container with specific tag created successfully: %s", createResult3.ContainerID)
+
+	// Cleanup third container
+	lifecycleMgr, _ := container.NewLifecycleManager(dockerClient, log)
+	_ = lifecycleMgr.Destroy(ctx, container.DestroyConfig{
+		ContainerID:   createResult3.ContainerID,
+		Name:          containerName3,
+		Force:         true,
+		RemoveVolumes: true,
+	})
+
+	// Test complete
+	t.Log("=== Policy Hot-Reload Test Complete ===")
+	t.Log("All steps passed successfully:")
+	t.Log("  1. Initial policy YAML file created")
+	t.Log("  2. Config loaded with policy path")
+	t.Log("  3. Orchestrator bootstrapped with policy hot-reload")
+	t.Log("  4. Session created")
+	t.Log("  5. Container with latest tag created (initial policy allowed it)")
+	t.Log("  6. Policy YAML file modified (disallow latest tag)")
+	t.Log("  7. SIGHUP signal sent to trigger reload")
+	t.Log("  8. Policy reloaded successfully")
+	t.Log("  9. Container with latest tag correctly rejected (new policy)")
+	t.Log(" 10. Container with specific tag still allowed")
 }
