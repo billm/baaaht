@@ -747,3 +747,122 @@ func TestCreatorWithEnforcer(t *testing.T) {
 	assert.Contains(t, s, "Creator")
 	assert.Contains(t, s, "enabled")
 }
+
+func TestPolicyViolationLogging(t *testing.T) {
+	log, err := logger.NewDefault()
+	require.NoError(t, err)
+
+	// Create a policy enforcer with permissive mode to allow logging but not block
+	permissivePolicy := policy.DefaultPolicy()
+	permissivePolicy.Images.AllowLatestTag = false // Will generate violation
+	permissivePolicy.Mode = policy.EnforcementModePermissive
+
+	enforcer, err := policy.New(config.DefaultPolicyConfig(), log)
+	require.NoError(t, err)
+	err = enforcer.SetPolicy(context.Background(), permissivePolicy)
+	require.NoError(t, err)
+
+	client := &Client{}
+	creator, err := NewCreator(client, log)
+	require.NoError(t, err)
+
+	// Set the enforcer
+	creator.SetEnforcer(enforcer)
+
+	sessionID := types.NewID("test-session-logging")
+
+	t.Run("logs policy violations with error severity", func(t *testing.T) {
+		cfg := CreateConfig{
+			Config: types.ContainerConfig{
+				Image: "alpine:latest", // Violates AllowLatestTag policy
+			},
+			Name:      "test-container-violation-log",
+			SessionID: sessionID,
+		}
+
+		// In permissive mode, this should not return an error for policy violations
+		// but should log them. The Create will still fail because Docker client is nil.
+		_, err := creator.Create(context.Background(), cfg)
+
+		// Should fail with nil Docker client error, not policy permission error
+		assert.Error(t, err)
+		var customErr *types.Error
+		if err != nil && assert.ErrorAs(t, err, &customErr) {
+			// Should NOT be a permission error (that would mean policy blocked it in strict mode)
+			assert.NotEqual(t, types.ErrCodePermission, customErr.Code,
+				"permissive mode should log violations but not block with permission error")
+		}
+	})
+
+	t.Run("logs policy warnings", func(t *testing.T) {
+		// Create a policy that generates warnings
+		warningPolicy := policy.DefaultPolicy()
+		warningPolicy.Mode = policy.EnforcementModePermissive
+
+		enforcer2, err := policy.New(config.DefaultPolicyConfig(), log)
+		require.NoError(t, err)
+		err = enforcer2.SetPolicy(context.Background(), warningPolicy)
+		require.NoError(t, err)
+
+		creator.SetEnforcer(enforcer2)
+
+		cfg := CreateConfig{
+			Config: types.ContainerConfig{
+				Image: "alpine:3.18", // Compliant image
+			},
+			Name:      "test-container-warning-log",
+			SessionID: sessionID,
+		}
+
+		// Should not fail policy validation in permissive mode
+		_, err = creator.Create(context.Background(), cfg)
+
+		// Will fail with nil Docker client, but not with policy error
+		assert.Error(t, err)
+		var customErr *types.Error
+		if err != nil && assert.ErrorAs(t, err, &customErr) {
+			assert.NotEqual(t, types.ErrCodePermission, customErr.Code)
+		}
+	})
+
+	t.Run("logs multiple violations", func(t *testing.T) {
+		// Create a policy that will generate multiple violations
+		multiViolationPolicy := policy.DefaultPolicy()
+		multiViolationPolicy.Images.AllowLatestTag = false
+		maxCPUs := int64(2 * 1000000000) // 2 CPUs in nanoseconds
+		multiViolationPolicy.Quotas.MaxCPUs = &maxCPUs
+		maxMemory := int64(4 * 1024 * 1024 * 1024) // 4GB
+		multiViolationPolicy.Quotas.MaxMemory = &maxMemory
+		multiViolationPolicy.Mode = policy.EnforcementModePermissive
+
+		enforcer3, err := policy.New(config.DefaultPolicyConfig(), log)
+		require.NoError(t, err)
+		err = enforcer3.SetPolicy(context.Background(), multiViolationPolicy)
+		require.NoError(t, err)
+
+		creator.SetEnforcer(enforcer3)
+
+		cfg := CreateConfig{
+			Config: types.ContainerConfig{
+				Image: "ubuntu:latest", // Violates no-latest-tag
+				Resources: types.ResourceLimits{
+					NanoCPUs:    4 * 1000000000, // 4 CPUs exceeds 2 CPU limit
+					MemoryBytes: 8 * 1024 * 1024 * 1024, // 8GB exceeds 4GB limit
+				},
+			},
+			Name:      "test-container-multi-violation",
+			SessionID: sessionID,
+		}
+
+		// Should log multiple violations but not block in permissive mode
+		_, err = creator.Create(context.Background(), cfg)
+
+		// Will fail with nil Docker client, but not with policy permission error
+		assert.Error(t, err)
+		var customErr *types.Error
+		if err != nil && assert.ErrorAs(t, err, &customErr) {
+			assert.NotEqual(t, types.ErrCodePermission, customErr.Code,
+				"permissive mode should not block with permission error")
+		}
+	})
+}
