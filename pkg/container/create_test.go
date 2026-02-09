@@ -7,7 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/billm/baaaht/orchestrator/internal/config"
 	"github.com/billm/baaaht/orchestrator/internal/logger"
+	"github.com/billm/baaaht/orchestrator/pkg/policy"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 
 	"github.com/docker/docker/api/types/container"
@@ -584,4 +586,164 @@ func BenchmarkConvertPortBindings(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_ = convertPortBindings(ports)
 	}
+}
+
+func TestCreateWithPolicyViolation(t *testing.T) {
+	log, err := logger.NewDefault()
+	require.NoError(t, err)
+
+	// Create a policy enforcer with strict mode that denies latest tag
+	strictPolicy := policy.DefaultPolicy()
+	strictPolicy.Images.AllowLatestTag = false
+	strictPolicy.Mode = policy.EnforcementModeStrict
+
+	enforcer, err := policy.New(config.DefaultPolicyConfig(), log)
+	require.NoError(t, err)
+	err = enforcer.SetPolicy(context.Background(), strictPolicy)
+	require.NoError(t, err)
+
+	client := &Client{}
+	creator, err := NewCreator(client, log)
+	require.NoError(t, err)
+
+	// Set the enforcer
+	creator.SetEnforcer(enforcer)
+
+	sessionID := types.NewID("test-session-policy")
+
+	tests := []struct {
+		name    string
+		cfg     CreateConfig
+		wantErr bool
+		errCode string
+	}{
+		{
+			name: "policy violation - image with latest tag denied",
+			cfg: CreateConfig{
+				Config: types.ContainerConfig{
+					Image: "alpine:latest",
+				},
+				Name:      "test-container-violation",
+				SessionID: sessionID,
+			},
+			wantErr: true,
+			errCode: types.ErrCodePermission,
+		},
+		{
+			name: "policy violation - CPU quota exceeds maximum",
+			cfg: CreateConfig{
+				Config: types.ContainerConfig{
+					Image: "alpine:3.18",
+					Resources: types.ResourceLimits{
+						NanoCPUs: 8 * 1000000000, // 8 CPUs exceeds default 4 CPU limit
+					},
+				},
+				Name:      "test-container-cpu-violation",
+				SessionID: sessionID,
+			},
+			wantErr: true,
+			errCode: types.ErrCodePermission,
+		},
+		{
+			name: "policy violation - memory quota exceeds maximum",
+			cfg: CreateConfig{
+				Config: types.ContainerConfig{
+					Image: "alpine:3.18",
+					Resources: types.ResourceLimits{
+						MemoryBytes: 16 * 1024 * 1024 * 1024, // 16GB exceeds default 8GB limit
+					},
+				},
+				Name:      "test-container-memory-violation",
+				SessionID: sessionID,
+			},
+			wantErr: true,
+			errCode: types.ErrCodePermission,
+		},
+		{
+			name: "policy compliant - image with specific tag",
+			cfg: CreateConfig{
+				Config: types.ContainerConfig{
+					Image: "alpine:3.18",
+				},
+				Name:      "test-container-compliant",
+				SessionID: sessionID,
+			},
+			wantErr: true, // Will still fail because Docker client is nil, but not with permission error
+			errCode: "",  // Not expecting permission error
+		},
+		{
+			name: "no enforcer - allows any configuration",
+			cfg: CreateConfig{
+				Config: types.ContainerConfig{
+					Image: "alpine:latest",
+					Resources: types.ResourceLimits{
+						NanoCPUs:    8 * 1000000000,
+						MemoryBytes: 16 * 1024 * 1024 * 1024,
+					},
+				},
+				Name:      "test-container-no-enforcer",
+				SessionID: sessionID,
+			},
+			wantErr: true, // Will fail with nil Docker client, but not policy violation
+			errCode: "",  // Not expecting permission error
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// For the "no enforcer" test, temporarily remove the enforcer
+			if tt.name == "no enforcer - allows any configuration" {
+				creator.SetEnforcer(nil)
+				defer creator.SetEnforcer(enforcer)
+			}
+
+			// Create will fail at ContainerCreate since we don't have a real Docker client
+			// But we want to test that policy validation happens before that
+			_, err := creator.Create(context.Background(), tt.cfg)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				if tt.errCode != "" {
+					var customErr *types.Error
+					assert.ErrorAs(t, err, &customErr)
+					assert.Equal(t, tt.errCode, customErr.Code, "expected %s error code", tt.errCode)
+				} else {
+					// For cases that should fail but not with permission error
+					var customErr *types.Error
+					if err != nil && assert.ErrorAs(t, err, &customErr) {
+						// Should not be a permission error (that would mean policy rejected it)
+						assert.NotEqual(t, types.ErrCodePermission, customErr.Code,
+							"should not be a policy permission error for this case")
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestCreatorWithEnforcer(t *testing.T) {
+	log, err := logger.NewDefault()
+	require.NoError(t, err)
+
+	client := &Client{}
+	creator, err := NewCreator(client, log)
+	require.NoError(t, err)
+
+	// Initially, enforcer should be nil
+	assert.Nil(t, creator.Enforcer())
+
+	// Create and set enforcer
+	enforcer, err := policy.NewDefault(log)
+	require.NoError(t, err)
+
+	creator.SetEnforcer(enforcer)
+
+	// Enforcer should now be set
+	assert.NotNil(t, creator.Enforcer())
+	assert.Same(t, enforcer, creator.Enforcer())
+
+	// Check String representation includes enforcer status
+	s := creator.String()
+	assert.Contains(t, s, "Creator")
+	assert.Contains(t, s, "enabled")
 }

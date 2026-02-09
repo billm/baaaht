@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/billm/baaaht/orchestrator/internal/logger"
+	"github.com/billm/baaaht/orchestrator/pkg/policy"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 
 	"github.com/docker/docker/api/types/container"
@@ -40,9 +41,10 @@ type CreateResult struct {
 
 // Creator handles container creation operations
 type Creator struct {
-	client *Client
-	logger *logger.Logger
-	mu     sync.RWMutex
+	client   *Client
+	enforcer *policy.Enforcer
+	logger   *logger.Logger
+	mu       sync.RWMutex
 }
 
 // NewCreator creates a new container creator
@@ -80,6 +82,20 @@ func NewCreatorFromRuntime(runtime Runtime, log *logger.Logger) (*Creator, error
 	return NewCreator(client, log)
 }
 
+// SetEnforcer sets the policy enforcer for the creator
+func (c *Creator) SetEnforcer(enforcer *policy.Enforcer) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.enforcer = enforcer
+}
+
+// Enforcer returns the current policy enforcer
+func (c *Creator) Enforcer() *policy.Enforcer {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.enforcer
+}
+
 // Create creates a new container with the specified configuration
 func (c *Creator) Create(ctx context.Context, cfg CreateConfig) (*CreateResult, error) {
 	c.mu.Lock()
@@ -87,6 +103,43 @@ func (c *Creator) Create(ctx context.Context, cfg CreateConfig) (*CreateResult, 
 
 	if err := c.validateConfig(cfg); err != nil {
 		return nil, err
+	}
+
+	// Validate against policy if enforcer is set
+	if c.enforcer != nil {
+		result, err := c.enforcer.ValidateContainerConfig(ctx, cfg.SessionID, cfg.Config)
+		if err != nil {
+			c.logger.Warn("Policy validation failed", "error", err)
+			return nil, types.WrapError(types.ErrCodeInternal, "policy validation error", err)
+		}
+
+		// Log any warnings (non-violation issues)
+		for _, warning := range result.Warnings {
+			c.logger.Warn("Policy validation warning",
+				"rule", warning.Rule,
+				"message", warning.Message,
+				"component", warning.Component)
+		}
+
+		// Log violations (these may or may not be fatal depending on mode)
+		for _, violation := range result.Violations {
+			if violation.Severity == "error" {
+				c.logger.Warn("Policy violation detected",
+					"rule", violation.Rule,
+					"message", violation.Message,
+					"component", violation.Component)
+			} else {
+				c.logger.Info("Policy validation notice",
+					"rule", violation.Rule,
+					"message", violation.Message,
+					"component", violation.Component)
+			}
+		}
+
+		// If not allowed, return error
+		if !result.Allowed {
+			return nil, types.NewError(types.ErrCodePermission, "container configuration violates policy")
+		}
 	}
 
 	c.logger.Info("Creating container",
@@ -115,6 +168,11 @@ func (c *Creator) Create(ctx context.Context, cfg CreateConfig) (*CreateResult, 
 	containerConfig, hostConfig, networkingConfig, err := c.convertConfig(cfg.Config, cfg.Name, cfg.SessionID)
 	if err != nil {
 		return nil, types.WrapError(types.ErrCodeInvalidArgument, "failed to convert container config", err)
+	}
+
+	// Check if Docker client is available
+	if c.client.cli == nil {
+		return nil, types.NewError(types.ErrCodeInternal, "Docker client is not initialized")
 	}
 
 	// Create the container
@@ -439,5 +497,11 @@ func convertRestartPolicy(rp types.RestartPolicy) container.RestartPolicy {
 func (c *Creator) String() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return fmt.Sprintf("Creator{Client: %v}", c.client)
+
+	enforcerStatus := "none"
+	if c.enforcer != nil {
+		enforcerStatus = "enabled"
+	}
+
+	return fmt.Sprintf("Creator{Client: %v, Enforcer: %s}", c.client, enforcerStatus)
 }
