@@ -186,23 +186,72 @@ type GRPCConfig struct {
 // applyDefaults fills in zero-valued NEW config fields with their defaults
 // This is called after loading from YAML to ensure partial configs have sensible defaults
 // for newly added fields (Runtime, Memory, GRPC) that might not be in older YAML files.
-// We only apply defaults to these new fields to avoid breaking existing behavior.
+// We apply defaults field-by-field to handle partial configurations properly.
 func applyDefaults(cfg *Config) {
 	// Runtime defaults - NEW field, may not exist in older YAML files
+	// Apply field-by-field to handle partial configs
+	defaultRuntime := DefaultRuntimeConfig()
 	if cfg.Runtime.Type == "" {
-		cfg.Runtime = DefaultRuntimeConfig()
+		cfg.Runtime.Type = defaultRuntime.Type
+	}
+	if cfg.Runtime.SocketPath == "" {
+		cfg.Runtime.SocketPath = defaultRuntime.SocketPath
+	}
+	if cfg.Runtime.Timeout == 0 {
+		cfg.Runtime.Timeout = defaultRuntime.Timeout
+	}
+	if cfg.Runtime.MaxRetries == 0 {
+		cfg.Runtime.MaxRetries = defaultRuntime.MaxRetries
+	}
+	if cfg.Runtime.RetryDelay == 0 {
+		cfg.Runtime.RetryDelay = defaultRuntime.RetryDelay
+	}
+	if cfg.Runtime.TLSCertPath == "" {
+		cfg.Runtime.TLSCertPath = defaultRuntime.TLSCertPath
+	}
+	if cfg.Runtime.TLSKeyPath == "" {
+		cfg.Runtime.TLSKeyPath = defaultRuntime.TLSKeyPath
+	}
+	if cfg.Runtime.TLSCAPath == "" {
+		cfg.Runtime.TLSCAPath = defaultRuntime.TLSCAPath
 	}
 
 	// Memory defaults - NEW field, may not exist in older YAML files
-	// Only apply if completely empty (not explicitly configured)
-	if cfg.Memory.StoragePath == "" && !cfg.Memory.Enabled && cfg.Memory.MaxFileSize == 0 {
-		cfg.Memory = DefaultMemoryConfig()
+	// Apply field-by-field to handle partial configs
+	defaultMemory := DefaultMemoryConfig()
+	if cfg.Memory.StoragePath == "" {
+		cfg.Memory.StoragePath = defaultMemory.StoragePath
+	}
+	if cfg.Memory.UserMemoryPath == "" {
+		cfg.Memory.UserMemoryPath = defaultMemory.UserMemoryPath
+	}
+	if cfg.Memory.GroupMemoryPath == "" {
+		cfg.Memory.GroupMemoryPath = defaultMemory.GroupMemoryPath
+	}
+	if cfg.Memory.MaxFileSize == 0 {
+		cfg.Memory.MaxFileSize = defaultMemory.MaxFileSize
+	}
+	if cfg.Memory.FileFormat == "" {
+		cfg.Memory.FileFormat = defaultMemory.FileFormat
 	}
 
 	// gRPC defaults - NEW field, may not exist in older YAML files
-	// Only apply if completely empty (not explicitly configured)
-	if cfg.GRPC.SocketPath == "" && cfg.GRPC.MaxRecvMsgSize == 0 && cfg.GRPC.Timeout == 0 {
-		cfg.GRPC = DefaultGRPCConfig()
+	// Apply field-by-field to handle partial configs
+	defaultGRPC := DefaultGRPCConfig()
+	if cfg.GRPC.SocketPath == "" {
+		cfg.GRPC.SocketPath = defaultGRPC.SocketPath
+	}
+	if cfg.GRPC.MaxRecvMsgSize == 0 {
+		cfg.GRPC.MaxRecvMsgSize = defaultGRPC.MaxRecvMsgSize
+	}
+	if cfg.GRPC.MaxSendMsgSize == 0 {
+		cfg.GRPC.MaxSendMsgSize = defaultGRPC.MaxSendMsgSize
+	}
+	if cfg.GRPC.Timeout == 0 {
+		cfg.GRPC.Timeout = defaultGRPC.Timeout
+	}
+	if cfg.GRPC.MaxConnections == 0 {
+		cfg.GRPC.MaxConnections = defaultGRPC.MaxConnections
 	}
 }
 
@@ -427,7 +476,7 @@ func Load() (*Config, error) {
 			Tracing:      DefaultTracingConfig(),
 			Orchestrator: DefaultOrchestratorConfig(),
 			Runtime:      DefaultRuntimeConfig(),
-      Memory:       DefaultMemoryConfig(),
+			Memory:       DefaultMemoryConfig(),
 			GRPC:         DefaultGRPCConfig(),
 		}
 	}

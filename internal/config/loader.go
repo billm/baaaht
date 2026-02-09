@@ -179,4 +179,19 @@ func interpolateEnvVarsInConfig(cfg *Config) {
 	// Tracing config
 	cfg.Tracing.Exporter = interpolateEnvVars(cfg.Tracing.Exporter)
 	cfg.Tracing.ExporterEndpoint = interpolateEnvVars(cfg.Tracing.ExporterEndpoint)
+
+	// Runtime config (NEW)
+	cfg.Runtime.SocketPath = interpolateEnvVars(cfg.Runtime.SocketPath)
+	cfg.Runtime.TLSCertPath = interpolateEnvVars(cfg.Runtime.TLSCertPath)
+	cfg.Runtime.TLSKeyPath = interpolateEnvVars(cfg.Runtime.TLSKeyPath)
+	cfg.Runtime.TLSCAPath = interpolateEnvVars(cfg.Runtime.TLSCAPath)
+
+	// Memory config (NEW)
+	cfg.Memory.StoragePath = interpolateEnvVars(cfg.Memory.StoragePath)
+	cfg.Memory.UserMemoryPath = interpolateEnvVars(cfg.Memory.UserMemoryPath)
+	cfg.Memory.GroupMemoryPath = interpolateEnvVars(cfg.Memory.GroupMemoryPath)
+	cfg.Memory.FileFormat = interpolateEnvVars(cfg.Memory.FileFormat)
+
+	// GRPC config (NEW)
+	cfg.GRPC.SocketPath = interpolateEnvVars(cfg.GRPC.SocketPath)
 }
