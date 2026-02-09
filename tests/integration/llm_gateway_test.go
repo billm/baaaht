@@ -53,11 +53,11 @@ func TestLLMGatewayLifecycle(t *testing.T) {
 	t.Log("=== Step 1: Creating credential store and runtime ===")
 
 	// Create credential store
-	credStore, err := credentials.NewStore(log)
+	credStore, err := credentials.NewDefaultStore(log)
 	require.NoError(t, err, "Failed to create credential store")
 
 	// Store test credentials
-	err = credStore.StoreCredential(ctx, "llm", "test", "test-api-key-12345")
+	err = credStore.Store(ctx, "llm", "test", "test-api-key-12345")
 	require.NoError(t, err, "Failed to store credential")
 
 	// Create Docker runtime
