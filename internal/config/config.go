@@ -154,25 +154,25 @@ type OrchestratorConfig struct {
 
 // RuntimeConfig contains container runtime configuration
 type RuntimeConfig struct {
-	Type        string        `json:"type"` // auto, docker, apple
-	SocketPath  string        `json:"socket_path,omitempty"`
-	Timeout     time.Duration `json:"timeout"`
-	MaxRetries  int           `json:"max_retries"`
-	RetryDelay  time.Duration `json:"retry_delay"`
-	TLSEnabled  bool          `json:"tls_enabled"`
-	TLSCertPath string        `json:"tls_cert_path,omitempty"`
-	TLSKeyPath  string        `json:"tls_key_path,omitempty"`
-	TLSCAPath   string        `json:"tls_ca_path,omitempty"`
+	Type        string        `json:"type" yaml:"type"` // auto, docker, apple
+	SocketPath  string        `json:"socket_path,omitempty" yaml:"socket_path,omitempty"`
+	Timeout     time.Duration `json:"timeout" yaml:"timeout"`
+	MaxRetries  int           `json:"max_retries" yaml:"max_retries"`
+	RetryDelay  time.Duration `json:"retry_delay" yaml:"retry_delay"`
+	TLSEnabled  bool          `json:"tls_enabled" yaml:"tls_enabled"`
+	TLSCertPath string        `json:"tls_cert_path,omitempty" yaml:"tls_cert_path,omitempty"`
+	TLSKeyPath  string        `json:"tls_key_path,omitempty" yaml:"tls_key_path,omitempty"`
+	TLSCAPath   string        `json:"tls_ca_path,omitempty" yaml:"tls_ca_path,omitempty"`
 }
 
 // MemoryConfig contains memory storage configuration
 type MemoryConfig struct {
-	StoragePath        string `json:"storage_path"`         // Base path for memory files
-	UserMemoryPath     string `json:"user_memory_path"`     // Path for user-specific memory
-	GroupMemoryPath    string `json:"group_memory_path"`    // Path for group-specific memory
-	Enabled            bool   `json:"enabled"`              // Enable memory storage
-	MaxFileSize        int    `json:"max_file_size"`        // Maximum size of a memory file in KB
-	FileFormat         string `json:"file_format"`          // File format (markdown)
+	StoragePath        string `json:"storage_path" yaml:"storage_path"`                 // Base path for memory files
+	UserMemoryPath     string `json:"user_memory_path" yaml:"user_memory_path"`         // Path for user-specific memory
+	GroupMemoryPath    string `json:"group_memory_path" yaml:"group_memory_path"`       // Path for group-specific memory
+	Enabled            bool   `json:"enabled" yaml:"enabled"`                           // Enable memory storage
+	MaxFileSize        int    `json:"max_file_size" yaml:"max_file_size"`               // Maximum size of a memory file in KB
+	FileFormat         string `json:"file_format" yaml:"file_format"`                   // File format (markdown)
 }
 
 // GRPCConfig contains gRPC server configuration

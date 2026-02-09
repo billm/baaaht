@@ -1864,3 +1864,520 @@ orchestrator:
 	})
 }
 
+
+func TestPartialYAMLConfigs(t *testing.T) {
+tmpDir := t.TempDir()
+
+tests := []struct {
+name    string
+content string
+verify  func(t *testing.T, cfg *Config)
+}{
+{
+name: "partial memory config with storage_path",
+content: `
+docker:
+  host: unix:///var/run/docker.sock
+  api_version: "1.44"
+  timeout: 30s
+  max_retries: 3
+  retry_delay: 1s
+api_server:
+  host: 0.0.0.0
+  port: 8080
+  read_timeout: 30s
+  write_timeout: 30s
+  idle_timeout: 60s
+logging:
+  level: info
+  format: json
+  output: stdout
+session:
+  timeout: 30m
+  max_sessions: 100
+  cleanup_interval: 5m
+  idle_timeout: 10m
+event:
+  queue_size: 10000
+  workers: 4
+  buffer_size: 1000
+  timeout: 5s
+  retry_attempts: 3
+  retry_delay: 100ms
+ipc:
+  socket_path: /tmp/baaaht-ipc.sock
+  buffer_size: 65536
+  timeout: 30s
+  max_connections: 100
+scheduler:
+  queue_size: 1000
+  workers: 2
+  max_retries: 3
+  retry_delay: 1s
+  task_timeout: 5m
+  queue_timeout: 1m
+credentials:
+  store_path: /tmp/credentials
+  encryption_enabled: true
+  key_rotation_days: 90
+  max_credential_age: 365
+policy:
+  config_path: /tmp/policies.yaml
+  enforcement_mode: strict
+  default_quota_cpu: 1000000000
+  default_quota_memory: 1073741824
+metrics:
+  enabled: false
+  port: 9090
+  path: /metrics
+tracing:
+  enabled: false
+  sample_rate: 0.1
+  exporter: stdout
+orchestrator:
+  shutdown_timeout: 30s
+  health_check_interval: 30s
+  graceful_stop_timeout: 10s
+memory:
+  storage_path: /custom/memory/path
+  enabled: true
+`,
+verify: func(t *testing.T, cfg *Config) {
+if cfg.Memory.StoragePath != "/custom/memory/path" {
+t.Errorf("Memory.StoragePath = %v, want /custom/memory/path", cfg.Memory.StoragePath)
+}
+// UserMemoryPath and GroupMemoryPath should be derived from the configured StoragePath
+expectedUserPath := "/custom/memory/path/users"
+if cfg.Memory.UserMemoryPath != expectedUserPath {
+t.Errorf("Memory.UserMemoryPath = %v, want %v", cfg.Memory.UserMemoryPath, expectedUserPath)
+}
+expectedGroupPath := "/custom/memory/path/groups"
+if cfg.Memory.GroupMemoryPath != expectedGroupPath {
+t.Errorf("Memory.GroupMemoryPath = %v, want %v", cfg.Memory.GroupMemoryPath, expectedGroupPath)
+}
+if cfg.Memory.Enabled != true {
+t.Errorf("Memory.Enabled = %v, want true", cfg.Memory.Enabled)
+}
+// Other fields should get defaults
+if cfg.Memory.MaxFileSize == 0 {
+t.Error("Memory.MaxFileSize should have default value, got 0")
+}
+if cfg.Memory.FileFormat == "" {
+t.Error("Memory.FileFormat should have default value, got empty string")
+}
+},
+},
+{
+name: "partial memory config with only enabled",
+content: `
+docker:
+  host: unix:///var/run/docker.sock
+  api_version: "1.44"
+  timeout: 30s
+  max_retries: 3
+  retry_delay: 1s
+api_server:
+  host: 0.0.0.0
+  port: 8080
+  read_timeout: 30s
+  write_timeout: 30s
+  idle_timeout: 60s
+logging:
+  level: info
+  format: json
+  output: stdout
+session:
+  timeout: 30m
+  max_sessions: 100
+  cleanup_interval: 5m
+  idle_timeout: 10m
+event:
+  queue_size: 10000
+  workers: 4
+  buffer_size: 1000
+  timeout: 5s
+  retry_attempts: 3
+  retry_delay: 100ms
+ipc:
+  socket_path: /tmp/baaaht-ipc.sock
+  buffer_size: 65536
+  timeout: 30s
+  max_connections: 100
+scheduler:
+  queue_size: 1000
+  workers: 2
+  max_retries: 3
+  retry_delay: 1s
+  task_timeout: 5m
+  queue_timeout: 1m
+credentials:
+  store_path: /tmp/credentials
+  encryption_enabled: true
+  key_rotation_days: 90
+  max_credential_age: 365
+policy:
+  config_path: /tmp/policies.yaml
+  enforcement_mode: strict
+  default_quota_cpu: 1000000000
+  default_quota_memory: 1073741824
+metrics:
+  enabled: false
+  port: 9090
+  path: /metrics
+tracing:
+  enabled: false
+  sample_rate: 0.1
+  exporter: stdout
+orchestrator:
+  shutdown_timeout: 30s
+  health_check_interval: 30s
+  graceful_stop_timeout: 10s
+memory:
+  enabled: true
+  max_file_size: 2048
+`,
+verify: func(t *testing.T, cfg *Config) {
+if cfg.Memory.Enabled != true {
+t.Errorf("Memory.Enabled = %v, want true", cfg.Memory.Enabled)
+}
+if cfg.Memory.MaxFileSize != 2048 {
+t.Errorf("Memory.MaxFileSize = %v, want 2048", cfg.Memory.MaxFileSize)
+}
+// Other fields should get defaults
+if cfg.Memory.StoragePath == "" {
+t.Error("Memory.StoragePath should have default value, got empty string")
+}
+if cfg.Memory.FileFormat == "" {
+t.Error("Memory.FileFormat should have default value, got empty string")
+}
+},
+},
+}
+
+for _, tt := range tests {
+t.Run(tt.name, func(t *testing.T) {
+configPath := filepath.Join(tmpDir, tt.name+".yaml")
+if err := os.WriteFile(configPath, []byte(tt.content), 0644); err != nil {
+t.Fatalf("failed to create test config file: %v", err)
+}
+
+cfg, err := LoadFromFile(configPath)
+if err != nil {
+t.Fatalf("LoadFromFile() error = %v", err)
+}
+
+tt.verify(t, cfg)
+})
+}
+}
+
+func TestEnvVarInterpolationForNewFields(t *testing.T) {
+tmpDir := t.TempDir()
+
+tests := []struct {
+name   string
+setEnv map[string]string
+content string
+verify func(t *testing.T, cfg *Config)
+}{
+{
+name: "runtime fields interpolation",
+setEnv: map[string]string{
+"RUNTIME_SOCKET":   "/tmp/runtime.sock",
+"RUNTIME_TLS_CERT": "/tmp/cert.pem",
+"RUNTIME_TLS_KEY":  "/tmp/key.pem",
+"RUNTIME_TLS_CA":   "/tmp/ca.pem",
+},
+content: `
+docker:
+  host: unix:///var/run/docker.sock
+  api_version: "1.44"
+  timeout: 30s
+  max_retries: 3
+  retry_delay: 1s
+api_server:
+  host: 0.0.0.0
+  port: 8080
+  read_timeout: 30s
+  write_timeout: 30s
+  idle_timeout: 60s
+logging:
+  level: info
+  format: json
+  output: stdout
+session:
+  timeout: 30m
+  max_sessions: 100
+  cleanup_interval: 5m
+  idle_timeout: 10m
+event:
+  queue_size: 10000
+  workers: 4
+  buffer_size: 1000
+  timeout: 5s
+  retry_attempts: 3
+  retry_delay: 100ms
+ipc:
+  socket_path: /tmp/baaaht-ipc.sock
+  buffer_size: 65536
+  timeout: 30s
+  max_connections: 100
+scheduler:
+  queue_size: 1000
+  workers: 2
+  max_retries: 3
+  retry_delay: 1s
+  task_timeout: 5m
+  queue_timeout: 1m
+credentials:
+  store_path: /tmp/credentials
+  encryption_enabled: true
+  key_rotation_days: 90
+  max_credential_age: 365
+policy:
+  config_path: /tmp/policies.yaml
+  enforcement_mode: strict
+  default_quota_cpu: 1000000000
+  default_quota_memory: 1073741824
+metrics:
+  enabled: false
+  port: 9090
+  path: /metrics
+tracing:
+  enabled: false
+  sample_rate: 0.1
+  exporter: stdout
+orchestrator:
+  shutdown_timeout: 30s
+  health_check_interval: 30s
+  graceful_stop_timeout: 10s
+runtime:
+  type: docker
+  socket_path: ${RUNTIME_SOCKET}
+  timeout: 30s
+  max_retries: 3
+  retry_delay: 1s
+  tls_enabled: true
+  tls_cert_path: ${RUNTIME_TLS_CERT}
+  tls_key_path: ${RUNTIME_TLS_KEY}
+  tls_ca_path: ${RUNTIME_TLS_CA}
+`,
+verify: func(t *testing.T, cfg *Config) {
+if cfg.Runtime.SocketPath != "/tmp/runtime.sock" {
+t.Errorf("Runtime.SocketPath = %v, want /tmp/runtime.sock", cfg.Runtime.SocketPath)
+}
+if cfg.Runtime.TLSCertPath != "/tmp/cert.pem" {
+t.Errorf("Runtime.TLSCertPath = %v, want /tmp/cert.pem", cfg.Runtime.TLSCertPath)
+}
+if cfg.Runtime.TLSKeyPath != "/tmp/key.pem" {
+t.Errorf("Runtime.TLSKeyPath = %v, want /tmp/key.pem", cfg.Runtime.TLSKeyPath)
+}
+if cfg.Runtime.TLSCAPath != "/tmp/ca.pem" {
+t.Errorf("Runtime.TLSCAPath = %v, want /tmp/ca.pem", cfg.Runtime.TLSCAPath)
+}
+},
+},
+{
+name: "memory fields interpolation",
+setEnv: map[string]string{
+"MEMORY_STORAGE":  "/var/memory",
+"MEMORY_USER":     "/var/memory/user",
+"MEMORY_GROUP":    "/var/memory/group",
+"MEMORY_FORMAT":   "markdown",
+},
+content: `
+docker:
+  host: unix:///var/run/docker.sock
+  api_version: "1.44"
+  timeout: 30s
+  max_retries: 3
+  retry_delay: 1s
+api_server:
+  host: 0.0.0.0
+  port: 8080
+  read_timeout: 30s
+  write_timeout: 30s
+  idle_timeout: 60s
+logging:
+  level: info
+  format: json
+  output: stdout
+session:
+  timeout: 30m
+  max_sessions: 100
+  cleanup_interval: 5m
+  idle_timeout: 10m
+event:
+  queue_size: 10000
+  workers: 4
+  buffer_size: 1000
+  timeout: 5s
+  retry_attempts: 3
+  retry_delay: 100ms
+ipc:
+  socket_path: /tmp/baaaht-ipc.sock
+  buffer_size: 65536
+  timeout: 30s
+  max_connections: 100
+scheduler:
+  queue_size: 1000
+  workers: 2
+  max_retries: 3
+  retry_delay: 1s
+  task_timeout: 5m
+  queue_timeout: 1m
+credentials:
+  store_path: /tmp/credentials
+  encryption_enabled: true
+  key_rotation_days: 90
+  max_credential_age: 365
+policy:
+  config_path: /tmp/policies.yaml
+  enforcement_mode: strict
+  default_quota_cpu: 1000000000
+  default_quota_memory: 1073741824
+metrics:
+  enabled: false
+  port: 9090
+  path: /metrics
+tracing:
+  enabled: false
+  sample_rate: 0.1
+  exporter: stdout
+orchestrator:
+  shutdown_timeout: 30s
+  health_check_interval: 30s
+  graceful_stop_timeout: 10s
+memory:
+  storage_path: ${MEMORY_STORAGE}
+  user_memory_path: ${MEMORY_USER}
+  group_memory_path: ${MEMORY_GROUP}
+  enabled: true
+  max_file_size: 1024
+  file_format: ${MEMORY_FORMAT}
+`,
+verify: func(t *testing.T, cfg *Config) {
+if cfg.Memory.StoragePath != "/var/memory" {
+t.Errorf("Memory.StoragePath = %v, want /var/memory", cfg.Memory.StoragePath)
+}
+if cfg.Memory.UserMemoryPath != "/var/memory/user" {
+t.Errorf("Memory.UserMemoryPath = %v, want /var/memory/user", cfg.Memory.UserMemoryPath)
+}
+if cfg.Memory.GroupMemoryPath != "/var/memory/group" {
+t.Errorf("Memory.GroupMemoryPath = %v, want /var/memory/group", cfg.Memory.GroupMemoryPath)
+}
+if cfg.Memory.FileFormat != "markdown" {
+t.Errorf("Memory.FileFormat = %v, want markdown", cfg.Memory.FileFormat)
+}
+},
+},
+{
+name: "grpc socket_path interpolation",
+setEnv: map[string]string{
+"GRPC_SOCKET": "/tmp/grpc.sock",
+},
+content: `
+docker:
+  host: unix:///var/run/docker.sock
+  api_version: "1.44"
+  timeout: 30s
+  max_retries: 3
+  retry_delay: 1s
+api_server:
+  host: 0.0.0.0
+  port: 8080
+  read_timeout: 30s
+  write_timeout: 30s
+  idle_timeout: 60s
+logging:
+  level: info
+  format: json
+  output: stdout
+session:
+  timeout: 30m
+  max_sessions: 100
+  cleanup_interval: 5m
+  idle_timeout: 10m
+event:
+  queue_size: 10000
+  workers: 4
+  buffer_size: 1000
+  timeout: 5s
+  retry_attempts: 3
+  retry_delay: 100ms
+ipc:
+  socket_path: /tmp/baaaht-ipc.sock
+  buffer_size: 65536
+  timeout: 30s
+  max_connections: 100
+scheduler:
+  queue_size: 1000
+  workers: 2
+  max_retries: 3
+  retry_delay: 1s
+  task_timeout: 5m
+  queue_timeout: 1m
+credentials:
+  store_path: /tmp/credentials
+  encryption_enabled: true
+  key_rotation_days: 90
+  max_credential_age: 365
+policy:
+  config_path: /tmp/policies.yaml
+  enforcement_mode: strict
+  default_quota_cpu: 1000000000
+  default_quota_memory: 1073741824
+metrics:
+  enabled: false
+  port: 9090
+  path: /metrics
+tracing:
+  enabled: false
+  sample_rate: 0.1
+  exporter: stdout
+orchestrator:
+  shutdown_timeout: 30s
+  health_check_interval: 30s
+  graceful_stop_timeout: 10s
+grpc:
+  socket_path: ${GRPC_SOCKET}
+  max_recv_msg_size: 4194304
+  max_send_msg_size: 4194304
+  timeout: 30s
+  max_connections: 1000
+`,
+verify: func(t *testing.T, cfg *Config) {
+if cfg.GRPC.SocketPath != "/tmp/grpc.sock" {
+t.Errorf("GRPC.SocketPath = %v, want /tmp/grpc.sock", cfg.GRPC.SocketPath)
+}
+},
+},
+}
+
+for _, tt := range tests {
+t.Run(tt.name, func(t *testing.T) {
+configPath := filepath.Join(tmpDir, tt.name+".yaml")
+
+// Set environment variables
+for k, v := range tt.setEnv {
+os.Setenv(k, v)
+}
+defer func() {
+for k := range tt.setEnv {
+os.Unsetenv(k)
+}
+}()
+
+if err := os.WriteFile(configPath, []byte(tt.content), 0644); err != nil {
+t.Fatalf("failed to create test config file: %v", err)
+}
+
+cfg, err := LoadFromFile(configPath)
+if err != nil {
+t.Fatalf("LoadFromFile() error = %v", err)
+}
+
+tt.verify(t, cfg)
+})
+}
+}
