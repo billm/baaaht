@@ -739,3 +739,373 @@ func TestRegistry_GetAllFailoverStates(t *testing.T) {
 	assert.Equal(t, 1, states[ProviderAnthropic].ConsecutiveFailures)
 	assert.Equal(t, 1, states[ProviderOpenAI].ConsecutiveFailures)
 }
+
+func TestHealth(t *testing.T) {
+	log, err := logger.NewDefault()
+	require.NoError(t, err)
+
+	t.Run("NewHealthChecker_Initialization", func(t *testing.T) {
+		hc := NewHealthChecker(log)
+		assert.NotNil(t, hc)
+		assert.False(t, hc.closed)
+		assert.NotNil(t, hc.logger)
+		assert.NotNil(t, hc.providerStates)
+	})
+
+	t.Run("GetStatus_DefaultHealthy", func(t *testing.T) {
+		hc := NewHealthChecker(log)
+
+		// Unknown provider should return healthy by default
+		status := hc.GetStatus(ProviderAnthropic)
+		assert.Equal(t, HealthStatusHealthy, status)
+	})
+
+	t.Run("SetStatus_UpdatesHealth", func(t *testing.T) {
+		hc := NewHealthChecker(log)
+
+		// Set to unhealthy
+		hc.SetStatus(ProviderAnthropic, HealthStatusUnhealthy)
+		status := hc.GetStatus(ProviderAnthropic)
+		assert.Equal(t, HealthStatusUnhealthy, status)
+
+		// Set to healthy
+		hc.SetStatus(ProviderAnthropic, HealthStatusHealthy)
+		status = hc.GetStatus(ProviderAnthropic)
+		assert.Equal(t, HealthStatusHealthy, status)
+
+		// Set to degraded
+		hc.SetStatus(ProviderOpenAI, HealthStatusDegraded)
+		status = hc.GetStatus(ProviderOpenAI)
+		assert.Equal(t, HealthStatusDegraded, status)
+	})
+
+	t.Run("SetHealthy_ConvenienceMethod", func(t *testing.T) {
+		hc := NewHealthChecker(log)
+
+		hc.SetUnhealthy(ProviderAnthropic)
+		assert.False(t, hc.IsHealthy(ProviderAnthropic))
+
+		hc.SetHealthy(ProviderAnthropic)
+		assert.True(t, hc.IsHealthy(ProviderAnthropic))
+	})
+
+	t.Run("SetUnhealthy_ConvenienceMethod", func(t *testing.T) {
+		hc := NewHealthChecker(log)
+
+		hc.SetUnhealthy(ProviderAnthropic)
+		status := hc.GetStatus(ProviderAnthropic)
+		assert.Equal(t, HealthStatusUnhealthy, status)
+		assert.False(t, hc.IsHealthy(ProviderAnthropic))
+	})
+
+	t.Run("SetDegraded_ConvenienceMethod", func(t *testing.T) {
+		hc := NewHealthChecker(log)
+
+		hc.SetDegraded(ProviderAnthropic)
+		status := hc.GetStatus(ProviderAnthropic)
+		assert.Equal(t, HealthStatusDegraded, status)
+		assert.True(t, hc.IsHealthy(ProviderAnthropic)) // Degraded is still considered healthy
+	})
+
+	t.Run("IsHealthy_WithDifferentStatuses", func(t *testing.T) {
+		hc := NewHealthChecker(log)
+
+		hc.SetHealthy(ProviderAnthropic)
+		assert.True(t, hc.IsHealthy(ProviderAnthropic))
+
+		hc.SetUnhealthy(ProviderAnthropic)
+		assert.False(t, hc.IsHealthy(ProviderAnthropic))
+
+		hc.SetDegraded(ProviderAnthropic)
+		assert.True(t, hc.IsHealthy(ProviderAnthropic)) // Degraded is still considered healthy
+	})
+
+	t.Run("Check_WithAvailableProvider", func(t *testing.T) {
+		hc := NewHealthChecker(log)
+		ctx := context.Background()
+
+		provider := &mockLLMProvider{
+			id:     ProviderAnthropic,
+			name:   "Test",
+			status: ProviderStatusAvailable,
+		}
+
+		status, err := hc.Check(ctx, ProviderAnthropic, func(p Provider) (LLMProvider, error) {
+			return provider, nil
+		})
+
+		assert.NoError(t, err)
+		assert.Equal(t, HealthStatusHealthy, status)
+	})
+
+	t.Run("Check_WithUnavailableProvider", func(t *testing.T) {
+		hc := NewHealthChecker(log)
+		ctx := context.Background()
+
+		provider := &mockLLMProvider{
+			id:     ProviderAnthropic,
+			name:   "Test",
+			status: ProviderStatusUnavailable,
+		}
+
+		status, err := hc.Check(ctx, ProviderAnthropic, func(p Provider) (LLMProvider, error) {
+			return provider, nil
+		})
+
+		assert.NoError(t, err)
+		assert.Equal(t, HealthStatusUnhealthy, status)
+	})
+
+	t.Run("Check_WithNotFoundProvider", func(t *testing.T) {
+		hc := NewHealthChecker(log)
+		ctx := context.Background()
+
+		_, err := hc.Check(ctx, ProviderAnthropic, func(p Provider) (LLMProvider, error) {
+			return nil, NewProviderError(ErrCodeProviderNotFound, "not found")
+		})
+
+		assert.Error(t, err)
+	})
+
+	t.Run("Check_AfterClosed", func(t *testing.T) {
+		hc := NewHealthChecker(log)
+		ctx := context.Background()
+		hc.Close()
+
+		_, err := hc.Check(ctx, ProviderAnthropic, func(p Provider) (LLMProvider, error) {
+			return &mockLLMProvider{}, nil
+		})
+
+		assert.Error(t, err)
+	})
+
+	t.Run("GetAllStatuses", func(t *testing.T) {
+		hc := NewHealthChecker(log)
+
+		hc.SetHealthy(ProviderAnthropic)
+		hc.SetUnhealthy(ProviderOpenAI)
+
+		statuses := hc.GetAllStatuses()
+
+		assert.Len(t, statuses, 2)
+		assert.Equal(t, HealthStatusHealthy, statuses[ProviderAnthropic])
+		assert.Equal(t, HealthStatusUnhealthy, statuses[ProviderOpenAI])
+	})
+
+	t.Run("GetAllStatuses_ReturnsCopy", func(t *testing.T) {
+		hc := NewHealthChecker(log)
+
+		hc.SetHealthy(ProviderAnthropic)
+		statuses := hc.GetAllStatuses()
+
+		// Modify returned map
+		statuses[ProviderOpenAI] = HealthStatusUnhealthy
+
+		// Original should be unchanged
+		statuses2 := hc.GetAllStatuses()
+		assert.NotContains(t, statuses2, ProviderOpenAI)
+	})
+
+	t.Run("HealthStatus_IsHealthy", func(t *testing.T) {
+		assert.True(t, HealthStatusHealthy.IsHealthy())
+		assert.True(t, HealthStatusDegraded.IsHealthy())
+		assert.False(t, HealthStatusUnhealthy.IsHealthy())
+		assert.False(t, HealthStatusUnknown.IsHealthy())
+	})
+
+	t.Run("HealthStatus_String", func(t *testing.T) {
+		assert.Equal(t, "healthy", HealthStatusHealthy.String())
+		assert.Equal(t, "unhealthy", HealthStatusUnhealthy.String())
+		assert.Equal(t, "degraded", HealthStatusDegraded.String())
+		assert.Equal(t, "unknown", HealthStatusUnknown.String())
+	})
+
+	t.Run("Close_Idempotent", func(t *testing.T) {
+		hc := NewHealthChecker(log)
+
+		hc.SetHealthy(ProviderAnthropic)
+		hc.Close()
+		hc.Close()
+		hc.Close()
+
+		// Should not panic
+		assert.True(t, hc.closed)
+	})
+
+	t.Run("FailoverManager_HealthCheck", func(t *testing.T) {
+		cfg := RegistryConfig{
+			FailoverEnabled: true,
+		}
+		fm := NewFailoverManager(cfg, log)
+
+		ctx := context.Background()
+		provider := &mockLLMProvider{
+			id:     ProviderAnthropic,
+			name:   "Test",
+			status: ProviderStatusAvailable,
+		}
+
+		status, err := fm.HealthCheck(ctx, ProviderAnthropic, func(p Provider) (LLMProvider, error) {
+			return provider, nil
+		})
+
+		assert.NoError(t, err)
+		assert.Equal(t, HealthStatusHealthy, status)
+	})
+
+	t.Run("FailoverManager_GetHealthStatus", func(t *testing.T) {
+		cfg := RegistryConfig{
+			FailoverEnabled: true,
+		}
+		fm := NewFailoverManager(cfg, log)
+
+		// Default should be healthy
+		status := fm.GetHealthStatus(ProviderAnthropic)
+		assert.Equal(t, HealthStatusHealthy, status)
+
+		// Set to unhealthy
+		fm.SetHealthStatus(ProviderAnthropic, HealthStatusUnhealthy)
+		status = fm.GetHealthStatus(ProviderAnthropic)
+		assert.Equal(t, HealthStatusUnhealthy, status)
+	})
+
+	t.Run("FailoverManager_IsProviderHealthy", func(t *testing.T) {
+		cfg := RegistryConfig{
+			FailoverEnabled: true,
+		}
+		fm := NewFailoverManager(cfg, log)
+
+		// Default should be healthy
+		assert.True(t, fm.IsProviderHealthy(ProviderAnthropic))
+
+		// Set to unhealthy
+		fm.SetHealthStatus(ProviderAnthropic, HealthStatusUnhealthy)
+		assert.False(t, fm.IsProviderHealthy(ProviderAnthropic))
+	})
+
+	t.Run("FailoverManager_GetAllHealthStatuses", func(t *testing.T) {
+		cfg := RegistryConfig{
+			FailoverEnabled: true,
+		}
+		fm := NewFailoverManager(cfg, log)
+
+		fm.SetHealthStatus(ProviderAnthropic, HealthStatusHealthy)
+		fm.SetHealthStatus(ProviderOpenAI, HealthStatusUnhealthy)
+
+		statuses := fm.GetAllHealthStatuses()
+
+		assert.Len(t, statuses, 2)
+		assert.Equal(t, HealthStatusHealthy, statuses[ProviderAnthropic])
+		assert.Equal(t, HealthStatusUnhealthy, statuses[ProviderOpenAI])
+	})
+}
+
+func TestRegistry_HealthCheck(t *testing.T) {
+	log, err := logger.NewDefault()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+
+	t.Run("HealthCheck_WithAvailableProvider", func(t *testing.T) {
+		cfg := RegistryConfig{
+			Providers: map[Provider]ProviderConfig{},
+		}
+		registry, err := NewRegistry(cfg, log)
+		require.NoError(t, err)
+
+		provider := &mockLLMProvider{
+			id:     ProviderAnthropic,
+			name:   "Test",
+			status: ProviderStatusAvailable,
+		}
+		err = registry.Register(ctx, provider)
+		require.NoError(t, err)
+
+		status, err := registry.HealthCheck(ctx, ProviderAnthropic)
+		assert.NoError(t, err)
+		assert.Equal(t, HealthStatusHealthy, status)
+	})
+
+	t.Run("HealthCheck_WithUnavailableProvider", func(t *testing.T) {
+		cfg := RegistryConfig{
+			Providers: map[Provider]ProviderConfig{},
+		}
+		registry, err := NewRegistry(cfg, log)
+		require.NoError(t, err)
+
+		provider := &mockLLMProvider{
+			id:     ProviderAnthropic,
+			name:   "Test",
+			status: ProviderStatusUnavailable,
+		}
+		err = registry.Register(ctx, provider)
+		require.NoError(t, err)
+
+		status, err := registry.HealthCheck(ctx, ProviderAnthropic)
+		assert.NoError(t, err)
+		assert.Equal(t, HealthStatusUnhealthy, status)
+	})
+
+	t.Run("GetHealthStatus", func(t *testing.T) {
+		cfg := RegistryConfig{
+			Providers: map[Provider]ProviderConfig{},
+		}
+		registry, err := NewRegistry(cfg, log)
+		require.NoError(t, err)
+
+		// Default should be healthy
+		status := registry.GetHealthStatus(ProviderAnthropic)
+		assert.Equal(t, HealthStatusHealthy, status)
+
+		// Set to unhealthy
+		registry.SetHealthStatus(ProviderAnthropic, HealthStatusUnhealthy)
+		status = registry.GetHealthStatus(ProviderAnthropic)
+		assert.Equal(t, HealthStatusUnhealthy, status)
+	})
+
+	t.Run("SetHealthStatus", func(t *testing.T) {
+		cfg := RegistryConfig{
+			Providers: map[Provider]ProviderConfig{},
+		}
+		registry, err := NewRegistry(cfg, log)
+		require.NoError(t, err)
+
+		registry.SetHealthStatus(ProviderAnthropic, HealthStatusDegraded)
+		status := registry.GetHealthStatus(ProviderAnthropic)
+		assert.Equal(t, HealthStatusDegraded, status)
+	})
+
+	t.Run("GetAllHealthStatuses", func(t *testing.T) {
+		cfg := RegistryConfig{
+			Providers: map[Provider]ProviderConfig{},
+		}
+		registry, err := NewRegistry(cfg, log)
+		require.NoError(t, err)
+
+		provider1 := &mockLLMProvider{
+			id:     ProviderAnthropic,
+			name:   "Anthropic",
+			status: ProviderStatusAvailable,
+		}
+		provider2 := &mockLLMProvider{
+			id:     ProviderOpenAI,
+			name:   "OpenAI",
+			status: ProviderStatusAvailable,
+		}
+
+		err = registry.Register(ctx, provider1)
+		require.NoError(t, err)
+		err = registry.Register(ctx, provider2)
+		require.NoError(t, err)
+
+		// Set different health statuses
+		registry.SetHealthStatus(ProviderAnthropic, HealthStatusHealthy)
+		registry.SetHealthStatus(ProviderOpenAI, HealthStatusDegraded)
+
+		statuses := registry.GetAllHealthStatuses()
+
+		assert.Len(t, statuses, 2)
+		assert.Equal(t, HealthStatusHealthy, statuses[ProviderAnthropic])
+		assert.Equal(t, HealthStatusDegraded, statuses[ProviderOpenAI])
+	})
+}

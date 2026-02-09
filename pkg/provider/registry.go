@@ -487,7 +487,56 @@ func (r *Registry) GetAllFailoverStates() map[Provider]FailoverState {
 
 // IsProviderHealthy checks if a provider is healthy considering failover state
 func (r *Registry) IsProviderHealthy(providerID Provider) bool {
-	return r.failoverManager.IsProviderAvailable(providerID)
+	// Use the health checker if available for more accurate health status
+	if r.failoverManager != nil {
+		return r.failoverManager.IsProviderHealthy(providerID)
+	}
+	return true
+}
+
+// HealthCheck performs a health check on a provider
+func (r *Registry) HealthCheck(ctx context.Context, providerID Provider) (HealthStatus, error) {
+	if r.failoverManager == nil {
+		return HealthStatusHealthy, nil
+	}
+
+	return r.failoverManager.HealthCheck(ctx, providerID, func(p Provider) (LLMProvider, error) {
+		r.mu.RLock()
+		defer r.mu.RUnlock()
+
+		if r.closed {
+			return nil, types.NewError(types.ErrCodeUnavailable, "provider registry is closed")
+		}
+
+		provider, exists := r.providers[p]
+		if !exists {
+			return nil, types.NewError(types.ErrCodeNotFound, "provider not found: "+p.String())
+		}
+		return provider, nil
+	})
+}
+
+// GetHealthStatus returns the current health status for a provider
+func (r *Registry) GetHealthStatus(providerID Provider) HealthStatus {
+	if r.failoverManager == nil {
+		return HealthStatusHealthy
+	}
+	return r.failoverManager.GetHealthStatus(providerID)
+}
+
+// SetHealthStatus sets the health status for a provider
+func (r *Registry) SetHealthStatus(providerID Provider, status HealthStatus) {
+	if r.failoverManager != nil {
+		r.failoverManager.SetHealthStatus(providerID, status)
+	}
+}
+
+// GetAllHealthStatuses returns all provider health statuses
+func (r *Registry) GetAllHealthStatuses() map[Provider]HealthStatus {
+	if r.failoverManager == nil {
+		return make(map[Provider]HealthStatus)
+	}
+	return r.failoverManager.GetAllHealthStatuses()
 }
 
 // ResetProviderFailover resets the failover state for a specific provider

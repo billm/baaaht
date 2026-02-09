@@ -8,13 +8,34 @@ import (
 	"github.com/billm/baaaht/orchestrator/internal/logger"
 )
 
+// HealthStatus represents the health status of a provider
+type HealthStatus string
+
+const (
+	HealthStatusUnknown     HealthStatus = "unknown"
+	HealthStatusHealthy     HealthStatus = "healthy"
+	HealthStatusUnhealthy   HealthStatus = "unhealthy"
+	HealthStatusDegraded    HealthStatus = "degraded"
+)
+
+// String returns the string representation of the health status
+func (s HealthStatus) String() string {
+	return string(s)
+}
+
+// IsHealthy returns true if the status is healthy or degraded
+func (s HealthStatus) IsHealthy() bool {
+	return s == HealthStatusHealthy || s == HealthStatusDegraded
+}
+
 // FailoverManager manages automatic failover between providers
 type FailoverManager struct {
-	mu                sync.RWMutex
-	cfg               RegistryConfig
-	logger            *logger.Logger
-	providerStates    map[Provider]*failoverState
-	closed            bool
+	mu             sync.RWMutex
+	cfg            RegistryConfig
+	logger         *logger.Logger
+	providerStates map[Provider]*failoverState
+	closed         bool
+	healthChecker  *HealthChecker
 }
 
 // failoverState tracks the failover state for a single provider
@@ -23,6 +44,186 @@ type failoverState struct {
 	circuitOpenUntil    time.Time
 	lastFailureTime     time.Time
 	lastFailureReason   string
+	healthStatus        HealthStatus
+	lastHealthCheckTime time.Time
+}
+
+// HealthChecker manages health status checking for providers
+type HealthChecker struct {
+	mu             sync.RWMutex
+	logger         *logger.Logger
+	providerStates map[Provider]*failoverState
+	closed         bool
+}
+
+// NewHealthChecker creates a new health checker
+func NewHealthChecker(log *logger.Logger) *HealthChecker {
+	if log == nil {
+		var err error
+		log, err = logger.NewDefault()
+		if err != nil {
+			log = &logger.Logger{}
+		}
+	}
+
+	hc := &HealthChecker{
+		logger:         log.With("component", "health_checker"),
+		providerStates: make(map[Provider]*failoverState),
+		closed:         false,
+	}
+
+	hc.logger.Info("Health checker initialized")
+
+	return hc
+}
+
+// Check checks the health status of a provider
+// This follows the pattern from grpc/health.go Check method
+func (hc *HealthChecker) Check(ctx context.Context, providerID Provider, getProviderFunc func(Provider) (LLMProvider, error)) (HealthStatus, error) {
+	hc.mu.RLock()
+	defer hc.mu.RUnlock()
+
+	if hc.closed {
+		return HealthStatusUnhealthy, NewProviderError(ErrCodeProviderNotAvailable, "health checker is closed")
+	}
+
+	// Get the provider
+	provider, err := getProviderFunc(providerID)
+	if err != nil {
+		hc.logger.Debug("Health check failed - provider not found",
+			"provider", providerID,
+			"error", err)
+		return HealthStatusUnhealthy, err
+	}
+
+	// Check if provider is available via its IsAvailable method
+	if !provider.IsAvailable() {
+		hc.logger.Debug("Health check - provider unavailable",
+			"provider", providerID,
+			"status", provider.Status())
+		return HealthStatusUnhealthy, nil
+	}
+
+	// Provider is available, check the stored health state
+	state, exists := hc.providerStates[providerID]
+	if !exists {
+		// No prior health state, provider is considered healthy
+		return HealthStatusHealthy, nil
+	}
+
+	// Return the stored health status
+	return state.healthStatus, nil
+}
+
+// GetStatus returns the current health status for a provider
+// This follows the pattern from grpc/health.go GetStatus method
+func (hc *HealthChecker) GetStatus(providerID Provider) HealthStatus {
+	hc.mu.RLock()
+	defer hc.mu.RUnlock()
+
+	if hc.closed {
+		return HealthStatusUnhealthy
+	}
+
+	state, exists := hc.providerStates[providerID]
+	if !exists {
+		// No health state recorded, default to healthy
+		return HealthStatusHealthy
+	}
+
+	return state.healthStatus
+}
+
+// SetStatus sets the health status for a provider
+// This follows the pattern from grpc/health.go SetServingStatus method
+func (hc *HealthChecker) SetStatus(providerID Provider, status HealthStatus) {
+	hc.mu.Lock()
+	defer hc.mu.Unlock()
+
+	if hc.closed {
+		return
+	}
+
+	state := hc.getOrCreateState(providerID)
+	oldStatus := state.healthStatus
+	state.healthStatus = status
+	state.lastHealthCheckTime = time.Now()
+
+	hc.logger.Info("Health status updated",
+		"provider", providerID,
+		"old_status", oldStatus,
+		"new_status", status)
+}
+
+// IsHealthy returns true if the provider is healthy
+// This follows the pattern from grpc/health.go IsServing method
+func (hc *HealthChecker) IsHealthy(providerID Provider) bool {
+	return hc.GetStatus(providerID).IsHealthy()
+}
+
+// SetHealthy sets the provider health status to healthy
+func (hc *HealthChecker) SetHealthy(providerID Provider) {
+	hc.SetStatus(providerID, HealthStatusHealthy)
+}
+
+// SetUnhealthy sets the provider health status to unhealthy
+func (hc *HealthChecker) SetUnhealthy(providerID Provider) {
+	hc.SetStatus(providerID, HealthStatusUnhealthy)
+}
+
+// SetDegraded sets the provider health status to degraded
+func (hc *HealthChecker) SetDegraded(providerID Provider) {
+	hc.SetStatus(providerID, HealthStatusDegraded)
+}
+
+// GetAllStatuses returns a copy of all provider health statuses
+// This follows the pattern from grpc/health.go GetAllStatuses method
+func (hc *HealthChecker) GetAllStatuses() map[Provider]HealthStatus {
+	hc.mu.RLock()
+	defer hc.mu.RUnlock()
+
+	result := make(map[Provider]HealthStatus, len(hc.providerStates))
+	for providerID, state := range hc.providerStates {
+		result[providerID] = state.healthStatus
+	}
+	return result
+}
+
+// Close closes the health checker
+func (hc *HealthChecker) Close() error {
+	hc.mu.Lock()
+	defer hc.mu.Unlock()
+
+	if hc.closed {
+		return nil
+	}
+
+	hc.logger.Info("Health checker closing...")
+	hc.closed = true
+	hc.providerStates = make(map[Provider]*failoverState)
+
+	return nil
+}
+
+// getOrCreateState gets or creates a health state for a provider
+// Must be called with lock held
+func (hc *HealthChecker) getOrCreateState(providerID Provider) *failoverState {
+	if state, exists := hc.providerStates[providerID]; exists {
+		return state
+	}
+
+	state := &failoverState{
+		healthStatus: HealthStatusHealthy, // Default to healthy
+	}
+	hc.providerStates[providerID] = state
+	return state
+}
+
+// setProviderStates sets the provider states map (used by FailoverManager)
+func (hc *HealthChecker) setProviderStates(states map[Provider]*failoverState) {
+	hc.mu.Lock()
+	defer hc.mu.Unlock()
+	hc.providerStates = states
 }
 
 // NewFailoverManager creates a new failover manager
@@ -36,12 +237,18 @@ func NewFailoverManager(cfg RegistryConfig, log *logger.Logger) *FailoverManager
 		}
 	}
 
+	providerStates := make(map[Provider]*failoverState)
+
 	fm := &FailoverManager{
 		cfg:            cfg,
 		logger:         log.With("component", "failover_manager"),
-		providerStates: make(map[Provider]*failoverState),
+		providerStates: providerStates,
 		closed:         false,
 	}
+
+	// Initialize health checker with shared provider states
+	fm.healthChecker = NewHealthChecker(log)
+	fm.healthChecker.setProviderStates(providerStates)
 
 	fm.logger.Info("Failover manager initialized",
 		"enabled", cfg.FailoverEnabled,
@@ -220,6 +427,8 @@ func (fm *FailoverManager) Reset(providerID Provider) {
 		state.consecutiveFailures = 0
 		state.circuitOpenUntil = time.Time{}
 		state.lastFailureReason = ""
+		state.healthStatus = HealthStatusHealthy // Reset health status to healthy
+		state.lastHealthCheckTime = time.Time{}
 
 		fm.logger.Info("Failover state reset for provider", "provider", providerID)
 	}
@@ -231,7 +440,9 @@ func (fm *FailoverManager) ResetAll() {
 	defer fm.mu.Unlock()
 
 	for providerID := range fm.providerStates {
-		fm.providerStates[providerID] = &failoverState{}
+		fm.providerStates[providerID] = &failoverState{
+			healthStatus: HealthStatusHealthy, // Initialize as healthy
+		}
 	}
 
 	fm.logger.Info("All failover states reset")
@@ -247,6 +458,14 @@ func (fm *FailoverManager) Close() error {
 	}
 
 	fm.logger.Info("Failover manager closing...")
+
+	// Close health checker
+	if fm.healthChecker != nil {
+		if err := fm.healthChecker.Close(); err != nil {
+			fm.logger.Warn("Failed to close health checker", "error", err)
+		}
+	}
+
 	fm.closed = true
 	fm.providerStates = make(map[Provider]*failoverState)
 
@@ -351,6 +570,55 @@ func (fm *FailoverManager) getProviderPriority(providerID Provider) int {
 		}
 	}
 	return DefaultProviderPriority
+}
+
+// HealthCheck checks the health of a provider
+// This is the primary health check method following the grpc pattern
+func (fm *FailoverManager) HealthCheck(ctx context.Context, providerID Provider, getProviderFunc func(Provider) (LLMProvider, error)) (HealthStatus, error) {
+	if fm.healthChecker == nil {
+		return HealthStatusHealthy, nil
+	}
+	return fm.healthChecker.Check(ctx, providerID, getProviderFunc)
+}
+
+// GetHealthStatus returns the current health status for a provider
+func (fm *FailoverManager) GetHealthStatus(providerID Provider) HealthStatus {
+	if fm.healthChecker == nil {
+		return HealthStatusHealthy
+	}
+	return fm.healthChecker.GetStatus(providerID)
+}
+
+// SetHealthStatus sets the health status for a provider
+func (fm *FailoverManager) SetHealthStatus(providerID Provider, status HealthStatus) {
+	if fm.healthChecker != nil {
+		fm.healthChecker.SetStatus(providerID, status)
+	}
+}
+
+// IsProviderHealthy returns true if the provider is healthy
+// This considers both the health status and the circuit breaker state
+func (fm *FailoverManager) IsProviderHealthy(providerID Provider) bool {
+	if fm.healthChecker == nil {
+		// Fall back to circuit breaker check if no health checker
+		return fm.IsProviderAvailable(providerID)
+	}
+
+	// Check health status from health checker
+	if !fm.healthChecker.IsHealthy(providerID) {
+		return false
+	}
+
+	// Also check circuit breaker state
+	return fm.IsProviderAvailable(providerID)
+}
+
+// GetAllHealthStatuses returns all provider health statuses
+func (fm *FailoverManager) GetAllHealthStatuses() map[Provider]HealthStatus {
+	if fm.healthChecker == nil {
+		return make(map[Provider]HealthStatus)
+	}
+	return fm.healthChecker.GetAllStatuses()
 }
 
 // FailoverState represents the failover state for a provider
