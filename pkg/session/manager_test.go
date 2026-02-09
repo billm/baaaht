@@ -354,8 +354,8 @@ func TestManagerClose(t *testing.T) {
 		t.Fatalf("failed to get session state: %v", err)
 	}
 
-	if state != types.SessionStateClosing {
-		t.Errorf("session state: got %s, want %s", state, types.SessionStateClosing)
+	if state != types.SessionStateClosed {
+		t.Errorf("session state: got %s, want %s", state, types.SessionStateClosed)
 	}
 
 	// Close again should be idempotent
@@ -384,23 +384,10 @@ func TestManagerDelete(t *testing.T) {
 		t.Errorf("expected failed precondition error, got: %v", err)
 	}
 
-	// Close the session (transitions to closing)
+	// Close the session (transitions to closed)
 	_ = manager.CloseSession(ctx, sessionID)
 
-	// Try to delete session in closing state (should still fail - not terminal)
-	err = manager.Delete(ctx, sessionID)
-	if err == nil {
-		t.Fatal("expected error when deleting closing session, got nil")
-	}
-
-	// Force close to terminal state via the internal state machine
-	manager.mu.Lock()
-	if sm, exists := manager.sessions[sessionID]; exists {
-		_ = sm.ForceClose()
-	}
-	manager.mu.Unlock()
-
-	// Delete the session
+	// Delete the session (should succeed since it's in a terminal state)
 	err = manager.Delete(ctx, sessionID)
 	if err != nil {
 		t.Fatalf("failed to delete session: %v", err)

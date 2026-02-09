@@ -220,7 +220,7 @@ func (s *OrchestratorService) CloseSession(ctx context.Context, req *proto.Close
 
 	sessionID := types.ID(req.SessionId)
 
-	// Get current state before closing
+	// Get current state before closing (for logging)
 	sess, err := mgr.Get(ctx, sessionID)
 	if err != nil {
 		s.logger.Error("Failed to get session for closing", "session_id", sessionID, "error", err)
@@ -234,6 +234,13 @@ func (s *OrchestratorService) CloseSession(ctx context.Context, req *proto.Close
 	}
 
 	s.logger.Info("Session closed", "session_id", sessionID, "reason", req.Reason)
+
+	// Retrieve the updated session to get the new state
+	sess, err = mgr.Get(ctx, sessionID)
+	if err != nil {
+		s.logger.Error("Failed to retrieve session after closing", "session_id", sessionID, "error", err)
+		return nil, grpcErrorFromTypesError(err)
+	}
 
 	// Publish event to event bus
 	bus := s.deps.EventBus()
@@ -292,7 +299,23 @@ func (s *OrchestratorService) SendMessage(ctx context.Context, req *proto.SendMe
 		return nil, grpcErrorFromTypesError(err)
 	}
 
-	s.logger.Debug("Message sent", "session_id", sessionID, "message_id", message.ID)
+	// Retrieve the session to get the actual message ID that was generated
+	// (AddMessage generates an ID if the message doesn't have one, but since it's
+	// passed by value, we need to fetch it from the session)
+	session, err := mgr.Get(ctx, sessionID)
+	if err != nil {
+		s.logger.Error("Failed to retrieve session after adding message", "session_id", sessionID, "error", err)
+		return nil, grpcErrorFromTypesError(err)
+	}
+
+	// Get the last added message (the one we just added)
+	if len(session.Context.Messages) == 0 {
+		return nil, errInternal("message was not added to session")
+	}
+	addedMessage := session.Context.Messages[len(session.Context.Messages)-1]
+	messageID := string(addedMessage.ID)
+
+	s.logger.Debug("Message sent", "session_id", sessionID, "message_id", messageID)
 
 	// Publish event to event bus
 	bus := s.deps.EventBus()
@@ -306,8 +329,8 @@ func (s *OrchestratorService) SendMessage(ctx context.Context, req *proto.SendMe
 				Priority:  types.PriorityNormal,
 			},
 			Data: map[string]interface{}{
-				"message_id": string(message.ID),
-				"role":       string(messageRoleToProto(message.Role)),
+				"message_id": messageID,
+				"role":       string(messageRoleToProto(addedMessage.Role)),
 				"session_id": string(sessionID),
 			},
 		}
@@ -317,9 +340,9 @@ func (s *OrchestratorService) SendMessage(ctx context.Context, req *proto.SendMe
 	}
 
 	return &proto.SendMessageResponse{
-		MessageId: string(message.ID),
+		MessageId: messageID,
 		SessionId: string(sessionID),
-		Timestamp: timestampToProto(&message.Timestamp),
+		Timestamp: timestampToProto(&addedMessage.Timestamp),
 	}, nil
 }
 

@@ -129,6 +129,9 @@ func LoadFromFile(path string) (*Config, error) {
 	// Interpolate environment variables in all string fields
 	interpolateEnvVarsInConfig(&cfg)
 
+	// Apply defaults to any zero-valued fields that weren't specified in the YAML
+	applyDefaults(&cfg)
+
 	// Validate the configuration
 	if err := cfg.Validate(); err != nil {
 		return nil, types.WrapError(types.ErrCodeInvalid, "configuration validation failed for "+path, err)

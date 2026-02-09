@@ -555,12 +555,28 @@ func (s *GatewayService) GatewaySendMessage(ctx context.Context, req *proto.Gate
 		return nil, grpcErrorFromTypesError(err)
 	}
 
-	s.logger.Debug("Message sent to gateway session", "session_id", req.SessionId, "message_id", message.ID)
+	// Retrieve the session to get the actual message ID that was generated
+	// (AddMessage generates an ID if the message doesn't have one, but since it's
+	// passed by value, we need to fetch it from the session)
+	session, err := mgr.Get(ctx, orchSessionID)
+	if err != nil {
+		s.logger.Error("Failed to retrieve session after adding message", "session_id", orchSessionID, "error", err)
+		return nil, grpcErrorFromTypesError(err)
+	}
+
+	// Get the last added message (the one we just added)
+	if len(session.Context.Messages) == 0 {
+		return nil, errInternal("message was not added to session")
+	}
+	addedMessage := session.Context.Messages[len(session.Context.Messages)-1]
+	messageID := string(addedMessage.ID)
+
+	s.logger.Debug("Message sent to gateway session", "session_id", req.SessionId, "message_id", messageID)
 
 	return &proto.GatewaySendMessageResponse{
-		MessageId:  string(message.ID),
+		MessageId:  messageID,
 		SessionId:  req.SessionId,
-		Timestamp:  timestampToProto(&message.Timestamp),
+		Timestamp:  timestampToProto(&addedMessage.Timestamp),
 	}, nil
 }
 

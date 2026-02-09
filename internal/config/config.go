@@ -183,46 +183,32 @@ type GRPCConfig struct {
 	MaxConnections int           `json:"max_connections" yaml:"max_connections"`
 }
 
-// Load creates a new Config by loading defaults and overriding with environment variables
-func Load() (*Config, error) {
-	var cfg *Config
-
-	// Try to load from default config file if it exists
-	configPath, err := GetDefaultConfigPath()
-	if err == nil {
-		if _, err := os.Stat(configPath); err == nil {
-			// File exists, load from it
-			cfg, err = LoadFromFile(configPath)
-			if err != nil {
-				return nil, err
-			}
-		} else if !os.IsNotExist(err) {
-			// Some other error occurred while checking file
-			return nil, fmt.Errorf("failed to check config file: %w", err)
-		}
+// applyDefaults fills in zero-valued NEW config fields with their defaults
+// This is called after loading from YAML to ensure partial configs have sensible defaults
+// for newly added fields (Runtime, Memory, GRPC) that might not be in older YAML files.
+// We only apply defaults to these new fields to avoid breaking existing behavior.
+func applyDefaults(cfg *Config) {
+	// Runtime defaults - NEW field, may not exist in older YAML files
+	if cfg.Runtime.Type == "" {
+		cfg.Runtime = DefaultRuntimeConfig()
 	}
 
-	// If no config was loaded from file, use defaults
-	if cfg == nil {
-		cfg = &Config{
-			Docker:       DefaultDockerConfig(),
-			APIServer:    DefaultAPIServerConfig(),
-			Logging:      DefaultLoggingConfig(),
-			Session:      DefaultSessionConfig(),
-			Event:        DefaultEventConfig(),
-			IPC:          DefaultIPCConfig(),
-			Scheduler:    DefaultSchedulerConfig(),
-			Credentials:  DefaultCredentialsConfig(),
-			Policy:       DefaultPolicyConfig(),
-			Metrics:      DefaultMetricsConfig(),
-			Tracing:      DefaultTracingConfig(),
-			Orchestrator: DefaultOrchestratorConfig(),
-			Runtime:      DefaultRuntimeConfig(),
-      Memory:       DefaultMemoryConfig(),
-			GRPC:         DefaultGRPCConfig(),
-		}
+	// Memory defaults - NEW field, may not exist in older YAML files
+	// Only apply if completely empty (not explicitly configured)
+	if cfg.Memory.StoragePath == "" && !cfg.Memory.Enabled && cfg.Memory.MaxFileSize == 0 {
+		cfg.Memory = DefaultMemoryConfig()
 	}
 
+	// gRPC defaults - NEW field, may not exist in older YAML files
+	// Only apply if completely empty (not explicitly configured)
+	if cfg.GRPC.SocketPath == "" && cfg.GRPC.MaxRecvMsgSize == 0 && cfg.GRPC.Timeout == 0 {
+		cfg.GRPC = DefaultGRPCConfig()
+	}
+}
+
+// applyEnvOverrides applies environment variable overrides to the configuration.
+// This is used by both Load() and the config reloader.
+func applyEnvOverrides(cfg *Config) error {
 	// Load Docker configuration
 	if v := os.Getenv(EnvDockerHost); v != "" {
 		cfg.Docker.Host = v
@@ -378,7 +364,7 @@ func Load() (*Config, error) {
 		cfg.Memory.FileFormat = v
 	}
 
-  // Load gRPC configuration
+	// Load gRPC configuration
 	if v := os.Getenv(EnvGRPCSocketPath); v != "" {
 		cfg.GRPC.SocketPath = v
 	}
@@ -401,6 +387,54 @@ func Load() (*Config, error) {
 		if conns, err := strconv.Atoi(v); err == nil {
 			cfg.GRPC.MaxConnections = conns
 		}
+	}
+
+	return nil
+}
+
+// Load creates a new Config by loading defaults and overriding with environment variables
+func Load() (*Config, error) {
+	var cfg *Config
+
+	// Try to load from default config file if it exists
+	configPath, err := GetDefaultConfigPath()
+	if err == nil {
+		if _, err := os.Stat(configPath); err == nil {
+			// File exists, load from it
+			cfg, err = LoadFromFile(configPath)
+			if err != nil {
+				return nil, err
+			}
+		} else if !os.IsNotExist(err) {
+			// Some other error occurred while checking file
+			return nil, fmt.Errorf("failed to check config file: %w", err)
+		}
+	}
+
+	// If no config was loaded from file, use defaults
+	if cfg == nil {
+		cfg = &Config{
+			Docker:       DefaultDockerConfig(),
+			APIServer:    DefaultAPIServerConfig(),
+			Logging:      DefaultLoggingConfig(),
+			Session:      DefaultSessionConfig(),
+			Event:        DefaultEventConfig(),
+			IPC:          DefaultIPCConfig(),
+			Scheduler:    DefaultSchedulerConfig(),
+			Credentials:  DefaultCredentialsConfig(),
+			Policy:       DefaultPolicyConfig(),
+			Metrics:      DefaultMetricsConfig(),
+			Tracing:      DefaultTracingConfig(),
+			Orchestrator: DefaultOrchestratorConfig(),
+			Runtime:      DefaultRuntimeConfig(),
+      Memory:       DefaultMemoryConfig(),
+			GRPC:         DefaultGRPCConfig(),
+		}
+	}
+
+	// Apply environment variable overrides
+	if err := applyEnvOverrides(cfg); err != nil {
+		return nil, err
 	}
 
 	// Validate the configuration
@@ -608,7 +642,7 @@ func (c *Config) String() string {
 		c.Orchestrator.String(),
 		c.Runtime.String(),
 		c.Memory.String(),
-		c.GRPC.String()
+		c.GRPC.String(),
 	)
 }
 

@@ -234,15 +234,17 @@ func (m *Manager) CloseSession(ctx context.Context, sessionID types.ID) error {
 		return nil
 	}
 
-	// Transition to closing
-	if err := sessionWithSM.Close(); err != nil {
+	// Transition directly to closed state
+	// Note: We use ForceClose instead of Close to transition directly to "closed"
+	// rather than "closing", which is what users of the CloseSession API expect
+	if err := sessionWithSM.ForceClose(); err != nil {
 		return types.WrapError(types.ErrCodeInternal, "failed to close session", err)
 	}
 
 	session := sessionWithSM.Session()
-	session.Status = types.StatusStopping
+	session.Status = types.StatusStopped
 
-	m.logger.Info("Session closing", "session_id", sessionID)
+	m.logger.Info("Session closed", "session_id", sessionID)
 	return nil
 }
 
