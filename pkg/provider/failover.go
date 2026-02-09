@@ -135,7 +135,8 @@ func (fm *FailoverManager) IsProviderAvailable(providerID Provider) bool {
 
 	// Check if circuit is open
 	if !state.circuitOpenUntil.IsZero() {
-		if time.Now().Before(state.circuitOpenUntil) {
+		// Circuit is open only if the open time is strictly in the future
+		if state.circuitOpenUntil.After(time.Now()) {
 			// Circuit is still open
 			return false
 		}
@@ -165,7 +166,7 @@ func (fm *FailoverManager) ShouldAttemptProvider(providerID Provider) bool {
 	}
 
 	// If circuit is open and timeout hasn't expired, don't attempt
-	if !state.circuitOpenUntil.IsZero() && time.Now().Before(state.circuitOpenUntil) {
+	if !state.circuitOpenUntil.IsZero() && state.circuitOpenUntil.After(time.Now()) {
 		return false
 	}
 

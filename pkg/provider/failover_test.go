@@ -664,6 +664,25 @@ func TestRegistry_ProviderFailureTracking(t *testing.T) {
 	})
 
 	t.Run("check provider health", func(t *testing.T) {
+		// Create a new registry with proper circuit breaker timeout
+		cfg := RegistryConfig{
+			DefaultProvider:   ProviderAnthropic,
+			Providers:         map[Provider]ProviderConfig{},
+			FailoverEnabled:   true,
+			FailoverThreshold: 2,
+			CircuitBreakerTimeout: 100 * time.Millisecond, // Non-zero timeout
+		}
+		registry, err := NewRegistry(cfg, log)
+		require.NoError(t, err)
+
+		provider := &mockLLMProvider{
+			id:     ProviderAnthropic,
+			name:   "Test",
+			status: ProviderStatusAvailable,
+		}
+		err = registry.Register(ctx, provider)
+		require.NoError(t, err)
+
 		registry.RecordProviderFailure(ProviderAnthropic, "error")
 		registry.RecordProviderFailure(ProviderAnthropic, "error")
 
