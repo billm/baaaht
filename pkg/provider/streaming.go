@@ -153,12 +153,10 @@ type StreamingContext struct {
 
 // WithCancel returns a child context with a cancel function
 func (c *StreamingContext) WithCancel() (context.Context, context.CancelFunc) {
-	if c.CancelFunc != nil {
-		return context.WithCancel(context.Background())
-	}
-	return context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
+	c.CancelFunc = cancel
+	return ctx, cancel
 }
-
 // StreamingOptions configures streaming behavior
 type StreamingOptions struct {
 	// BufferSize is the size of the channel buffer for chunks
