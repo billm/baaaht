@@ -138,7 +138,26 @@ func (c *Creator) Create(ctx context.Context, cfg CreateConfig) (*CreateResult, 
 
 		// If not allowed, return error
 		if !result.Allowed {
-			return nil, types.NewError(types.ErrCodePermission, "container configuration violates policy")
+			// Build a concise summary of top violations for easier remediation
+			const maxViolationsInError = 3
+			var parts []string
+			for i, v := range result.Violations {
+				if i >= maxViolationsInError {
+					break
+				}
+				// Format: "rule (component): message"
+				part := fmt.Sprintf("%s (%s): %s", v.Rule, v.Component, v.Message)
+				parts = append(parts, part)
+			}
+			message := "container configuration violates policy"
+			if len(parts) > 0 {
+				detail := strings.Join(parts, "; ")
+				if len(result.Violations) > maxViolationsInError {
+					detail = detail + fmt.Sprintf(" (and %d more violation(s))", len(result.Violations)-maxViolationsInError)
+				}
+				message = message + ": " + detail
+			}
+			return nil, types.NewError(types.ErrCodePermission, message)
 		}
 	}
 
