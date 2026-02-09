@@ -1,0 +1,232 @@
+# Baaaht Policy Configuration
+# This file contains security policy rules and restrictions for containers.
+# Policies are enforced at container creation time based on the enforcement mode.
+#
+# Default configuration locations:
+# - Unix: ~/.config/baaaht/policies.yaml
+# - Custom path via policy.config_path in config.yaml
+#
+# Environment variable interpolation:
+# Use ${VAR_NAME} to reference environment variables
+# Use ${VAR_NAME:-default} to provide a default value
+
+# ============================================
+# Policy Metadata
+# ============================================
+# Unique identifier for this policy
+id: example-policy
+
+# Human-readable name for the policy
+name: Example Security Policy
+
+# Optional description of the policy
+description: Example policy with common security restrictions for container workloads
+
+# Enforcement mode: strict, permissive, or disabled
+# - strict: Enforce all policies and reject violations (default)
+# - permissive: Log violations but allow containers
+# - disabled: No policy enforcement
+mode: strict
+
+# Optional labels for policy organization (e.g., environment, team)
+labels:
+  environment: production
+  team: platform
+
+# ============================================
+# Resource Quotas
+# ============================================
+quotas:
+  # Maximum CPU limit per container (in nanoseconds)
+  # 1,000,000,000 = 1 CPU core, 4,000,000,000 = 4 CPU cores
+  # Default: (no limit)
+  max_cpus: 4000000000
+
+  # Minimum CPU guarantee per container (in nanoseconds)
+  # Default: (no minimum)
+  min_cpus: 250000000
+
+  # Maximum memory limit per container (in bytes)
+  # 1073741824 = 1GB, 8589934592 = 8GB, 17179869184 = 16GB
+  # Default: (no limit)
+  max_memory: 8589934592
+
+  # Minimum memory guarantee per container (in bytes)
+  # Default: (no minimum)
+  min_memory: 536870912
+
+  # Maximum memory swap limit per container (in bytes)
+  # 0 = disable swap, -1 = unlimited swap
+  # Default: (no limit)
+  max_memory_swap: 8589934592
+
+  # Maximum number of processes per container
+  # Default: (no limit)
+  max_pids: 1024
+
+# ============================================
+# Mount Policy
+# ============================================
+mounts:
+  # Allow bind mounts from the host filesystem
+  # Bind mounts can expose sensitive host data to containers
+  # Default: false
+  allow_bind_mounts: false
+
+  # Allowed bind mount source paths (supports wildcards)
+  # Empty list = all paths allowed (when allow_bind_mounts is true)
+  # Examples: /data/*, /tmp/app-*
+  allowed_bind_sources:
+    - /data/shared/*
+    - /tmp/work/*
+
+  # Denied bind mount source paths (takes precedence over allowed)
+  # Use to block sensitive paths even if allowed_bind_sources is permissive
+  # Examples: /etc/*, /var/secrets/*
+  denied_bind_sources:
+    - /etc/*
+    - /root/*
+    - /home/*/.ssh/*
+    - /var/secrets/*
+
+  # Allow Docker volume mounts
+  # Default: true
+  allow_volumes: true
+
+  # Allowed volume names/patterns (supports wildcards)
+  # Empty list = all volumes allowed (when allow_volumes is true)
+  allowed_volumes:
+    - app-data-*
+    - cache-*
+
+  # Denied volume names/patterns (takes precedence)
+  denied_volumes:
+    - secret-*
+    - sensitive-*
+
+  # Allow tmpfs mounts
+  # Default: true
+  allow_tmpfs: true
+
+  # Maximum tmpfs size per container (in bytes)
+  # 268435456 = 256MB, 536870912 = 512MB
+  # Default: (no limit)
+  max_tmpfs_size: 268435456
+
+  # Enforce read-only root filesystem
+  # When true, all containers must have read-only root filesystems
+  # Default: false
+  enforce_read_only_rootfs: false
+
+# ============================================
+# Network Policy
+# ============================================
+network:
+  # Allow network access from containers
+  # Default: true
+  allow_network: true
+
+  # Allowed network destinations (CIDR notation)
+  # Empty list = all networks allowed (when allow_network is true)
+  # Examples: 10.0.0.0/8, 192.168.1.0/24
+  allowed_networks:
+    - 10.0.0.0/8
+    - 172.16.0.0/12
+    - 192.168.0.0/16
+
+  # Denied network destinations (takes precedence over allowed)
+  # Examples: 0.0.0.0/0 (deny all), 10.0.0.0/8 (deny specific range)
+  denied_networks:
+    - 0.0.0.0/0  # Deny internet access, use proxy instead
+
+  # Allow host networking mode
+  # When true, containers can share the host's network namespace
+  # Default: false
+  allow_host_network: false
+
+# ============================================
+# Image Policy
+# ============================================
+images:
+  # Allowed container image patterns (supports wildcards)
+  # Examples: docker.io/library/*, registry.example.com/app:*
+  # Empty list = all images allowed
+  allowed_images:
+    - docker.io/library/*
+    - docker.io/nginx:*
+    - registry.example.com/apps/*
+
+  # Denied container image patterns (takes precedence)
+  denied_images:
+    - docker.io/library/suspect-image:*
+
+  # Require image digest pinning
+  # When true, images must be referenced by digest (e.g., @sha256:...)
+  # This ensures immutable image references
+  # Default: false
+  require_digest: false
+
+  # Allow using the 'latest' tag
+  # The 'latest' tag is mutable and can lead to unexpected updates
+  # Default: false
+  allow_latest_tag: false
+
+# ============================================
+# Security Policy
+# ============================================
+security:
+  # Allow privileged containers
+  # Privileged containers have almost unrestricted access to host resources
+  # Default: false
+  allow_privileged: false
+
+  # Allowed Linux capabilities (empty = use Docker default)
+  # Examples: CAP_NET_BIND_SERVICE, CAP_CHOWN
+  # See man 7 capabilities for full list
+  allowed_capabilities:
+    - CAP_NET_BIND_SERVICE
+    - CAP_CHOWN
+    - CAP_SETUID
+    - CAP_SETGID
+
+  # Add required capabilities to all containers
+  # These capabilities will be added even if not requested
+  add_capabilities: []
+
+  # Drop capabilities from all containers
+  # These capabilities will be removed from all containers
+  # Recommended: drop all capabilities and only add what's needed
+  drop_capabilities:
+    - CAP_AUDIT_WRITE
+    - CAP_AUDIT_CONTROL
+    - CAP_NET_RAW
+    - CAP_SYS_ADMIN
+
+  # Allow running as root user
+  # Default: false
+  allow_root: false
+
+  # Require non-root user
+  # When true, containers must run as a non-root user
+  # Default: false
+  require_non_root: true
+
+  # Allowed user IDs (UIDs)
+  # Empty list = any non-root UID allowed
+  allowed_uids:
+    - 1000
+    - 1001
+    - 2000
+
+  # Allowed group IDs (GIDs)
+  # Empty list = any GID allowed
+  allowed_gids:
+    - 1000
+    - 1001
+    - 2000
+
+  # Enforce read-only root filesystem
+  # When true, all containers must have read-only root filesystems
+  # This prevents container images from being modified at runtime
+  # Default: false
+  read_only_rootfs: false
