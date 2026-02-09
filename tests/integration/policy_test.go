@@ -371,13 +371,16 @@ images:
 	t.Logf("Container created in permissive mode: %s", createResult.ContainerID)
 
 	// Cleanup
-	lifecycleMgr, _ := container.NewLifecycleManager(dockerClient, log)
-	_ = lifecycleMgr.Destroy(ctx, container.DestroyConfig{
+	lifecycleMgr, err := container.NewLifecycleManager(dockerClient, log)
+	require.NoError(t, err, "Failed to create lifecycle manager")
+	require.NotNil(t, lifecycleMgr, "Lifecycle manager should not be nil")
+	err = lifecycleMgr.Destroy(ctx, container.DestroyConfig{
 		ContainerID:   createResult.ContainerID,
 		Name:          containerName,
 		Force:         true,
 		RemoveVolumes: true,
 	})
+	require.NoError(t, err, "Failed to destroy container")
 
 	t.Log("Permissive mode test passed")
 }
@@ -640,13 +643,20 @@ images:
 
 	// Cleanup container
 	defer func() {
-		lifecycleMgr, _ := container.NewLifecycleManager(dockerClient, log)
-		_ = lifecycleMgr.Destroy(ctx, container.DestroyConfig{
+		lifecycleMgr, err := container.NewLifecycleManager(dockerClient, log)
+		if err != nil {
+			t.Logf("Failed to create lifecycle manager for cleanup: %v", err)
+			return
+		}
+		err = lifecycleMgr.Destroy(ctx, container.DestroyConfig{
 			ContainerID:   createResult1.ContainerID,
 			Name:          containerName1,
 			Force:         true,
 			RemoveVolumes: true,
 		})
+		if err != nil {
+			t.Logf("Failed to destroy container during cleanup: %v", err)
+		}
 	}()
 
 	// Step 6: Modify policy YAML file (disallow latest tag)
