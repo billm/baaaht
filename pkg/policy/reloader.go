@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/signal"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/billm/baaaht/orchestrator/internal/logger"
@@ -76,8 +75,8 @@ func (r *Reloader) Start() {
 		r.state = ReloadStateIdle
 	}
 
-	// Register signal handler for SIGHUP
-	signal.Notify(r.signalChan, syscall.SIGHUP)
+	// Register signal handler (platform-specific)
+	r.setupSignalHandler()
 
 	r.started = true
 	r.logger.Info("Policy reloader started", "policy_path", r.policyPath)
