@@ -212,13 +212,13 @@ func (a *TokenAccount) GetSummary() *UsageSummary {
 	defer a.mu.RUnlock()
 
 	return &UsageSummary{
-		Provider:            a.Provider,
-		Model:              a.Model,
-		StartTime:          a.StartTime,
-		LastRequestTime:    a.LastRequestTime,
-		TotalUsage:        a.TotalUsage,
-		RequestCount:      a.RequestCount,
-		AverageTokensPerRequest: 0,
+		Provider:               a.Provider,
+		Model:                  a.Model,
+		StartTime:              a.StartTime,
+		LastRequestTime:        a.LastRequestTime,
+		TotalUsage:             a.TotalUsage,
+		RequestCount:           a.RequestCount,
+		AverageTokensPerRequest: a.GetAverageTokensPerRequest(),
 	}
 }
 
