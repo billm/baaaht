@@ -147,6 +147,7 @@ func runOrchestrator(cmd *cobra.Command, args []string) error {
 	// Convert Anthropic configuration
 	anthropicCfg := provider.ProviderConfig{
 		Provider:   provider.ProviderAnthropic,
+		APIKey:     os.Getenv("ANTHROPIC_API_KEY"),
 		BaseURL:    cfg.Provider.Anthropic.BaseURL,
 		Timeout:    cfg.Provider.Anthropic.Timeout,
 		MaxRetries: cfg.Provider.Anthropic.MaxRetries,
@@ -181,6 +182,7 @@ func runOrchestrator(cmd *cobra.Command, args []string) error {
 	// Convert OpenAI configuration
 	openaiCfg := provider.ProviderConfig{
 		Provider:   provider.ProviderOpenAI,
+		APIKey:     os.Getenv("OPENAI_API_KEY"),
 		BaseURL:    cfg.Provider.OpenAI.BaseURL,
 		Timeout:    cfg.Provider.OpenAI.Timeout,
 		MaxRetries: cfg.Provider.OpenAI.MaxRetries,

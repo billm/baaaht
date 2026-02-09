@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -641,7 +642,7 @@ func (s *FailoverState) String() string {
 		return s.Provider.String() + " [CIRCUIT OPEN]"
 	}
 	if s.ConsecutiveFailures > 0 {
-		return s.Provider.String() + " [" + string(rune('0'+s.ConsecutiveFailures)) + " failures]"
+		return fmt.Sprintf("%s [%d failures]", s.Provider.String(), s.ConsecutiveFailures)
 	}
 	return s.Provider.String() + " [healthy]"
 }
