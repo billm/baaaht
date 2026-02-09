@@ -2,7 +2,6 @@ package integration
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 	"time"
 
