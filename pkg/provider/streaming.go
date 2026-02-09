@@ -197,12 +197,10 @@ func (o *StreamingOptions) Merge(other *StreamingOptions) *StreamingOptions {
 	if other.Callback != nil {
 		result.Callback = other.Callback
 	}
-	if other.IncludeUsage {
-		result.IncludeUsage = other.IncludeUsage
-	}
-	if other.IncludeRaw {
-		result.IncludeRaw = other.IncludeRaw
-	}
+	// Always respect the override values for IncludeUsage and IncludeRaw,
+	// even when they are explicitly set to false.
+	result.IncludeUsage = other.IncludeUsage
+	result.IncludeRaw = other.IncludeRaw
 	if len(other.Middleware) > 0 {
 		result.Middleware = append(result.Middleware, other.Middleware...)
 	}
