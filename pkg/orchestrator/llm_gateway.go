@@ -33,6 +33,14 @@ type LLMGatewayManager struct {
 	lifecycle *container.LifecycleManager
 	monitor   *container.Monitor
 	creator   *container.Creator
+
+	// Health monitoring
+	healthCheckInterval time.Duration
+	healthCheckCtx      context.Context
+	healthCheckCancel   context.CancelFunc
+	healthCheckDone     chan struct{}
+	consecutiveFailures int
+	maxConsecutiveFailures int
 }
 
 // NewLLMGatewayManager creates a new LLM Gateway manager.
@@ -74,16 +82,25 @@ func NewLLMGatewayManager(
 		return nil, types.WrapError(types.ErrCodeInternal, "failed to create creator", err)
 	}
 
+	// Health check context for cancellation
+	healthCtx, healthCancel := context.WithCancel(context.Background())
+
 	return &LLMGatewayManager{
-		runtime:   runtime,
-		config:    cfg,
-		credStore: credStore,
-		logger:    log.With("component", "llm_gateway_manager"),
-		lifecycle: lifecycle,
-		monitor:   monitor,
-		creator:   creator,
-		started:   false,
-		closed:    false,
+		runtime:               runtime,
+		config:                cfg,
+		credStore:             credStore,
+		logger:                log.With("component", "llm_gateway_manager"),
+		lifecycle:             lifecycle,
+		monitor:               monitor,
+		creator:               creator,
+		started:               false,
+		closed:                false,
+		healthCheckInterval:   30 * time.Second,
+		healthCheckCtx:        healthCtx,
+		healthCheckCancel:     healthCancel,
+		healthCheckDone:       make(chan struct{}),
+		consecutiveFailures:   0,
+		maxConsecutiveFailures: 3,
 	}, nil
 }
 
@@ -158,6 +175,9 @@ func (m *LLMGatewayManager) Start(ctx context.Context) error {
 	m.logger.Info("LLM Gateway started successfully",
 		"container_id", m.containerID)
 
+	// Start background health monitoring
+	go m.healthMonitorLoop()
+
 	return nil
 }
 
@@ -173,6 +193,17 @@ func (m *LLMGatewayManager) Stop(ctx context.Context) error {
 
 	m.logger.Info("Stopping LLM Gateway", "container_id", m.containerID)
 
+	// Stop health monitoring goroutine
+	m.healthCheckCancel()
+	select {
+	case <-m.healthCheckDone:
+		m.logger.Debug("Health monitoring stopped")
+	case <-time.After(5 * time.Second):
+		m.logger.Warn("Health monitoring did not stop gracefully")
+	case <-ctx.Done():
+		m.logger.Warn("Health monitoring stop canceled")
+	}
+
 	timeout := 30 * time.Second
 	stopCfg := container.StopConfig{
 		ContainerID: m.containerID,
@@ -185,6 +216,7 @@ func (m *LLMGatewayManager) Stop(ctx context.Context) error {
 	}
 
 	m.started = false
+	m.consecutiveFailures = 0
 	m.logger.Info("LLM Gateway stopped successfully")
 
 	return nil
@@ -295,6 +327,15 @@ func (m *LLMGatewayManager) Close() error {
 
 	m.logger.Info("Closing LLM Gateway manager")
 
+	// Stop health monitoring
+	m.healthCheckCancel()
+	select {
+	case <-m.healthCheckDone:
+		m.logger.Debug("Health monitoring stopped during close")
+	case <-time.After(2 * time.Second):
+		m.logger.Warn("Health monitoring did not stop gracefully during close")
+	}
+
 	// Stop the container if it's running
 	if m.started && m.containerID != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -310,6 +351,7 @@ func (m *LLMGatewayManager) Close() error {
 	m.closed = true
 	m.started = false
 	m.containerID = ""
+	m.consecutiveFailures = 0
 
 	m.logger.Info("LLM Gateway manager closed")
 
@@ -496,6 +538,156 @@ func (m *LLMGatewayManager) stopInternal(ctx context.Context) error {
 
 	m.started = false
 	return nil
+}
+
+// healthMonitorLoop runs a background goroutine that monitors the LLM Gateway health.
+// On unhealthy detection, it attempts to restart the container with exponential backoff.
+func (m *LLMGatewayManager) healthMonitorLoop() {
+	defer close(m.healthCheckDone)
+
+	ticker := time.NewTicker(m.healthCheckInterval)
+	defer ticker.Stop()
+
+	m.logger.Info("Starting health monitoring",
+		"interval", m.healthCheckInterval,
+		"max_failures", m.maxConsecutiveFailures)
+
+	for {
+		select {
+		case <-m.healthCheckCtx.Done():
+			m.logger.Info("Health monitoring stopped")
+			return
+
+		case <-ticker.C:
+			m.performHealthCheck()
+		}
+	}
+}
+
+// performHealthCheck performs a single health check and handles failures.
+func (m *LLMGatewayManager) performHealthCheck() {
+	m.mu.RLock()
+	containerID := m.containerID
+	started := m.started
+	m.mu.RUnlock()
+
+	if !started || containerID == "" {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(m.healthCheckCtx, 10*time.Second)
+	defer cancel()
+
+	result, err := m.monitor.HealthCheck(ctx, containerID)
+	if err != nil {
+		m.mu.Lock()
+		m.consecutiveFailures++
+		m.logger.Warn("Health check failed",
+			"container_id", containerID,
+			"error", err,
+			"consecutive_failures", m.consecutiveFailures)
+
+		// Attempt restart if we haven't exceeded max failures
+		if m.consecutiveFailures >= m.maxConsecutiveFailures {
+			m.logger.Error("LLM Gateway unhealthy, attempting auto-restart",
+				"container_id", containerID,
+				"consecutive_failures", m.consecutiveFailures)
+			m.mu.Unlock()
+
+			m.attemptAutoRestart()
+		} else {
+			m.mu.Unlock()
+		}
+		return
+	}
+
+	// Reset consecutive failures on successful health check
+	if result.Status == types.Healthy {
+		m.mu.Lock()
+		if m.consecutiveFailures > 0 {
+			m.logger.Info("LLM Gateway health restored",
+				"container_id", containerID,
+				"previous_failures", m.consecutiveFailures)
+			m.consecutiveFailures = 0
+		}
+		m.mu.Unlock()
+
+		m.logger.Debug("LLM Gateway is healthy",
+			"container_id", containerID)
+	} else if result.Status == types.Unhealthy {
+		m.mu.Lock()
+		m.consecutiveFailures++
+		m.logger.Warn("LLM Gateway is unhealthy",
+			"container_id", containerID,
+			"failing_streak", result.FailingStreak,
+			"consecutive_failures", m.consecutiveFailures,
+			"last_output", result.LastOutput)
+
+		// Attempt restart if we haven't exceeded max failures
+		if m.consecutiveFailures >= m.maxConsecutiveFailures {
+			m.logger.Error("LLM Gateway unhealthy, attempting auto-restart",
+				"container_id", containerID,
+				"consecutive_failures", m.consecutiveFailures)
+			m.mu.Unlock()
+
+			m.attemptAutoRestart()
+		} else {
+			m.mu.Unlock()
+		}
+	}
+}
+
+// attemptAutoRestart attempts to restart the LLM Gateway container.
+// Uses exponential backoff for restart attempts.
+func (m *LLMGatewayManager) attemptAutoRestart() {
+	m.mu.Lock()
+
+	// Check if we're still in a state where restart is needed
+	if !m.started || m.closed {
+		m.mu.Unlock()
+		return
+	}
+
+	// Calculate backoff time based on consecutive failures
+	backoffTime := time.Duration(1<<uint(m.consecutiveFailures)) * time.Second
+	if backoffTime > 60*time.Second {
+		backoffTime = 60 * time.Second
+	}
+
+	containerID := m.containerID
+	m.mu.Unlock()
+
+	m.logger.Info("Attempting auto-restart with exponential backoff",
+		"container_id", containerID,
+		"backoff", backoffTime)
+
+	// Wait for backoff period
+	select {
+	case <-time.After(backoffTime):
+	case <-m.healthCheckCtx.Done():
+		m.logger.Info("Auto-restart canceled")
+		return
+	}
+
+	// Attempt restart
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+
+	if err := m.Restart(ctx); err != nil {
+		m.logger.Error("Auto-restart failed",
+			"container_id", containerID,
+			"error", err)
+		// Don't increment failures here - the next health check will handle it
+		return
+	}
+
+	// Reset consecutive failures on successful restart
+	m.mu.Lock()
+	m.consecutiveFailures = 0
+	m.mu.Unlock()
+
+	m.logger.Info("Auto-restart succeeded",
+		"container_id", containerID)
 }
 
 // String returns a string representation of the LLM Gateway manager.
