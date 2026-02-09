@@ -487,13 +487,17 @@ images:
 	t.Logf("Container created in disabled mode: %s", createResult.ContainerID)
 
 	// Cleanup
-	lifecycleMgr, _ := container.NewLifecycleManager(dockerClient, log)
-	_ = lifecycleMgr.Destroy(ctx, container.DestroyConfig{
+	lifecycleMgr, err := container.NewLifecycleManager(dockerClient, log)
+	require.NoError(t, err, "Failed to create lifecycle manager")
+	require.NotNil(t, lifecycleMgr, "Lifecycle manager should not be nil")
+
+	err = lifecycleMgr.Destroy(ctx, container.DestroyConfig{
 		ContainerID:   createResult.ContainerID,
 		Name:          containerName,
 		Force:         true,
 		RemoveVolumes: true,
 	})
+	require.NoError(t, err, "Failed to destroy container")
 
 	t.Log("Disabled mode test passed")
 }
