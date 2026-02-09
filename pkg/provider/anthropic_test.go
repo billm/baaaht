@@ -3,9 +3,13 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/billm/baaaht/orchestrator/internal/logger"
 	"github.com/stretchr/testify/assert"
@@ -223,8 +227,8 @@ func TestAnthropicProvider_ModelInfo(t *testing.T) {
 				assert.Equal(t, ProviderAnthropic, info.Provider)
 				assert.NotEmpty(t, info.Name)
 				assert.Greater(t, info.ContextSize, 0)
-				// Streaming will be true after subtask-2-2
-				assert.False(t, info.Capabilities.Streaming)
+				// Streaming is now implemented
+				assert.True(t, info.Capabilities.Streaming)
 			}
 		})
 	}
@@ -539,8 +543,82 @@ func TestAnthropicProvider_Complete_ValidationErrors(t *testing.T) {
 	}
 }
 
-func TestAnthropicProvider_CompleteStream_NotImplemented(t *testing.T) {
-	provider := createTestAnthropicProvider(t)
+func TestAnthropicProvider_CompleteStream_Success(t *testing.T) {
+	// Track received chunks
+	var receivedChunks []*CompletionChunk
+	streamEnded := make(chan bool, 1)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Verify request
+		assert.Equal(t, "POST", r.Method)
+		assert.Equal(t, "/v1/messages", r.URL.Path)
+		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
+		assert.Equal(t, "2023-06-01", r.Header.Get("anthropic-version"))
+		assert.Equal(t, "test-api-key", r.Header.Get("x-api-key"))
+
+		// Parse request body
+		var req anthropicMessageRequest
+		err := json.NewDecoder(r.Body).Decode(&req)
+		assert.NoError(t, err)
+		assert.True(t, req.Stream) // Streaming must be enabled
+
+		// Set SSE headers
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
+
+		// Flush headers
+		fflush(w)
+
+		// Send SSE events with flush after each
+		fmt.Fprintln(w, "event: message_start")
+		fmt.Fprintln(w, "data: {\"type\":\"message_start\",\"message\":{\"id\":\"msg-123\",\"type\":\"message\",\"role\":\"assistant\"}}")
+		fmt.Fprintln(w)
+		fflush(w)
+
+		fmt.Fprintln(w, "event: content_block_start")
+		fmt.Fprintln(w, "data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}")
+		fmt.Fprintln(w)
+		fflush(w)
+
+		fmt.Fprintln(w, "event: content_block_delta")
+		fmt.Fprintln(w, "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"Hello\"}}")
+		fmt.Fprintln(w)
+		fflush(w)
+
+		fmt.Fprintln(w, "event: content_block_delta")
+		fmt.Fprintln(w, "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"!\"}}")
+		fmt.Fprintln(w)
+		fflush(w)
+
+		fmt.Fprintln(w, "event: content_block_stop")
+		fmt.Fprintln(w, "data: {\"type\":\"content_block_stop\",\"index\":0}")
+		fmt.Fprintln(w)
+		fflush(w)
+
+		fmt.Fprintln(w, "event: message_delta")
+		fmt.Fprintln(w, "data: {\"type\":\"message_delta\",\"delta\":{\"type\":\"stop_reason\",\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":2}}")
+		fmt.Fprintln(w)
+		fflush(w)
+
+		fmt.Fprintln(w, "event: message_stop")
+		fmt.Fprintln(w, "data: {\"type\":\"message_stop\"}")
+		fmt.Fprintln(w)
+		fflush(w)
+	}))
+	defer server.Close()
+
+	config := ProviderConfig{
+		Provider: ProviderAnthropic,
+		APIKey:   "test-api-key",
+		BaseURL:  server.URL,
+		Timeout:  60,
+	}
+	log, err := logger.NewDefault()
+	require.NoError(t, err)
+
+	provider, err := NewAnthropicProvider(config, log)
+	require.NoError(t, err)
 
 	req := &CompletionRequest{
 		Model: ModelClaude3_5Sonnet,
@@ -550,10 +628,239 @@ func TestAnthropicProvider_CompleteStream_NotImplemented(t *testing.T) {
 		MaxTokens: 100,
 	}
 
-	chunk, err := provider.CompleteStream(context.Background(), req)
+	chunkChan, err := provider.CompleteStream(context.Background(), req)
+	assert.NoError(t, err)
+	assert.NotNil(t, chunkChan)
+
+	// Collect chunks in a goroutine
+	go func() {
+		for chunk := range chunkChan {
+			receivedChunks = append(receivedChunks, chunk)
+			if chunk.Done || chunk.Error != nil {
+				streamEnded <- true
+			}
+		}
+	}()
+
+	// Wait for stream to complete
+	select {
+	case <-streamEnded:
+		// Give a small delay to ensure all chunks are received
+		time.Sleep(10 * time.Millisecond)
+	case <-time.After(5 * time.Second):
+		t.Fatal("Stream did not complete within timeout")
+	}
+
+	// Check for errors
+	for _, chunk := range receivedChunks {
+		if chunk.Error != nil {
+			t.Fatalf("Received error chunk: %v", chunk.Error)
+		}
+	}
+
+	// Verify we received chunks
+	assert.Greater(t, len(receivedChunks), 0, "Should receive at least one chunk")
+
+	// Verify final chunk
+	finalChunk := receivedChunks[len(receivedChunks)-1]
+	assert.Equal(t, "msg-123", finalChunk.ID)
+	assert.Equal(t, ModelClaude3_5Sonnet, finalChunk.Model)
+	assert.Equal(t, ProviderAnthropic, finalChunk.Provider)
+	assert.Equal(t, "Hello!", finalChunk.Content)
+	assert.True(t, finalChunk.Done)
+	assert.NotNil(t, finalChunk.StopReason, "StopReason should not be nil")
+	assert.Equal(t, StopReasonEndTurn, *finalChunk.StopReason)
+	assert.NotNil(t, finalChunk.Usage)
+	assert.Equal(t, 2, finalChunk.Usage.OutputTokens)
+}
+
+func TestAnthropicProvider_CompleteStream_ContentDeltas(t *testing.T) {
+	var receivedChunks []*CompletionChunk
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
+
+		// Send events
+		fmt.Fprintln(w, "event: message_start")
+		fmt.Fprintln(w, "data: {\"type\":\"message_start\",\"message\":{\"id\":\"msg-456\",\"type\":\"message\",\"role\":\"assistant\"}}")
+		fmt.Fprintln(w)
+
+		fmt.Fprintln(w, "event: content_block_start")
+		fmt.Fprintln(w, "data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}")
+		fmt.Fprintln(w)
+
+		// Send multiple text deltas
+		fmt.Fprintln(w, "event: content_block_delta")
+		fmt.Fprintln(w, "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"The\"}}")
+		fmt.Fprintln(w)
+
+		fmt.Fprintln(w, "event: content_block_delta")
+		fmt.Fprintln(w, "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\" answer\"}}")
+		fmt.Fprintln(w)
+
+		fmt.Fprintln(w, "event: content_block_delta")
+		fmt.Fprintln(w, "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\" is 42\"}}")
+		fmt.Fprintln(w)
+
+		fmt.Fprintln(w, "event: content_block_stop")
+		fmt.Fprintln(w, "data: {\"type\":\"content_block_stop\",\"index\":0}")
+		fmt.Fprintln(w)
+
+		fmt.Fprintln(w, "event: message_delta")
+		fmt.Fprintln(w, "data: {\"type\":\"message_delta\",\"delta\":{\"type\":\"stop_reason\",\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":4}}")
+		fmt.Fprintln(w)
+
+		fmt.Fprintln(w, "event: message_stop")
+		fmt.Fprintln(w, "data: {\"type\":\"message_stop\"}")
+		fmt.Fprintln(w)
+
+		fflush(w)
+	}))
+	defer server.Close()
+
+	config := ProviderConfig{
+		Provider: ProviderAnthropic,
+		APIKey:   "test-api-key",
+		BaseURL:  server.URL,
+		Timeout:  60,
+	}
+	log, err := logger.NewDefault()
+	require.NoError(t, err)
+
+	provider, err := NewAnthropicProvider(config, log)
+	require.NoError(t, err)
+
+	req := &CompletionRequest{
+		Model: ModelClaude3_5Sonnet,
+		Messages: []Message{
+			{Role: MessageRoleUser, Content: "What is the answer?"},
+		},
+		MaxTokens: 100,
+	}
+
+	chunkChan, err := provider.CompleteStream(context.Background(), req)
+	require.NoError(t, err)
+
+	// Collect all chunks
+	for chunk := range chunkChan {
+		receivedChunks = append(receivedChunks, chunk)
+		if chunk.Done {
+			break
+		}
+	}
+
+	// Verify we got the right number of chunks (3 deltas + final)
+	assert.Equal(t, 4, len(receivedChunks))
+
+	// Verify deltas
+	assert.Equal(t, "The", receivedChunks[0].Delta)
+	assert.Equal(t, " answer", receivedChunks[1].Delta)
+	assert.Equal(t, " is 42", receivedChunks[2].Delta)
+
+	// Verify accumulated content
+	assert.Equal(t, "The", receivedChunks[0].Content)
+	assert.Equal(t, "The answer", receivedChunks[1].Content)
+	assert.Equal(t, "The answer is 42", receivedChunks[2].Content)
+	assert.Equal(t, "The answer is 42", receivedChunks[3].Content)
+
+	// Verify final chunk
+	assert.True(t, receivedChunks[3].Done)
+	assert.Equal(t, "The answer is 42", receivedChunks[3].Content)
+}
+
+func TestAnthropicProvider_CompleteStream_ValidationError(t *testing.T) {
+	provider := createTestAnthropicProvider(t)
+
+	req := &CompletionRequest{
+		Model:     ModelGPT4o, // Unsupported model
+		Messages:  []Message{{Role: MessageRoleUser, Content: "Hello"}},
+		MaxTokens: 100,
+	}
+
+	chunkChan, err := provider.CompleteStream(context.Background(), req)
 	assert.Error(t, err)
-	assert.Nil(t, chunk)
-	assert.Contains(t, err.Error(), "streaming not yet implemented")
+	assert.Nil(t, chunkChan)
+	assert.Contains(t, err.Error(), "not supported")
+}
+
+func TestAnthropicProvider_CompleteStream_ClosedProvider(t *testing.T) {
+	provider := createTestAnthropicProvider(t)
+	provider.Close()
+
+	req := &CompletionRequest{
+		Model:     ModelClaude3_5Sonnet,
+		Messages:  []Message{{Role: MessageRoleUser, Content: "Hello"}},
+		MaxTokens: 100,
+	}
+
+	chunkChan, err := provider.CompleteStream(context.Background(), req)
+	assert.Error(t, err)
+	assert.Nil(t, chunkChan)
+	assert.Contains(t, err.Error(), "provider is closed")
+}
+
+func TestAnthropicProvider_CompleteStream_ContextCancellation(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
+
+		// Send initial events
+		fmt.Fprintln(w, "event: message_start")
+		fmt.Fprintln(w, "data: {\"type\":\"message_start\",\"message\":{\"id\":\"msg-789\",\"type\":\"message\",\"role\":\"assistant\"}}")
+		fmt.Fprintln(w)
+		fflush(w)
+
+		// Wait before sending more (will be cancelled)
+		time.Sleep(200 * time.Millisecond)
+	}))
+	defer server.Close()
+
+	config := ProviderConfig{
+		Provider: ProviderAnthropic,
+		APIKey:   "test-api-key",
+		BaseURL:  server.URL,
+		Timeout:  60,
+	}
+	log, err := logger.NewDefault()
+	require.NoError(t, err)
+
+	provider, err := NewAnthropicProvider(config, log)
+	require.NoError(t, err)
+
+	req := &CompletionRequest{
+		Model: ModelClaude3_5Sonnet,
+		Messages: []Message{
+			{Role: MessageRoleUser, Content: "Hello"},
+		},
+		MaxTokens: 100,
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	chunkChan, err := provider.CompleteStream(ctx, req)
+	require.NoError(t, err)
+
+	// Cancel context immediately
+	cancel()
+
+	// Should receive an error chunk
+	for chunk := range chunkChan {
+		if chunk.Error != nil {
+			assert.Equal(t, context.Canceled, chunk.Error)
+			return
+		}
+	}
+
+	t.Error("Expected to receive error chunk after context cancellation")
+}
+
+// fflush flushes the response writer
+func fflush(w http.ResponseWriter) {
+	if f, ok := w.(http.Flusher); ok {
+		f.Flush()
+	}
 }
 
 func TestAnthropicProvider_Close(t *testing.T) {
@@ -607,6 +914,139 @@ func TestMapStopReason(t *testing.T) {
 			assert.Equal(t, tt.want, mapStopReason(tt.reason))
 		})
 	}
+}
+
+func TestAnthropicSSEReader_ParseEvents(t *testing.T) {
+	tests := []struct {
+		name       string
+		input      string
+		wantEvents int
+		wantTypes  []string
+	}{
+		{
+			name: "message_start event",
+			input: "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg-123\",\"type\":\"message\"}}\n\n",
+			wantEvents: 1,
+			wantTypes:  []string{"message_start"},
+		},
+		{
+			name: "content_block_delta event",
+			input: "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"Hello\"}}\n\n",
+			wantEvents: 1,
+			wantTypes:  []string{"content_block_delta"},
+		},
+		{
+			name: "multiple events",
+			input: `event: message_start
+data: {"type":"message_start","message":{"id":"msg-123"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello"}}
+
+event: message_stop
+data: {"type":"message_stop"}
+`,
+			wantEvents: 3,
+			wantTypes:  []string{"message_start", "content_block_delta", "message_stop"},
+		},
+		{
+			name: "ping event",
+			input: "event: ping\ndata: {}\n\n",
+			wantEvents: 1,
+			wantTypes:  []string{"ping"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reader := newAnthropicSSEReader(strings.NewReader(tt.input))
+
+			events := []string{}
+			for i := 0; i < tt.wantEvents; i++ {
+				event, err := reader.NextEvent()
+				assert.NoError(t, err)
+				assert.NotNil(t, event)
+				events = append(events, event.Type)
+			}
+
+			// Should return EOF after all events
+			_, err := reader.NextEvent()
+			assert.Equal(t, io.EOF, err)
+
+			assert.Equal(t, tt.wantTypes, events)
+		})
+	}
+}
+
+func TestAnthropicSSEReader_ComplexStream(t *testing.T) {
+	// Simulate a real streaming response
+	input := `event: message_start
+data: {"type":"message_start","message":{"id":"msg-123","type":"message","role":"assistant","model":"claude-3-5-sonnet-20241022"}}
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello"}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" world"}}
+
+event: content_block_stop
+data: {"type":"content_block_stop","index":0}
+
+event: message_delta
+data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":2}}
+
+event: message_stop
+data: {"type":"message_stop"}
+`
+
+	reader := newAnthropicSSEReader(strings.NewReader(input))
+
+	events := []*anthropicStreamEvent{}
+	for {
+		event, err := reader.NextEvent()
+		if err == io.EOF {
+			break
+		}
+		assert.NoError(t, err)
+		events = append(events, event)
+	}
+
+	// Verify all events were parsed
+	assert.Equal(t, 7, len(events))
+
+	// Verify message_start
+	assert.Equal(t, "message_start", events[0].Type)
+	assert.NotNil(t, events[0].MessageStart)
+	assert.Equal(t, "msg-123", events[0].MessageStart.Message.ID)
+
+	// Verify content_block_start
+	assert.Equal(t, "content_block_start", events[1].Type)
+	assert.NotNil(t, events[1].ContentBlockStart)
+
+	// Verify first delta
+	assert.Equal(t, "content_block_delta", events[2].Type)
+	assert.NotNil(t, events[2].ContentBlockDelta)
+	assert.Equal(t, "Hello", events[2].ContentBlockDelta.Delta.Text)
+
+	// Verify second delta
+	assert.Equal(t, "content_block_delta", events[3].Type)
+	assert.Equal(t, " world", events[3].ContentBlockDelta.Delta.Text)
+
+	// Verify content_block_stop
+	assert.Equal(t, "content_block_stop", events[4].Type)
+
+	// Verify message_delta
+	assert.Equal(t, "message_delta", events[5].Type)
+	assert.NotNil(t, events[5].MessageDelta)
+	assert.Equal(t, "end_turn", events[5].MessageDelta.Delta.StopReason)
+	assert.NotNil(t, events[5].MessageDelta.Usage)
+	assert.Equal(t, 2, events[5].MessageDelta.Usage.OutputTokens)
+
+	// Verify message_stop
+	assert.Equal(t, "message_stop", events[6].Type)
 }
 
 // Helper functions

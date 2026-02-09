@@ -1,12 +1,14 @@
 package provider
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -200,8 +202,242 @@ func (p *anthropicProvider) CompleteStream(ctx context.Context, req *CompletionR
 		return nil, err
 	}
 
-	// Streaming will be implemented in subtask-2-2
-	return nil, NewProviderError(ErrCodeStreamError, "streaming not yet implemented")
+	// Convert unified request to Anthropic format
+	anthropicReq, err := p.convertRequest(req)
+	if err != nil {
+		return nil, WrapProviderError(ErrCodeInvalidRequest, "failed to convert request", err)
+	}
+
+	// Enable streaming
+	anthropicReq.Stream = true
+
+	// Marshal request body
+	reqBody, err := json.Marshal(anthropicReq)
+	if err != nil {
+		return nil, WrapProviderError(ErrCodeInvalidRequest, "failed to marshal request", err)
+	}
+
+	// Create HTTP request
+	url := p.config.BaseURL + anthropicMessagesEndpoint
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(reqBody))
+	if err != nil {
+		return nil, WrapProviderError(ErrCodeProviderNotAvailable, "failed to create HTTP request", err)
+	}
+
+	// Set headers
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set(anthropicVersionHeader, anthropicAPIVersion)
+	httpReq.Header.Set(anthropicKeyHeader, p.config.APIKey)
+
+	p.logger.Debug("Sending Anthropic streaming request",
+		"model", req.Model,
+		"messages", len(req.Messages),
+		"max_tokens", req.MaxTokens)
+
+	// Create streaming client without timeout (context manages cancellation)
+	streamingClient := &http.Client{
+		Timeout: 0, // No timeout for streaming, context handles cancellation
+	}
+
+	// Execute request
+	resp, err := streamingClient.Do(httpReq)
+	if err != nil {
+		p.updateStatus(ProviderStatusError)
+		return nil, WrapProviderError(ErrCodeUpstreamError, "HTTP request failed", err)
+	}
+
+	// Handle error responses
+	if resp.StatusCode != http.StatusOK {
+		defer resp.Body.Close()
+		respBody, _ := io.ReadAll(resp.Body)
+
+		// Parse error response to get the message
+		var errResp struct {
+			Error struct {
+				Type    string `json:"type"`
+				Message string `json:"message"`
+			} `json:"error"`
+		}
+		if json.Unmarshal(respBody, &errResp) == nil {
+			// Map status code to error code
+			var errCode string
+			switch resp.StatusCode {
+			case http.StatusUnauthorized:
+				errCode = ErrCodeAuthenticationFailed
+			case http.StatusTooManyRequests:
+				errCode = ErrCodeRateLimited
+			case http.StatusBadRequest:
+				errCode = ErrCodeInvalidRequest
+			case http.StatusRequestEntityTooLarge:
+				errCode = ErrCodeContextTooLong
+			default:
+				errCode = ErrCodeUpstreamError
+			}
+			return nil, NewProviderError(errCode, errResp.Error.Message)
+		}
+
+		// Fallback error if we can't parse the response
+		return nil, NewProviderError(ErrCodeUpstreamError, fmt.Sprintf("HTTP %d: streaming request failed", resp.StatusCode))
+	}
+
+	// Create chunk channel
+	chunkChan := make(chan *CompletionChunk, 10)
+
+	// Start goroutine to process stream
+	go p.processStreamingResponse(ctx, resp, req.Model, chunkChan)
+
+	return chunkChan, nil
+}
+
+// processStreamingResponse processes the SSE streaming response
+func (p *anthropicProvider) processStreamingResponse(ctx context.Context, resp *http.Response, model Model, chunkChan chan<- *CompletionChunk) {
+	defer close(chunkChan)
+	defer resp.Body.Close()
+
+	// Update status to available on successful connection
+	p.updateStatus(ProviderStatusAvailable)
+
+	// Create SSE reader
+	sseReader := newAnthropicSSEReader(resp.Body)
+
+	var messageID string
+	var contentBuilder strings.Builder
+
+	// Process events until stream ends or context is cancelled
+	for {
+		select {
+		case <-ctx.Done():
+			// Context cancelled, send error chunk and stop
+			chunkChan <- &CompletionChunk{
+				Model:    model,
+				Provider: ProviderAnthropic,
+				Error:    ctx.Err(),
+			}
+			p.logger.Debug("Streaming cancelled by context")
+			return
+		default:
+			event, err := sseReader.NextEvent()
+			if err != nil {
+				if err == io.EOF {
+					// Stream ended normally
+					// The final chunk should have been sent by message_delta event
+					p.logger.Debug("Streaming completed normally")
+					return
+				}
+				// Error reading stream
+				chunkChan <- &CompletionChunk{
+					Model:    model,
+					Provider: ProviderAnthropic,
+					Error:    WrapProviderError(ErrCodeStreamError, "failed to read stream", err),
+				}
+				p.updateStatus(ProviderStatusError)
+				p.logger.Error("Failed to read streaming event", "error", err)
+				return
+			}
+
+			// Process event based on type
+			if err := p.processStreamEvent(event, model, &messageID, &contentBuilder, chunkChan); err != nil {
+				chunkChan <- &CompletionChunk{
+					Model:    model,
+					Provider: ProviderAnthropic,
+					Error:    err,
+				}
+				p.updateStatus(ProviderStatusError)
+				return
+			}
+		}
+	}
+}
+
+// processStreamEvent processes a single streaming event
+func (p *anthropicProvider) processStreamEvent(event *anthropicStreamEvent, model Model, messageID *string, contentBuilder *strings.Builder, chunkChan chan<- *CompletionChunk) error {
+	switch event.Type {
+	case "message_start":
+		// Message started, extract metadata
+		if event.MessageStart != nil && event.MessageStart.Message != nil {
+			*messageID = event.MessageStart.Message.ID
+		}
+		p.logger.Debug("Stream message_start", "id", *messageID)
+
+	case "content_block_start":
+		// Content block started
+		p.logger.Debug("Stream content_block_start")
+
+	case "content_block_delta":
+		// Content delta (text chunk)
+		if event.ContentBlockDelta != nil && event.ContentBlockDelta.Delta != nil {
+			delta := event.ContentBlockDelta.Delta.Text
+			contentBuilder.WriteString(delta)
+
+			chunk := &CompletionChunk{
+				ID:       *messageID,
+				Model:    model,
+				Provider: ProviderAnthropic,
+				Delta:    delta,
+				Content:  contentBuilder.String(),
+			}
+			chunkChan <- chunk
+		}
+
+	case "content_block_stop":
+		// Content block ended
+		p.logger.Debug("Stream content_block_stop")
+
+	case "message_delta":
+		// Final message delta with usage and stop reason
+		if event.MessageDelta != nil {
+			chunk := &CompletionChunk{
+				ID:       *messageID,
+				Model:    model,
+				Provider: ProviderAnthropic,
+				Content:  contentBuilder.String(),
+				Done:     true,
+			}
+
+			// Add stop reason
+			if event.MessageDelta.Delta != nil && event.MessageDelta.Delta.StopReason != "" {
+				stopReason := mapStopReason(event.MessageDelta.Delta.StopReason)
+				chunk.StopReason = &stopReason
+			}
+
+			// Add usage
+			if event.MessageDelta.Usage != nil {
+				chunk.Usage = &TokenUsage{
+					InputTokens:      event.MessageDelta.Usage.InputTokens,
+					OutputTokens:     event.MessageDelta.Usage.OutputTokens,
+					CacheReadTokens:  event.MessageDelta.Usage.CacheReadInputTokens,
+					CacheWriteTokens: event.MessageDelta.Usage.CacheCreationInputTokens,
+				}
+				chunk.Usage.TotalTokens = chunk.Usage.Total()
+			}
+
+			chunkChan <- chunk
+			p.logger.Debug("Stream message_delta",
+				"stop_reason", chunk.StopReason,
+				"output_tokens", chunk.Usage.OutputTokens)
+		}
+
+	case "message_stop":
+		// Message complete
+		p.logger.Debug("Stream message_stop")
+
+	case "ping":
+		// Keep-alive event, ignore
+		p.logger.Debug("Stream ping")
+
+	case "error":
+		// Error event
+		errMsg := "streaming error"
+		if event.Error != nil {
+			errMsg = event.Error.Message
+		}
+		return NewProviderError(ErrCodeUpstreamError, errMsg)
+
+	default:
+		p.logger.Warn("Unknown stream event type", "type", event.Type)
+	}
+
+	return nil
 }
 
 // SupportsModel returns true if the provider supports the given model
@@ -231,7 +467,7 @@ func (p *anthropicProvider) ModelInfo(model Model) (*ModelInfo, error) {
 			Description: "Anthropic Claude model",
 			ContextSize: 200000,
 			Capabilities: ModelCapabilities{
-				Streaming:       false, // Will be true after subtask-2-2
+				Streaming:       true,
 				FunctionCalling: true,
 				Vision:          true,
 				PromptCaching:   true,
@@ -589,7 +825,7 @@ var anthropicModelInfo = map[Model]*ModelInfo{
 		Description: "Most capable model for complex tasks, with 200K context window",
 		ContextSize: 200000,
 		Capabilities: ModelCapabilities{
-			Streaming:       false, // Will be true after subtask-2-2
+			Streaming:       true,
 			FunctionCalling: true,
 			Vision:          true,
 			PromptCaching:   true,
@@ -609,7 +845,7 @@ var anthropicModelInfo = map[Model]*ModelInfo{
 		Description: "Most capable model for complex tasks, with 200K context window",
 		ContextSize: 200000,
 		Capabilities: ModelCapabilities{
-			Streaming:       false, // Will be true after subtask-2-2
+			Streaming:       true,
 			FunctionCalling: true,
 			Vision:          true,
 			PromptCaching:   true,
@@ -629,7 +865,7 @@ var anthropicModelInfo = map[Model]*ModelInfo{
 		Description: "Most powerful model for complex reasoning, with 200K context window",
 		ContextSize: 200000,
 		Capabilities: ModelCapabilities{
-			Streaming:       false, // Will be true after subtask-2-2
+			Streaming:       true,
 			FunctionCalling: true,
 			Vision:          true,
 			PromptCaching:   false,
@@ -649,7 +885,7 @@ var anthropicModelInfo = map[Model]*ModelInfo{
 		Description: "Balanced model for many tasks, with 200K context window",
 		ContextSize: 200000,
 		Capabilities: ModelCapabilities{
-			Streaming:       false, // Will be true after subtask-2-2
+			Streaming:       true,
 			FunctionCalling: true,
 			Vision:          true,
 			PromptCaching:   false,
@@ -669,7 +905,7 @@ var anthropicModelInfo = map[Model]*ModelInfo{
 		Description: "Fastest model for simple tasks, with 200K context window",
 		ContextSize: 200000,
 		Capabilities: ModelCapabilities{
-			Streaming:       false, // Will be true after subtask-2-2
+			Streaming:       true,
 			FunctionCalling: true,
 			Vision:          true,
 			PromptCaching:   false,
@@ -682,4 +918,175 @@ var anthropicModelInfo = map[Model]*ModelInfo{
 			StopSequences:   true,
 		},
 	},
+}
+
+// anthropicStreamEvent represents a streaming event from Anthropic's SSE API
+type anthropicStreamEvent struct {
+	Type             string                      `json:"type"`
+	Index            *int                        `json:"index,omitempty"`
+	MessageStart     *anthropicStreamMessageStart `json:"message_start,omitempty"`
+	ContentBlockStart *anthropicContentBlockStart `json:"content_block_start,omitempty"`
+	ContentBlockDelta *anthropicContentBlockDelta `json:"content_block_delta,omitempty"`
+	MessageDelta     *anthropicStreamMessageDelta `json:"message_delta,omitempty"`
+	Error            *anthropicStreamError       `json:"error,omitempty"`
+}
+
+type anthropicStreamMessageStart struct {
+	Message *anthropicStreamMessage `json:"message"`
+}
+
+type anthropicStreamMessage struct {
+	ID    string `json:"id"`
+	Type  string `json:"type"`
+	Role  string `json:"role"`
+	Usage *anthropicUsage `json:"usage,omitempty"`
+	Model string `json:"model"`
+}
+
+type anthropicContentBlockStart struct {
+	ContentBlock *anthropicStreamContentBlock `json:"content_block"`
+}
+
+type anthropicStreamContentBlock struct {
+	Type string `json:"type"`
+	Text string `json:"text,omitempty"`
+}
+
+type anthropicContentBlockDelta struct {
+	Delta *anthropicStreamDelta `json:"delta"`
+	Index int                   `json:"index"`
+}
+
+type anthropicStreamDelta struct {
+	Type string `json:"type"`
+	Text string `json:"text,omitempty"`
+}
+
+type anthropicStreamMessageDelta struct {
+	Delta  *anthropicStreamMessageDeltaDelta `json:"delta"`
+	Usage  *anthropicUsage                   `json:"usage,omitempty"`
+}
+
+type anthropicStreamMessageDeltaDelta struct {
+	StopReason string `json:"stop_reason,omitempty"`
+	Type       string `json:"type,omitempty"`
+}
+
+type anthropicStreamError struct {
+	Type    string `json:"type"`
+	Message string `json:"message"`
+}
+
+// anthropicSSEReader reads Server-Sent Events from Anthropic's streaming API
+type anthropicSSEReader struct {
+	scanner *bufio.Scanner
+}
+
+// newAnthropicSSEReader creates a new SSE reader
+func newAnthropicSSEReader(r io.Reader) *anthropicSSEReader {
+	return &anthropicSSEReader{
+		scanner: bufio.NewScanner(r),
+	}
+}
+
+// NextEvent reads the next SSE event from the stream
+func (r *anthropicSSEReader) NextEvent() (*anthropicStreamEvent, error) {
+	var eventType string
+	var eventData strings.Builder
+
+	// Read lines until we have a complete event
+	for r.scanner.Scan() {
+		line := r.scanner.Text()
+
+		// Empty line marks the end of an event
+		if line == "" {
+			if eventType != "" && eventData.Len() > 0 {
+				// Parse the event
+				return r.parseEvent(eventType, eventData.String())
+			}
+			// Reset for next event
+			eventType = ""
+			eventData = strings.Builder{}
+			continue
+		}
+
+		// Parse SSE line
+		if strings.HasPrefix(line, "event:") {
+			eventType = strings.TrimSpace(strings.TrimPrefix(line, "event:"))
+		} else if strings.HasPrefix(line, "data:") {
+			data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+			if eventData.Len() > 0 {
+				eventData.WriteString("\n")
+			}
+			eventData.WriteString(data)
+		}
+		// Ignore other lines (comments, id, retry)
+	}
+
+	if err := r.scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	// Handle case where stream ends without final empty line
+	if eventType != "" && eventData.Len() > 0 {
+		return r.parseEvent(eventType, eventData.String())
+	}
+
+	return nil, io.EOF
+}
+
+// parseEvent parses an SSE event into a streaming event structure
+func (r *anthropicSSEReader) parseEvent(eventType, data string) (*anthropicStreamEvent, error) {
+	event := &anthropicStreamEvent{Type: eventType}
+
+	switch eventType {
+	case "message_start":
+		var msgStart anthropicStreamMessageStart
+		if err := json.Unmarshal([]byte(data), &msgStart); err != nil {
+			return nil, fmt.Errorf("failed to parse message_start: %w", err)
+		}
+		event.MessageStart = &msgStart
+
+	case "content_block_start":
+		var blockStart anthropicContentBlockStart
+		if err := json.Unmarshal([]byte(data), &blockStart); err != nil {
+			return nil, fmt.Errorf("failed to parse content_block_start: %w", err)
+		}
+		event.ContentBlockStart = &blockStart
+
+	case "content_block_delta":
+		var delta anthropicContentBlockDelta
+		if err := json.Unmarshal([]byte(data), &delta); err != nil {
+			return nil, fmt.Errorf("failed to parse content_block_delta: %w", err)
+		}
+		event.ContentBlockDelta = &delta
+
+	case "content_block_stop":
+		// No data to parse for content_block_stop
+
+	case "message_delta":
+		var msgDelta anthropicStreamMessageDelta
+		if err := json.Unmarshal([]byte(data), &msgDelta); err != nil {
+			return nil, fmt.Errorf("failed to parse message_delta: %w", err)
+		}
+		event.MessageDelta = &msgDelta
+
+	case "message_stop":
+		// No data to parse for message_stop
+
+	case "ping":
+		// No data to parse for ping
+
+	case "error":
+		var streamErr anthropicStreamError
+		if err := json.Unmarshal([]byte(data), &streamErr); err != nil {
+			return nil, fmt.Errorf("failed to parse error: %w", err)
+		}
+		event.Error = &streamErr
+
+	default:
+		// Unknown event type, return as-is
+	}
+
+	return event, nil
 }
