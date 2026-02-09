@@ -365,20 +365,28 @@ func (m *LLMGatewayManager) validateCredentials(ctx context.Context) error {
 		return types.NewError(types.ErrCodeInvalidArgument, "default provider is not configured")
 	}
 
-	// Verify at least one provider is configured with credentials
+	// Verify at least one enabled provider has credentials stored in the credential store
 	hasValidProvider := false
 	for name, provider := range m.config.Providers {
-		if provider.Enabled && provider.APIKey != "" {
+		if !provider.Enabled {
+			continue
+		}
+
+		// Attempt to fetch credentials for this provider from the credential store.
+		if _, err := m.credStore.GetLLMCredential(ctx, name); err == nil {
 			hasValidProvider = true
-			m.logger.Debug("Found valid provider configuration",
+			m.logger.Debug("Found valid provider credentials in store",
 				"provider", name)
 			break
+		} else {
+			m.logger.Debug("No usable credentials found in store for provider",
+				"provider", name, "error", err)
 		}
 	}
 
 	if !hasValidProvider {
 		return types.NewError(types.ErrCodeInvalidArgument,
-			"no enabled LLM providers found with API keys configured")
+			"no enabled LLM providers found with credentials in the credential store")
 	}
 
 	return nil
