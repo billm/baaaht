@@ -191,7 +191,10 @@ func (p *openaiProvider) Complete(ctx context.Context, req *CompletionRequest) (
 
 // CompleteStream generates a streaming completion for the given request
 func (p *openaiProvider) CompleteStream(ctx context.Context, req *CompletionRequest) (<-chan *CompletionChunk, error) {
-	if p.closed {
+	p.mu.Lock()
+	closed := p.closed
+	p.mu.Unlock()
+	if closed {
 		return nil, NewProviderError(ErrCodeProviderNotAvailable, "provider is closed")
 	}
 
