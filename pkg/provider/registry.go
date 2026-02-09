@@ -100,6 +100,7 @@ func validateRegistryConfig(cfg *RegistryConfig) error {
 		// Ensure Provider field is set
 		if providerCfg.Provider == "" {
 			providerCfg.Provider = providerID
+			cfg.Providers[providerID] = providerCfg
 		}
 	}
 
