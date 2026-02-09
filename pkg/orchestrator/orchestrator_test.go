@@ -8,7 +8,7 @@ import (
 
 	"github.com/billm/baaaht/orchestrator/internal/config"
 	"github.com/billm/baaaht/orchestrator/internal/logger"
-	"github.com/billm/baaaht/orchestrator/pkg/types"
+	"github.com/billm/baaaht/orchestrator/pkg/policy"
 )
 
 // TestInitPolicyEnforcer tests that policy is loaded from YAML during orchestrator initialization
@@ -218,11 +218,16 @@ func TestInitPolicyEnforcerWithInvalidYAML(t *testing.T) {
 	}
 }
 
-// TestInitPolicyEnforcerWithoutConfigPath tests initialization without a policy config path
+// TestInitPolicyEnforcerWithoutConfigPath tests that a default policy file is created when it doesn't exist
 func TestInitPolicyEnforcerWithoutConfigPath(t *testing.T) {
 	// Create a temporary directory for a non-existent policy path
 	tmpDir := t.TempDir()
 	nonExistentPath := filepath.Join(tmpDir, "nonexistent-policy.yaml")
+
+	// Verify the file doesn't exist initially
+	if _, err := os.Stat(nonExistentPath); !os.IsNotExist(err) {
+		t.Fatalf("expected policy file to not exist, but it does: %s", nonExistentPath)
+	}
 
 	// Use default policy config but with a non-existent path
 	policyCfg := config.DefaultPolicyConfig()
@@ -257,16 +262,38 @@ func TestInitPolicyEnforcerWithoutConfigPath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create orchestrator: %v", err)
 	}
+	defer orch.Close()
 
-	// Initialize orchestrator - should fail due to missing policy file
+	// Initialize orchestrator - should succeed by creating default policy file
 	ctx := context.Background()
-	err = orch.Initialize(ctx)
-	if err == nil {
-		orch.Close()
-		t.Fatal("expected error when policy file doesn't exist, got nil")
+	if err := orch.Initialize(ctx); err != nil {
+		t.Fatalf("expected successful initialization with default policy file creation, got error: %v", err)
 	}
-	// Verify the error is about the missing file
-	if !types.IsErrCode(err, types.ErrCodeInvalidArgument) && !types.IsErrCode(err, types.ErrCodeNotFound) {
-		t.Logf("Warning: expected file-related error, got: %v", err)
+
+	// Verify the policy file was created
+	if _, err := os.Stat(nonExistentPath); os.IsNotExist(err) {
+		t.Errorf("default policy file was not created at: %s", nonExistentPath)
+	}
+
+	// Verify the policy enforcer was initialized
+	if orch.policyEnforcer == nil {
+		t.Fatal("policy enforcer was not initialized")
+	}
+
+	// Verify the loaded policy matches the default policy
+	loadedPolicy, err := orch.policyEnforcer.GetPolicy(ctx)
+	if err != nil {
+		t.Fatalf("failed to get policy: %v", err)
+	}
+
+	defaultPolicy := policy.DefaultPolicy()
+	if loadedPolicy.ID != defaultPolicy.ID {
+		t.Errorf("policy ID mismatch: got %s, want %s", loadedPolicy.ID, defaultPolicy.ID)
+	}
+	if loadedPolicy.Name != defaultPolicy.Name {
+		t.Errorf("policy name mismatch: got %s, want %s", loadedPolicy.Name, defaultPolicy.Name)
+	}
+	if loadedPolicy.Mode != defaultPolicy.Mode {
+		t.Errorf("policy mode mismatch: got %s, want %s", loadedPolicy.Mode, defaultPolicy.Mode)
 	}
 }
