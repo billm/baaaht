@@ -48,6 +48,21 @@ type ContainerConfig struct {
 	RestartPolicy  RestartPolicy     `json:"restart_policy,omitempty"`
 	ReadOnlyRootfs bool              `json:"read_only_rootfs,omitempty"`
 	RemoveOnStop   bool              `json:"remove_on_stop,omitempty"`
+	// Security options
+	User         string   `json:"user,omitempty"`          // User to run container as (e.g., "1000:1000")
+	SecurityOpt  []string `json:"security_opt,omitempty"`  // Security options (e.g., "no-new-privileges")
+	CapAdd       []string `json:"cap_add,omitempty"`       // Linux capabilities to add
+	CapDrop      []string `json:"cap_drop,omitempty"`      // Linux capabilities to drop
+	HealthCheck  *HealthCheckConfig `json:"health_check,omitempty"` // Health check configuration
+}
+
+// HealthCheckConfig defines the health check configuration for a container
+type HealthCheckConfig struct {
+	Test          []string    `json:"test,omitempty"`          // Command to run for health check
+	Interval      time.Duration `json:"interval,omitempty"`     // Interval between checks
+	Timeout       time.Duration `json:"timeout,omitempty"`      // Timeout per check
+	StartPeriod   time.Duration `json:"start_period,omitempty"` // Start period before failing
+	Retries       int          `json:"retries,omitempty"`       // Number of retries before unhealthy
 }
 
 // Mount represents a filesystem mount

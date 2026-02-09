@@ -283,6 +283,8 @@ func (c *Creator) convertConfig(cfg types.ContainerConfig, name string, sessionI
 		StopSignal:  "SIGTERM",
 		Tty:         false,
 		OpenStdin:   false,
+		User:        cfg.User,
+		Healthcheck: convertHealthCheck(cfg.HealthCheck),
 	}
 
 	// Convert Args to Entrypoint if needed (for OCI compatibility)
@@ -298,6 +300,9 @@ func (c *Creator) convertConfig(cfg types.ContainerConfig, name string, sessionI
 		AutoRemove:     cfg.RemoveOnStop,
 		RestartPolicy:  convertRestartPolicy(cfg.RestartPolicy),
 		ReadonlyRootfs: cfg.ReadOnlyRootfs,
+		SecurityOpt:    cfg.SecurityOpt,
+		CapAdd:         strslice.StrSlice(cfg.CapAdd),
+		CapDrop:        strslice.StrSlice(cfg.CapDrop),
 	}
 
 	// Configure resource limits
@@ -432,6 +437,48 @@ func convertRestartPolicy(rp types.RestartPolicy) container.RestartPolicy {
 	return container.RestartPolicy{
 		Name:              name,
 		MaximumRetryCount: maxRetries,
+	}
+}
+
+// convertHealthCheck converts our HealthCheckConfig to Docker API type
+func convertHealthCheck(hc *types.HealthCheckConfig) *container.HealthConfig {
+	if hc == nil || len(hc.Test) == 0 {
+		return nil
+	}
+
+	var interval, timeout, startPeriod time.Duration
+	var retries int
+
+	if hc.Interval > 0 {
+		interval = hc.Interval
+	} else {
+		interval = 30 * time.Second
+	}
+
+	if hc.Timeout > 0 {
+		timeout = hc.Timeout
+	} else {
+		timeout = 5 * time.Second
+	}
+
+	if hc.StartPeriod > 0 {
+		startPeriod = hc.StartPeriod
+	} else {
+		startPeriod = 5 * time.Second
+	}
+
+	if hc.Retries > 0 {
+		retries = hc.Retries
+	} else {
+		retries = 3
+	}
+
+	return &container.HealthConfig{
+		Test:        strslice.StrSlice(hc.Test),
+		Interval:    interval,
+		Timeout:     timeout,
+		StartPeriod: startPeriod,
+		Retries:     retries,
 	}
 }
 

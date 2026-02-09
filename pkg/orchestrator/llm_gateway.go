@@ -343,11 +343,21 @@ func (m *LLMGatewayManager) validateCredentials(ctx context.Context) error {
 }
 
 // createGatewayContainer creates the LLM Gateway container with security configuration.
-// This is a placeholder implementation - the full implementation with security
-// constraints will be added in a subsequent subtask.
+// Implements security best practices including:
+// - Non-root user (UID 1000)
+// - Read-only root filesystem
+// - No-new-privileges security option
+// - Dropped capabilities (ALL)
+// - Minimal added capabilities (NET_BIND_SERVICE for binding to health check port)
+// - Health check on HTTP endpoint
+// - Resource limits (CPU, memory)
+// - No volume mounts (stateless operation)
 func (m *LLMGatewayManager) createGatewayContainer(ctx context.Context) (string, error) {
 	// Build environment variables with API keys
 	env := m.buildEnvironmentVariables()
+
+	// Set pids limit for additional isolation
+	pidsLimit := int64(100)
 
 	// Container configuration following security best practices
 	containerCfg := container.CreateConfig{
@@ -356,13 +366,31 @@ func (m *LLMGatewayManager) createGatewayContainer(ctx context.Context) (string,
 			Env:       env,
 			Labels:    m.buildLabels(),
 			Resources: m.buildResourceLimits(),
-			// Security settings will be added in subtask-5-2
+			Mounts:    []types.Mount{}, // Stateless - no volume mounts
+			Networks:  []string{"bridge"}, // Use bridge network for egress-only access
+			// Security constraints
+			User:         "1000:1000", // Non-root user
+			ReadOnlyRootfs: true,      // Read-only root filesystem
+			SecurityOpt:  []string{"no-new-privileges"}, // Prevent privilege escalation
+			CapDrop:      []string{"ALL"}, // Drop all Linux capabilities
+			CapAdd:       []string{"NET_BIND_SERVICE"}, // Add back only what's needed
+			// Health check configuration
+			HealthCheck: &types.HealthCheckConfig{
+				Test:        []string{"CMD", "wget", "--spider", "-q", "http://localhost:8080/health"},
+				Interval:    30 * time.Second,
+				Timeout:     5 * time.Second,
+				StartPeriod: 10 * time.Second,
+				Retries:     3,
+			},
 		},
 		Name:      "baaaht-llm-gateway",
 		SessionID: types.GenerateID(), // LLM Gateway has its own session
 		AutoPull:  true,
 		PullTimeout: 5 * time.Minute,
 	}
+
+	// Update resource limits to include pids limit
+	containerCfg.Config.Resources.PidsLimit = &pidsLimit
 
 	result, err := m.creator.Create(ctx, containerCfg)
 	if err != nil {
