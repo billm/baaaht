@@ -549,16 +549,27 @@ func (s *GatewayService) GatewaySendMessage(ctx context.Context, req *proto.Gate
 	// Convert gateway message to orchestrator message
 	message := protoToGatewayMessage(req.Message)
 
+	// Generate ID and timestamp before adding to avoid race conditions
+	// (AddMessage would generate these internally, but we need them for the response)
+	if message.ID.IsEmpty() {
+		message.ID = types.GenerateID()
+	}
+	if message.Timestamp.IsZero() {
+		message.Timestamp = types.NewTimestampFromTime(time.Now())
+	}
+
 	// Add message to session
 	if err := mgr.AddMessage(ctx, orchSessionID, message); err != nil {
 		s.logger.Error("Failed to send message", "session_id", req.SessionId, "error", err)
 		return nil, grpcErrorFromTypesError(err)
 	}
 
-	s.logger.Debug("Message sent to gateway session", "session_id", req.SessionId, "message_id", message.ID)
+	messageID := string(message.ID)
+
+	s.logger.Debug("Message sent to gateway session", "session_id", req.SessionId, "message_id", messageID)
 
 	return &proto.GatewaySendMessageResponse{
-		MessageId:  string(message.ID),
+		MessageId:  messageID,
 		SessionId:  req.SessionId,
 		Timestamp:  timestampToProto(&message.Timestamp),
 	}, nil
@@ -650,6 +661,15 @@ func (s *GatewayService) StreamChat(stream proto.GatewayService_StreamChatServer
 
 			// Convert gateway message to orchestrator message
 			message := protoToGatewayMessage(req.GetMessage())
+
+			// Generate ID and timestamp before adding to avoid race conditions
+			// (AddMessage would generate these internally, but we need them for the response)
+			if message.ID.IsEmpty() {
+				message.ID = types.GenerateID()
+			}
+			if message.Timestamp.IsZero() {
+				message.Timestamp = types.NewTimestampFromTime(time.Now())
+			}
 
 			// Add message to orchestrator session
 			if err := mgr.AddMessage(streamCtx, orchSessionID, message); err != nil {

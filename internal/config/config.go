@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -153,25 +154,25 @@ type OrchestratorConfig struct {
 
 // RuntimeConfig contains container runtime configuration
 type RuntimeConfig struct {
-	Type        string        `json:"type"` // auto, docker, apple
-	SocketPath  string        `json:"socket_path,omitempty"`
-	Timeout     time.Duration `json:"timeout"`
-	MaxRetries  int           `json:"max_retries"`
-	RetryDelay  time.Duration `json:"retry_delay"`
-	TLSEnabled  bool          `json:"tls_enabled"`
-	TLSCertPath string        `json:"tls_cert_path,omitempty"`
-	TLSKeyPath  string        `json:"tls_key_path,omitempty"`
-	TLSCAPath   string        `json:"tls_ca_path,omitempty"`
+	Type        string        `json:"type" yaml:"type"` // auto, docker, apple
+	SocketPath  string        `json:"socket_path,omitempty" yaml:"socket_path,omitempty"`
+	Timeout     time.Duration `json:"timeout" yaml:"timeout"`
+	MaxRetries  int           `json:"max_retries" yaml:"max_retries"`
+	RetryDelay  time.Duration `json:"retry_delay" yaml:"retry_delay"`
+	TLSEnabled  bool          `json:"tls_enabled" yaml:"tls_enabled"`
+	TLSCertPath string        `json:"tls_cert_path,omitempty" yaml:"tls_cert_path,omitempty"`
+	TLSKeyPath  string        `json:"tls_key_path,omitempty" yaml:"tls_key_path,omitempty"`
+	TLSCAPath   string        `json:"tls_ca_path,omitempty" yaml:"tls_ca_path,omitempty"`
 }
 
 // MemoryConfig contains memory storage configuration
 type MemoryConfig struct {
-	StoragePath        string `json:"storage_path"`         // Base path for memory files
-	UserMemoryPath     string `json:"user_memory_path"`     // Path for user-specific memory
-	GroupMemoryPath    string `json:"group_memory_path"`    // Path for group-specific memory
-	Enabled            bool   `json:"enabled"`              // Enable memory storage
-	MaxFileSize        int    `json:"max_file_size"`        // Maximum size of a memory file in KB
-	FileFormat         string `json:"file_format"`          // File format (markdown)
+	StoragePath        string `json:"storage_path" yaml:"storage_path"`                 // Base path for memory files
+	UserMemoryPath     string `json:"user_memory_path" yaml:"user_memory_path"`         // Path for user-specific memory
+	GroupMemoryPath    string `json:"group_memory_path" yaml:"group_memory_path"`       // Path for group-specific memory
+	Enabled            bool   `json:"enabled" yaml:"enabled"`                           // Enable memory storage
+	MaxFileSize        int    `json:"max_file_size" yaml:"max_file_size"`               // Maximum size of a memory file in KB
+	FileFormat         string `json:"file_format" yaml:"file_format"`                   // File format (markdown)
 }
 
 // GRPCConfig contains gRPC server configuration
@@ -183,46 +184,89 @@ type GRPCConfig struct {
 	MaxConnections int           `json:"max_connections" yaml:"max_connections"`
 }
 
-// Load creates a new Config by loading defaults and overriding with environment variables
-func Load() (*Config, error) {
-	var cfg *Config
+// applyDefaults fills in zero-valued NEW config fields with their defaults
+// This is called after loading from YAML to ensure partial configs have sensible defaults
+// for newly added fields (Runtime, Memory, GRPC) that might not be in older YAML files.
+// We apply defaults field-by-field to handle partial configurations properly.
+func applyDefaults(cfg *Config) {
+	// Runtime defaults - NEW field, may not exist in older YAML files
+	// Apply field-by-field to handle partial configs
+	defaultRuntime := DefaultRuntimeConfig()
+	if cfg.Runtime.Type == "" {
+		cfg.Runtime.Type = defaultRuntime.Type
+	}
+	if cfg.Runtime.SocketPath == "" {
+		cfg.Runtime.SocketPath = defaultRuntime.SocketPath
+	}
+	if cfg.Runtime.Timeout == 0 {
+		cfg.Runtime.Timeout = defaultRuntime.Timeout
+	}
+	if cfg.Runtime.MaxRetries == 0 {
+		cfg.Runtime.MaxRetries = defaultRuntime.MaxRetries
+	}
+	if cfg.Runtime.RetryDelay == 0 {
+		cfg.Runtime.RetryDelay = defaultRuntime.RetryDelay
+	}
+	if cfg.Runtime.TLSCertPath == "" {
+		cfg.Runtime.TLSCertPath = defaultRuntime.TLSCertPath
+	}
+	if cfg.Runtime.TLSKeyPath == "" {
+		cfg.Runtime.TLSKeyPath = defaultRuntime.TLSKeyPath
+	}
+	if cfg.Runtime.TLSCAPath == "" {
+		cfg.Runtime.TLSCAPath = defaultRuntime.TLSCAPath
+	}
 
-	// Try to load from default config file if it exists
-	configPath, err := GetDefaultConfigPath()
-	if err == nil {
-		if _, err := os.Stat(configPath); err == nil {
-			// File exists, load from it
-			cfg, err = LoadFromFile(configPath)
-			if err != nil {
-				return nil, err
-			}
-		} else if !os.IsNotExist(err) {
-			// Some other error occurred while checking file
-			return nil, fmt.Errorf("failed to check config file: %w", err)
+	// Memory defaults - NEW field, may not exist in older YAML files
+	// If the entire memory section is absent (all zero values), use full defaults
+	// to preserve the default Enabled value. Otherwise, apply field-by-field to handle
+	// partial configs, preserving an explicit Enabled=false.
+	defaultMemory := DefaultMemoryConfig()
+	if cfg.Memory == (MemoryConfig{}) {
+		cfg.Memory = defaultMemory
+	} else {
+		// Apply field-by-field to handle partial configs
+		if cfg.Memory.StoragePath == "" {
+			cfg.Memory.StoragePath = defaultMemory.StoragePath
+		}
+		// UserMemoryPath and GroupMemoryPath should derive from the configured StoragePath
+		if cfg.Memory.UserMemoryPath == "" {
+			cfg.Memory.UserMemoryPath = filepath.Join(cfg.Memory.StoragePath, "users")
+		}
+		if cfg.Memory.GroupMemoryPath == "" {
+			cfg.Memory.GroupMemoryPath = filepath.Join(cfg.Memory.StoragePath, "groups")
+		}
+		if cfg.Memory.MaxFileSize == 0 {
+			cfg.Memory.MaxFileSize = defaultMemory.MaxFileSize
+		}
+		if cfg.Memory.FileFormat == "" {
+			cfg.Memory.FileFormat = defaultMemory.FileFormat
 		}
 	}
 
-	// If no config was loaded from file, use defaults
-	if cfg == nil {
-		cfg = &Config{
-			Docker:       DefaultDockerConfig(),
-			APIServer:    DefaultAPIServerConfig(),
-			Logging:      DefaultLoggingConfig(),
-			Session:      DefaultSessionConfig(),
-			Event:        DefaultEventConfig(),
-			IPC:          DefaultIPCConfig(),
-			Scheduler:    DefaultSchedulerConfig(),
-			Credentials:  DefaultCredentialsConfig(),
-			Policy:       DefaultPolicyConfig(),
-			Metrics:      DefaultMetricsConfig(),
-			Tracing:      DefaultTracingConfig(),
-			Orchestrator: DefaultOrchestratorConfig(),
-			Runtime:      DefaultRuntimeConfig(),
-      Memory:       DefaultMemoryConfig(),
-			GRPC:         DefaultGRPCConfig(),
-		}
+	// gRPC defaults - NEW field, may not exist in older YAML files
+	// Apply field-by-field to handle partial configs
+	defaultGRPC := DefaultGRPCConfig()
+	if cfg.GRPC.SocketPath == "" {
+		cfg.GRPC.SocketPath = defaultGRPC.SocketPath
 	}
+	if cfg.GRPC.MaxRecvMsgSize == 0 {
+		cfg.GRPC.MaxRecvMsgSize = defaultGRPC.MaxRecvMsgSize
+	}
+	if cfg.GRPC.MaxSendMsgSize == 0 {
+		cfg.GRPC.MaxSendMsgSize = defaultGRPC.MaxSendMsgSize
+	}
+	if cfg.GRPC.Timeout == 0 {
+		cfg.GRPC.Timeout = defaultGRPC.Timeout
+	}
+	if cfg.GRPC.MaxConnections == 0 {
+		cfg.GRPC.MaxConnections = defaultGRPC.MaxConnections
+	}
+}
 
+// applyEnvOverrides applies environment variable overrides to the configuration.
+// This is used by both Load() and the config reloader.
+func applyEnvOverrides(cfg *Config) error {
 	// Load Docker configuration
 	if v := os.Getenv(EnvDockerHost); v != "" {
 		cfg.Docker.Host = v
@@ -378,7 +422,7 @@ func Load() (*Config, error) {
 		cfg.Memory.FileFormat = v
 	}
 
-  // Load gRPC configuration
+	// Load gRPC configuration
 	if v := os.Getenv(EnvGRPCSocketPath); v != "" {
 		cfg.GRPC.SocketPath = v
 	}
@@ -401,6 +445,54 @@ func Load() (*Config, error) {
 		if conns, err := strconv.Atoi(v); err == nil {
 			cfg.GRPC.MaxConnections = conns
 		}
+	}
+
+	return nil
+}
+
+// Load creates a new Config by loading defaults and overriding with environment variables
+func Load() (*Config, error) {
+	var cfg *Config
+
+	// Try to load from default config file if it exists
+	configPath, err := GetDefaultConfigPath()
+	if err == nil {
+		if _, err := os.Stat(configPath); err == nil {
+			// File exists, load from it
+			cfg, err = LoadFromFile(configPath)
+			if err != nil {
+				return nil, err
+			}
+		} else if !os.IsNotExist(err) {
+			// Some other error occurred while checking file
+			return nil, fmt.Errorf("failed to check config file: %w", err)
+		}
+	}
+
+	// If no config was loaded from file, use defaults
+	if cfg == nil {
+		cfg = &Config{
+			Docker:       DefaultDockerConfig(),
+			APIServer:    DefaultAPIServerConfig(),
+			Logging:      DefaultLoggingConfig(),
+			Session:      DefaultSessionConfig(),
+			Event:        DefaultEventConfig(),
+			IPC:          DefaultIPCConfig(),
+			Scheduler:    DefaultSchedulerConfig(),
+			Credentials:  DefaultCredentialsConfig(),
+			Policy:       DefaultPolicyConfig(),
+			Metrics:      DefaultMetricsConfig(),
+			Tracing:      DefaultTracingConfig(),
+			Orchestrator: DefaultOrchestratorConfig(),
+			Runtime:      DefaultRuntimeConfig(),
+			Memory:       DefaultMemoryConfig(),
+			GRPC:         DefaultGRPCConfig(),
+		}
+	}
+
+	// Apply environment variable overrides
+	if err := applyEnvOverrides(cfg); err != nil {
+		return nil, err
 	}
 
 	// Validate the configuration
@@ -608,7 +700,7 @@ func (c *Config) String() string {
 		c.Orchestrator.String(),
 		c.Runtime.String(),
 		c.Memory.String(),
-		c.GRPC.String()
+		c.GRPC.String(),
 	)
 }
 

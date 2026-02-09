@@ -214,7 +214,8 @@ func (m *Manager) Update(ctx context.Context, sessionID types.ID, metadata types
 	return nil
 }
 
-// CloseSession transitions a session to closing state
+// CloseSession transitions a session to closed state.
+// This ensures the session reaches a terminal state and is properly closed.
 func (m *Manager) CloseSession(ctx context.Context, sessionID types.ID) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -228,21 +229,30 @@ func (m *Manager) CloseSession(ctx context.Context, sessionID types.ID) error {
 		return types.NewError(types.ErrCodeNotFound, fmt.Sprintf("session not found: %s", sessionID))
 	}
 
-	// Already in closing/closed state
-	if sessionWithSM.CurrentState() == types.SessionStateClosing ||
-		sessionWithSM.CurrentState() == types.SessionStateClosed {
+	currentState := sessionWithSM.CurrentState()
+
+	// Already closed - idempotent operation
+	if currentState == types.SessionStateClosed {
 		return nil
 	}
 
-	// Transition to closing
-	if err := sessionWithSM.Close(); err != nil {
-		return types.WrapError(types.ErrCodeInternal, "failed to close session", err)
+	// If in closing state, complete the transition to closed
+	if currentState == types.SessionStateClosing {
+		if err := sessionWithSM.Transition(types.SessionStateClosed); err != nil {
+			return types.WrapError(types.ErrCodeInternal, "failed to complete close transition", err)
+		}
+	} else {
+		// From other states, transition directly to closed
+		// We skip the intermediate "closing" state since there's no cleanup logic
+		if err := sessionWithSM.Transition(types.SessionStateClosed); err != nil {
+			return types.WrapError(types.ErrCodeInternal, "failed to close session", err)
+		}
 	}
 
 	session := sessionWithSM.Session()
-	session.Status = types.StatusStopping
+	session.Status = types.StatusStopped
 
-	m.logger.Info("Session closing", "session_id", sessionID)
+	m.logger.Info("Session closed", "session_id", sessionID)
 	return nil
 }
 

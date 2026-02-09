@@ -918,6 +918,9 @@ func TestValidateDockerConfig(t *testing.T) {
 				Metrics:      DefaultMetricsConfig(),
 				Tracing:      DefaultTracingConfig(),
 				Orchestrator: DefaultOrchestratorConfig(),
+				Runtime:      DefaultRuntimeConfig(),
+				Memory:       DefaultMemoryConfig(),
+				GRPC:         DefaultGRPCConfig(),
 			}
 
 			err := cfg.Validate()
@@ -1036,6 +1039,9 @@ func TestValidateAPIServerConfig(t *testing.T) {
 				Metrics:      DefaultMetricsConfig(),
 				Tracing:      DefaultTracingConfig(),
 				Orchestrator: DefaultOrchestratorConfig(),
+				Runtime:      DefaultRuntimeConfig(),
+				Memory:       DefaultMemoryConfig(),
+				GRPC:         DefaultGRPCConfig(),
 			}
 
 			err := cfg.Validate()
@@ -1164,6 +1170,9 @@ func TestValidateLoggingConfig(t *testing.T) {
 				Metrics:      DefaultMetricsConfig(),
 				Tracing:      DefaultTracingConfig(),
 				Orchestrator: DefaultOrchestratorConfig(),
+				Runtime:      DefaultRuntimeConfig(),
+				Memory:       DefaultMemoryConfig(),
+				GRPC:         DefaultGRPCConfig(),
 			}
 
 			err := cfg.Validate()
@@ -1262,6 +1271,9 @@ func TestValidateSessionConfig(t *testing.T) {
 				Metrics:      DefaultMetricsConfig(),
 				Tracing:      DefaultTracingConfig(),
 				Orchestrator: DefaultOrchestratorConfig(),
+				Runtime:      DefaultRuntimeConfig(),
+				Memory:       DefaultMemoryConfig(),
+				GRPC:         DefaultGRPCConfig(),
 			}
 
 			err := cfg.Validate()
@@ -1342,6 +1354,9 @@ func TestValidateEventConfig(t *testing.T) {
 				Metrics:      DefaultMetricsConfig(),
 				Tracing:      DefaultTracingConfig(),
 				Orchestrator: DefaultOrchestratorConfig(),
+				Runtime:      DefaultRuntimeConfig(),
+				Memory:       DefaultMemoryConfig(),
+				GRPC:         DefaultGRPCConfig(),
 			}
 
 			err := cfg.Validate()
@@ -1422,6 +1437,9 @@ func TestValidateIPCConfig(t *testing.T) {
 				Metrics:      DefaultMetricsConfig(),
 				Tracing:      DefaultTracingConfig(),
 				Orchestrator: DefaultOrchestratorConfig(),
+				Runtime:      DefaultRuntimeConfig(),
+				Memory:       DefaultMemoryConfig(),
+				GRPC:         DefaultGRPCConfig(),
 			}
 
 			err := cfg.Validate()
@@ -1502,6 +1520,9 @@ func TestValidateSchedulerConfig(t *testing.T) {
 				Metrics:      DefaultMetricsConfig(),
 				Tracing:      DefaultTracingConfig(),
 				Orchestrator: DefaultOrchestratorConfig(),
+				Runtime:      DefaultRuntimeConfig(),
+				Memory:       DefaultMemoryConfig(),
+				GRPC:         DefaultGRPCConfig(),
 			}
 
 			err := cfg.Validate()
@@ -1579,6 +1600,9 @@ func TestValidateCredentialsConfig(t *testing.T) {
 				Metrics:      DefaultMetricsConfig(),
 				Tracing:      DefaultTracingConfig(),
 				Orchestrator: DefaultOrchestratorConfig(),
+				Runtime:      DefaultRuntimeConfig(),
+				Memory:       DefaultMemoryConfig(),
+				GRPC:         DefaultGRPCConfig(),
 			}
 
 			err := cfg.Validate()
@@ -1672,6 +1696,9 @@ func TestValidatePolicyConfig(t *testing.T) {
 				Metrics:     DefaultMetricsConfig(),
 				Tracing:     DefaultTracingConfig(),
 				Orchestrator: DefaultOrchestratorConfig(),
+				Runtime:      DefaultRuntimeConfig(),
+				Memory:       DefaultMemoryConfig(),
+				GRPC:         DefaultGRPCConfig(),
 			}
 
 			err := cfg.Validate()
@@ -1749,6 +1776,9 @@ func TestValidateMetricsConfig(t *testing.T) {
 				Metrics:      tt.config,
 				Tracing:      DefaultTracingConfig(),
 				Orchestrator: DefaultOrchestratorConfig(),
+				Runtime:      DefaultRuntimeConfig(),
+				Memory:       DefaultMemoryConfig(),
+				GRPC:         DefaultGRPCConfig(),
 			}
 
 			err := cfg.Validate()
@@ -1840,6 +1870,9 @@ func TestValidateTracingConfig(t *testing.T) {
 				Metrics:      DefaultMetricsConfig(),
 				Tracing:      tt.config,
 				Orchestrator: DefaultOrchestratorConfig(),
+				Runtime:      DefaultRuntimeConfig(),
+				Memory:       DefaultMemoryConfig(),
+				GRPC:         DefaultGRPCConfig(),
 			}
 
 			err := cfg.Validate()
@@ -1917,6 +1950,9 @@ func TestValidateOrchestratorConfig(t *testing.T) {
 				Metrics:      DefaultMetricsConfig(),
 				Tracing:      DefaultTracingConfig(),
 				Orchestrator: tt.config,
+				Runtime:      DefaultRuntimeConfig(),
+				Memory:       DefaultMemoryConfig(),
+				GRPC:         DefaultGRPCConfig(),
 			}
 
 			err := cfg.Validate()
