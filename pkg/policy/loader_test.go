@@ -438,3 +438,61 @@ quotas:
 		t.Errorf("policy ID mismatch: got %s, want yml-policy", policy.ID)
 	}
 }
+
+// TestCreateDefaultPolicyFile tests that a default policy file is created when it doesn't exist
+func TestCreateDefaultPolicyFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	policyPath := filepath.Join(tmpDir, "nonexistent.yaml")
+
+	// Verify the file doesn't exist
+	if _, err := os.Stat(policyPath); !os.IsNotExist(err) {
+		t.Fatalf("expected file to not exist, but it does: %s", policyPath)
+	}
+
+	// Load the policy (should create default file)
+	policy, err := LoadFromFile(policyPath)
+	if err != nil {
+		t.Fatalf("failed to load policy: %v", err)
+	}
+
+	// Verify the file was created
+	if _, err := os.Stat(policyPath); os.IsNotExist(err) {
+		t.Fatal("default policy file was not created")
+	}
+
+	// Verify the policy matches the default
+	defaultPolicy := DefaultPolicy()
+	if policy.ID != defaultPolicy.ID {
+		t.Errorf("policy ID mismatch: got %s, want %s", policy.ID, defaultPolicy.ID)
+	}
+
+	if policy.Name != defaultPolicy.Name {
+		t.Errorf("policy name mismatch: got %s, want %s", policy.Name, defaultPolicy.Name)
+	}
+
+	if policy.Mode != defaultPolicy.Mode {
+		t.Errorf("policy mode mismatch: got %s, want %s", policy.Mode, defaultPolicy.Mode)
+	}
+
+	// Verify quotas
+	if policy.Quotas.MaxCPUs == nil || defaultPolicy.Quotas.MaxCPUs == nil {
+		t.Error("expected MaxCPUs to be set")
+	} else if *policy.Quotas.MaxCPUs != *defaultPolicy.Quotas.MaxCPUs {
+		t.Errorf("MaxCPUs mismatch: got %d, want %d", *policy.Quotas.MaxCPUs, *defaultPolicy.Quotas.MaxCPUs)
+	}
+
+	// Verify mounts
+	if policy.Mounts.AllowBindMounts != defaultPolicy.Mounts.AllowBindMounts {
+		t.Errorf("AllowBindMounts mismatch: got %v, want %v", policy.Mounts.AllowBindMounts, defaultPolicy.Mounts.AllowBindMounts)
+	}
+
+	// Verify network
+	if policy.Network.AllowNetwork != defaultPolicy.Network.AllowNetwork {
+		t.Errorf("AllowNetwork mismatch: got %v, want %v", policy.Network.AllowNetwork, defaultPolicy.Network.AllowNetwork)
+	}
+
+	// Verify security
+	if policy.Security.AllowPrivileged != defaultPolicy.Security.AllowPrivileged {
+		t.Errorf("AllowPrivileged mismatch: got %v, want %v", policy.Security.AllowPrivileged, defaultPolicy.Security.AllowPrivileged)
+	}
+}

@@ -99,6 +99,31 @@ func formatYAMLError(err error, path string) error {
 	return types.WrapError(types.ErrCodeInvalid, "failed to parse YAML policy from "+path, err)
 }
 
+// createDefaultPolicyFile creates a default policy file at the specified path
+func createDefaultPolicyFile(path string) error {
+	// Get the default policy
+	defaultPolicy := DefaultPolicy()
+
+	// Marshal to YAML
+	data, err := yaml.Marshal(defaultPolicy)
+	if err != nil {
+		return types.WrapError(types.ErrCodeInvalid, "failed to marshal default policy", err)
+	}
+
+	// Ensure the directory exists
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return types.WrapError(types.ErrCodeInvalidArgument, "failed to create policy directory: "+dir, err)
+	}
+
+	// Write the file
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		return types.WrapError(types.ErrCodeInvalidArgument, "failed to write default policy file: "+path, err)
+	}
+
+	return nil
+}
+
 // LoadFromFile loads policy from a YAML file
 func LoadFromFile(path string) (*Policy, error) {
 	// Validate file path
@@ -110,9 +135,18 @@ func LoadFromFile(path string) (*Policy, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, types.WrapError(types.ErrCodeNotFound, "policy file not found: "+path, err)
+			// Create default policy file if it doesn't exist
+			if err := createDefaultPolicyFile(path); err != nil {
+				return nil, types.WrapError(types.ErrCodeInvalidArgument, "failed to create default policy file: "+path, err)
+			}
+			// Read the newly created file
+			data, err = os.ReadFile(path)
+			if err != nil {
+				return nil, types.WrapError(types.ErrCodeInvalidArgument, "failed to read policy file: "+path, err)
+			}
+		} else {
+			return nil, types.WrapError(types.ErrCodeInvalidArgument, "failed to read policy file: "+path, err)
 		}
-		return nil, types.WrapError(types.ErrCodeInvalidArgument, "failed to read policy file: "+path, err)
 	}
 
 	// Validate YAML content before parsing
