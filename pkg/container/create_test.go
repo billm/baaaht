@@ -748,6 +748,225 @@ func TestCreatorWithEnforcer(t *testing.T) {
 	assert.Contains(t, s, "enabled")
 }
 
+func TestStrictModeRejection(t *testing.T) {
+	log, err := logger.NewDefault()
+	require.NoError(t, err)
+
+	client := &Client{}
+	creator, err := NewCreator(client, log)
+	require.NoError(t, err)
+
+	sessionID := types.NewID("test-session-strict")
+
+	t.Run("strict mode rejects latest tag image", func(t *testing.T) {
+		// Create a policy enforcer with strict mode that denies latest tag
+		strictPolicy := policy.DefaultPolicy()
+		strictPolicy.Images.AllowLatestTag = false
+		strictPolicy.Mode = policy.EnforcementModeStrict
+
+		enforcer, err := policy.New(config.DefaultPolicyConfig(), log)
+		require.NoError(t, err)
+		err = enforcer.SetPolicy(context.Background(), strictPolicy)
+		require.NoError(t, err)
+
+		creator.SetEnforcer(enforcer)
+
+		cfg := CreateConfig{
+			Config: types.ContainerConfig{
+				Image: "alpine:latest",
+			},
+			Name:      "test-container-latest",
+			SessionID: sessionID,
+		}
+
+		_, err = creator.Create(context.Background(), cfg)
+
+		// Should fail with permission error
+		require.Error(t, err)
+		var customErr *types.Error
+		require.ErrorAs(t, err, &customErr)
+		assert.Equal(t, types.ErrCodePermission, customErr.Code,
+			"strict mode should reject image with latest tag")
+		assert.Contains(t, customErr.Message, "policy")
+	})
+
+	t.Run("strict mode rejects CPU quota violations", func(t *testing.T) {
+		strictPolicy := policy.DefaultPolicy()
+		maxCPUs := int64(2 * 1000000000) // 2 CPUs
+		strictPolicy.Quotas.MaxCPUs = &maxCPUs
+		strictPolicy.Mode = policy.EnforcementModeStrict
+
+		enforcer, err := policy.New(config.DefaultPolicyConfig(), log)
+		require.NoError(t, err)
+		err = enforcer.SetPolicy(context.Background(), strictPolicy)
+		require.NoError(t, err)
+
+		creator.SetEnforcer(enforcer)
+
+		cfg := CreateConfig{
+			Config: types.ContainerConfig{
+				Image: "alpine:3.18",
+				Resources: types.ResourceLimits{
+					NanoCPUs: 4 * 1000000000, // 4 CPUs exceeds 2 CPU limit
+				},
+			},
+			Name:      "test-container-cpu",
+			SessionID: sessionID,
+		}
+
+		_, err = creator.Create(context.Background(), cfg)
+
+		// Should fail with permission error
+		require.Error(t, err)
+		var customErr *types.Error
+		require.ErrorAs(t, err, &customErr)
+		assert.Equal(t, types.ErrCodePermission, customErr.Code,
+			"strict mode should reject CPU quota violation")
+	})
+
+	t.Run("strict mode rejects memory quota violations", func(t *testing.T) {
+		strictPolicy := policy.DefaultPolicy()
+		maxMemory := int64(4 * 1024 * 1024 * 1024) // 4GB
+		strictPolicy.Quotas.MaxMemory = &maxMemory
+		strictPolicy.Mode = policy.EnforcementModeStrict
+
+		enforcer, err := policy.New(config.DefaultPolicyConfig(), log)
+		require.NoError(t, err)
+		err = enforcer.SetPolicy(context.Background(), strictPolicy)
+		require.NoError(t, err)
+
+		creator.SetEnforcer(enforcer)
+
+		cfg := CreateConfig{
+			Config: types.ContainerConfig{
+				Image: "alpine:3.18",
+				Resources: types.ResourceLimits{
+					MemoryBytes: 8 * 1024 * 1024 * 1024, // 8GB exceeds 4GB limit
+				},
+			},
+			Name:      "test-container-memory",
+			SessionID: sessionID,
+		}
+
+		_, err = creator.Create(context.Background(), cfg)
+
+		// Should fail with permission error
+		require.Error(t, err)
+		var customErr *types.Error
+		require.ErrorAs(t, err, &customErr)
+		assert.Equal(t, types.ErrCodePermission, customErr.Code,
+			"strict mode should reject memory quota violation")
+	})
+
+	t.Run("strict mode allows compliant configuration", func(t *testing.T) {
+		strictPolicy := policy.DefaultPolicy()
+		maxCPUs := int64(4 * 1000000000) // 4 CPUs
+		strictPolicy.Quotas.MaxCPUs = &maxCPUs
+		maxMemory := int64(8 * 1024 * 1024 * 1024) // 8GB
+		strictPolicy.Quotas.MaxMemory = &maxMemory
+		strictPolicy.Images.AllowLatestTag = false
+		strictPolicy.Mode = policy.EnforcementModeStrict
+
+		enforcer, err := policy.New(config.DefaultPolicyConfig(), log)
+		require.NoError(t, err)
+		err = enforcer.SetPolicy(context.Background(), strictPolicy)
+		require.NoError(t, err)
+
+		creator.SetEnforcer(enforcer)
+
+		cfg := CreateConfig{
+			Config: types.ContainerConfig{
+				Image: "alpine:3.18", // Specific tag, not latest
+				Resources: types.ResourceLimits{
+					NanoCPUs:    2 * 1000000000, // 2 CPUs within 4 CPU limit
+					MemoryBytes: 4 * 1024 * 1024 * 1024, // 4GB within 8GB limit
+				},
+			},
+			Name:      "test-container-compliant",
+			SessionID: sessionID,
+		}
+
+		_, err = creator.Create(context.Background(), cfg)
+
+		// Should NOT fail with permission error (will fail with nil Docker client error instead)
+		if err != nil {
+			var customErr *types.Error
+			if assert.ErrorAs(t, err, &customErr) {
+				assert.NotEqual(t, types.ErrCodePermission, customErr.Code,
+					"compliant config should not fail policy validation")
+			}
+		}
+	})
+
+	t.Run("permissive mode allows violations but logs them", func(t *testing.T) {
+		permissivePolicy := policy.DefaultPolicy()
+		permissivePolicy.Images.AllowLatestTag = false
+		permissivePolicy.Mode = policy.EnforcementModePermissive
+
+		enforcer, err := policy.New(config.DefaultPolicyConfig(), log)
+		require.NoError(t, err)
+		err = enforcer.SetPolicy(context.Background(), permissivePolicy)
+		require.NoError(t, err)
+
+		creator.SetEnforcer(enforcer)
+
+		cfg := CreateConfig{
+			Config: types.ContainerConfig{
+				Image: "alpine:latest", // Violates policy
+			},
+			Name:      "test-container-permissive",
+			SessionID: sessionID,
+		}
+
+		_, err = creator.Create(context.Background(), cfg)
+
+		// Should NOT fail with permission error in permissive mode
+		if err != nil {
+			var customErr *types.Error
+			if assert.ErrorAs(t, err, &customErr) {
+				assert.NotEqual(t, types.ErrCodePermission, customErr.Code,
+					"permissive mode should not block with permission error")
+			}
+		}
+	})
+
+	t.Run("disabled mode allows everything", func(t *testing.T) {
+		disabledPolicy := policy.DefaultPolicy()
+		disabledPolicy.Images.AllowLatestTag = false
+		disabledPolicy.Mode = policy.EnforcementModeDisabled
+
+		enforcer, err := policy.New(config.DefaultPolicyConfig(), log)
+		require.NoError(t, err)
+		err = enforcer.SetPolicy(context.Background(), disabledPolicy)
+		require.NoError(t, err)
+
+		creator.SetEnforcer(enforcer)
+
+		cfg := CreateConfig{
+			Config: types.ContainerConfig{
+				Image: "alpine:latest", // Would violate if not disabled
+				Resources: types.ResourceLimits{
+					NanoCPUs:    8 * 1000000000, // Exceeds default
+					MemoryBytes: 16 * 1024 * 1024 * 1024, // Exceeds default
+				},
+			},
+			Name:      "test-container-disabled",
+			SessionID: sessionID,
+		}
+
+		_, err = creator.Create(context.Background(), cfg)
+
+		// Should NOT fail with permission error in disabled mode
+		if err != nil {
+			var customErr *types.Error
+			if assert.ErrorAs(t, err, &customErr) {
+				assert.NotEqual(t, types.ErrCodePermission, customErr.Code,
+					"disabled mode should not block with permission error")
+			}
+		}
+	})
+}
+
 func TestPolicyViolationLogging(t *testing.T) {
 	log, err := logger.NewDefault()
 	require.NoError(t, err)
