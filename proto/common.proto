@@ -69,3 +69,32 @@ message ResourceUsage {
   int64 block_write = 8;
   int64 pids_count = 9;
 }
+
+// =============================================================================
+// LLM Types
+// =============================================================================
+
+// Provider represents the LLM provider
+enum Provider {
+  PROVIDER_UNSPECIFIED = 0;
+  PROVIDER_ANTHROPIC = 1;
+  PROVIDER_OPENAI = 2;
+  PROVIDER_OPENROUTER = 3;
+  PROVIDER_OLLAMA = 4;
+  PROVIDER_LMSTUDIO = 5;
+}
+
+// ModelCapabilities describes the capabilities of a model
+message ModelCapabilities {
+  bool streaming = 1;       // Supports streaming responses
+  bool tools = 2;           // Supports function/tool calling
+  bool vision = 3;          // Supports image/vision input
+  bool thinking = 4;        // Supports extended thinking/reasoning
+}
+
+// TokenUsage represents token consumption for an LLM request
+message TokenUsage {
+  int32 input_tokens = 1;      // Tokens sent in the request
+  int32 output_tokens = 2;     // Tokens received in the response
+  int32 total_tokens = 3;      // Sum of input and output tokens
+}
