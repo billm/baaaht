@@ -605,20 +605,21 @@ func TestStreamingOptionsMerge(t *testing.T) {
 		t.Error("Merge with nil should return original")
 	}
 
-	// Merge with custom options
+	// Merge with custom options - boolean fields are always overridden
 	custom := &StreamingOptions{
-		BufferSize: 20,
-		IncludeRaw: true,
+		BufferSize:   20,
+		IncludeUsage: false, // Explicitly override defaults.IncludeUsage (true) to false
+		IncludeRaw:   true,  // Explicitly override defaults.IncludeRaw (false) to true
 	}
 	result = defaults.Merge(custom)
 	if result.BufferSize != 20 {
 		t.Errorf("BufferSize = %v, want 20", result.BufferSize)
 	}
-	if !result.IncludeUsage {
-		t.Error("IncludeUsage should remain true")
+	if result.IncludeUsage {
+		t.Error("IncludeUsage should be false after override")
 	}
 	if !result.IncludeRaw {
-		t.Error("IncludeRaw should be true")
+		t.Error("IncludeRaw should be true after override")
 	}
 }
 

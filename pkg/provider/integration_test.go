@@ -444,11 +444,11 @@ func TestIntegration_ProviderTokenAccountingWorkflow(t *testing.T) {
 	for i, req := range requests {
 		requestID := types.GenerateID().String()
 		provider.tokenAccount.Record(requestID, req.model, TokenUsage{
-			InputTokens:     req.input,
-			OutputTokens:    req.output,
-			CacheReadTokens: req.cacheRead,
+			InputTokens:      req.input,
+			OutputTokens:     req.output,
+			CacheReadTokens:  req.cacheRead,
 			CacheWriteTokens: req.cacheWrite,
-			TotalTokens:     req.input + req.output,
+			TotalTokens:      req.input + req.output + req.cacheRead + req.cacheWrite,
 		})
 		t.Logf("Recorded request %d: model=%s, input=%d, output=%d",
 			i+1, req.model, req.input, req.output)
@@ -474,7 +474,7 @@ func TestIntegration_ProviderTokenAccountingWorkflow(t *testing.T) {
 	// Get summary
 	summary := provider.tokenAccount.GetSummary()
 	assert.Equal(t, int64(3), summary.RequestCount, "Should have 3 requests")
-	assert.Equal(t, 4500, summary.TotalUsage.TotalTokens, "Total tokens should match")
+	assert.Equal(t, 5325, summary.TotalUsage.TotalTokens, "Total tokens should match (input + output + cache read + cache write)")
 	t.Logf("Total requests: %d", summary.RequestCount)
 	t.Logf("Total tokens: %d", summary.TotalUsage.TotalTokens)
 	t.Logf("Average tokens per request: %.2f", summary.AverageTokensPerRequest)
