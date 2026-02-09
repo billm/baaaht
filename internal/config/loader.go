@@ -194,4 +194,9 @@ func interpolateEnvVarsInConfig(cfg *Config) {
 
 	// GRPC config (NEW)
 	cfg.GRPC.SocketPath = interpolateEnvVars(cfg.GRPC.SocketPath)
+
+	// Provider config (NEW)
+	cfg.Provider.DefaultProvider = interpolateEnvVars(cfg.Provider.DefaultProvider)
+	cfg.Provider.Anthropic.BaseURL = interpolateEnvVars(cfg.Provider.Anthropic.BaseURL)
+	cfg.Provider.OpenAI.BaseURL = interpolateEnvVars(cfg.Provider.OpenAI.BaseURL)
 }

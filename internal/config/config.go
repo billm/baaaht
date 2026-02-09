@@ -29,6 +29,7 @@ type Config struct {
 	Memory       MemoryConfig       `json:"memory" yaml:"memory"`
 	GRPC         GRPCConfig         `json:"grpc" yaml:"grpc"`
 	LLM          LLMConfig          `json:"llm" yaml:"llm"`
+	Provider     ProviderConfig     `json:"provider" yaml:"provider"`
 }
 
 // DockerConfig contains Docker client configuration
@@ -205,6 +206,41 @@ type ProviderConfig struct {
 	BaseURL  string   `json:"base_url,omitempty" yaml:"base_url,omitempty"`
 	Enabled  bool     `json:"enabled" yaml:"enabled"`
 	Models   []string `json:"models" yaml:"models"`
+// ProviderConfig contains provider configuration
+type ProviderConfig struct {
+	DefaultProvider        string                       `json:"default_provider" yaml:"default_provider"`
+	FailoverEnabled        bool                         `json:"failover_enabled" yaml:"failover_enabled"`
+	FailoverThreshold      int                          `json:"failover_threshold" yaml:"failover_threshold"`
+	HealthCheckInterval    time.Duration                `json:"health_check_interval" yaml:"health_check_interval"`
+	CircuitBreakerTimeout  time.Duration                `json:"circuit_breaker_timeout" yaml:"circuit_breaker_timeout"`
+	Anthropic              ProviderSpecificConfig        `json:"anthropic" yaml:"anthropic"`
+	OpenAI                 ProviderSpecificConfig        `json:"openai" yaml:"openai"`
+}
+
+// ProviderSpecificConfig contains configuration for a specific provider
+type ProviderSpecificConfig struct {
+	Enabled    bool   `json:"enabled" yaml:"enabled"`
+	BaseURL    string `json:"base_url,omitempty" yaml:"base_url,omitempty"`
+	Timeout    int    `json:"timeout,omitempty" yaml:"timeout,omitempty"`    // seconds
+	MaxRetries int    `json:"max_retries,omitempty" yaml:"max_retries,omitempty"`
+	Priority   int    `json:"priority,omitempty" yaml:"priority,omitempty"`
+}
+
+// ProviderOverrideOptions contains provider-specific override options
+type ProviderOverrideOptions struct {
+	DefaultProvider     string
+	FailoverEnabled     *bool
+	FailoverThreshold   *int
+	Providers           map[string]ProviderSpecificOverride
+}
+
+// ProviderSpecificOverride contains override options for a specific provider
+type ProviderSpecificOverride struct {
+	Enabled    *bool
+	BaseURL    string
+	Timeout    string  // duration string
+	MaxRetries *int
+	APIKey     string
 }
 
 // applyDefaults fills in zero-valued NEW config fields with their defaults
@@ -311,6 +347,39 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.LLM.FallbackChains == nil {
 		cfg.LLM.FallbackChains = defaultLLM.FallbackChains
+	// Provider defaults - NEW field, may not exist in older YAML files
+	// Apply field-by-field to handle partial configs
+	defaultProvider := DefaultProviderConfig()
+	if cfg.Provider.DefaultProvider == "" {
+		cfg.Provider.DefaultProvider = defaultProvider.DefaultProvider
+	}
+	if cfg.Provider.FailoverThreshold == 0 {
+		cfg.Provider.FailoverThreshold = defaultProvider.FailoverThreshold
+	}
+	if cfg.Provider.HealthCheckInterval == 0 {
+		cfg.Provider.HealthCheckInterval = defaultProvider.HealthCheckInterval
+	}
+	if cfg.Provider.CircuitBreakerTimeout == 0 {
+		cfg.Provider.CircuitBreakerTimeout = defaultProvider.CircuitBreakerTimeout
+	}
+	// Apply provider-specific defaults
+	if cfg.Provider.Anthropic.Timeout == 0 {
+		cfg.Provider.Anthropic.Timeout = defaultProvider.Anthropic.Timeout
+	}
+	if cfg.Provider.Anthropic.MaxRetries == 0 {
+		cfg.Provider.Anthropic.MaxRetries = defaultProvider.Anthropic.MaxRetries
+	}
+	if cfg.Provider.Anthropic.Priority == 0 {
+		cfg.Provider.Anthropic.Priority = defaultProvider.Anthropic.Priority
+	}
+	if cfg.Provider.OpenAI.Timeout == 0 {
+		cfg.Provider.OpenAI.Timeout = defaultProvider.OpenAI.Timeout
+	}
+	if cfg.Provider.OpenAI.MaxRetries == 0 {
+		cfg.Provider.OpenAI.MaxRetries = defaultProvider.OpenAI.MaxRetries
+	}
+	if cfg.Provider.OpenAI.Priority == 0 {
+		cfg.Provider.OpenAI.Priority = defaultProvider.OpenAI.Priority
 	}
 }
 
@@ -577,6 +646,7 @@ func Load() (*Config, error) {
 			Memory:       DefaultMemoryConfig(),
 			GRPC:         DefaultGRPCConfig(),
 			LLM:          DefaultLLMConfig(),
+			Provider:     DefaultProviderConfig(),
 		}
 	}
 
@@ -801,6 +871,28 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	// Validate Provider configuration
+	// Only validate if provider config is explicitly set (not all zero values)
+	// This allows backward compatibility with configs that don't use provider features
+	if c.Provider != (ProviderConfig{}) {
+		validProviders := map[string]bool{
+			"anthropic": true,
+			"openai":    true,
+		}
+		if c.Provider.DefaultProvider != "" && !validProviders[c.Provider.DefaultProvider] {
+			return types.NewError(types.ErrCodeInvalidArgument,
+				fmt.Sprintf("invalid default provider: %s (must be anthropic or openai)", c.Provider.DefaultProvider))
+		}
+		if c.Provider.FailoverEnabled && c.Provider.FailoverThreshold <= 0 {
+			return types.NewError(types.ErrCodeInvalidArgument, "provider failover threshold must be positive when failover is enabled")
+		}
+		if c.Provider.HealthCheckInterval <= 0 {
+			return types.NewError(types.ErrCodeInvalidArgument, "provider health check interval must be positive")
+		}
+		if c.Provider.CircuitBreakerTimeout <= 0 {
+			return types.NewError(types.ErrCodeInvalidArgument, "provider circuit breaker timeout must be positive")
+		}
+	}
 	return nil
 }
 
@@ -821,7 +913,7 @@ func (c *Config) ProfilingAddress() string {
 
 // String returns a string representation of the configuration (sensitive data is hidden)
 func (c *Config) String() string {
-	return fmt.Sprintf("Config{Docker: %s, API: %s, Logging: %s, Session: %s, Event: %s, IPC: %s, Scheduler: %s, Credentials: %s, Policy: %s, Metrics: %s, Tracing: %s, Orchestrator: %s, Runtime: %s, Memory: %s, GRPC: %s, LLM: %s}",
+	return fmt.Sprintf("Config{Docker: %s, API: %s, Logging: %s, Session: %s, Event: %s, IPC: %s, Scheduler: %s, Credentials: %s, Policy: %s, Metrics: %s, Tracing: %s, Orchestrator: %s, Runtime: %s, Memory: %s, GRPC: %s, LLM: %s, Provider: %s}",
 		c.Docker.String(),
 		c.APIServer.String(),
 		c.Logging.String(),
@@ -838,6 +930,7 @@ func (c *Config) String() string {
 		c.Memory.String(),
 		c.GRPC.String(),
 		c.LLM.String(),
+		c.Provider.String(),
 	)
 }
 
@@ -999,6 +1092,6 @@ func (c LLMConfig) String() string {
 }
 
 func (c ProviderConfig) String() string {
-	return fmt.Sprintf("ProviderConfig{Name: %s, BaseURL: %s, Enabled: %v, Models: %d}",
-		c.Name, c.BaseURL, c.Enabled, len(c.Models))
+	return fmt.Sprintf("ProviderConfig{DefaultProvider: %s, FailoverEnabled: %v, Anthropic: {Enabled: %v, Priority: %d}, OpenAI: {Enabled: %v, Priority: %d}}",
+		c.DefaultProvider, c.FailoverEnabled, c.Anthropic.Enabled, c.Anthropic.Priority, c.OpenAI.Enabled, c.OpenAI.Priority)
 }

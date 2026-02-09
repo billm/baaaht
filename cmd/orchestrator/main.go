@@ -10,6 +10,7 @@ import (
 	"github.com/billm/baaaht/orchestrator/internal/logger"
 	"github.com/billm/baaaht/orchestrator/pkg/grpc"
 	"github.com/billm/baaaht/orchestrator/pkg/orchestrator"
+	"github.com/billm/baaaht/orchestrator/pkg/provider"
 	"github.com/spf13/cobra"
 )
 
@@ -37,6 +38,7 @@ var (
 	shutdown  *orchestrator.ShutdownManager
 	cfgReloader *config.Reloader
 	grpcResult *grpc.BootstrapResult
+	providerRegistry *provider.Registry
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -126,6 +128,115 @@ func runOrchestrator(cmd *cobra.Command, args []string) error {
 		"socket_path", grpcResult.SocketPath,
 		"duration", grpcResult.Duration())
 
+	// Initialize provider registry
+	rootLog.Info("Initializing provider registry...")
+	providerRegistryCfg := provider.RegistryConfig{
+		FailoverEnabled:        cfg.Provider.FailoverEnabled,
+		FailoverThreshold:      cfg.Provider.FailoverThreshold,
+		HealthCheckInterval:    cfg.Provider.HealthCheckInterval,
+		CircuitBreakerTimeout:  cfg.Provider.CircuitBreakerTimeout,
+		Providers:              make(map[provider.Provider]provider.ProviderConfig),
+	}
+
+	// Convert default provider
+	providerRegistryCfg.DefaultProvider = provider.Provider(cfg.Provider.DefaultProvider)
+	if !providerRegistryCfg.DefaultProvider.IsValid() {
+		providerRegistryCfg.DefaultProvider = provider.ProviderAnthropic
+	}
+
+	// Convert Anthropic configuration
+	anthropicCfg := provider.ProviderConfig{
+		Provider:   provider.ProviderAnthropic,
+		APIKey:     os.Getenv("ANTHROPIC_API_KEY"),
+		BaseURL:    cfg.Provider.Anthropic.BaseURL,
+		Timeout:    cfg.Provider.Anthropic.Timeout,
+		MaxRetries: cfg.Provider.Anthropic.MaxRetries,
+		Enabled:    cfg.Provider.Anthropic.Enabled,
+		Priority:   cfg.Provider.Anthropic.Priority,
+		Models: []provider.Model{
+			provider.ModelClaude3_5Sonnet,
+			provider.ModelClaude3_5SonnetNew,
+			provider.ModelClaude3Opus,
+			provider.ModelClaude3Sonnet,
+			provider.ModelClaude3Haiku,
+		},
+		Metadata: map[string]interface{}{
+			"name":                         "Anthropic",
+			"description":                  "Anthropic Claude API",
+			"supports_prompt_caching":      true,
+			"supports_function_calling":    true,
+			"supports_vision":              true,
+		},
+	}
+	if anthropicCfg.BaseURL == "" {
+		anthropicCfg.BaseURL = provider.DefaultAnthropicBaseURL
+	}
+	if anthropicCfg.Timeout == 0 {
+		anthropicCfg.Timeout = provider.DefaultProviderTimeout
+	}
+	if anthropicCfg.MaxRetries == 0 {
+		anthropicCfg.MaxRetries = provider.DefaultProviderMaxRetries
+	}
+	providerRegistryCfg.Providers[provider.ProviderAnthropic] = anthropicCfg
+
+	// Convert OpenAI configuration
+	openaiCfg := provider.ProviderConfig{
+		Provider:   provider.ProviderOpenAI,
+		APIKey:     os.Getenv("OPENAI_API_KEY"),
+		BaseURL:    cfg.Provider.OpenAI.BaseURL,
+		Timeout:    cfg.Provider.OpenAI.Timeout,
+		MaxRetries: cfg.Provider.OpenAI.MaxRetries,
+		Enabled:    cfg.Provider.OpenAI.Enabled,
+		Priority:   cfg.Provider.OpenAI.Priority,
+		Models: []provider.Model{
+			provider.ModelGPT4o,
+			provider.ModelGPT4oMini,
+			provider.ModelGPT4Turbo,
+			provider.ModelGPT4,
+			provider.ModelGPT35Turbo,
+		},
+		Metadata: map[string]interface{}{
+			"name":                      "OpenAI",
+			"description":               "OpenAI GPT API",
+			"supports_function_calling": true,
+			"supports_vision":           true,
+			"supports_json_mode":        true,
+		},
+	}
+	if openaiCfg.BaseURL == "" {
+		openaiCfg.BaseURL = provider.DefaultOpenAIBaseURL
+	}
+	if openaiCfg.Timeout == 0 {
+		openaiCfg.Timeout = provider.DefaultProviderTimeout
+	}
+	if openaiCfg.MaxRetries == 0 {
+		openaiCfg.MaxRetries = provider.DefaultProviderMaxRetries
+	}
+	providerRegistryCfg.Providers[provider.ProviderOpenAI] = openaiCfg
+
+	providerRegistry, err = provider.NewRegistry(providerRegistryCfg, rootLog)
+	if err != nil {
+		rootLog.Error("Failed to create provider registry", "error", err)
+		return err
+	}
+
+	// Initialize providers from configuration
+	if err := providerRegistry.InitializeFromConfig(ctx); err != nil {
+		rootLog.Error("Failed to initialize providers from configuration", "error", err)
+		return err
+	}
+
+	// Set global registry instance
+	provider.SetGlobal(providerRegistry)
+
+	// Log provider registry status
+	listedProviders, _ := providerRegistry.List(ctx)
+	availableProviders, _ := providerRegistry.ListAvailable(ctx)
+	rootLog.Info("Provider registry initialized successfully",
+		"total_providers", len(listedProviders),
+		"available_providers", len(availableProviders),
+		"default_provider", providerRegistryCfg.DefaultProvider)
+
 	// Create shutdown manager
 	shutdown = orchestrator.NewShutdownManager(
 		orch,
@@ -166,6 +277,14 @@ func runOrchestrator(cmd *cobra.Command, args []string) error {
 				rootLog.Error("Failed to stop gRPC server", "error", err)
 			} else {
 				rootLog.Info("gRPC server stopped")
+			}
+		}
+		// Close provider registry
+		if providerRegistry != nil {
+			if err := providerRegistry.Close(); err != nil {
+				rootLog.Error("Failed to close provider registry", "error", err)
+			} else {
+				rootLog.Info("Provider registry closed")
 			}
 		}
 		// Stop config reloader
