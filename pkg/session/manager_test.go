@@ -1458,3 +1458,63 @@ func TestRestoreSessionsDoesNotDuplicate(t *testing.T) {
 		t.Errorf("expected 1 session after restore (not duplicated), got %d", len(sessions))
 	}
 }
+
+// TestCloseSessionFromClosingState tests that CloseSession completes the transition
+// when the session is already in closing state
+func TestCloseSessionFromClosingState(t *testing.T) {
+manager := createTestManager()
+defer manager.Close()
+
+ctx := context.Background()
+
+// Create a session
+sessionID := createTestSession(t, manager)
+
+// Get the session with state machine to manually put it in closing state
+manager.mu.Lock()
+sessionWithSM, exists := manager.sessions[sessionID]
+if !exists {
+manager.mu.Unlock()
+t.Fatal("session not found")
+}
+
+// Transition to closing state directly
+if err := sessionWithSM.Close(); err != nil {
+manager.mu.Unlock()
+t.Fatalf("failed to transition to closing state: %v", err)
+}
+manager.mu.Unlock()
+
+// Verify session is in closing state
+state, err := manager.GetState(ctx, sessionID)
+if err != nil {
+t.Fatalf("failed to get session state: %v", err)
+}
+if state != types.SessionStateClosing {
+t.Fatalf("expected session to be in closing state, got %s", state)
+}
+
+// Call CloseSession to complete the transition to closed
+err = manager.CloseSession(ctx, sessionID)
+if err != nil {
+t.Fatalf("failed to close session from closing state: %v", err)
+}
+
+// Verify session is now in closed state
+state, err = manager.GetState(ctx, sessionID)
+if err != nil {
+t.Fatalf("failed to get session state after CloseSession: %v", err)
+}
+if state != types.SessionStateClosed {
+t.Errorf("expected session to be in closed state, got %s", state)
+}
+
+// Verify session status is stopped
+session, err := manager.Get(ctx, sessionID)
+if err != nil {
+t.Fatalf("failed to get session: %v", err)
+}
+if session.Status != types.StatusStopped {
+t.Errorf("expected session status to be stopped, got %s", session.Status)
+}
+}
