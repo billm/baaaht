@@ -106,9 +106,25 @@ func NewServer(path string, cfg ServerConfig, log *logger.Logger) (*Server, erro
 	}
 
 	// Remove any existing file at the socket path
-	// This handles both stale socket files and other files that might be in the way
-	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
-		return nil, types.WrapError(types.ErrCodeInternal, "failed to remove existing file at socket path", err)
+	// This handles stale socket files, but avoids deleting unsafe types like directories.
+	if fi, err := os.Lstat(path); err != nil {
+		if !os.IsNotExist(err) {
+			return nil, types.WrapError(types.ErrCodeInternal, "failed to stat existing path at socket path", err)
+		}
+	} else {
+		mode := fi.Mode()
+		// Only remove Unix sockets and regular files; refuse to delete other types.
+		if mode&os.ModeSocket != 0 || mode.IsRegular() {
+			if err := os.Remove(path); err != nil {
+				return nil, types.WrapError(types.ErrCodeInternal, "failed to remove existing file at socket path", err)
+			}
+		} else {
+			return nil, types.WrapError(
+				types.ErrCodeInternal,
+				fmt.Sprintf("existing path at socket path is of unsafe type %v; refusing to remove", mode),
+				nil,
+			)
+		}
 	}
 
 	s := &Server{
