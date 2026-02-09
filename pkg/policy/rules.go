@@ -119,7 +119,7 @@ type SecurityPolicy struct {
 type Violation struct {
 	Rule      string `json:"rule" yaml:"rule"`
 	Message   string `json:"message" yaml:"message"`
-	Severity  string `json:"severity" yaml:"severity"`  // error, warning, info
+	Severity  string `json:"severity" yaml:"severity"`   // error, warning, info
 	Component string `json:"component" yaml:"component"` // quota, mount, network, image, security
 }
 

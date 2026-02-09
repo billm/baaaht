@@ -669,7 +669,7 @@ func TestCreateWithPolicyViolation(t *testing.T) {
 				SessionID: sessionID,
 			},
 			wantErr: true, // Will still fail because Docker client is nil, but not with permission error
-			errCode: "",  // Not expecting permission error
+			errCode: "",   // Not expecting permission error
 		},
 		{
 			name: "no enforcer - allows any configuration",
@@ -685,7 +685,7 @@ func TestCreateWithPolicyViolation(t *testing.T) {
 				SessionID: sessionID,
 			},
 			wantErr: true, // Will fail with nil Docker client, but not policy violation
-			errCode: "",  // Not expecting permission error
+			errCode: "",   // Not expecting permission error
 		},
 	}
 
@@ -878,7 +878,7 @@ func TestStrictModeRejection(t *testing.T) {
 			Config: types.ContainerConfig{
 				Image: "alpine:3.18", // Specific tag, not latest
 				Resources: types.ResourceLimits{
-					NanoCPUs:    2 * 1000000000, // 2 CPUs within 4 CPU limit
+					NanoCPUs:    2 * 1000000000,         // 2 CPUs within 4 CPU limit
 					MemoryBytes: 4 * 1024 * 1024 * 1024, // 4GB within 8GB limit
 				},
 			},
@@ -946,7 +946,7 @@ func TestStrictModeRejection(t *testing.T) {
 			Config: types.ContainerConfig{
 				Image: "alpine:latest", // Would violate if not disabled
 				Resources: types.ResourceLimits{
-					NanoCPUs:    8 * 1000000000, // Exceeds default
+					NanoCPUs:    8 * 1000000000,          // Exceeds default
 					MemoryBytes: 16 * 1024 * 1024 * 1024, // Exceeds default
 				},
 			},
@@ -1065,7 +1065,7 @@ func TestPolicyViolationLogging(t *testing.T) {
 			Config: types.ContainerConfig{
 				Image: "ubuntu:latest", // Violates no-latest-tag
 				Resources: types.ResourceLimits{
-					NanoCPUs:    4 * 1000000000, // 4 CPUs exceeds 2 CPU limit
+					NanoCPUs:    4 * 1000000000,         // 4 CPUs exceeds 2 CPU limit
 					MemoryBytes: 8 * 1024 * 1024 * 1024, // 8GB exceeds 4GB limit
 				},
 			},

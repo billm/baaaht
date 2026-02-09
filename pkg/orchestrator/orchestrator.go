@@ -28,18 +28,18 @@ type Orchestrator struct {
 	closed bool
 
 	// Core subsystems
-	dockerClient     *container.Client
-	sessionMgr       *session.Manager
-	eventBus         *events.Bus
-	eventRouter      *events.Router
-	ipcBroker        *ipc.Broker
-	policyEnforcer   *policy.Enforcer
-	policyReloader   *policy.Reloader
-	credStore        *credentials.Store
-	scheduler        *scheduler.Scheduler
-	memoryStore      *memory.Store
-	memoryExtractor  *memory.Extractor
-	memoryHandler    *memory.SessionArchivalHandler
+	dockerClient    *container.Client
+	sessionMgr      *session.Manager
+	eventBus        *events.Bus
+	eventRouter     *events.Router
+	ipcBroker       *ipc.Broker
+	policyEnforcer  *policy.Enforcer
+	policyReloader  *policy.Reloader
+	credStore       *credentials.Store
+	scheduler       *scheduler.Scheduler
+	memoryStore     *memory.Store
+	memoryExtractor *memory.Extractor
+	memoryHandler   *memory.SessionArchivalHandler
 
 	// Lifecycle management
 	started        bool
