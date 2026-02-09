@@ -17,6 +17,7 @@ type Registry struct {
 	logger    *logger.Logger
 	closed    bool
 	defaultProvider Provider
+	failoverManager *FailoverManager
 }
 
 // NewRegistry creates a new provider registry with the specified configuration
@@ -53,11 +54,12 @@ func NewRegistry(cfg RegistryConfig, log *logger.Logger) (*Registry, error) {
 	}
 
 	registry := &Registry{
-		providers:      make(map[Provider]LLMProvider),
-		cfg:            cfg,
-		logger:         log.With("component", "provider_registry"),
-		closed:         false,
+		providers:       make(map[Provider]LLMProvider),
+		cfg:             cfg,
+		logger:          log.With("component", "provider_registry"),
+		closed:          false,
 		defaultProvider: cfg.DefaultProvider,
+		failoverManager: NewFailoverManager(cfg, log),
 	}
 
 	registry.logger.Info("Provider registry initialized",
@@ -398,6 +400,13 @@ func (r *Registry) Close() error {
 
 	r.logger.Info("Provider registry shutting down...")
 
+	// Close failover manager
+	if r.failoverManager != nil {
+		if err := r.failoverManager.Close(); err != nil {
+			r.logger.Warn("Failed to close failover manager", "error", err)
+		}
+	}
+
 	// Close all providers
 	var lastErr error
 	for providerID, provider := range r.providers {
@@ -423,6 +432,72 @@ func (r *Registry) IsClosed() bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.closed
+}
+
+// GetWithFailover returns a provider with automatic failover to backup providers
+// If the primary provider fails, it will try backup providers in priority order
+// Returns the provider, whether failover occurred, and an error
+func (r *Registry) GetWithFailover(ctx context.Context, primary Provider) (LLMProvider, bool, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	if r.closed {
+		return nil, false, types.NewError(types.ErrCodeUnavailable, "provider registry is closed")
+	}
+
+	return r.failoverManager.SelectProviderWithFailover(
+		ctx,
+		primary,
+		func(p Provider) (LLMProvider, error) {
+			provider, exists := r.providers[p]
+			if !exists {
+				return nil, types.NewError(types.ErrCodeNotFound, "provider not found: "+p.String())
+			}
+			return provider, nil
+		},
+		func() ([]LLMProvider, error) {
+			result := make([]LLMProvider, 0, len(r.providers))
+			for _, provider := range r.providers {
+				result = append(result, provider)
+			}
+			return result, nil
+		},
+	)
+}
+
+// RecordProviderFailure records a failure for a provider in the failover manager
+func (r *Registry) RecordProviderFailure(providerID Provider, reason string) {
+	r.failoverManager.RecordFailure(providerID, reason)
+}
+
+// RecordProviderSuccess records a success for a provider in the failover manager
+func (r *Registry) RecordProviderSuccess(providerID Provider) {
+	r.failoverManager.RecordSuccess(providerID)
+}
+
+// GetFailoverState returns the current failover state for a provider
+func (r *Registry) GetFailoverState(providerID Provider) FailoverState {
+	return r.failoverManager.GetProviderState(providerID)
+}
+
+// GetAllFailoverStates returns failover states for all providers
+func (r *Registry) GetAllFailoverStates() map[Provider]FailoverState {
+	return r.failoverManager.GetAllProviderStates()
+}
+
+// IsProviderHealthy checks if a provider is healthy considering failover state
+func (r *Registry) IsProviderHealthy(providerID Provider) bool {
+	return r.failoverManager.IsProviderAvailable(providerID)
+}
+
+// ResetProviderFailover resets the failover state for a specific provider
+func (r *Registry) ResetProviderFailover(providerID Provider) {
+	r.failoverManager.Reset(providerID)
+}
+
+// ResetAllFailover resets all failover states
+func (r *Registry) ResetAllFailover() {
+	r.failoverManager.ResetAll()
 }
 
 // InitializeFromConfig initializes the registry from configuration
