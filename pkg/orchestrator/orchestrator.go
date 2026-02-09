@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/billm/baaaht/orchestrator/internal/config"
 	"github.com/billm/baaaht/orchestrator/internal/logger"
@@ -39,6 +40,8 @@ type Orchestrator struct {
 	memoryStore    *memory.Store
 	memoryExtractor *memory.Extractor
 	memoryHandler  *memory.SessionArchivalHandler
+	llmGateway     *LLMGatewayManager
+	llmCredentialManager *credentials.LLMCredentialManager
 
 	// Lifecycle management
 	started        bool
@@ -404,6 +407,12 @@ func (o *Orchestrator) Close() error {
 		}
 	}
 
+	if o.llmGateway != nil {
+		if err := o.llmGateway.Close(); err != nil {
+			o.logger.Error("Failed to close LLM Gateway", "error", err)
+		}
+	}
+
 	if o.scheduler != nil {
 		if err := o.scheduler.Close(); err != nil {
 			o.logger.Error("Failed to close scheduler", "error", err)
@@ -590,6 +599,20 @@ func (o *Orchestrator) MemoryHandler() *memory.SessionArchivalHandler {
 	return o.memoryHandler
 }
 
+// LLMGateway returns the LLM Gateway manager
+func (o *Orchestrator) LLMGateway() *LLMGatewayManager {
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	return o.llmGateway
+}
+
+// LLMCredentialManager returns the LLM credential manager
+func (o *Orchestrator) LLMCredentialManager() *credentials.LLMCredentialManager {
+	o.mu.RLock()
+	defer o.mu.RUnlock()
+	return o.llmCredentialManager
+}
+
 // ShutdownContext returns the shutdown context for cancellation
 func (o *Orchestrator) ShutdownContext() context.Context {
 	return o.shutdownCtx
@@ -669,6 +692,20 @@ func (o *Orchestrator) HealthCheck(ctx context.Context) map[string]types.Health 
 		health["memory"] = types.Unhealthy
 	}
 
+	// Check LLM Gateway
+	if o.llmGateway != nil && o.llmGateway.IsEnabled() {
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		result, err := o.llmGateway.HealthCheck(ctx)
+		if err != nil {
+			health["llm_gateway"] = types.Unhealthy
+		} else {
+			health["llm_gateway"] = result.Status
+		}
+	} else {
+		health["llm_gateway"] = types.Healthy // Disabled is healthy
+	}
+
 	return health
 }
 
@@ -729,6 +766,18 @@ func (o *Orchestrator) Stats(ctx context.Context) map[string]interface{} {
 		stats["scheduler"] = schedStats
 	}
 
+	// LLM Gateway stats
+	if o.llmGateway != nil {
+		stats["llm_gateway"] = map[string]interface{}{
+			"enabled":       o.llmGateway.IsEnabled(),
+			"started":       o.llmGateway.IsStarted(),
+			"container_id":  o.llmGateway.GetContainerID(),
+			"container_image": o.cfg.LLM.ContainerImage,
+			"default_provider": o.cfg.LLM.DefaultProvider,
+			"default_model":    o.cfg.LLM.DefaultModel,
+		}
+	}
+
 	return stats
 }
 
@@ -747,11 +796,12 @@ func (o *Orchestrator) String() string {
 		closed = "yes"
 	}
 
-	return fmt.Sprintf("Orchestrator{started: %s, closed: %s, docker: %v, sessions: %v, scheduler: %v}",
+	return fmt.Sprintf("Orchestrator{started: %s, closed: %s, docker: %v, sessions: %v, scheduler: %v, llm_gateway: %v}",
 		started, closed,
 		o.dockerClient != nil,
 		o.sessionMgr != nil,
-		o.scheduler != nil)
+		o.scheduler != nil,
+		o.llmGateway != nil)
 }
 
 // Helper cleanup methods (called during initialization failures)
