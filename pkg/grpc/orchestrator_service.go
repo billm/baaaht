@@ -330,7 +330,7 @@ func (s *OrchestratorService) SendMessage(ctx context.Context, req *proto.SendMe
 			},
 			Data: map[string]interface{}{
 				"message_id": messageID,
-				"role":       string(messageRoleToProto(addedMessage.Role)),
+				"role":       string(addedMessage.Role),
 				"session_id": string(sessionID),
 			},
 		}
