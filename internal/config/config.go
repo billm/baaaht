@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -217,22 +218,30 @@ func applyDefaults(cfg *Config) {
 	}
 
 	// Memory defaults - NEW field, may not exist in older YAML files
-	// Apply field-by-field to handle partial configs
+	// If the entire memory section is absent (all zero values), use full defaults
+	// to preserve the default Enabled value. Otherwise, apply field-by-field to handle
+	// partial configs, preserving an explicit Enabled=false.
 	defaultMemory := DefaultMemoryConfig()
-	if cfg.Memory.StoragePath == "" {
-		cfg.Memory.StoragePath = defaultMemory.StoragePath
-	}
-	if cfg.Memory.UserMemoryPath == "" {
-		cfg.Memory.UserMemoryPath = defaultMemory.UserMemoryPath
-	}
-	if cfg.Memory.GroupMemoryPath == "" {
-		cfg.Memory.GroupMemoryPath = defaultMemory.GroupMemoryPath
-	}
-	if cfg.Memory.MaxFileSize == 0 {
-		cfg.Memory.MaxFileSize = defaultMemory.MaxFileSize
-	}
-	if cfg.Memory.FileFormat == "" {
-		cfg.Memory.FileFormat = defaultMemory.FileFormat
+	if cfg.Memory == (MemoryConfig{}) {
+		cfg.Memory = defaultMemory
+	} else {
+		// Apply field-by-field to handle partial configs
+		if cfg.Memory.StoragePath == "" {
+			cfg.Memory.StoragePath = defaultMemory.StoragePath
+		}
+		// UserMemoryPath and GroupMemoryPath should derive from the configured StoragePath
+		if cfg.Memory.UserMemoryPath == "" {
+			cfg.Memory.UserMemoryPath = filepath.Join(cfg.Memory.StoragePath, "users")
+		}
+		if cfg.Memory.GroupMemoryPath == "" {
+			cfg.Memory.GroupMemoryPath = filepath.Join(cfg.Memory.StoragePath, "groups")
+		}
+		if cfg.Memory.MaxFileSize == 0 {
+			cfg.Memory.MaxFileSize = defaultMemory.MaxFileSize
+		}
+		if cfg.Memory.FileFormat == "" {
+			cfg.Memory.FileFormat = defaultMemory.FileFormat
+		}
 	}
 
 	// gRPC defaults - NEW field, may not exist in older YAML files
