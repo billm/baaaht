@@ -188,24 +188,26 @@ type GRPCConfig struct {
 
 // LLMConfig contains LLM Gateway configuration
 type LLMConfig struct {
-	Enabled                bool                       `json:"enabled" yaml:"enabled"`
-	ContainerImage         string                     `json:"container_image" yaml:"container_image"`
-	Providers              map[string]ProviderConfig  `json:"providers" yaml:"providers"`
-	DefaultModel           string                     `json:"default_model" yaml:"default_model"`
-	DefaultProvider        string                     `json:"default_provider" yaml:"default_provider"`
-	Timeout                time.Duration              `json:"timeout" yaml:"timeout"`
-	MaxConcurrentRequests  int                        `json:"max_concurrent_requests" yaml:"max_concurrent_requests"`
-	RateLimits             map[string]int             `json:"rate_limits" yaml:"rate_limits"` // provider -> requests per minute
-	FallbackChains         map[string][]string        `json:"fallback_chains" yaml:"fallback_chains"` // model -> []provider names
+	Enabled                bool                          `json:"enabled" yaml:"enabled"`
+	ContainerImage         string                        `json:"container_image" yaml:"container_image"`
+	Providers              map[string]LLMProviderConfig  `json:"providers" yaml:"providers"`
+	DefaultModel           string                        `json:"default_model" yaml:"default_model"`
+	DefaultProvider        string                        `json:"default_provider" yaml:"default_provider"`
+	Timeout                time.Duration                 `json:"timeout" yaml:"timeout"`
+	MaxConcurrentRequests  int                           `json:"max_concurrent_requests" yaml:"max_concurrent_requests"`
+	RateLimits             map[string]int                `json:"rate_limits" yaml:"rate_limits"` // provider -> requests per minute
+	FallbackChains         map[string][]string           `json:"fallback_chains" yaml:"fallback_chains"` // model -> []provider names
 }
 
-// ProviderConfig contains configuration for a specific LLM provider
-type ProviderConfig struct {
+// LLMProviderConfig contains configuration for a specific LLM provider
+type LLMProviderConfig struct {
 	Name     string   `json:"name" yaml:"name"`
 	APIKey   string   `json:"api_key,omitempty" yaml:"api_key,omitempty"` // From environment variable
 	BaseURL  string   `json:"base_url,omitempty" yaml:"base_url,omitempty"`
 	Enabled  bool     `json:"enabled" yaml:"enabled"`
 	Models   []string `json:"models" yaml:"models"`
+}
+
 // ProviderConfig contains provider configuration
 type ProviderConfig struct {
 	DefaultProvider        string                       `json:"default_provider" yaml:"default_provider"`
@@ -347,6 +349,8 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.LLM.FallbackChains == nil {
 		cfg.LLM.FallbackChains = defaultLLM.FallbackChains
+	}
+
 	// Provider defaults - NEW field, may not exist in older YAML files
 	// Apply field-by-field to handle partial configs
 	defaultProvider := DefaultProviderConfig()

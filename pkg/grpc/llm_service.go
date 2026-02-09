@@ -3,9 +3,11 @@ package grpc
 import (
 	"context"
 	"fmt"
+	"io"
 	"sync"
 	"time"
 
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -242,12 +244,17 @@ func (s *LLMService) StreamLLM(stream proto.LLMService_StreamLLMServer) error {
 	for {
 		req, err := stream.Recv()
 		if err != nil {
+			// Handle io.EOF explicitly - this is a normal stream end
+			if err == io.EOF {
+				s.logger.Debug("StreamLLM stream ended normally (EOF)", "request_id", requestID, "firstMessage", firstMessage)
+				return nil
+			}
 			if firstMessage {
-				s.logger.Debug("StreamLLM ended without receiving any message")
+				s.logger.Debug("StreamLLM ended without receiving any message", "error", err)
 				return err
 			}
-			// Client closed stream
-			s.logger.Debug("StreamLLM receive loop ended", "request_id", requestID)
+			// Client closed stream with other error
+			s.logger.Debug("StreamLLM receive loop ended", "request_id", requestID, "error", err)
 			return nil
 		}
 
@@ -689,7 +696,6 @@ func (s *LLMService) GetStatus(ctx context.Context, req *emptypb.Empty) (*proto.
 
 	uptime := time.Since(startedAt)
 	startedTs := types.NewTimestampFromTime(startedAt)
-	uptimeTs := types.NewTimestampFromTime(startedAt.Add(uptime))
 
 	// Get provider statuses
 	providers := map[string]*proto.ProviderStatus{
@@ -714,7 +720,7 @@ func (s *LLMService) GetStatus(ctx context.Context, req *emptypb.Empty) (*proto.
 	return &proto.LLMStatusResponse{
 		Status:           proto.Status_STATUS_RUNNING,
 		StartedAt:        timestampToProto(&startedTs),
-		Uptime:           timestampToProto(&uptimeTs),
+		Uptime:           durationpb.New(uptime),
 		ActiveRequests:   0,
 		TotalRequests:    totalRequests,
 		TotalTokensUsed:  totalTokensUsed,

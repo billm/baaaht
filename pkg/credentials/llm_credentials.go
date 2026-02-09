@@ -31,12 +31,13 @@ func NewLLMCredentialManager(store *Store, cfg config.LLMConfig, log *logger.Log
 		var err error
 		log, err = logger.NewDefault()
 		if err != nil {
-			// If we can't create a logger, return a manager with nil logger
-			// This will cause issues if used, but allows initialization to continue
-			return &LLMCredentialManager{
-				store: store,
-				cfg:   cfg,
-			}
+			// If we can't create a default logger, create one with basic stderr output
+			// This ensures the manager is always safe to use
+			log, _ = logger.New(config.LoggingConfig{
+				Level:  "info",
+				Output: "stderr",
+				Format: "text",
+			})
 		}
 	}
 	return &LLMCredentialManager{
@@ -126,14 +127,14 @@ func (m *LLMCredentialManager) ValidateLLMCredentials() error {
 }
 
 // GetProviderConfig retrieves the full configuration for a provider including credentials
-// Returns a ProviderConfig with the APIKey field populated from the credential store
-func (m *LLMCredentialManager) GetProviderConfig(provider string) (config.ProviderConfig, error) {
+// Returns a LLMProviderConfig with the APIKey field populated from the credential store
+func (m *LLMCredentialManager) GetProviderConfig(provider string) (config.LLMProviderConfig, error) {
 	ctx := context.Background()
 
 	// Get provider config from LLM config
 	providerCfg, exists := m.cfg.Providers[provider]
 	if !exists {
-		return config.ProviderConfig{}, types.NewError(types.ErrCodeNotFound,
+		return config.LLMProviderConfig{}, types.NewError(types.ErrCodeNotFound,
 			fmt.Sprintf("provider not configured: %s", provider))
 	}
 
@@ -144,10 +145,10 @@ func (m *LLMCredentialManager) GetProviderConfig(provider string) (config.Provid
 		apiKey, err := m.store.GetLLMCredential(ctx, provider)
 		if err != nil {
 			if types.IsErrCode(err, types.ErrCodeNotFound) {
-				return config.ProviderConfig{}, types.NewError(types.ErrCodeNotFound,
+				return config.LLMProviderConfig{}, types.NewError(types.ErrCodeNotFound,
 					fmt.Sprintf("credential not found for provider: %s", provider))
 			}
-			return config.ProviderConfig{}, types.WrapError(types.ErrCodeInternal,
+			return config.LLMProviderConfig{}, types.WrapError(types.ErrCodeInternal,
 				fmt.Sprintf("failed to get credential for provider: %s", provider), err)
 		}
 		providerCfg.APIKey = apiKey

@@ -175,6 +175,10 @@ func (m *LLMGatewayManager) Start(ctx context.Context) error {
 	m.logger.Info("LLM Gateway started successfully",
 		"container_id", m.containerID)
 
+	// Recreate health monitoring context and channel for this start
+	m.healthCheckCtx, m.healthCheckCancel = context.WithCancel(context.Background())
+	m.healthCheckDone = make(chan struct{})
+
 	// Start background health monitoring
 	go m.healthMonitorLoop()
 
