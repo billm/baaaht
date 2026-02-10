@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/billm/baaaht/orchestrator/internal/logger"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
@@ -799,4 +800,63 @@ func (a *Agent) sendHeartbeat(ctx context.Context) {
 		"pending_tasks", len(resp.PendingTasks))
 
 	// TODO: Handle pending tasks from response
+}
+
+// =============================================================================
+// Task Reception
+// =============================================================================
+
+// ListenForTasks establishes a bidirectional stream for task execution
+func (a *Agent) ListenForTasks(ctx context.Context, taskID string) (proto.AgentService_StreamTaskClient, error) {
+	a.mu.RLock()
+	registered := a.registered
+	agentID := a.agentID
+	conn := a.conn
+	a.mu.RUnlock()
+
+	if !registered {
+		return nil, types.NewError(types.ErrCodeInvalid, "agent not registered")
+	}
+
+	if agentID == "" {
+		return nil, types.NewError(types.ErrCodeInvalid, "agent ID is empty")
+	}
+
+	if conn == nil {
+		return nil, types.NewError(types.ErrCodeUnavailable, "not connected to orchestrator")
+	}
+
+	a.logger.Info("Listening for tasks", "agent_id", agentID, "task_id", taskID)
+
+	// Create RPC client
+	client := proto.NewAgentServiceClient(conn)
+
+	// Establish bidirectional stream
+	stream, err := client.StreamTask(ctx)
+	if err != nil {
+		a.logger.Error("Failed to establish stream", "task_id", taskID, "error", err)
+		return nil, types.WrapError(types.ErrCodeUnavailable, "failed to establish stream", err)
+	}
+
+	// Send first message with task_id
+	req := &proto.StreamTaskRequest{
+		TaskId: taskID,
+		Payload: &proto.StreamTaskRequest_Heartbeat{
+			Heartbeat: &emptypb.Empty{},
+		},
+	}
+
+	a.stats.TotalRPCs++
+	if err := stream.Send(req); err != nil {
+		a.stats.FailedRPCs++
+		a.mu.Lock()
+		a.stats.LastRPCError = err.Error()
+		a.mu.Unlock()
+		a.logger.Error("Failed to send initial stream message", "task_id", taskID, "error", err)
+		return nil, types.WrapError(types.ErrCodeInternal, "failed to send initial stream message", err)
+	}
+
+	a.logger.Info("Stream established for task", "task_id", taskID)
+
+	return stream, nil
 }

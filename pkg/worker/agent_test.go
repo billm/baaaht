@@ -495,3 +495,211 @@ func TestWorkerShutdown(t *testing.T) {
 
 	t.Log("Worker agent shutdown test passed!")
 }
+
+// TestListenForTasks tests that a worker agent can establish a stream for task execution
+func TestListenForTasks(t *testing.T) {
+	// Create event bus for agent service
+	eventBus, err := events.New(nil)
+	if err != nil {
+		t.Fatalf("Failed to create event bus: %v", err)
+	}
+	defer eventBus.Close()
+
+	// Create agent service dependencies
+	deps := &mockAgentServiceDependencies{eventBus: eventBus}
+
+	// Create logger
+	log, err := logger.NewDefault()
+	if err != nil {
+		t.Fatalf("Failed to create logger: %v", err)
+	}
+
+	// Create agent service
+	agentService := grpcpkg.NewAgentService(deps, log)
+
+	// Create gRPC server
+	server := grpc.NewServer()
+	proto.RegisterAgentServiceServer(server, agentService)
+
+	// Start server on a random port
+	lis, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		t.Fatalf("Failed to create listener: %v", err)
+	}
+
+	// Start server in background
+	serverErr := make(chan error, 1)
+	go func() {
+		serverErr <- server.Serve(lis)
+	}()
+	defer func() {
+		server.GracefulStop()
+		if err := <-serverErr; err != nil {
+			t.Logf("Server error: %v", err)
+		}
+	}()
+
+	// Get the actual address
+	addr := lis.Addr().String()
+
+	t.Logf("Agent service listening on %s", addr)
+
+	// Wait for server to be ready
+	ctx := context.Background()
+	clientConn, err := grpc.DialContext(ctx, addr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithBlock(),
+	)
+	if err != nil {
+		t.Fatalf("Failed to connect to server: %v", err)
+	}
+	defer clientConn.Close()
+
+	// Verify client can connect
+	agentClient := proto.NewAgentServiceClient(clientConn)
+	_, err = agentClient.HealthCheck(ctx, &emptypb.Empty{})
+	if err != nil {
+		t.Fatalf("Health check failed: %v", err)
+	}
+
+	// Create worker agent
+	cfg := AgentConfig{
+		DialTimeout: 5 * time.Second,
+		RPCTimeout:  5 * time.Second,
+	}
+	agent, err := NewAgent(addr, cfg, log)
+	if err != nil {
+		t.Fatalf("Failed to create worker agent: %v", err)
+	}
+	defer agent.Close()
+
+	// Connect to orchestrator
+	if err := agent.Dial(ctx); err != nil {
+		t.Fatalf("Failed to dial orchestrator: %v", err)
+	}
+
+	// Register the agent
+	workerName := "test-worker-listen"
+	if err := agent.Register(ctx, workerName); err != nil {
+		t.Fatalf("Failed to register agent: %v", err)
+	}
+
+	agentID := agent.GetAgentID()
+	t.Logf("Agent registered with ID: %s", agentID)
+
+	// Create a task via ExecuteTask RPC
+	taskReq := &proto.ExecuteTaskRequest{
+		AgentId:   agentID,
+		SessionId: "test-session-1",
+		Type:      proto.TaskType_TASK_TYPE_CUSTOM,
+		Priority:  proto.TaskPriority_TASK_PRIORITY_NORMAL,
+		Config: &proto.TaskConfig{
+			Command: "echo hello",
+		},
+	}
+
+	taskResp, err := agentClient.ExecuteTask(ctx, taskReq)
+	if err != nil {
+		t.Fatalf("Failed to create task: %v", err)
+	}
+
+	taskID := taskResp.TaskId
+	t.Logf("Task created with ID: %s", taskID)
+
+	// Test ListenForTasks - establish stream
+	streamCtx, streamCancel := context.WithTimeout(ctx, 10*time.Second)
+	defer streamCancel()
+
+	stream, err := agent.ListenForTasks(streamCtx, taskID)
+	if err != nil {
+		t.Fatalf("Failed to listen for tasks: %v", err)
+	}
+
+	if stream == nil {
+		t.Fatal("Expected non-nil stream")
+	}
+
+	t.Log("Stream established successfully")
+
+	// Send a test message with input data
+	testInput := &proto.StreamTaskRequest{
+		TaskId: taskID,
+		Payload: &proto.StreamTaskRequest_Input{
+			Input: &proto.TaskInput{
+				Data: []byte("test input data"),
+				Metadata: map[string]string{
+					"source": "test",
+				},
+			},
+		},
+	}
+
+	if err := stream.Send(testInput); err != nil {
+		t.Fatalf("Failed to send input message: %v", err)
+	}
+
+	t.Log("Input message sent successfully")
+
+	// Receive response from server
+	resp, err := stream.Recv()
+	if err != nil {
+		t.Fatalf("Failed to receive response: %v", err)
+	}
+
+	if resp == nil {
+		t.Fatal("Expected non-nil response")
+	}
+
+	// Verify we received output (server echoes back input)
+	output := resp.GetOutput()
+	if output == nil {
+		t.Error("Expected output in response")
+	} else {
+		t.Logf("Received output: %s", output.Text)
+	}
+
+	// Close the stream
+	if err := stream.CloseSend(); err != nil {
+		t.Logf("Warning: Failed to close send stream: %v", err)
+	}
+
+	t.Log("Worker agent ListenForTasks test passed!")
+}
+
+// TestListenForTasksNotRegistered tests that ListenForTasks fails when agent is not registered
+func TestListenForTasksNotRegistered(t *testing.T) {
+	// Create logger
+	log, err := logger.NewDefault()
+	if err != nil {
+		t.Fatalf("Failed to create logger: %v", err)
+	}
+
+	// Create worker agent (without connecting)
+	cfg := AgentConfig{
+		DialTimeout: 5 * time.Second,
+		RPCTimeout:  5 * time.Second,
+	}
+	agent, err := NewAgent("localhost:9999", cfg, log)
+	if err != nil {
+		t.Fatalf("Failed to create worker agent: %v", err)
+	}
+	defer agent.Close()
+
+	// Try to listen for tasks without registering
+	ctx := context.Background()
+	_, err = agent.ListenForTasks(ctx, "test-task-id")
+
+	if err == nil {
+		t.Error("Expected error when listening for tasks with unregistered agent")
+	}
+
+	if err != nil {
+		if typesErr, ok := err.(*types.Error); ok {
+			if typesErr.Code != types.ErrCodeInvalid {
+				t.Errorf("Expected ErrCodeInvalid, got %v", typesErr.Code)
+			}
+		}
+	}
+
+	t.Log("Worker agent ListenForTasks not registered test passed!")
+}
