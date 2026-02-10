@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/billm/baaaht/orchestrator/internal/logger"
+	"github.com/billm/baaaht/orchestrator/pkg/policy"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 )
 
@@ -272,4 +274,267 @@ func TestTaskResult(t *testing.T) {
 	t.Logf("Stdout length: %d", len(result.Stdout))
 	t.Logf("Stderr length: %d", len(result.Stderr))
 	t.Logf("Duration: %v", result.Duration)
+}
+
+// TestMountEnforcement verifies that mount allowlist enforcement works correctly
+func TestMountEnforcement(t *testing.T) {
+	// Create logger and policy enforcer
+	log, err := logger.NewDefault()
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
+
+	policyEnforcer, err := policy.NewDefault(log)
+	if err != nil {
+		t.Fatalf("failed to create policy enforcer: %v", err)
+	}
+	defer policyEnforcer.Close()
+
+	// Set a restrictive policy that only allows specific mount paths
+	ctx := context.Background()
+	restrictivePolicy := &policy.Policy{
+		ID:          "restrictive-mounts",
+		Name:        "Restrictive Mount Policy",
+		Description: "Policy that only allows specific mount paths",
+		Mode:        policy.EnforcementModeStrict,
+		Mounts: policy.MountPolicy{
+			AllowBindMounts:     true,
+			AllowedBindSources:  []string{"/safe/*", "/tmp/*"},
+			DeniedBindSources:   []string{"/etc/*", "/root/*", "/home/*"},
+			AllowVolumes:        true,
+			AllowTmpfs:          true,
+			MaxTmpfsSize:        int64Ptr(256 * 1024 * 1024), // 256MB
+			EnforceReadOnlyRootfs: false,
+		},
+		Network: policy.NetworkPolicy{
+			AllowNetwork:     false,
+			AllowHostNetwork: false,
+		},
+		Images: policy.ImagePolicy{
+			AllowLatestTag: true,
+		},
+		Security: policy.SecurityPolicy{
+			AllowPrivileged: false,
+			RequireNonRoot:  false,
+			ReadOnlyRootfs:  false,
+			AllowRoot:       true,
+		},
+	}
+
+	if err := policyEnforcer.SetPolicy(ctx, restrictivePolicy); err != nil {
+		t.Fatalf("failed to set restrictive policy: %v", err)
+	}
+
+	// Create executor with policy enforcer
+	exec, err := NewExecutor(ExecutorConfig{
+		Runtime:        nil, // Will be mocked in this test
+		PolicyEnforcer: policyEnforcer,
+		Logger:         log,
+	})
+	if err != nil {
+		t.Fatalf("failed to create executor: %v", err)
+	}
+	defer exec.Close()
+
+	tests := []struct {
+		name          string
+		mountSource   string
+		wantAllowed   bool
+		wantViolation string
+	}{
+		{
+			name:        "allowed mount path - /safe/workspace",
+			mountSource: "/safe/workspace",
+			wantAllowed: true,
+		},
+		{
+			name:        "allowed mount path - /tmp/test",
+			mountSource: "/tmp/test",
+			wantAllowed: true,
+		},
+		{
+			name:          "blocked mount path - /etc/passwd",
+			mountSource:   "/etc",
+			wantAllowed:   false,
+			wantViolation: "mount.bind.source_not_allowed",
+		},
+		{
+			name:          "blocked mount path - /root",
+			mountSource:   "/root",
+			wantAllowed:   false,
+			wantViolation: "mount.bind.source_not_allowed",
+		},
+		{
+			name:          "blocked mount path - /home/user",
+			mountSource:   "/home/user",
+			wantAllowed:   false,
+			wantViolation: "mount.bind.source_not_allowed",
+		},
+		{
+			name:        "no mount - should be allowed (web tools don't need mounts)",
+			mountSource: "",
+			wantAllowed: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create a container config from tool spec
+			toolSpec := FileReadTool()
+			containerConfig := toolSpec.ToContainerConfig(exec.SessionID(), tt.mountSource)
+
+			// Validate the config
+			result, err := exec.ValidateConfig(ctx, containerConfig)
+			if err != nil {
+				t.Fatalf("ValidateConfig failed: %v", err)
+			}
+
+			// Check if allowed status matches expectation
+			if result.Allowed != tt.wantAllowed {
+				t.Errorf("Allowed = %v, want %v\nViolations: %+v\nWarnings: %+v",
+					result.Allowed, tt.wantAllowed, result.Violations, result.Warnings)
+			}
+
+			// If we expect a specific violation, verify it exists
+			if tt.wantViolation != "" {
+				found := false
+				for _, v := range result.Violations {
+					if v.Rule == tt.wantViolation {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("Expected violation %s not found. Got violations: %+v", tt.wantViolation, result.Violations)
+				}
+			}
+
+			// Log the result for debugging
+			t.Logf("Test '%s': Allowed=%v, Violations=%d, Warnings=%d",
+				tt.name, result.Allowed, len(result.Violations), len(result.Warnings))
+			for i, v := range result.Violations {
+				t.Logf("  Violation[%d]: Rule=%s, Message=%s, Severity=%s",
+					i, v.Rule, v.Message, v.Severity)
+			}
+		})
+	}
+}
+
+// TestMountEnforcementWithBindDisabled verifies that bind mounts are rejected when disabled
+func TestMountEnforcementWithBindDisabled(t *testing.T) {
+	// Create logger and policy enforcer
+	log, err := logger.NewDefault()
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
+
+	policyEnforcer, err := policy.NewDefault(log)
+	if err != nil {
+		t.Fatalf("failed to create policy enforcer: %v", err)
+	}
+	defer policyEnforcer.Close()
+
+	// Set a policy that disables bind mounts entirely
+	ctx := context.Background()
+	noBindPolicy := policy.DefaultPolicy()
+	noBindPolicy.Mounts.AllowBindMounts = false
+
+	if err := policyEnforcer.SetPolicy(ctx, noBindPolicy); err != nil {
+		t.Fatalf("failed to set policy: %v", err)
+	}
+
+	// Create executor with policy enforcer
+	exec, err := NewExecutor(ExecutorConfig{
+		PolicyEnforcer: policyEnforcer,
+		Logger:         log,
+	})
+	if err != nil {
+		t.Fatalf("failed to create executor: %v", err)
+	}
+	defer exec.Close()
+
+	// Create a container config with a bind mount
+	toolSpec := FileReadTool()
+	containerConfig := toolSpec.ToContainerConfig(exec.SessionID(), "/any/path")
+
+	// Validate the config
+	result, err := exec.ValidateConfig(ctx, containerConfig)
+	if err != nil {
+		t.Fatalf("ValidateConfig failed: %v", err)
+	}
+
+	// Should not be allowed
+	if result.Allowed {
+		t.Error("Expected bind mount to be rejected when AllowBindMounts is false")
+	}
+
+	// Should have a violation about bind mounts being disabled
+	found := false
+	for _, v := range result.Violations {
+		if v.Rule == "mount.bind.disabled" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("Expected 'mount.bind.disabled' violation, got: %+v", result.Violations)
+	}
+}
+
+// TestMountEnforcementPermissiveMode verifies that permissive mode allows with warnings
+func TestMountEnforcementPermissiveMode(t *testing.T) {
+	// Create logger and policy enforcer
+	log, err := logger.NewDefault()
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
+
+	policyEnforcer, err := policy.NewDefault(log)
+	if err != nil {
+		t.Fatalf("failed to create policy enforcer: %v", err)
+	}
+	defer policyEnforcer.Close()
+
+	// Set a permissive policy that denies /etc but allows in permissive mode
+	ctx := context.Background()
+	permissivePolicy := policy.PermissivePolicy()
+	permissivePolicy.Mounts.AllowBindMounts = true
+	permissivePolicy.Mounts.AllowedBindSources = []string{"/safe/*"}
+	permissivePolicy.Mounts.DeniedBindSources = []string{"/etc/*"}
+
+	if err := policyEnforcer.SetPolicy(ctx, permissivePolicy); err != nil {
+		t.Fatalf("failed to set policy: %v", err)
+	}
+
+	// Create executor with policy enforcer
+	exec, err := NewExecutor(ExecutorConfig{
+		PolicyEnforcer: policyEnforcer,
+		Logger:         log,
+	})
+	if err != nil {
+		t.Fatalf("failed to create executor: %v", err)
+	}
+	defer exec.Close()
+
+	// Create a container config with a denied mount
+	toolSpec := FileReadTool()
+	containerConfig := toolSpec.ToContainerConfig(exec.SessionID(), "/etc/passwd")
+
+	// Validate the config
+	result, err := exec.ValidateConfig(ctx, containerConfig)
+	if err != nil {
+		t.Fatalf("ValidateConfig failed: %v", err)
+	}
+
+	// In permissive mode, should be allowed despite violations
+	if !result.Allowed {
+		t.Error("Expected permissive mode to allow mount despite violations")
+	}
+
+	// Should have violations logged
+	if len(result.Violations) == 0 {
+		t.Error("Expected violations to be logged in permissive mode")
+	}
+
+	t.Logf("Permissive mode test: Allowed=%v, Violations=%d", result.Allowed, len(result.Violations))
 }
