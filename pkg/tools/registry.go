@@ -531,3 +531,435 @@ func ExecuteTool(ctx context.Context, toolName string, parameters map[string]str
 func ListTools() []string {
 	return GetGlobalRegistry().ListTools()
 }
+
+// =============================================================================
+// Built-in Tool Definitions
+// =============================================================================
+
+// builtinToolFactories contains the factory functions for all built-in tools.
+// These will be replaced by actual implementations in phase 4.
+var builtinToolFactories = map[string]ToolFactory{
+	// File tools
+	"read_file":  builtinFileToolFactory,
+	"write_file": builtinFileToolFactory,
+	"edit_file":  builtinFileToolFactory,
+	"list_dir":   builtinFileToolFactory,
+	"grep":       builtinFileToolFactory,
+	"find":       builtinFileToolFactory,
+	// Shell tool
+	"exec": builtinShellToolFactory,
+	// Web tools
+	"web_search": builtinWebToolFactory,
+	"web_fetch":  builtinWebToolFactory,
+	// Messaging tool
+	"message": builtinMessageToolFactory,
+}
+
+// builtinToolDefinitions contains the definitions for all built-in tools.
+var builtinToolDefinitions = map[string]ToolDefinition{
+	// File tools
+	"read_file": {
+		Name:        "read_file",
+		DisplayName: "Read File",
+		Type:        ToolTypeFile,
+		Description: "Read the contents of a file",
+		Parameters: []ToolParameter{
+			{
+				Name:         "path",
+				Description:  "Path to the file to read",
+				Type:         ParameterTypeFilePath,
+				Required:     true,
+			},
+		},
+		SecurityPolicy: ToolSecurityPolicy{
+			AllowFilesystem:      true,
+			ReadOnlyFilesystem:   true,
+			AllowNetwork:         false,
+			AllowIPC:             false,
+			MaxConcurrent:        10,
+		},
+		Enabled: true,
+	},
+	"write_file": {
+		Name:        "write_file",
+		DisplayName: "Write File",
+		Type:        ToolTypeFile,
+		Description: "Write content to a file",
+		Parameters: []ToolParameter{
+			{
+				Name:         "path",
+				Description:  "Path to the file to write",
+				Type:         ParameterTypeFilePath,
+				Required:     true,
+			},
+			{
+				Name:         "content",
+				Description:  "Content to write to the file",
+				Type:         ParameterTypeString,
+				Required:     true,
+			},
+		},
+		SecurityPolicy: ToolSecurityPolicy{
+			AllowFilesystem:      true,
+			ReadOnlyFilesystem:   false,
+			AllowNetwork:         false,
+			AllowIPC:             false,
+			MaxConcurrent:        10,
+		},
+		Enabled: true,
+	},
+	"edit_file": {
+		Name:        "edit_file",
+		DisplayName: "Edit File",
+		Type:        ToolTypeFile,
+		Description: "Edit a file by replacing text",
+		Parameters: []ToolParameter{
+			{
+				Name:         "path",
+				Description:  "Path to the file to edit",
+				Type:         ParameterTypeFilePath,
+				Required:     true,
+			},
+			{
+				Name:         "old_text",
+				Description:  "Text to replace",
+				Type:         ParameterTypeString,
+				Required:     true,
+			},
+			{
+				Name:         "new_text",
+				Description:  "Replacement text",
+				Type:         ParameterTypeString,
+				Required:     true,
+			},
+		},
+		SecurityPolicy: ToolSecurityPolicy{
+			AllowFilesystem:      true,
+			ReadOnlyFilesystem:   false,
+			AllowNetwork:         false,
+			AllowIPC:             false,
+			MaxConcurrent:        10,
+		},
+		Enabled: true,
+	},
+	"list_dir": {
+		Name:        "list_dir",
+		DisplayName: "List Directory",
+		Type:        ToolTypeFile,
+		Description: "List the contents of a directory",
+		Parameters: []ToolParameter{
+			{
+				Name:         "path",
+				Description:  "Path to the directory to list",
+				Type:         ParameterTypeDirectoryPath,
+				Required:     true,
+			},
+		},
+		SecurityPolicy: ToolSecurityPolicy{
+			AllowFilesystem:      true,
+			ReadOnlyFilesystem:   true,
+			AllowNetwork:         false,
+			AllowIPC:             false,
+			MaxConcurrent:        10,
+		},
+		Enabled: true,
+	},
+	"grep": {
+		Name:        "grep",
+		DisplayName: "Grep",
+		Type:        ToolTypeFile,
+		Description: "Search for text in files using grep",
+		Parameters: []ToolParameter{
+			{
+				Name:         "pattern",
+				Description:  "Regular expression pattern to search for",
+				Type:         ParameterTypeString,
+				Required:     true,
+			},
+			{
+				Name:         "path",
+				Description:  "Path to search in",
+				Type:         ParameterTypeString,
+				Required:     true,
+			},
+		},
+		SecurityPolicy: ToolSecurityPolicy{
+			AllowFilesystem:      true,
+			ReadOnlyFilesystem:   true,
+			AllowNetwork:         false,
+			AllowIPC:             false,
+			MaxConcurrent:        10,
+		},
+		Enabled: true,
+	},
+	"find": {
+		Name:        "find",
+		DisplayName: "Find",
+		Type:        ToolTypeFile,
+		Description: "Find files by name or pattern",
+		Parameters: []ToolParameter{
+			{
+				Name:         "pattern",
+				Description:  "File name pattern to search for",
+				Type:         ParameterTypeString,
+				Required:     true,
+			},
+			{
+				Name:         "path",
+				Description:  "Path to search in",
+				Type:         ParameterTypeDirectoryPath,
+				Required:     true,
+			},
+		},
+		SecurityPolicy: ToolSecurityPolicy{
+			AllowFilesystem:      true,
+			ReadOnlyFilesystem:   true,
+			AllowNetwork:         false,
+			AllowIPC:             false,
+			MaxConcurrent:        10,
+		},
+		Enabled: true,
+	},
+	// Shell tool
+	"exec": {
+		Name:        "exec",
+		DisplayName: "Execute Shell Command",
+		Type:        ToolTypeShell,
+		Description: "Execute a shell command in an isolated container",
+		Parameters: []ToolParameter{
+			{
+				Name:         "command",
+				Description:  "Shell command to execute",
+				Type:         ParameterTypeString,
+				Required:     true,
+			},
+		},
+		SecurityPolicy: ToolSecurityPolicy{
+			AllowFilesystem:      false,
+			AllowNetwork:         false,
+			AllowIPC:             false,
+			MaxConcurrent:        5,
+			BlockedCommands:      []string{"rm -rf /", "mkfs", "dd if=/dev/zero"},
+		},
+		Enabled: true,
+	},
+	// Web tools
+	"web_search": {
+		Name:        "web_search",
+		DisplayName: "Web Search",
+		Type:        ToolTypeWeb,
+		Description: "Search the web for information",
+		Parameters: []ToolParameter{
+			{
+				Name:         "query",
+				Description:  "Search query",
+				Type:         ParameterTypeString,
+				Required:     true,
+			},
+		},
+		SecurityPolicy: ToolSecurityPolicy{
+			AllowFilesystem:      false,
+			AllowNetwork:         true,
+			AllowIPC:             false,
+			MaxConcurrent:        5,
+		},
+		Enabled: true,
+	},
+	"web_fetch": {
+		Name:        "web_fetch",
+		DisplayName: "Web Fetch",
+		Type:        ToolTypeWeb,
+		Description: "Fetch a URL and return its content",
+		Parameters: []ToolParameter{
+			{
+				Name:         "url",
+				Description:  "URL to fetch",
+				Type:         ParameterTypeString,
+				Required:     true,
+			},
+		},
+		SecurityPolicy: ToolSecurityPolicy{
+			AllowFilesystem:      false,
+			AllowNetwork:         true,
+			AllowIPC:             false,
+			MaxConcurrent:        5,
+		},
+		Enabled: true,
+	},
+	// Messaging tool
+	"message": {
+		Name:        "message",
+		DisplayName: "Message",
+		Type:        ToolTypeMessage,
+		Description: "Send a message through the orchestrator",
+		Parameters: []ToolParameter{
+			{
+				Name:         "content",
+				Description:  "Message content",
+				Type:         ParameterTypeString,
+				Required:     true,
+			},
+		},
+		SecurityPolicy: ToolSecurityPolicy{
+			AllowFilesystem:      false,
+			AllowNetwork:         false,
+			AllowIPC:             true,
+			MaxConcurrent:        20,
+		},
+		Enabled: true,
+	},
+}
+
+// builtinFileToolFactory is a placeholder factory for file tools.
+// The actual implementation will be provided in phase 4.
+func builtinFileToolFactory(def ToolDefinition) (Tool, error) {
+	return &builtinToolPlaceholder{
+		name:       def.Name,
+		toolType:   ToolTypeFile,
+		definition: def,
+	}, nil
+}
+
+// builtinShellToolFactory is a placeholder factory for the shell tool.
+// The actual implementation will be provided in phase 4.
+func builtinShellToolFactory(def ToolDefinition) (Tool, error) {
+	return &builtinToolPlaceholder{
+		name:       def.Name,
+		toolType:   ToolTypeShell,
+		definition: def,
+	}, nil
+}
+
+// builtinWebToolFactory is a placeholder factory for web tools.
+// The actual implementation will be provided in phase 4.
+func builtinWebToolFactory(def ToolDefinition) (Tool, error) {
+	return &builtinToolPlaceholder{
+		name:       def.Name,
+		toolType:   ToolTypeWeb,
+		definition: def,
+	}, nil
+}
+
+// builtinMessageToolFactory is a placeholder factory for the messaging tool.
+// The actual implementation will be provided in phase 4.
+func builtinMessageToolFactory(def ToolDefinition) (Tool, error) {
+	return &builtinToolPlaceholder{
+		name:       def.Name,
+		toolType:   ToolTypeMessage,
+		definition: def,
+	}, nil
+}
+
+// builtinToolPlaceholder is a placeholder implementation for built-in tools.
+// This allows the tools to be registered while their full implementations
+// are being developed in phase 4.
+type builtinToolPlaceholder struct {
+	name       string
+	toolType   ToolType
+	definition ToolDefinition
+	enabled    bool
+	closed     bool
+}
+
+func (b *builtinToolPlaceholder) Name() string {
+	return b.name
+}
+
+func (b *builtinToolPlaceholder) Type() ToolType {
+	return b.toolType
+}
+
+func (b *builtinToolPlaceholder) Description() string {
+	return b.definition.Description
+}
+
+func (b *builtinToolPlaceholder) Execute(ctx context.Context, parameters map[string]string) (*ToolExecutionResult, error) {
+	if b.closed {
+		return nil, types.NewError(types.ErrCodeUnavailable, "tool is closed")
+	}
+	// Placeholder - actual execution will be implemented in phase 4
+	return nil, types.NewError(types.ErrCodeUnimplemented,
+		fmt.Sprintf("tool %s is not yet implemented", b.name))
+}
+
+func (b *builtinToolPlaceholder) Validate(parameters map[string]string) error {
+	// Placeholder - basic validation
+	for _, param := range b.definition.Parameters {
+		if param.Required {
+			if _, ok := parameters[param.Name]; !ok {
+				return types.NewError(types.ErrCodeInvalidArgument,
+					fmt.Sprintf("missing required parameter: %s", param.Name))
+			}
+		}
+	}
+	return nil
+}
+
+func (b *builtinToolPlaceholder) Definition() ToolDefinition {
+	return b.definition
+}
+
+func (b *builtinToolPlaceholder) Status() types.Status {
+	return types.StatusRunning
+}
+
+func (b *builtinToolPlaceholder) IsAvailable() bool {
+	return !b.closed
+}
+
+func (b *builtinToolPlaceholder) Enabled() bool {
+	return b.enabled && !b.closed
+}
+
+func (b *builtinToolPlaceholder) SetEnabled(enabled bool) {
+	b.enabled = enabled
+}
+
+func (b *builtinToolPlaceholder) Stats() ToolUsageStats {
+	return ToolUsageStats{}
+}
+
+func (b *builtinToolPlaceholder) LastUsed() *time.Time {
+	return nil
+}
+
+func (b *builtinToolPlaceholder) Close() error {
+	b.closed = true
+	return nil
+}
+
+// RegisterBuiltinTools registers all built-in tool factories with the global registry.
+//
+// This function should be called during application initialization to ensure
+// all built-in tools are available for use. The actual tool implementations
+// will be provided in phase 4 of the implementation.
+func RegisterBuiltinTools() error {
+	reg := GetGlobalRegistry()
+
+	for name, factory := range builtinToolFactories {
+		if err := reg.RegisterTool(name, factory); err != nil {
+			return types.WrapError(types.ErrCodeInternal,
+				fmt.Sprintf("failed to register built-in tool: %s", name), err)
+		}
+	}
+
+	return nil
+}
+
+// GetBuiltinToolDefinitions returns a map of all built-in tool definitions.
+func GetBuiltinToolDefinitions() map[string]ToolDefinition {
+	defs := make(map[string]ToolDefinition, len(builtinToolDefinitions))
+	for k, v := range builtinToolDefinitions {
+		defs[k] = v
+	}
+	return defs
+}
+
+// ListBuiltinTools returns a list of all built-in tool names.
+func ListBuiltinTools() []string {
+	names := make([]string, 0, len(builtinToolDefinitions))
+	for name := range builtinToolDefinitions {
+		names = append(names, name)
+	}
+	return names
+}

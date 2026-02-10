@@ -947,3 +947,129 @@ func TestExecuteToolGlobal(t *testing.T) {
 		t.Errorf("expected status 'completed', got '%s'", result.Status)
 	}
 }
+
+// TestBuiltinTools tests that all built-in tools are properly registered
+func TestBuiltinTools(t *testing.T) {
+	// Clear and setup global registry
+	globalRegistry = nil
+	globalRegistryOnce = sync.Once{}
+
+	// Register all built-in tools
+	err := RegisterBuiltinTools()
+	if err != nil {
+		t.Fatalf("Failed to register built-in tools: %v", err)
+	}
+
+	// Verify expected built-in tools are registered
+	expectedTools := []string{
+		// File tools
+		"read_file", "write_file", "edit_file", "list_dir", "grep", "find",
+		// Shell tool
+		"exec",
+		// Web tools
+		"web_search", "web_fetch",
+		// Messaging tool
+		"message",
+	}
+
+	for _, toolName := range expectedTools {
+		if !GetGlobalRegistry().HasTool(toolName) {
+			t.Errorf("built-in tool '%s' is not registered", toolName)
+		}
+
+		// Verify we can get the tool
+		tool, err := GetGlobalRegistry().GetTool(toolName)
+		if err != nil {
+			t.Errorf("failed to get built-in tool '%s': %v", toolName, err)
+		}
+
+		if tool == nil {
+			t.Errorf("built-in tool '%s' is nil", toolName)
+		}
+
+		if tool != nil && tool.Name() != toolName {
+			t.Errorf("expected tool name '%s', got '%s'", toolName, tool.Name())
+		}
+	}
+
+	// Verify ListBuiltinTools returns all expected tools
+	builtinList := ListBuiltinTools()
+	if len(builtinList) != len(expectedTools) {
+		t.Errorf("expected %d built-in tools, got %d", len(expectedTools), len(builtinList))
+	}
+
+	// Verify GetBuiltinToolDefinitions returns all definitions
+	definitions := GetBuiltinToolDefinitions()
+	if len(definitions) != len(expectedTools) {
+		t.Errorf("expected %d built-in tool definitions, got %d", len(expectedTools), len(definitions))
+	}
+
+	// Verify each definition has the correct type
+	expectedTypes := map[string]ToolType{
+		"read_file":  ToolTypeFile,
+		"write_file": ToolTypeFile,
+		"edit_file":  ToolTypeFile,
+		"list_dir":   ToolTypeFile,
+		"grep":       ToolTypeFile,
+		"find":       ToolTypeFile,
+		"exec":       ToolTypeShell,
+		"web_search": ToolTypeWeb,
+		"web_fetch":  ToolTypeWeb,
+		"message":    ToolTypeMessage,
+	}
+
+	for name, expectedType := range expectedTypes {
+		def, ok := definitions[name]
+		if !ok {
+			t.Errorf("missing definition for tool '%s'", name)
+			continue
+		}
+		if def.Type != expectedType {
+			t.Errorf("tool '%s': expected type '%s', got '%s'", name, expectedType, def.Type)
+		}
+	}
+
+	// Verify each tool has proper security policies
+	for name, def := range definitions {
+		if !def.Enabled {
+			t.Errorf("built-in tool '%s' should be enabled by default", name)
+		}
+
+		// File tools should have filesystem access but no network
+		if def.Type == ToolTypeFile {
+			if !def.SecurityPolicy.AllowFilesystem {
+				t.Errorf("file tool '%s' should allow filesystem access", name)
+			}
+			if def.SecurityPolicy.AllowNetwork {
+				t.Errorf("file tool '%s' should not allow network access", name)
+			}
+		}
+
+		// Shell tool should not have filesystem or network access
+		if def.Type == ToolTypeShell {
+			if def.SecurityPolicy.AllowFilesystem {
+				t.Errorf("shell tool '%s' should not allow filesystem access", name)
+			}
+			if def.SecurityPolicy.AllowNetwork {
+				t.Errorf("shell tool '%s' should not allow network access", name)
+			}
+		}
+
+		// Web tools should have network access but no filesystem
+		if def.Type == ToolTypeWeb {
+			if def.SecurityPolicy.AllowFilesystem {
+				t.Errorf("web tool '%s' should not allow filesystem access", name)
+			}
+			if !def.SecurityPolicy.AllowNetwork {
+				t.Errorf("web tool '%s' should allow network access", name)
+			}
+		}
+
+		// Messaging tool should use IPC
+		if def.Type == ToolTypeMessage {
+			if !def.SecurityPolicy.AllowIPC {
+				t.Errorf("messaging tool '%s' should allow IPC", name)
+			}
+		}
+	}
+}
