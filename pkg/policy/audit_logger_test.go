@@ -702,3 +702,283 @@ func TestCloseIsIdempotent(t *testing.T) {
 		t.Errorf("expected second close to return nil, got %v", err)
 	}
 }
+
+// TestAuditLogFormat verifies the audit log output format and content
+func TestAuditLogFormat(t *testing.T) {
+	log, err := logger.NewDefault()
+	if err != nil {
+		t.Fatalf("failed to create default logger: %v", err)
+	}
+
+	tmpDir := t.TempDir()
+	auditPath := filepath.Join(tmpDir, "audit.log")
+
+	al, err := NewAuditLogger(log, auditPath)
+	if err != nil {
+		t.Fatalf("failed to create audit logger: %v", err)
+	}
+	defer al.Close()
+
+	// Test complete event with all fields populated
+	metadata := map[string]string{
+		"source_ip":    "192.168.1.100",
+		"attempt":      "1",
+		"custom_field": "custom_value",
+	}
+
+	err = al.LogMountViolation("testuser", "testgroup", "/test/path", MountAccessModeReadWrite, "test violation", metadata)
+	if err != nil {
+		t.Fatalf("failed to log mount violation: %v", err)
+	}
+
+	// Read the audit file and verify format
+	data, err := os.ReadFile(auditPath)
+	if err != nil {
+		t.Fatalf("failed to read audit file: %v", err)
+	}
+
+	// Verify it's valid JSON
+	var event map[string]interface{}
+	if err := json.Unmarshal(data, &event); err != nil {
+		t.Fatalf("audit log is not valid JSON: %v", err)
+	}
+
+	// Verify timestamp format (should be ISO 8601 / RFC3339)
+	timestamp, ok := event["timestamp"].(string)
+	if !ok {
+		t.Fatal("timestamp field is missing or not a string")
+	}
+	if _, err := time.Parse(time.RFC3339, timestamp); err != nil {
+		t.Errorf("timestamp is not in RFC3339 format: %s, error: %v", timestamp, err)
+	}
+
+	// Verify type field
+	eventType, ok := event["type"].(string)
+	if !ok {
+		t.Error("type field is missing or not a string")
+	} else if eventType != string(AuditEventTypeMountViolation) {
+		t.Errorf("expected type %s, got %s", AuditEventTypeMountViolation, eventType)
+	}
+
+	// Verify severity field
+	severity, ok := event["severity"].(string)
+	if !ok {
+		t.Error("severity field is missing or not a string")
+	} else if severity != "error" {
+		t.Errorf("expected severity error, got %s", severity)
+	}
+
+	// Verify user field
+	user, ok := event["user"].(string)
+	if !ok {
+		t.Error("user field is missing or not a string")
+	} else if user != "testuser" {
+		t.Errorf("expected user testuser, got %s", user)
+	}
+
+	// Verify group field
+	group, ok := event["group"].(string)
+	if !ok {
+		t.Error("group field is missing or not a string")
+	} else if group != "testgroup" {
+		t.Errorf("expected group testgroup, got %s", group)
+	}
+
+	// Verify path field (required)
+	path, ok := event["path"].(string)
+	if !ok {
+		t.Error("path field is missing or not a string")
+	} else if path != "/test/path" {
+		t.Errorf("expected path /test/path, got %s", path)
+	}
+
+	// Verify mode field
+	mode, ok := event["mode"].(string)
+	if !ok {
+		t.Error("mode field is missing or not a string")
+	} else if mode != string(MountAccessModeReadWrite) {
+		t.Errorf("expected mode readwrite, got %s", mode)
+	}
+
+	// Verify decision field
+	decision, ok := event["decision"].(string)
+	if !ok {
+		t.Error("decision field is missing or not a string")
+	} else if decision != "denied" {
+		t.Errorf("expected decision denied, got %s", decision)
+	}
+
+	// Verify reason field
+	reason, ok := event["reason"].(string)
+	if !ok {
+		t.Error("reason field is missing or not a string")
+	} else if reason != "test violation" {
+		t.Errorf("expected reason 'test violation', got %s", reason)
+	}
+
+	// Verify additional_context field
+	additionalContext, ok := event["additional_context"].(map[string]interface{})
+	if !ok {
+		t.Error("additional_context field is missing or not a map")
+	} else {
+		// Check metadata values
+		if additionalContext["source_ip"] != "192.168.1.100" {
+			t.Errorf("expected source_ip 192.168.1.100, got %v", additionalContext["source_ip"])
+		}
+		if additionalContext["attempt"] != "1" {
+			t.Errorf("expected attempt 1, got %v", additionalContext["attempt"])
+		}
+		if additionalContext["custom_field"] != "custom_value" {
+			t.Errorf("expected custom_field custom_value, got %v", additionalContext["custom_field"])
+		}
+	}
+
+	// Verify JSON formatting is compact (no extra whitespace)
+	jsonStr := string(data)
+	// Trim the trailing newline (which is used to separate log entries)
+	jsonStr = strings.TrimSuffix(jsonStr, "\n")
+	if strings.Contains(jsonStr, "\n") {
+		t.Error("audit log JSON should be single-line")
+	}
+	if strings.Contains(jsonStr, "  ") {
+		t.Error("audit log JSON should not contain extra spaces")
+	}
+}
+
+// TestAuditLogFormatWithOptionalFields verifies format with minimal required fields
+func TestAuditLogFormatWithOptionalFields(t *testing.T) {
+	log, err := logger.NewDefault()
+	if err != nil {
+		t.Fatalf("failed to create default logger: %v", err)
+	}
+
+	tmpDir := t.TempDir()
+	auditPath := filepath.Join(tmpDir, "audit.log")
+
+	al, err := NewAuditLogger(log, auditPath)
+	if err != nil {
+		t.Fatalf("failed to create audit logger: %v", err)
+	}
+	defer al.Close()
+
+	// Test with minimal fields (no optional user/group/metadata)
+	err = al.LogMountAllowed("", "", "/allowed/path", MountAccessModeReadOnly, nil)
+	if err != nil {
+		t.Fatalf("failed to log mount allowed: %v", err)
+	}
+
+	// Read and verify
+	data, err := os.ReadFile(auditPath)
+	if err != nil {
+		t.Fatalf("failed to read audit file: %v", err)
+	}
+
+	var event map[string]interface{}
+	if err := json.Unmarshal(data, &event); err != nil {
+		t.Fatalf("audit log is not valid JSON: %v", err)
+	}
+
+	// Verify optional fields are either absent or empty
+	if user, ok := event["user"].(string); ok && user != "" {
+		t.Errorf("expected empty or missing user field, got %s", user)
+	}
+
+	// Verify required fields are present
+	if event["path"] == nil {
+		t.Error("path field is required but missing")
+	}
+	if event["type"] == nil {
+		t.Error("type field is required but missing")
+	}
+	if event["decision"] == nil {
+		t.Error("decision field is required but missing")
+	}
+}
+
+// TestAuditLogFormatForAllEventTypes verifies format for all event types
+func TestAuditLogFormatForAllEventTypes(t *testing.T) {
+	log, err := logger.NewDefault()
+	if err != nil {
+		t.Fatalf("failed to create default logger: %v", err)
+	}
+
+	tmpDir := t.TempDir()
+	auditPath := filepath.Join(tmpDir, "audit.log")
+
+	al, err := NewAuditLogger(log, auditPath)
+	if err != nil {
+		t.Fatalf("failed to create audit logger: %v", err)
+	}
+	defer al.Close()
+
+	testCases := []struct {
+		name           string
+		logFunc        func() error
+		expectedType   AuditEventType
+		expectedSeverity string
+		expectedDecision string
+	}{
+		{
+			name: "mount_violation",
+			logFunc: func() error {
+				return al.LogMountViolation("user1", "group1", "/violation/path", MountAccessModeReadWrite, "violation", nil)
+			},
+			expectedType:    AuditEventTypeMountViolation,
+			expectedSeverity: "error",
+			expectedDecision: "denied",
+		},
+		{
+			name: "mount_denied",
+			logFunc: func() error {
+				return al.LogMountDenied("user2", "group2", "/denied/path", MountAccessModeReadWrite, "explicit deny", nil)
+			},
+			expectedType:    AuditEventTypeMountDenied,
+			expectedSeverity: "warning",
+			expectedDecision: "denied",
+		},
+		{
+			name: "mount_allowed",
+			logFunc: func() error {
+				return al.LogMountAllowed("user3", "group3", "/allowed/path", MountAccessModeReadOnly, nil)
+			},
+			expectedType:    AuditEventTypeMountAllowed,
+			expectedSeverity: "info",
+			expectedDecision: "allowed",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Clear the audit file for each test
+			if err := os.Truncate(auditPath, 0); err != nil {
+				t.Fatalf("failed to truncate audit file: %v", err)
+			}
+
+			if err := tc.logFunc(); err != nil {
+				t.Fatalf("failed to log event: %v", err)
+			}
+
+			data, err := os.ReadFile(auditPath)
+			if err != nil {
+				t.Fatalf("failed to read audit file: %v", err)
+			}
+
+			var event map[string]interface{}
+			if err := json.Unmarshal(data, &event); err != nil {
+				t.Fatalf("audit log is not valid JSON: %v", err)
+			}
+
+			if event["type"] != string(tc.expectedType) {
+				t.Errorf("expected type %s, got %v", tc.expectedType, event["type"])
+			}
+
+			if event["severity"] != tc.expectedSeverity {
+				t.Errorf("expected severity %s, got %v", tc.expectedSeverity, event["severity"])
+			}
+
+			if event["decision"] != tc.expectedDecision {
+				t.Errorf("expected decision %s, got %v", tc.expectedDecision, event["decision"])
+			}
+		})
+	}
+}
