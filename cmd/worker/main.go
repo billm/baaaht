@@ -80,52 +80,6 @@ func runWorker(cmd *cobra.Command, args []string) error {
 	if addr == "" {
 		addr = "unix:///tmp/baaaht-grpc.sock"
 	}
-	rootLog.Info("Connecting to orchestrator", "address", addr)
-
-	// Parse timeout durations
-	dialTimeoutDuration, err := parseDuration(dialTimeout, 30*time.Second)
-	if err != nil {
-		return fmt.Errorf("invalid dial-timeout: %w", err)
-	}
-	rpcTimeoutDuration, err := parseDuration(rpcTimeout, 10*time.Second)
-	if err != nil {
-		return fmt.Errorf("invalid rpc-timeout: %w", err)
-	}
-	reconnectIntervalDuration, err := parseDuration(reconnectInterval, 5*time.Second)
-	if err != nil {
-		return fmt.Errorf("invalid reconnect-interval: %w", err)
-	}
-	heartbeatIntervalDuration, err := parseDuration(heartbeatInterval, 30*time.Second)
-	if err != nil {
-		return fmt.Errorf("invalid heartbeat-interval: %w", err)
-	}
-
-	// Create agent configuration
-	agentCfg := worker.AgentConfig{
-		DialTimeout:         dialTimeoutDuration,
-		RPCTimeout:          rpcTimeoutDuration,
-		MaxRecvMsgSize:      maxRecvMsgSize,
-		MaxSendMsgSize:      maxSendMsgSize,
-		ReconnectInterval:   reconnectIntervalDuration,
-		ReconnectMaxAttempts: reconnectMaxAttempts,
-		HeartbeatInterval:   heartbeatIntervalDuration,
-	}
-
-	// Create worker agent
-	rootLog.Info("Creating worker agent...")
-	workerAgent, err = worker.NewAgent(addr, agentCfg, rootLog)
-	if err != nil {
-		rootLog.Error("Failed to create worker agent", "error", err)
-		return err
-	}
-
-	// Connect to orchestrator
-	rootLog.Info("Connecting to orchestrator...")
-	if err := workerAgent.Dial(ctx); err != nil {
-		rootLog.Error("Failed to connect to orchestrator", "error", err)
-		return err
-	}
-	rootLog.Info("Connected to orchestrator successfully")
 
 	// Get worker name
 	name := workerName
@@ -139,17 +93,55 @@ func runWorker(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Register with orchestrator
-	rootLog.Info("Registering with orchestrator...", "name", name)
-	if err := workerAgent.Register(ctx, name); err != nil {
-		rootLog.Error("Failed to register worker", "error", err)
-		// Attempt clean shutdown
-		_ = workerAgent.Close()
+	// Parse timeout durations
+	dialTimeoutDuration, err := parseDuration(dialTimeout, worker.DefaultDialTimeout)
+	if err != nil {
+		return fmt.Errorf("invalid dial-timeout: %w", err)
+	}
+	rpcTimeoutDuration, err := parseDuration(rpcTimeout, worker.DefaultRPCTimeout)
+	if err != nil {
+		return fmt.Errorf("invalid rpc-timeout: %w", err)
+	}
+	reconnectIntervalDuration, err := parseDuration(reconnectInterval, worker.DefaultReconnectInterval)
+	if err != nil {
+		return fmt.Errorf("invalid reconnect-interval: %w", err)
+	}
+	heartbeatIntervalDuration, err := parseDuration(heartbeatInterval, worker.DefaultHeartbeatInterval)
+	if err != nil {
+		return fmt.Errorf("invalid heartbeat-interval: %w", err)
+	}
+
+	// Create bootstrap config
+	bootstrapCfg := worker.BootstrapConfig{
+		Logger:               rootLog,
+		Version:              worker.DefaultVersion,
+		OrchestratorAddr:     addr,
+		WorkerName:           name,
+		DialTimeout:          dialTimeoutDuration,
+		RPCTimeout:           rpcTimeoutDuration,
+		MaxRecvMsgSize:       maxRecvMsgSize,
+		MaxSendMsgSize:       maxSendMsgSize,
+		ReconnectInterval:    reconnectIntervalDuration,
+		ReconnectMaxAttempts: reconnectMaxAttempts,
+		HeartbeatInterval:    heartbeatIntervalDuration,
+		ShutdownTimeout:      worker.DefaultShutdownTimeout,
+		EnableHealthCheck:    true,
+	}
+
+	// Bootstrap worker
+	rootLog.Info("Bootstrapping worker...")
+	result, err := worker.Bootstrap(ctx, bootstrapCfg)
+	if err != nil {
+		rootLog.Error("Failed to bootstrap worker", "error", err)
 		return err
 	}
-	rootLog.Info("Worker registered successfully",
-		"agent_id", workerAgent.GetAgentID(),
-		"name", name)
+	workerAgent = result.Agent
+
+	rootLog.Info("Worker initialized successfully",
+		"duration", result.Duration(),
+		"version", result.Version,
+		"worker_name", result.WorkerName,
+		"agent_id", workerAgent.GetAgentID())
 
 	// Set up signal handling for graceful shutdown
 	sigCh := make(chan os.Signal, 1)
@@ -166,6 +158,9 @@ func runWorker(cmd *cobra.Command, args []string) error {
 
 	// Graceful shutdown
 	rootLog.Info("Shutting down worker...")
+	shutdownCtx, shutdownCancel = context.WithTimeout(context.Background(), worker.DefaultShutdownTimeout)
+	defer shutdownCancel()
+
 	if err := workerAgent.Close(); err != nil {
 		rootLog.Error("Error during worker shutdown", "error", err)
 		return err
