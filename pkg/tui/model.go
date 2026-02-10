@@ -30,10 +30,16 @@ type Model struct {
 	width  int
 	height int
 
+	// Keyboard shortcuts
+	keys KeyMap
+
 	// gRPC client and session
 	client    *OrchestratorClient
 	sessionID string
 	logger    *logger.Logger
+
+	// Streaming state
+	stream proto.OrchestratorService_StreamMessagesClient
 }
 
 // NewModel creates a new TUI model with the specified configuration.
@@ -60,6 +66,7 @@ func NewModel(socketPath string, verbose bool) Model {
 			sessions:   components.NewSessionsModel(),
 			width:      0,
 			height:     0,
+			keys:       DefaultKeyMap(),
 			client:     nil,
 			sessionID:  "",
 			logger:     log,
@@ -77,6 +84,7 @@ func NewModel(socketPath string, verbose bool) Model {
 		sessions:   components.NewSessionsModel(),
 		width:      0,
 		height:     0,
+		keys:       DefaultKeyMap(),
 		client:     client,
 		sessionID:  "",
 		logger:     log,
@@ -88,7 +96,7 @@ func NewModel(socketPath string, verbose bool) Model {
 // Part of the tea.Model interface.
 func (m Model) Init() tea.Cmd {
 	// Initialize the input component's cursor blink and create a session
-	return tea.Sequence(m.input.Init, m.createSessionCmd())
+	return tea.Sequence(m.input.Init, m.createSessionCmd(), m.initStreamCmd())
 }
 
 // Session creation messages
@@ -100,6 +108,19 @@ type SessionCreatedMsg struct {
 
 // SessionCreateFailedMsg is sent when session creation fails.
 type SessionCreateFailedMsg struct {
+	Err error
+}
+
+// Streaming messages
+
+// StreamMsgReceivedMsg is sent when a streaming response message is received.
+type StreamMsgReceivedMsg struct {
+	Role    string // "assistant", "system", "tool"
+	Content string
+}
+
+// StreamSendFailedMsg is sent when sending a message via the stream fails.
+type StreamSendFailedMsg struct {
 	Err error
 }
 
@@ -119,8 +140,8 @@ func (m Model) createSessionCmd() tea.Cmd {
 		// Create the session request
 		req := &proto.CreateSessionRequest{
 			Metadata: &proto.SessionMetadata{
-				Name:    "tui-session",
-				Labels:  map[string]string{"client": "tui"},
+				Name:   "tui-session",
+				Labels: map[string]string{"client": "tui"},
 			},
 		}
 
@@ -131,5 +152,96 @@ func (m Model) createSessionCmd() tea.Cmd {
 		}
 
 		return SessionCreatedMsg{SessionID: resp.SessionId}
+	}
+}
+
+// initStreamCmd initializes the streaming connection.
+func (m Model) initStreamCmd() tea.Cmd {
+	return func() tea.Msg {
+		if m.client == nil || m.sessionID == "" {
+			return StreamSendFailedMsg{Err: logger.NewError("client or session not initialized")}
+		}
+
+		ctx := context.Background()
+		stream, err := m.client.StreamMessages(ctx)
+		if err != nil {
+			return StreamSendFailedMsg{Err: err}
+		}
+
+		// Store the stream in a message that will update the model
+		return StreamInitializedMsg{Stream: stream}
+	}
+}
+
+// StreamInitializedMsg is sent when the stream is initialized.
+type StreamInitializedMsg struct {
+	Stream proto.OrchestratorService_StreamMessagesClient
+}
+
+// sendMessageCmd returns a command that sends a message via the stream.
+func (m Model) sendMessageCmd(content string) tea.Cmd {
+	return func() tea.Msg {
+		if m.stream == nil {
+			return StreamSendFailedMsg{Err: logger.NewError("stream not initialized")}
+		}
+
+		// Send the user message
+		req := &proto.StreamMessageRequest{
+			SessionId: m.sessionID,
+			Payload: &proto.StreamMessageRequest_Message{
+				Message: &proto.Message{
+					Role:    proto.MessageRole_MESSAGE_ROLE_USER,
+					Content: content,
+				},
+			},
+		}
+
+		if err := m.stream.Send(req); err != nil {
+			return StreamSendFailedMsg{Err: err}
+		}
+
+		// After sending, wait for response
+		return m.waitForStreamMsgCmd()()
+	}
+}
+
+// waitForStreamMsgCmd returns a command that waits for incoming stream messages.
+func (m Model) waitForStreamMsgCmd() tea.Cmd {
+	return func() tea.Msg {
+		if m.stream == nil {
+			return StreamSendFailedMsg{Err: logger.NewError("stream not initialized")}
+		}
+
+		resp, err := m.stream.Recv()
+		if err != nil {
+			return StreamSendFailedMsg{Err: err}
+		}
+
+		// Handle different response types
+		switch payload := resp.Payload.(type) {
+		case *proto.StreamMessageResponse_Message:
+			msg := payload.Message
+			role := "assistant"
+			switch msg.Role {
+			case proto.MessageRole_MESSAGE_ROLE_ASSISTANT:
+				role = "assistant"
+			case proto.MessageRole_MESSAGE_ROLE_SYSTEM:
+				role = "system"
+			case proto.MessageRole_MESSAGE_ROLE_TOOL:
+				role = "tool"
+			}
+			return StreamMsgReceivedMsg{
+				Role:    role,
+				Content: msg.Content,
+			}
+		case *proto.StreamMessageResponse_Event:
+			// For now, ignore events or handle them differently
+			return m.waitForStreamMsgCmd()()
+		case *proto.StreamMessageResponse_Heartbeat:
+			// Continue waiting for messages after heartbeat
+			return m.waitForStreamMsgCmd()()
+		}
+
+		return m.waitForStreamMsgCmd()()
 	}
 }

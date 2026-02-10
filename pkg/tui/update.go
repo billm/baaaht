@@ -38,11 +38,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Handle input submission
 	case components.InputSubmitMsg:
-		// For now, just add user message to chat
-		// In phase-6-streaming, this will be sent to the gRPC server
+		// Add user message to chat and send via gRPC stream
 		m.chat.AppendMessage(components.MessageTypeUser, msg.Text)
 		m.input.Reset()
-		return m, nil
+		return m, m.sendMessageCmd(msg.Text)
 
 	// Handle session creation success
 	case SessionCreatedMsg:
@@ -55,6 +54,36 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Handle session creation failure
 	case SessionCreateFailedMsg:
+		m.err = msg.Err
+		// Update status bar with error
+		m.status, _ = m.status.Update(components.StatusErrorMsg{Err: msg.Err})
+		return m, nil
+
+	// Handle stream initialization
+	case StreamInitializedMsg:
+		m.stream = msg.Stream
+		return m, nil
+
+	// Handle streaming response messages
+	case StreamMsgReceivedMsg:
+		// Convert role to message type
+		var msgType components.MessageType
+		switch msg.Role {
+		case "assistant":
+			msgType = components.MessageTypeAssistant
+		case "system":
+			msgType = components.MessageTypeSystem
+		case "tool":
+			msgType = components.MessageTypeSystem
+		default:
+			msgType = components.MessageTypeAssistant
+		}
+		m.chat.AppendMessage(msgType, msg.Content)
+		// Continue waiting for more messages
+		return m, m.waitForStreamMsgCmd()
+
+	// Handle stream send failure
+	case StreamSendFailedMsg:
 		m.err = msg.Err
 		// Update status bar with error
 		m.status, _ = m.status.Update(components.StatusErrorMsg{Err: msg.Err})
@@ -95,8 +124,19 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	}
 
+	// Send message key
+	if m.keys.IsSendKey(msg) {
+		// Submit the current input
+		text := m.input.Value()
+		if text != "" {
+			m.chat.AppendMessage(components.MessageTypeUser, text)
+			m.input.Reset()
+			return m, m.sendMessageCmd(text)
+		}
+		return m, nil
+	}
+
 	// Additional key bindings will be added in subsequent subtasks:
-	// - ctrl+enter: send message (phase-6-streaming)
 	// - esc: cancel current operation
 
 	return m, nil
