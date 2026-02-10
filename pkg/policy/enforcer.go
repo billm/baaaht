@@ -745,6 +745,33 @@ func (e *Enforcer) EnforceContainerConfig(ctx context.Context, sessionID types.I
 		enforced.ReadOnlyRootfs = true
 	}
 
+	// Enforce mount access modes based on allowlist
+	for i := range enforced.Mounts {
+		mount := &enforced.Mounts[i]
+
+		// Only enforce for bind mounts
+		if mount.Type != types.MountTypeBind {
+			continue
+		}
+
+		// Use resolver to check if mount requires read-only mode
+		if e.mountAllowlistResolver != nil && len(policy.Mounts.MountAllowlist) > 0 {
+			// Get username from config
+			username := getUsernameFromConfig(config)
+
+			accessMode, err := e.mountAllowlistResolver.ResolveMountAccess(ctx, mount.Source, username)
+			if err != nil {
+				e.logger.Warn("Failed to resolve mount access for enforcement", "path", mount.Source, "error", err)
+				continue
+			}
+
+			// Enforce read-only mode if required by policy
+			if accessMode == MountAccessModeReadOnly {
+				mount.ReadOnly = true
+			}
+		}
+	}
+
 	return enforced, nil
 }
 

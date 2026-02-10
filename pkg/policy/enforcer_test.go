@@ -882,3 +882,223 @@ func findSubstring(s, substr string) bool {
 	}
 	return false
 }
+
+// TestEnforceMountMode tests enforcement of read-only mode on mounts based on allowlist
+func TestEnforceMountMode(t *testing.T) {
+	log, err := logger.NewDefault()
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
+
+	enforcer, err := NewDefault(log)
+	if err != nil {
+		t.Fatalf("failed to create enforcer: %v", err)
+	}
+	defer enforcer.Close()
+
+	ctx := context.Background()
+	sessionID := types.GenerateID()
+
+	// Create a policy with mount allowlist entries
+	policy := DefaultPolicy()
+	policy.Mode = EnforcementModeStrict
+	policy.Mounts.AllowBindMounts = true
+	policy.Mounts.MountAllowlist = []MountAllowlistEntry{
+		{
+			Path:        "/readonly/data",
+			AccessMode:  MountAccessModeReadOnly,
+			ScopeType:   MountScopeTypeUser,
+			ScopeValue:  "testuser",
+		},
+		{
+			Path:        "/readwrite/data",
+			AccessMode:  MountAccessModeReadWrite,
+			ScopeType:   MountScopeTypeUser,
+			ScopeValue:  "testuser",
+		},
+	}
+
+	err = enforcer.SetPolicy(ctx, policy)
+	if err != nil {
+		t.Fatalf("failed to set policy: %v", err)
+	}
+
+	tests := []struct {
+		name              string
+		config            types.ContainerConfig
+		wantReadOnlyIndex int   // Index of mount that should be read-only, -1 if none
+		wantReadWrite     bool  // Whether a mount should remain read-write
+	}{
+		{
+			name: "enforce read-only on readonly path",
+			config: types.ContainerConfig{
+				Image: "nginx:1.21",
+				Labels: map[string]string{
+					"username": "testuser",
+				},
+				Mounts: []types.Mount{
+					{
+						Type:     types.MountTypeBind,
+						Source:   "/readonly/data",
+						Target:   "/data",
+						ReadOnly: false, // User requested read-write
+					},
+				},
+			},
+			wantReadOnlyIndex: 0,
+		},
+		{
+			name: "allow read-write on readwrite path",
+			config: types.ContainerConfig{
+				Image: "nginx:1.21",
+				Labels: map[string]string{
+					"username": "testuser",
+				},
+				Mounts: []types.Mount{
+					{
+						Type:     types.MountTypeBind,
+						Source:   "/readwrite/data",
+						Target:   "/data",
+						ReadOnly: false,
+					},
+				},
+			},
+			wantReadWrite: true,
+		},
+		{
+			name: "enforce read-only even when already set",
+			config: types.ContainerConfig{
+				Image: "nginx:1.21",
+				Labels: map[string]string{
+					"username": "testuser",
+				},
+				Mounts: []types.Mount{
+					{
+						Type:     types.MountTypeBind,
+						Source:   "/readonly/data",
+						Target:   "/data",
+						ReadOnly: true,
+					},
+				},
+			},
+			wantReadOnlyIndex: 0,
+		},
+		{
+			name: "multiple mounts with mixed modes",
+			config: types.ContainerConfig{
+				Image: "nginx:1.21",
+				Labels: map[string]string{
+					"username": "testuser",
+				},
+				Mounts: []types.Mount{
+					{
+						Type:     types.MountTypeBind,
+						Source:   "/readonly/data",
+						Target:   "/ro",
+						ReadOnly: false,
+					},
+					{
+						Type:     types.MountTypeBind,
+						Source:   "/readwrite/data",
+						Target:   "/rw",
+						ReadOnly: false,
+					},
+				},
+			},
+			wantReadOnlyIndex: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			enforced, err := enforcer.EnforceContainerConfig(ctx, sessionID, tt.config)
+			if err != nil {
+				t.Fatalf("enforcement failed: %v", err)
+			}
+
+			if tt.wantReadOnlyIndex >= 0 {
+				if tt.wantReadOnlyIndex >= len(enforced.Mounts) {
+					t.Errorf("mount index %d out of range", tt.wantReadOnlyIndex)
+					return
+				}
+				if !enforced.Mounts[tt.wantReadOnlyIndex].ReadOnly {
+					t.Errorf("mount at index %d should be read-only", tt.wantReadOnlyIndex)
+				}
+			}
+
+			if tt.wantReadWrite {
+				// Find a mount that should be read-write
+				foundRW := false
+				for _, m := range enforced.Mounts {
+					if m.Source == "/readwrite/data" && !m.ReadOnly {
+						foundRW = true
+						break
+					}
+				}
+				if !foundRW {
+					t.Error("expected at least one mount to be read-write")
+				}
+			}
+		})
+	}
+}
+
+// TestEnforceMountModeDisabledMode tests that enforcement is skipped in disabled mode
+func TestEnforceMountModeDisabledMode(t *testing.T) {
+	log, err := logger.NewDefault()
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
+
+	enforcer, err := NewDefault(log)
+	if err != nil {
+		t.Fatalf("failed to create enforcer: %v", err)
+	}
+	defer enforcer.Close()
+
+	ctx := context.Background()
+	sessionID := types.GenerateID()
+
+	// Create a policy with mount allowlist but disabled enforcement
+	policy := DefaultPolicy()
+	policy.Mode = EnforcementModeDisabled
+	policy.Mounts.AllowBindMounts = true
+	policy.Mounts.MountAllowlist = []MountAllowlistEntry{
+		{
+			Path:        "/readonly/data",
+			AccessMode:  MountAccessModeReadOnly,
+			ScopeType:   MountScopeTypeUser,
+			ScopeValue:  "testuser",
+		},
+	}
+
+	err = enforcer.SetPolicy(ctx, policy)
+	if err != nil {
+		t.Fatalf("failed to set policy: %v", err)
+	}
+
+	config := types.ContainerConfig{
+		Image: "nginx:1.21",
+		Labels: map[string]string{
+			"username": "testuser",
+		},
+		Mounts: []types.Mount{
+			{
+				Type:     types.MountTypeBind,
+				Source:   "/readonly/data",
+				Target:   "/data",
+				ReadOnly: false, // User requested read-write
+			},
+		},
+	}
+
+	enforced, err := enforcer.EnforceContainerConfig(ctx, sessionID, config)
+	if err != nil {
+		t.Fatalf("enforcement failed: %v", err)
+	}
+
+	// In disabled mode, the mount should remain as the user requested
+	if enforced.Mounts[0].ReadOnly {
+		t.Error("in disabled mode, mount should not be forced to read-only")
+	}
+}
