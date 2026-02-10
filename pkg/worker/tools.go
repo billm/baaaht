@@ -577,6 +577,99 @@ func ListFiles(ctx context.Context, exec *Executor, mountSource, dirPath string,
 	return result.Stdout, nil
 }
 
+// WebSearch performs a web search or HTTP request using a containerized curl command
+// The function executes an HTTP GET request to the specified URL and returns the response content.
+//
+// For example, to fetch a webpage:
+//   - url: "https://example.com"
+//
+// The curl command is executed with default options: -s (silent), -L (follow redirects),
+// and -A with a Mozilla user agent.
+//
+// Returns the HTTP response body and any error that occurred.
+func WebSearch(ctx context.Context, exec *Executor, url string) (string, error) {
+	if exec == nil {
+		return "", fmt.Errorf("executor cannot be nil")
+	}
+	if url == "" {
+		return "", fmt.Errorf("URL cannot be empty")
+	}
+
+	// Execute the web search task
+	// The WebSearchTool already has curl configured with -s, -L, and -A flags
+	// We append the URL as an additional argument
+	taskCfg := TaskConfig{
+		ToolType: ToolTypeWebSearch,
+		Args:     []string{url},
+		// No mount source needed for web operations
+	}
+
+	result := exec.ExecuteTask(ctx, taskCfg)
+	if result.Error != nil {
+		return "", fmt.Errorf("failed to execute web search: %w", result.Error)
+	}
+
+	// Check exit code
+	if result.ExitCode != 0 {
+		errMsg := result.Stderr
+		if errMsg == "" {
+			errMsg = result.Stdout
+		}
+		if errMsg == "" {
+			errMsg = fmt.Sprintf("exit code %d", result.ExitCode)
+		}
+		return "", fmt.Errorf("web search failed: %s", errMsg)
+	}
+
+	return result.Stdout, nil
+}
+
+// FetchURL fetches content from a URL using a containerized curl command
+// The function executes an HTTP GET request to the specified URL and returns the response content.
+//
+// For example, to fetch a URL:
+//   - url: "https://api.example.com/data"
+//
+// The curl command is executed with -s (silent) and -L (follow redirects) flags.
+//
+// Returns the HTTP response body and any error that occurred.
+func FetchURL(ctx context.Context, exec *Executor, url string) (string, error) {
+	if exec == nil {
+		return "", fmt.Errorf("executor cannot be nil")
+	}
+	if url == "" {
+		return "", fmt.Errorf("URL cannot be empty")
+	}
+
+	// Execute the fetch task
+	// The FetchURLTool already has curl configured with -s and -L flags
+	// We append the URL as an additional argument
+	taskCfg := TaskConfig{
+		ToolType: ToolTypeFetchURL,
+		Args:     []string{url},
+		// No mount source needed for web operations
+	}
+
+	result := exec.ExecuteTask(ctx, taskCfg)
+	if result.Error != nil {
+		return "", fmt.Errorf("failed to execute fetch URL: %w", result.Error)
+	}
+
+	// Check exit code
+	if result.ExitCode != 0 {
+		errMsg := result.Stderr
+		if errMsg == "" {
+			errMsg = result.Stdout
+		}
+		if errMsg == "" {
+			errMsg = fmt.Sprintf("exit code %d", result.ExitCode)
+		}
+		return "", fmt.Errorf("fetch URL failed: %s", errMsg)
+	}
+
+	return result.Stdout, nil
+}
+
 // startsWith checks if a string starts with a prefix
 func startsWith(s, prefix string) bool {
 	if len(s) < len(prefix) {

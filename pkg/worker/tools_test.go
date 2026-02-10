@@ -630,6 +630,184 @@ func TestFileWrite(t *testing.T) {
 	})
 }
 
+// TestWebSearch verifies that WebSearch function can perform HTTP requests
+// using a containerized curl command
+func TestWebSearch(t *testing.T) {
+	t.Run("fetches example.com successfully", func(t *testing.T) {
+		exec, err := NewExecutorDefault(nil)
+		if err != nil {
+			t.Skipf("Cannot create executor (Docker may not be available): %v", err)
+			return
+		}
+		defer exec.Close()
+
+		ctx := context.Background()
+		content, err := WebSearch(ctx, exec, "https://example.com")
+		if err != nil {
+			t.Fatalf("WebSearch() failed: %v", err)
+		}
+
+		// Verify content contains expected HTML elements
+		if !strings.Contains(content, "<html") && !strings.Contains(content, "<HTML") {
+			t.Error("WebSearch() response should contain HTML content")
+		}
+
+		// Should contain some content from example.com
+		if len(content) < 100 {
+			t.Errorf("WebSearch() response seems too short: %d bytes", len(content))
+		}
+	})
+
+	t.Run("fetches HTTP content with redirect", func(t *testing.T) {
+		exec, err := NewExecutorDefault(nil)
+		if err != nil {
+			t.Skipf("Cannot create executor (Docker may not be available): %v", err)
+			return
+		}
+		defer exec.Close()
+
+		ctx := context.Background()
+		// This URL redirects (e.g., http to https)
+		content, err := WebSearch(ctx, exec, "http://example.com")
+		if err != nil {
+			t.Fatalf("WebSearch() with redirect failed: %v", err)
+		}
+
+		// Should successfully follow redirect and get content
+		if len(content) < 100 {
+			t.Errorf("WebSearch() response seems too short after redirect: %d bytes", len(content))
+		}
+	})
+
+	t.Run("validates inputs", func(t *testing.T) {
+		exec, err := NewExecutorDefault(nil)
+		if err != nil {
+			t.Skipf("Cannot create executor (Docker may not be available): %v", err)
+			return
+		}
+		defer exec.Close()
+
+		ctx := context.Background()
+
+		// Test nil executor
+		_, err = WebSearch(ctx, nil, "https://example.com")
+		if err == nil {
+			t.Error("WebSearch() should return error for nil executor")
+		}
+
+		// Test empty URL
+		_, err = WebSearch(ctx, exec, "")
+		if err == nil {
+			t.Error("WebSearch() should return error for empty URL")
+		}
+	})
+
+	t.Run("handles invalid URL gracefully", func(t *testing.T) {
+		exec, err := NewExecutorDefault(nil)
+		if err != nil {
+			t.Skipf("Cannot create executor (Docker may not be available): %v", err)
+			return
+		}
+		defer exec.Close()
+
+		ctx := context.Background()
+		// Use an invalid URL that should fail
+		_, err = WebSearch(ctx, exec, "http://this-domain-does-not-exist-12345.com")
+		if err == nil {
+			t.Error("WebSearch() should return error for invalid URL")
+		}
+	})
+}
+
+// TestFetchURL verifies that FetchURL function can fetch URL content
+// using a containerized curl command
+func TestFetchURL(t *testing.T) {
+	t.Run("fetches simple URL successfully", func(t *testing.T) {
+		exec, err := NewExecutorDefault(nil)
+		if err != nil {
+			t.Skipf("Cannot create executor (Docker may not be available): %v", err)
+			return
+		}
+		defer exec.Close()
+
+		ctx := context.Background()
+		content, err := FetchURL(ctx, exec, "https://example.com")
+		if err != nil {
+			t.Fatalf("FetchURL() failed: %v", err)
+		}
+
+		// Verify content contains expected HTML elements
+		if !strings.Contains(content, "<html") && !strings.Contains(content, "<HTML") {
+			t.Error("FetchURL() response should contain HTML content")
+		}
+
+		// Should contain some content from example.com
+		if len(content) < 100 {
+			t.Errorf("FetchURL() response seems too short: %d bytes", len(content))
+		}
+	})
+
+	t.Run("fetches JSON content", func(t *testing.T) {
+		exec, err := NewExecutorDefault(nil)
+		if err != nil {
+			t.Skipf("Cannot create executor (Docker may not be available): %v", err)
+			return
+		}
+		defer exec.Close()
+
+		ctx := context.Background()
+		// Use a simple JSON API
+		content, err := FetchURL(ctx, exec, "https://httpbin.org/json")
+		if err != nil {
+			t.Fatalf("FetchURL() for JSON failed: %v", err)
+		}
+
+		// Should contain JSON content
+		if !strings.Contains(content, "{") && !strings.Contains(content, "slideshow") {
+			t.Error("FetchURL() response should contain JSON content")
+		}
+	})
+
+	t.Run("validates inputs", func(t *testing.T) {
+		exec, err := NewExecutorDefault(nil)
+		if err != nil {
+			t.Skipf("Cannot create executor (Docker may not be available): %v", err)
+			return
+		}
+		defer exec.Close()
+
+		ctx := context.Background()
+
+		// Test nil executor
+		_, err = FetchURL(ctx, nil, "https://example.com")
+		if err == nil {
+			t.Error("FetchURL() should return error for nil executor")
+		}
+
+		// Test empty URL
+		_, err = FetchURL(ctx, exec, "")
+		if err == nil {
+			t.Error("FetchURL() should return error for empty URL")
+		}
+	})
+
+	t.Run("handles network errors gracefully", func(t *testing.T) {
+		exec, err := NewExecutorDefault(nil)
+		if err != nil {
+			t.Skipf("Cannot create executor (Docker may not be available): %v", err)
+			return
+		}
+		defer exec.Close()
+
+		ctx := context.Background()
+		// Use an invalid URL that should fail
+		_, err = FetchURL(ctx, exec, "http://this-domain-does-not-exist-12345.com")
+		if err == nil {
+			t.Error("FetchURL() should return error for invalid URL")
+		}
+	})
+}
+
 // writeTestFile is a helper function to write test content to a file
 func writeTestFile(path, content string) error {
 	return os.WriteFile(path, []byte(content), 0644)
