@@ -1,0 +1,549 @@
+package policy
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"github.com/billm/baaaht/orchestrator/internal/logger"
+)
+
+// mockGroupProvider is a mock implementation of GroupMembershipProvider for testing
+type mockGroupProvider struct {
+	groups map[string][]string
+	err    error
+}
+
+// GetUserGroups returns the list of group names for a given user
+func (m *mockGroupProvider) GetUserGroups(ctx context.Context, username string) ([]string, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	if groups, ok := m.groups[username]; ok {
+		return groups, nil
+	}
+	return []string{}, nil
+}
+
+// createTestResolver creates a mount allowlist resolver for testing
+func createTestResolver(t *testing.T) *MountAllowlistResolver {
+	log, err := logger.NewDefault()
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
+
+	policy := &Policy{
+		ID:          "test-policy",
+		Name:        "Test Policy",
+		Description: "A test policy",
+		Mode:        EnforcementModeStrict,
+		Mounts: MountPolicy{
+			MountAllowlist: []MountAllowlistEntry{
+				{
+					Path: "/home/shared/data",
+					Mode: MountAccessModeReadOnly,
+				},
+				{
+					Path: "/home/alice/projects",
+					User: "alice",
+					Mode: MountAccessModeReadWrite,
+				},
+				{
+					Path: "/shared/team-data",
+					Group: "developers",
+					Mode: MountAccessModeReadWrite,
+				},
+			},
+		},
+	}
+
+	resolver, err := NewMountAllowlistResolver(policy, log)
+	if err != nil {
+		t.Fatalf("failed to create resolver: %v", err)
+	}
+
+	return resolver
+}
+
+// TestGroupMembership tests the group membership provider interface
+func TestGroupMembership(t *testing.T) {
+	t.Run("SetGroupProvider sets provider correctly", func(t *testing.T) {
+		resolver := createTestResolver(t)
+		defer resolver.Close()
+
+		provider := &mockGroupProvider{
+			groups: map[string][]string{
+				"alice": {"developers", "admins"},
+				"bob":   {"developers"},
+			},
+		}
+
+		err := resolver.SetGroupProvider(provider)
+		if err != nil {
+			t.Fatalf("failed to set group provider: %v", err)
+		}
+	})
+
+	t.Run("SetGroupProvider fails when resolver is closed", func(t *testing.T) {
+		resolver := createTestResolver(t)
+		resolver.Close()
+
+		provider := &mockGroupProvider{
+			groups: map[string][]string{},
+		}
+
+		err := resolver.SetGroupProvider(provider)
+		if err == nil {
+			t.Fatal("expected error when setting provider on closed resolver")
+		}
+	})
+
+	t.Run("GetUserGroups returns correct groups", func(t *testing.T) {
+		provider := &mockGroupProvider{
+			groups: map[string][]string{
+				"alice":  {"developers", "admins"},
+				"bob":    {"developers"},
+				"charlie": {"ops", "admins"},
+			},
+		}
+
+		ctx := context.Background()
+
+		groups, err := provider.GetUserGroups(ctx, "alice")
+		if err != nil {
+			t.Fatalf("failed to get groups: %v", err)
+		}
+
+		if len(groups) != 2 {
+			t.Fatalf("expected 2 groups, got %d", len(groups))
+		}
+
+		if !containsString(groups, "developers") {
+			t.Error("expected 'developers' in groups")
+		}
+
+		if !containsString(groups, "admins") {
+			t.Error("expected 'admins' in groups")
+		}
+	})
+
+	t.Run("GetUserGroups returns empty list for unknown user", func(t *testing.T) {
+		provider := &mockGroupProvider{
+			groups: map[string][]string{
+				"alice": {"developers"},
+			},
+		}
+
+		ctx := context.Background()
+
+		groups, err := provider.GetUserGroups(ctx, "unknown")
+		if err != nil {
+			t.Fatalf("failed to get groups: %v", err)
+		}
+
+		if len(groups) != 0 {
+			t.Fatalf("expected 0 groups for unknown user, got %d", len(groups))
+		}
+	})
+
+	t.Run("GetUserGroups returns error when provider fails", func(t *testing.T) {
+		expectedErr := errors.New("provider error")
+		provider := &mockGroupProvider{
+			err: expectedErr,
+		}
+
+		ctx := context.Background()
+
+		groups, err := provider.GetUserGroups(ctx, "alice")
+		if err != expectedErr {
+			t.Fatalf("expected error '%v', got '%v'", expectedErr, err)
+		}
+
+		if groups != nil {
+			t.Fatal("expected nil groups on error")
+		}
+	})
+}
+
+// TestMountAllowlistResolver tests the resolver functionality
+func TestMountAllowlistResolver(t *testing.T) {
+	t.Run("NewMountAllowlistResolver creates resolver", func(t *testing.T) {
+		log, err := logger.NewDefault()
+		if err != nil {
+			t.Fatalf("failed to create logger: %v", err)
+		}
+
+		policy := DefaultPolicy()
+		resolver, err := NewMountAllowlistResolver(policy, log)
+		if err != nil {
+			t.Fatalf("failed to create resolver: %v", err)
+		}
+		defer resolver.Close()
+
+		if resolver == nil {
+			t.Fatal("resolver is nil")
+		}
+	})
+
+	t.Run("NewMountAllowlistResolver with nil policy uses default", func(t *testing.T) {
+		log, err := logger.NewDefault()
+		if err != nil {
+			t.Fatalf("failed to create logger: %v", err)
+		}
+
+		resolver, err := NewMountAllowlistResolver(nil, log)
+		if err != nil {
+			t.Fatalf("failed to create resolver with nil policy: %v", err)
+		}
+		defer resolver.Close()
+
+		if resolver == nil {
+			t.Fatal("resolver is nil")
+		}
+	})
+
+	t.Run("NewDefaultMountAllowlistResolver creates resolver with default policy", func(t *testing.T) {
+		resolver, err := NewDefaultMountAllowlistResolver(nil)
+		if err != nil {
+			t.Fatalf("failed to create default resolver: %v", err)
+		}
+		defer resolver.Close()
+
+		if resolver == nil {
+			t.Fatal("resolver is nil")
+		}
+	})
+
+	t.Run("GetPolicy returns policy copy", func(t *testing.T) {
+		resolver := createTestResolver(t)
+		defer resolver.Close()
+
+		ctx := context.Background()
+		policy, err := resolver.GetPolicy(ctx)
+		if err != nil {
+			t.Fatalf("failed to get policy: %v", err)
+		}
+
+		if policy == nil {
+			t.Fatal("policy is nil")
+		}
+
+		if policy.ID != "test-policy" {
+			t.Errorf("expected policy ID 'test-policy', got '%s'", policy.ID)
+		}
+	})
+
+	t.Run("GetPolicy fails when resolver is closed", func(t *testing.T) {
+		resolver := createTestResolver(t)
+		resolver.Close()
+
+		ctx := context.Background()
+		_, err := resolver.GetPolicy(ctx)
+		if err == nil {
+			t.Fatal("expected error when getting policy from closed resolver")
+		}
+	})
+
+	t.Run("SetPolicy updates policy", func(t *testing.T) {
+		resolver := createTestResolver(t)
+		defer resolver.Close()
+
+		ctx := context.Background()
+		newPolicy := &Policy{
+			ID:          "new-policy",
+			Name:        "New Policy",
+			Description: "A new test policy",
+			Mode:        EnforcementModePermissive,
+			Mounts: MountPolicy{
+				MountAllowlist: []MountAllowlistEntry{
+					{
+						Path: "/new/path",
+						Mode: MountAccessModeReadOnly,
+					},
+				},
+			},
+		}
+
+		err := resolver.SetPolicy(ctx, newPolicy)
+		if err != nil {
+			t.Fatalf("failed to set policy: %v", err)
+		}
+
+		policy, err := resolver.GetPolicy(ctx)
+		if err != nil {
+			t.Fatalf("failed to get policy: %v", err)
+		}
+
+		if policy.ID != "new-policy" {
+			t.Errorf("expected policy ID 'new-policy', got '%s'", policy.ID)
+		}
+	})
+
+	t.Run("SetPolicy fails when resolver is closed", func(t *testing.T) {
+		resolver := createTestResolver(t)
+		resolver.Close()
+
+		ctx := context.Background()
+		newPolicy := DefaultPolicy()
+
+		err := resolver.SetPolicy(ctx, newPolicy)
+		if err == nil {
+			t.Fatal("expected error when setting policy on closed resolver")
+		}
+	})
+
+	t.Run("Close is idempotent", func(t *testing.T) {
+		resolver := createTestResolver(t)
+
+		err := resolver.Close()
+		if err != nil {
+			t.Fatalf("failed to close resolver: %v", err)
+		}
+
+		err = resolver.Close()
+		if err != nil {
+			t.Fatalf("close should be idempotent: %v", err)
+		}
+	})
+}
+
+// TestResolveMountAccess tests mount access resolution
+func TestResolveMountAccess(t *testing.T) {
+	t.Run("Default entry allows access for any user", func(t *testing.T) {
+		resolver := createTestResolver(t)
+		defer resolver.Close()
+
+		ctx := context.Background()
+
+		mode, err := resolver.ResolveMountAccess(ctx, "/home/shared/data", "anyuser")
+		if err != nil {
+			t.Fatalf("failed to resolve mount access: %v", err)
+		}
+
+		if mode != MountAccessModeReadOnly {
+			t.Errorf("expected readonly mode, got '%s'", mode)
+		}
+	})
+
+	t.Run("User-specific entry takes precedence", func(t *testing.T) {
+		resolver := createTestResolver(t)
+		defer resolver.Close()
+
+		ctx := context.Background()
+
+		mode, err := resolver.ResolveMountAccess(ctx, "/home/alice/projects", "alice")
+		if err != nil {
+			t.Fatalf("failed to resolve mount access: %v", err)
+		}
+
+		if mode != MountAccessModeReadWrite {
+			t.Errorf("expected readwrite mode, got '%s'", mode)
+		}
+	})
+
+	t.Run("Group-specific entry with provider allows access", func(t *testing.T) {
+		resolver := createTestResolver(t)
+		defer resolver.Close()
+
+		provider := &mockGroupProvider{
+			groups: map[string][]string{
+				"bob": {"developers"},
+			},
+		}
+
+		err := resolver.SetGroupProvider(provider)
+		if err != nil {
+			t.Fatalf("failed to set group provider: %v", err)
+		}
+
+		ctx := context.Background()
+
+		mode, err := resolver.ResolveMountAccess(ctx, "/shared/team-data", "bob")
+		if err != nil {
+			t.Fatalf("failed to resolve mount access: %v", err)
+		}
+
+		if mode != MountAccessModeReadWrite {
+			t.Errorf("expected readwrite mode, got '%s'", mode)
+		}
+	})
+
+	t.Run("Unknown path returns denied", func(t *testing.T) {
+		resolver := createTestResolver(t)
+		defer resolver.Close()
+
+		ctx := context.Background()
+
+		mode, err := resolver.ResolveMountAccess(ctx, "/unknown/path", "alice")
+		if err != nil {
+			t.Fatalf("failed to resolve mount access: %v", err)
+		}
+
+		if mode != MountAccessModeDenied {
+			t.Errorf("expected denied mode, got '%s'", mode)
+		}
+	})
+
+	t.Run("ResolveMountAccess fails when resolver is closed", func(t *testing.T) {
+		resolver := createTestResolver(t)
+		resolver.Close()
+
+		ctx := context.Background()
+
+		_, err := resolver.ResolveMountAccess(ctx, "/home/shared/data", "alice")
+		if err == nil {
+			t.Fatal("expected error when resolving mount access on closed resolver")
+		}
+	})
+}
+
+// TestGetAllowedMounts tests retrieving allowed mounts for a user
+func TestGetAllowedMounts(t *testing.T) {
+	t.Run("Returns all default entries for user without provider", func(t *testing.T) {
+		resolver := createTestResolver(t)
+		defer resolver.Close()
+
+		ctx := context.Background()
+
+		mounts, err := resolver.GetAllowedMounts(ctx, "bob")
+		if err != nil {
+			t.Fatalf("failed to get allowed mounts: %v", err)
+		}
+
+		// Should only get the default entry
+		if len(mounts) != 1 {
+			t.Fatalf("expected 1 mount, got %d", len(mounts))
+		}
+
+		if mounts[0].Path != "/home/shared/data" {
+			t.Errorf("expected path '/home/shared/data', got '%s'", mounts[0].Path)
+		}
+	})
+
+	t.Run("Returns user-specific and default entries", func(t *testing.T) {
+		resolver := createTestResolver(t)
+		defer resolver.Close()
+
+		ctx := context.Background()
+
+		mounts, err := resolver.GetAllowedMounts(ctx, "alice")
+		if err != nil {
+			t.Fatalf("failed to get allowed mounts: %v", err)
+		}
+
+		// Should get default entry and alice's entry
+		if len(mounts) != 2 {
+			t.Fatalf("expected 2 mounts, got %d", len(mounts))
+		}
+	})
+
+	t.Run("Returns group-specific entries with provider", func(t *testing.T) {
+		resolver := createTestResolver(t)
+		defer resolver.Close()
+
+		provider := &mockGroupProvider{
+			groups: map[string][]string{
+				"bob": {"developers"},
+			},
+		}
+
+		err := resolver.SetGroupProvider(provider)
+		if err != nil {
+			t.Fatalf("failed to set group provider: %v", err)
+		}
+
+		ctx := context.Background()
+
+		mounts, err := resolver.GetAllowedMounts(ctx, "bob")
+		if err != nil {
+			t.Fatalf("failed to get allowed mounts: %v", err)
+		}
+
+		// Should get default entry and developers entry
+		if len(mounts) != 2 {
+			t.Fatalf("expected 2 mounts, got %d", len(mounts))
+		}
+	})
+
+	t.Run("GetAllowedMounts fails when resolver is closed", func(t *testing.T) {
+		resolver := createTestResolver(t)
+		resolver.Close()
+
+		ctx := context.Background()
+
+		_, err := resolver.GetAllowedMounts(ctx, "alice")
+		if err == nil {
+			t.Fatal("expected error when getting allowed mounts from closed resolver")
+		}
+	})
+}
+
+// TestValidatePath tests path validation
+func TestValidatePath(t *testing.T) {
+	t.Run("Allowed path returns no error", func(t *testing.T) {
+		resolver := createTestResolver(t)
+		defer resolver.Close()
+
+		ctx := context.Background()
+
+		err := resolver.ValidatePath(ctx, "/home/shared/data", "alice")
+		if err != nil {
+			t.Errorf("expected no error for allowed path: %v", err)
+		}
+	})
+
+	t.Run("Denied path returns error", func(t *testing.T) {
+		resolver := createTestResolver(t)
+		defer resolver.Close()
+
+		ctx := context.Background()
+
+		err := resolver.ValidatePath(ctx, "/unknown/path", "alice")
+		if err == nil {
+			t.Error("expected error for denied path")
+		}
+	})
+}
+
+// TestStats tests resolver statistics
+func TestStats(t *testing.T) {
+	t.Run("Returns correct statistics", func(t *testing.T) {
+		resolver := createTestResolver(t)
+		defer resolver.Close()
+
+		ctx := context.Background()
+
+		total, user, group := resolver.Stats(ctx)
+
+		if total != 3 {
+			t.Errorf("expected 3 total entries, got %d", total)
+		}
+
+		if user != 1 {
+			t.Errorf("expected 1 user entry, got %d", user)
+		}
+
+		if group != 1 {
+			t.Errorf("expected 1 group entry, got %d", group)
+		}
+	})
+}
+
+// TestString tests string representation
+func TestString(t *testing.T) {
+	t.Run("Returns valid string representation", func(t *testing.T) {
+		resolver := createTestResolver(t)
+		defer resolver.Close()
+
+		str := resolver.String()
+		if str == "" {
+			t.Error("string representation is empty")
+		}
+
+		// Check that it contains expected information
+		// The string should contain "MountAllowlistResolver"
+		if len(str) < 10 {
+			t.Error("string representation should be longer")
+		}
+	})
+}
