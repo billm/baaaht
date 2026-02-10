@@ -1460,3 +1460,75 @@ func (a *Agent) extractURLFromConfig(config *proto.TaskConfig, args []string) st
 
 	return ""
 }
+
+// =============================================================================
+// Task Cancellation
+// =============================================================================
+
+// HandleCancelCommand handles a cancel command from the stream
+func (a *Agent) HandleCancelCommand(ctx context.Context, executor *Executor, taskID string, cancelCmd *proto.CancelCommand) error {
+	if executor == nil {
+		return types.NewError(types.ErrCodeInvalid, "executor is nil")
+	}
+
+	if cancelCmd == nil {
+		return types.NewError(types.ErrCodeInvalid, "cancel command is nil")
+	}
+
+	a.logger.Info("Handling cancel command",
+		"task_id", taskID,
+		"reason", cancelCmd.Reason,
+		"force", cancelCmd.Force)
+
+	// Cancel the task in the executor
+	if err := executor.CancelTask(ctx, taskID, cancelCmd.Force); err != nil {
+		a.logger.Error("Failed to cancel task in executor",
+			"task_id", taskID,
+			"error", err)
+		return types.WrapError(types.ErrCodeInternal, "failed to cancel task", err)
+	}
+
+	a.logger.Info("Task cancelled successfully", "task_id", taskID)
+	return nil
+}
+
+// ProcessStreamRequest processes a stream task request and handles cancellation
+func (a *Agent) ProcessStreamRequest(ctx context.Context, executor *Executor, req *proto.StreamTaskRequest, taskID string) error {
+	if req == nil {
+		return types.NewError(types.ErrCodeInvalid, "stream request is nil")
+	}
+
+	// Check if it's a cancel command
+	if cancelCmd := req.GetCancel(); cancelCmd != nil {
+		return a.HandleCancelCommand(ctx, executor, taskID, cancelCmd)
+	}
+
+	// Other request types (Input, Heartbeat) are handled elsewhere
+	return nil
+}
+
+// SendCancelRequest sends a cancel request via the stream
+func (a *Agent) SendCancelRequest(stream proto.AgentService_StreamTaskClient, taskID string, reason string, force bool) error {
+	if stream == nil {
+		return types.NewError(types.ErrCodeInvalid, "stream is nil")
+	}
+
+	req := &proto.StreamTaskRequest{
+		TaskId: taskID,
+		Payload: &proto.StreamTaskRequest_Cancel{
+			Cancel: &proto.CancelCommand{
+				Reason: reason,
+				Force:  force,
+			},
+		},
+	}
+
+	if err := stream.Send(req); err != nil {
+		a.logger.Error("Failed to send cancel request", "task_id", taskID, "error", err)
+		return types.WrapError(types.ErrCodeInternal, "failed to send cancel request", err)
+	}
+
+	a.logger.Info("Cancel request sent", "task_id", taskID, "reason", reason, "force", force)
+	return nil
+}
+

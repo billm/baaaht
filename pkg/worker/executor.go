@@ -22,6 +22,19 @@ type Executor struct {
 	sessionID      types.ID
 	mu             sync.RWMutex
 	closed         bool
+
+	// Task tracking for cancellation
+	runningTasks   map[string]*runningTask // taskID -> running task info
+}
+
+// runningTask holds information about a currently running task
+type runningTask struct {
+	TaskID      string
+	ContainerID string
+	ContainerName string
+	Ctx         context.Context
+	CancelFunc  context.CancelFunc
+	StartTime   time.Time
 }
 
 // ExecutorConfig holds configuration for creating a new Executor
@@ -110,6 +123,7 @@ func NewExecutor(cfg ExecutorConfig) (*Executor, error) {
 		logger:         log.With("component", "worker_executor", "session_id", sessionID),
 		sessionID:      sessionID,
 		closed:         false,
+		runningTasks:   make(map[string]*runningTask),
 	}
 
 	exec.logger.Info("Executor initialized",
@@ -308,9 +322,45 @@ func (e *Executor) EnforceConfig(ctx context.Context, config types.ContainerConf
 func (e *Executor) ExecuteTask(ctx context.Context, cfg TaskConfig) *TaskResult {
 	startTime := time.Now()
 
+	// Generate a task ID for tracking
+	taskID := types.GenerateID().String()
+
+	// Create a cancelable context for this task
+	taskCtx, cancelFunc := context.WithCancel(ctx)
+
 	result := &TaskResult{
 		StartedAt: startTime,
 	}
+
+	// Track this running task
+	taskInfo := &runningTask{
+		TaskID:         taskID,
+		ContainerID:    "", // Will be set after container creation
+		ContainerName:  "", // Will be set after container creation
+		Ctx:            taskCtx,
+		CancelFunc:     cancelFunc,
+		StartTime:      startTime,
+	}
+
+	e.mu.Lock()
+	if e.closed {
+		e.mu.Unlock()
+		result.Error = types.NewError(types.ErrCodeUnavailable, "executor is closed")
+		result.CompletedAt = time.Now()
+		result.Duration = result.CompletedAt.Sub(startTime)
+		cancelFunc()
+		return result
+	}
+	e.runningTasks[taskID] = taskInfo
+	e.mu.Unlock()
+
+	// Ensure cleanup: remove from tracking and cancel context
+	defer func() {
+		e.mu.Lock()
+		delete(e.runningTasks, taskID)
+		e.mu.Unlock()
+		cancelFunc()
+	}()
 
 	// Get the tool specification
 	toolSpec, err := GetToolSpec(cfg.ToolType)
@@ -368,7 +418,7 @@ func (e *Executor) ExecuteTask(ctx context.Context, cfg TaskConfig) *TaskResult 
 	}
 
 	// Create context with timeout for execution
-	execCtx, cancel := context.WithTimeout(ctx, timeout)
+	execCtx, cancel := context.WithTimeout(taskCtx, timeout)
 	defer cancel()
 
 	// Create the container
@@ -389,6 +439,13 @@ func (e *Executor) ExecuteTask(ctx context.Context, cfg TaskConfig) *TaskResult 
 	}
 
 	result.ContainerID = createResult.ContainerID
+
+	// Update task tracking with container info
+	e.mu.Lock()
+	taskInfo.ContainerID = result.ContainerID
+	taskInfo.ContainerName = containerName
+	e.mu.Unlock()
+
 	e.logger.Info("Container created", "container_id", result.ContainerID, "name", containerName)
 
 	// Ensure cleanup happens even if errors occur
@@ -516,4 +573,99 @@ func (e *Executor) ExecuteTask(ctx context.Context, cfg TaskConfig) *TaskResult 
 		"duration", result.Duration.String())
 
 	return result
+}
+
+// CancelTask cancels a running task by stopping its container
+func (e *Executor) CancelTask(ctx context.Context, taskID string, force bool) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if e.closed {
+		return types.NewError(types.ErrCodeUnavailable, "executor is closed")
+	}
+
+	// Find the running task
+	taskInfo, exists := e.runningTasks[taskID]
+	if !exists {
+		return types.NewError(types.ErrCodeNotFound, "task not found or already completed")
+	}
+
+	e.logger.Info("Cancelling task",
+		"task_id", taskID,
+		"container_id", taskInfo.ContainerID,
+		"force", force)
+
+	// Cancel the context to stop ongoing operations
+	if taskInfo.CancelFunc != nil {
+		taskInfo.CancelFunc()
+	}
+
+	// Stop the container if it exists
+	if taskInfo.ContainerID != "" {
+		if !force {
+			// Try graceful stop first
+			stopCfg := container.StopConfig{
+				ContainerID: taskInfo.ContainerID,
+			}
+
+			// Use a short timeout for stopping
+			timeout := 2 * time.Second
+			stopCfg.Timeout = &timeout
+
+			stopCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			defer cancel()
+
+			if err := e.runtime.Stop(stopCtx, stopCfg); err != nil {
+				e.logger.Warn("Failed to stop container during cancellation",
+					"container_id", taskInfo.ContainerID,
+					"error", err)
+				// Continue to try to destroy the container
+			} else {
+				e.logger.Info("Container stopped during cancellation",
+					"container_id", taskInfo.ContainerID)
+			}
+		}
+
+		// Destroy the container (force flag here determines if we force-destroy)
+		destroyCfg := container.DestroyConfig{
+			ContainerID: taskInfo.ContainerID,
+			Name:        taskInfo.ContainerName,
+			Force:       force,
+		}
+
+		if err := e.runtime.Destroy(context.Background(), destroyCfg); err != nil {
+			e.logger.Warn("Failed to destroy container during cancellation",
+				"container_id", taskInfo.ContainerID,
+				"error", err)
+		} else {
+			e.logger.Info("Container destroyed during cancellation",
+				"container_id", taskInfo.ContainerID)
+		}
+	}
+
+	// Remove from tracking (it will also be removed by defer in ExecuteTask, but doing it here for clarity)
+	delete(e.runningTasks, taskID)
+
+	return nil
+}
+
+// GetRunningTasks returns a list of currently running task IDs
+func (e *Executor) GetRunningTasks() []string {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	taskIDs := make([]string, 0, len(e.runningTasks))
+	for taskID := range e.runningTasks {
+		taskIDs = append(taskIDs, taskID)
+	}
+	return taskIDs
+}
+
+// IsTaskRunning returns true if a task with the given ID is currently running
+func (e *Executor) IsTaskRunning(taskID string) bool {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	_, exists := e.runningTasks[taskID]
+	return exists
 }

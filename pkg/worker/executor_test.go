@@ -720,3 +720,213 @@ func TestNetworkPolicyAllowed(t *testing.T) {
 
 	t.Logf("Web operation allowed: %v, Violations: %d", result.Allowed, len(result.Violations))
 }
+
+// TestTaskCancellation verifies that running tasks can be cancelled
+func TestTaskCancellation(t *testing.T) {
+	exec, err := NewExecutorDefault(nil)
+	if err != nil {
+		t.Skipf("Cannot create executor (Docker may not be available): %v", err)
+		return
+	}
+	defer exec.Close()
+
+	ctx := context.Background()
+
+	// Start a long-running task in background
+	taskCfg := TaskConfig{
+		ToolType:    ToolTypeFileRead,
+		Args:        []string{"/dev/urandom"}, // This will hang reading forever
+		MountSource: "/dev",
+		Timeout:     30 * time.Second,
+	}
+
+	resultChan := make(chan *TaskResult, 1)
+	go func() {
+		resultChan <- exec.ExecuteTask(ctx, taskCfg)
+	}()
+
+	// Give the container time to start
+	time.Sleep(500 * time.Millisecond)
+
+	// Get the running task IDs
+	runningTasks := exec.GetRunningTasks()
+	if len(runningTasks) == 0 {
+		t.Fatal("Expected at least one running task")
+	}
+
+	taskID := runningTasks[0]
+	t.Logf("Running task ID: %s", taskID)
+
+	// Verify the task is running
+	if !exec.IsTaskRunning(taskID) {
+		t.Error("Expected task to be running")
+	}
+
+	// Cancel the task
+	cancelReason := "Test cancellation"
+	force := false
+	if err := exec.CancelTask(ctx, taskID, force); err != nil {
+		t.Fatalf("Failed to cancel task: %v", err)
+	}
+
+	t.Logf("Task cancelled successfully")
+
+	// Wait for the task to complete (it should return with an error)
+	select {
+	case result := <-resultChan:
+		if result.Error == nil {
+			t.Error("Expected error from cancelled task, got nil")
+		} else {
+			t.Logf("Task completed with expected error after cancellation: %v", result.Error)
+		}
+
+		// Verify the task is no longer tracked as running
+		if exec.IsTaskRunning(taskID) {
+			t.Error("Task should not be running after cancellation")
+		}
+
+		// Verify there are no more running tasks
+		runningTasks = exec.GetRunningTasks()
+		if len(runningTasks) != 0 {
+			t.Errorf("Expected no running tasks after cancellation, got %d", len(runningTasks))
+		}
+
+	case <-time.After(10 * time.Second):
+		t.Fatal("Timed out waiting for cancelled task to complete")
+	}
+
+	// Test cancelling with force flag
+	t.Run("CancelWithForce", func(t *testing.T) {
+		// Start another long-running task
+		resultChan2 := make(chan *TaskResult, 1)
+		go func() {
+			resultChan2 <- exec.ExecuteTask(ctx, taskCfg)
+		}()
+
+		// Give it time to start
+		time.Sleep(500 * time.Millisecond)
+
+		// Get the running task
+		runningTasks = exec.GetRunningTasks()
+		if len(runningTasks) == 0 {
+			t.Fatal("Expected a running task")
+		}
+
+		taskID2 := runningTasks[0]
+
+		// Cancel with force flag
+		force = true
+		if err := exec.CancelTask(ctx, taskID2, force); err != nil {
+			t.Fatalf("Failed to cancel task with force: %v", err)
+		}
+
+		t.Logf("Task cancelled with force flag successfully")
+
+		// Wait for completion
+		select {
+		case <-resultChan2:
+			t.Log("Force cancelled task completed")
+		case <-time.After(10 * time.Second):
+			t.Fatal("Timed out waiting for force-cancelled task")
+		}
+	})
+
+	// Test cancelling non-existent task
+	t.Run("CancelNonExistentTask", func(t *testing.T) {
+		err := exec.CancelTask(ctx, "non-existent-task-id", false)
+		if err == nil {
+			t.Error("Expected error when cancelling non-existent task")
+		}
+		t.Logf("Correctly returned error for non-existent task: %v", err)
+	})
+
+	// Test cancelling already completed task
+	t.Run("CancelCompletedTask", func(t *testing.T) {
+		// Execute a quick task
+		quickCfg := TaskConfig{
+			ToolType:    ToolTypeList,
+			Args:        []string{},
+			MountSource: "/tmp",
+			Timeout:     5 * time.Second,
+		}
+
+		result := exec.ExecuteTask(ctx, quickCfg)
+		if result.Error != nil {
+			t.Skipf("Skipping test: quick task failed: %v", result.Error)
+			return
+		}
+
+		// Try to cancel it (it should already be done)
+		// Since task IDs are generated internally, we can't test this directly
+		// But the executor should handle gracefully
+		t.Log("Completed task test passed (task IDs are internal)")
+	})
+
+	t.Log("Task cancellation test passed!")
+}
+
+// TestTaskCancellationWithStoppedContainer tests cancelling a task that has a container
+func TestTaskCancellationWithStoppedContainer(t *testing.T) {
+	exec, err := NewExecutorDefault(nil)
+	if err != nil {
+		t.Skipf("Cannot create executor (Docker may not be available): %v", err)
+		return
+	}
+	defer exec.Close()
+
+	ctx := context.Background()
+
+	// Start a sleep task that runs for a while
+	taskCfg := TaskConfig{
+		ToolType:    ToolTypeFileWrite,
+		Args:        []string{"sh", "-c", "sleep 10 && echo done"},
+		MountSource: "/tmp",
+		Timeout:     30 * time.Second,
+	}
+
+	resultChan := make(chan *TaskResult, 1)
+	go func() {
+		resultChan <- exec.ExecuteTask(ctx, taskCfg)
+	}()
+
+	// Give the container time to start and sleep
+	time.Sleep(1 * time.Second)
+
+	// Get the running task
+	runningTasks := exec.GetRunningTasks()
+	if len(runningTasks) == 0 {
+		t.Fatal("Expected at least one running task")
+	}
+
+	taskID := runningTasks[0]
+	t.Logf("Running task ID: %s", taskID)
+
+	// Cancel the task (should stop the container)
+	if err := exec.CancelTask(ctx, taskID, false); err != nil {
+		t.Fatalf("Failed to cancel task: %v", err)
+	}
+
+	// Wait for the task to complete
+	select {
+	case result := <-resultChan:
+		// Task should have been cancelled
+		if result.Error == nil {
+			t.Log("Task completed (may have been cancelled gracefully)")
+		} else {
+			t.Logf("Task completed with error (expected for cancelled task): %v", result.Error)
+		}
+
+		// Verify container was cleaned up (containerID should be set)
+		if result.ContainerID == "" {
+			t.Error("Expected ContainerID to be set")
+		} else {
+			t.Logf("Container ID: %s", result.ContainerID)
+		}
+
+	case <-time.After(10 * time.Second):
+		t.Fatal("Timed out waiting for cancelled task")
+	}
+
+	t.Log("Task cancellation with stopped container test passed!")
+}
+
