@@ -43,6 +43,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.input.Reset()
 		return m, nil
 
+	// Handle session creation success
+	case SessionCreatedMsg:
+		m.sessionID = msg.SessionID
+		// Update status bar with session ID
+		m.status, _ = m.status.Update(components.StatusSessionMsg{SessionID: msg.SessionID})
+		// Update status bar to connected state
+		m.status, _ = m.status.Update(components.StatusConnectedMsg{})
+		return m, nil
+
+	// Handle session creation failure
+	case SessionCreateFailedMsg:
+		m.err = msg.Err
+		// Update status bar with error
+		m.status, _ = m.status.Update(components.StatusErrorMsg{Err: msg.Err})
+		return m, nil
+
 	// Handle component-specific messages for passthrough
 	// These will be expanded in subsequent subtasks:
 	// - gRPC connection status messages (phase-3-grpc)
