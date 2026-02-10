@@ -64,6 +64,23 @@ func (m Model) chatView() string {
 	return m.chat.View()
 }
 
+// sessionsView renders the sessions list component.
+func (m Model) sessionsView() string {
+	// Calculate sessions height (total height - header - status - input - footer)
+	sessionsHeight := m.height - 4
+	if sessionsHeight < 1 {
+		sessionsHeight = 1
+	}
+
+	// Set the sessions list height before rendering
+	if m.height > 0 {
+		m.sessions.height = sessionsHeight
+		m.sessions.width = m.width
+	}
+
+	return m.sessions.View()
+}
+
 // footerView renders the footer with help text.
 func (m Model) footerView() string {
 	keymap := DefaultKeyMap()

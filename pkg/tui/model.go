@@ -21,9 +21,10 @@ type Model struct {
 	err      error
 
 	// UI Components
-	status components.StatusModel
-	chat   components.ChatModel
-	input  components.InputModel
+	status   components.StatusModel
+	chat     components.ChatModel
+	input    components.InputModel
+	sessions components.SessionsModel
 
 	// Layout
 	width  int
@@ -56,6 +57,7 @@ func NewModel(socketPath string, verbose bool) Model {
 			status:     components.NewStatusModel(),
 			chat:       components.NewChatModel(),
 			input:      components.NewInputModel(),
+			sessions:   components.NewSessionsModel(),
 			width:      0,
 			height:     0,
 			client:     nil,
@@ -72,6 +74,7 @@ func NewModel(socketPath string, verbose bool) Model {
 		status:     components.NewStatusModel(),
 		chat:       components.NewChatModel(),
 		input:      components.NewInputModel(),
+		sessions:   components.NewSessionsModel(),
 		width:      0,
 		height:     0,
 		client:     client,
