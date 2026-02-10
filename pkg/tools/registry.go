@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/billm/baaaht/orchestrator/internal/logger"
+	"github.com/billm/baaaht/orchestrator/pkg/tools/builtin"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 )
 
@@ -810,34 +811,19 @@ var builtinToolDefinitions = map[string]ToolDefinition{
 	},
 }
 
-// builtinFileToolFactory is a placeholder factory for file tools.
-// The actual implementation will be provided in phase 4.
+// builtinFileToolFactory creates file tools using the builtin implementation.
 func builtinFileToolFactory(def ToolDefinition) (Tool, error) {
-	return &builtinToolPlaceholder{
-		name:       def.Name,
-		toolType:   ToolTypeFile,
-		definition: def,
-	}, nil
+	return builtin.FileToolFactory(def)
 }
 
-// builtinShellToolFactory is a placeholder factory for the shell tool.
-// The actual implementation will be provided in phase 4.
+// builtinShellToolFactory creates shell tools using the builtin implementation.
 func builtinShellToolFactory(def ToolDefinition) (Tool, error) {
-	return &builtinToolPlaceholder{
-		name:       def.Name,
-		toolType:   ToolTypeShell,
-		definition: def,
-	}, nil
+	return builtin.ShellToolFactory(def)
 }
 
-// builtinWebToolFactory is a placeholder factory for web tools.
-// The actual implementation will be provided in phase 4.
+// builtinWebToolFactory creates web tools using the builtin implementation.
 func builtinWebToolFactory(def ToolDefinition) (Tool, error) {
-	return &builtinToolPlaceholder{
-		name:       def.Name,
-		toolType:   ToolTypeWeb,
-		definition: def,
-	}, nil
+	return builtin.WebToolFactory(def)
 }
 
 // builtinMessageToolFactory is a placeholder factory for the messaging tool.
