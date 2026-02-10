@@ -448,6 +448,70 @@ func FileRead(ctx context.Context, exec *Executor, mountSource, filePath string)
 	return result.Stdout, nil
 }
 
+// FileWrite writes content to a file using a containerized write command
+// The file path is relative to the mount source.
+// For example, to write to /home/user/project/main.go:
+//   - mountSource: "/home/user/project"
+//   - filePath: "main.go" or "/workspace/main.go"
+//   - content: "package main\n"
+//
+// The function creates parent directories if they don't exist.
+// Returns an error if the write operation fails.
+func FileWrite(ctx context.Context, exec *Executor, mountSource, filePath, content string) error {
+	if exec == nil {
+		return fmt.Errorf("executor cannot be nil")
+	}
+	if mountSource == "" {
+		return fmt.Errorf("mount source cannot be empty")
+	}
+	if filePath == "" {
+		return fmt.Errorf("file path cannot be empty")
+	}
+
+	// Ensure the path is absolute within the container workspace
+	// If the path doesn't start with /workspace, prepend it
+	argPath := filePath
+	if !startsWith(filePath, "/workspace") {
+		// Convert relative path to absolute path in workspace
+		if filePath[0] != '/' {
+			argPath = "/workspace/" + filePath
+		} else {
+			argPath = "/workspace" + filePath
+		}
+	}
+
+	// Build the shell command that creates parent directories and writes content
+	// We use a shell heredoc to safely write content with special characters
+	// The script creates parent dirs and uses cat with heredoc to write content
+	shellScript := fmt.Sprintf("mkdir -p $(dirname %q) && cat > %q << 'BAAAHTEOF'\n%s\nBAAAHTEOF", argPath, argPath, content)
+
+	// Execute the file write task
+	taskCfg := TaskConfig{
+		ToolType:    ToolTypeFileWrite,
+		Args:        []string{"sh", "-c", shellScript},
+		MountSource: mountSource,
+	}
+
+	result := exec.ExecuteTask(ctx, taskCfg)
+	if result.Error != nil {
+		return fmt.Errorf("failed to execute file write: %w", result.Error)
+	}
+
+	// Check exit code
+	if result.ExitCode != 0 {
+		errMsg := result.Stderr
+		if errMsg == "" {
+			errMsg = result.Stdout
+		}
+		if errMsg == "" {
+			errMsg = fmt.Sprintf("exit code %d", result.ExitCode)
+		}
+		return fmt.Errorf("file write failed: %s", errMsg)
+	}
+
+	return nil
+}
+
 // startsWith checks if a string starts with a prefix
 func startsWith(s, prefix string) bool {
 	if len(s) < len(prefix) {

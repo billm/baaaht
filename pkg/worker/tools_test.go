@@ -447,6 +447,188 @@ func TestFileRead(t *testing.T) {
 	})
 }
 
+// TestFileWrite verifies that FileWrite function can write content to files
+// using a containerized write command
+func TestFileWrite(t *testing.T) {
+	t.Run("writes file content successfully", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		testFile := "test.txt"
+		testContent := "Hello, World!\nThis is a test file."
+
+		exec, err := NewExecutorDefault(nil)
+		if err != nil {
+			t.Skipf("Cannot create executor (Docker may not be available): %v", err)
+			return
+		}
+		defer exec.Close()
+
+		// Write the file using FileWrite function
+		ctx := context.Background()
+		if err := FileWrite(ctx, exec, tmpDir, testFile, testContent); err != nil {
+			t.Fatalf("FileWrite() failed: %v", err)
+		}
+
+		// Verify content was written by reading it back
+		content, err := os.ReadFile(tmpDir + "/" + testFile)
+		if err != nil {
+			t.Fatalf("Failed to read written file: %v", err)
+		}
+
+		if string(content) != testContent {
+			t.Errorf("FileWrite() content = %q, want %q", string(content), testContent)
+		}
+	})
+
+	t.Run("writes file with absolute workspace path", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		testContent := "Absolute path test"
+
+		exec, err := NewExecutorDefault(nil)
+		if err != nil {
+			t.Skipf("Cannot create executor (Docker may not be available): %v", err)
+			return
+		}
+		defer exec.Close()
+
+		// Write using absolute workspace path
+		ctx := context.Background()
+		if err := FileWrite(ctx, exec, tmpDir, "/workspace/test.txt", testContent); err != nil {
+			t.Fatalf("FileWrite() with absolute path failed: %v", err)
+		}
+
+		// Verify content
+		content, err := os.ReadFile(tmpDir + "/test.txt")
+		if err != nil {
+			t.Fatalf("Failed to read written file: %v", err)
+		}
+
+		if string(content) != testContent {
+			t.Errorf("FileWrite() content = %q, want %q", string(content), testContent)
+		}
+	})
+
+	t.Run("creates parent directories if needed", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		testContent := "Nested file content"
+
+		exec, err := NewExecutorDefault(nil)
+		if err != nil {
+			t.Skipf("Cannot create executor (Docker may not be available): %v", err)
+			return
+		}
+		defer exec.Close()
+
+		// Write to a nested path that doesn't exist
+		ctx := context.Background()
+		if err := FileWrite(ctx, exec, tmpDir, "subdir/nested/file.txt", testContent); err != nil {
+			t.Fatalf("FileWrite() to nested path failed: %v", err)
+		}
+
+		// Verify content
+		content, err := os.ReadFile(tmpDir + "/subdir/nested/file.txt")
+		if err != nil {
+			t.Fatalf("Failed to read written file: %v", err)
+		}
+
+		if string(content) != testContent {
+			t.Errorf("FileWrite() content = %q, want %q", string(content), testContent)
+		}
+	})
+
+	t.Run("overwrites existing file", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		testFile := "overwrite.txt"
+
+		exec, err := NewExecutorDefault(nil)
+		if err != nil {
+			t.Skipf("Cannot create executor (Docker may not be available): %v", err)
+			return
+		}
+		defer exec.Close()
+
+		ctx := context.Background()
+
+		// Write initial content
+		initialContent := "Initial content"
+		if err := FileWrite(ctx, exec, tmpDir, testFile, initialContent); err != nil {
+			t.Fatalf("FileWrite() initial write failed: %v", err)
+		}
+
+		// Overwrite with new content
+		newContent := "New content"
+		if err := FileWrite(ctx, exec, tmpDir, testFile, newContent); err != nil {
+			t.Fatalf("FileWrite() overwrite failed: %v", err)
+		}
+
+		// Verify new content
+		content, err := os.ReadFile(tmpDir + "/" + testFile)
+		if err != nil {
+			t.Fatalf("Failed to read written file: %v", err)
+		}
+
+		if string(content) != newContent {
+			t.Errorf("FileWrite() content = %q, want %q", string(content), newContent)
+		}
+	})
+
+	t.Run("handles special characters in content", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		testFile := "special.txt"
+		testContent := "Content with $pecial <characters> & symbols\n\"quotes\" and 'apostrophes'\nBackticks: `cmd`"
+
+		exec, err := NewExecutorDefault(nil)
+		if err != nil {
+			t.Skipf("Cannot create executor (Docker may not be available): %v", err)
+			return
+		}
+		defer exec.Close()
+
+		ctx := context.Background()
+		if err := FileWrite(ctx, exec, tmpDir, testFile, testContent); err != nil {
+			t.Fatalf("FileWrite() with special characters failed: %v", err)
+		}
+
+		// Verify content
+		content, err := os.ReadFile(tmpDir + "/" + testFile)
+		if err != nil {
+			t.Fatalf("Failed to read written file: %v", err)
+		}
+
+		if string(content) != testContent {
+			t.Errorf("FileWrite() content = %q, want %q", string(content), testContent)
+		}
+	})
+
+	t.Run("validates inputs", func(t *testing.T) {
+		exec, err := NewExecutorDefault(nil)
+		if err != nil {
+			t.Skipf("Cannot create executor (Docker may not be available): %v", err)
+			return
+		}
+		defer exec.Close()
+
+		ctx := context.Background()
+
+		// Test nil executor
+		err = FileWrite(ctx, nil, "/tmp", "test.txt", "content")
+		if err == nil {
+			t.Error("FileWrite() should return error for nil executor")
+		}
+
+		// Test empty mount source
+		err = FileWrite(ctx, exec, "", "test.txt", "content")
+		if err == nil {
+			t.Error("FileWrite() should return error for empty mount source")
+		}
+
+		// Test empty file path
+		err = FileWrite(ctx, exec, "/tmp", "", "content")
+		if err == nil {
+			t.Error("FileWrite() should return error for empty file path")
+		}
+	})
+}
+
 // writeTestFile is a helper function to write test content to a file
 func writeTestFile(path, content string) error {
 	return os.WriteFile(path, []byte(content), 0644)
