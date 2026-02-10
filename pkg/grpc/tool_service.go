@@ -875,20 +875,26 @@ func (s *ToolService) StreamTool(stream proto.ToolService_StreamToolServer) erro
 			if err := s.executionRegistry.Cancel(executionID); err == nil {
 				execution, _ := s.executionRegistry.Get(executionID)
 
+				// Build result from execution if available
+				var result *proto.ToolExecutionResult
+				if execution != nil {
+					result = s.buildExecutionResult(execution)
+					result.Status = proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_CANCELLED
+				} else {
+					result = &proto.ToolExecutionResult{
+						Status: proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_CANCELLED,
+					}
+				}
+
 				// Send complete response
 				resp := &proto.StreamToolResponse{
 					Payload: &proto.StreamToolResponse_Complete{
 						Complete: &proto.ToolExecutionComplete{
 							ExecutionId: executionID,
 							CompletedAt: timestamppb.Now(),
-							Result: &proto.ToolExecutionResult{
-								Status: proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_CANCELLED,
-							},
+							Result:       result,
 						},
 					},
-				}
-				if execution != nil {
-					resp.Complete.Result = s.buildExecutionResult(execution)
 				}
 
 				if err := stream.Send(resp); err != nil {
@@ -910,7 +916,7 @@ func (s *ToolService) CancelExecution(ctx context.Context, req *proto.CancelExec
 		return nil, errInvalidArgument("execution_id is required")
 	}
 
-	execution, err := s.executionRegistry.Get(req.ExecutionId)
+	_, err := s.executionRegistry.Get(req.ExecutionId)
 	if err != nil {
 		s.logger.Error("Failed to get execution for cancellation", "execution_id", req.ExecutionId, "error", err)
 		return nil, grpcErrorFromTypesError(err)
