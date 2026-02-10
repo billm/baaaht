@@ -1,0 +1,646 @@
+{
+  "feature": "Assistant Agent - Primary Conversational Interface with Delegation",
+  "description": "# Assistant Agent\n\nPrimary conversational agent that handles user interactions directly and delegates tool-requiring work to specialized agents (Worker, Researcher, Coder). Has no direct tool access—only the 'delegate' tool for dispatching workloads.\n\n## Rationale\nThe Assistant is the user's primary interface. By keeping tool access in specialized agents, the Assistant's context stays clean and focused on conversation, making it more efficient and reducing token costs.\n\n## User Stories\n- As a user, I want to have natural conversations with the Assistant so that I can get help with tasks\n- As a developer, I want the Assistant to delegate complex work to specialized agents so that responses are more accurate\n- As a user, I want the Assistant to remember our conversation context so that I don't have to repeat information\n\n## Acceptance Criteria\n- [ ] Assistant receives messages from Orchestrator and generates responses\n- [ ] Assistant delegates file operations to Worker agent\n- [ ] Assistant delegates web operations to Worker agent\n- [ ] Assistant delegates research tasks to Researcher agent (Phase 2)\n- [ ] Assistant delegates code tasks to Coder agent (Phase 2)\n- [ ] Assistant has no direct filesystem or network access\n- [ ] Assistant's only tool is 'delegate' for dispatching to other agents\n- [ ] Session context is maintained across multiple delegations\n",
+  "workflow_type": "feature",
+  "workflow_rationale": "This is a feature implementation - creating a new agent type that integrates with existing orchestrator infrastructure. The feature follows service dependency order: TypeScript agent setup first, then core agent implementation, then delegate tool, then integration testing.",
+  "created_at": "2026-02-09T05:33:45.824Z",
+  "updated_at": "2026-02-10T03:04:04.780Z",
+  "status": "in_progress",
+  "phases": [
+    {
+      "id": "phase-1-setup",
+      "name": "Agent Project Setup",
+      "type": "setup",
+      "description": "Create TypeScript project structure for the Assistant agent with all necessary dependencies and configuration",
+      "depends_on": [],
+      "parallel_safe": true,
+      "subtasks": [
+        {
+          "id": "subtask-1-1",
+          "description": "Create agent directory structure and initialize npm project",
+          "service": "agent_assistant",
+          "files_to_modify": [],
+          "files_to_create": [
+            "agents/assistant/package.json",
+            "agents/assistant/tsconfig.json",
+            "agents/assistant/.gitignore",
+            "agents/assistant/README.md"
+          ],
+          "patterns_from": [],
+          "verification": {
+            "type": "command",
+            "command": "cd agents/assistant && npm install && ls -la node_modules | head -5",
+            "expected": "node_modules directory created with dependencies"
+          },
+          "status": "completed",
+          "notes": "Created agent directory structure with package.json, tsconfig.json, .gitignore, and README.md. All files are properly configured following TypeScript/Node.js best practices. Note: npm install verification skipped due to command availability restrictions in the environment, but package.json is valid and ready for installation.",
+          "updated_at": "2026-02-10T03:02:56.161240+00:00"
+        },
+        {
+          "id": "subtask-1-2",
+          "description": "Generate TypeScript types from protobuf definitions",
+          "service": "agent_assistant",
+          "files_to_modify": [],
+          "files_to_create": [
+            "agents/assistant/src/proto/agent.ts",
+            "agents/assistant/src/proto/llm.ts",
+            "agents/assistant/src/proto/common.ts"
+          ],
+          "patterns_from": [
+            "proto/agent.proto",
+            "proto/llm.proto"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "cd agents/assistant && npx tsc --noEmit",
+            "expected": "No TypeScript compilation errors"
+          },
+          "status": "completed",
+          "notes": "Generated TypeScript types from protobuf definitions. Created three files with comprehensive type definitions: common.ts (shared types like Status, Health, ResourceUsage, TokenUsage), agent.ts (agent service types including Agent, Task, and all request/response messages), and llm.ts (LLM service types including LLMRequest, LLMResponse, and streaming types). All types follow proto3 conventions with optional fields, proper int64/bigint mapping, bytes/Uint8Array, Timestamp/Date, and discriminated unions for oneof fields.",
+          "updated_at": "2026-02-10T03:07:00.000000+00:00"
+        }
+      ]
+    },
+    {
+      "id": "phase-2-orchestrator-client",
+      "name": "Orchestrator gRPC Client",
+      "type": "implementation",
+      "description": "Implement TypeScript gRPC client for communication with the Orchestrator",
+      "depends_on": [
+        "phase-1-setup"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-2-1",
+          "description": "Create gRPC client wrapper for agent registration and heartbeat",
+          "service": "agent_assistant",
+          "files_to_modify": [],
+          "files_to_create": [
+            "agents/assistant/src/orchestrator/grpc-client.ts",
+            "agents/assistant/src/orchestrator/registration.ts"
+          ],
+          "patterns_from": [
+            "pkg/grpc/agent_service.go"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "cd agents/assistant && npx tsc --noEmit",
+            "expected": "No TypeScript compilation errors"
+          },
+          "status": "pending"
+        },
+        {
+          "id": "subtask-2-2",
+          "description": "Implement message streaming client for bidirectional communication",
+          "service": "agent_assistant",
+          "files_to_modify": [],
+          "files_to_create": [
+            "agents/assistant/src/orchestrator/stream-client.ts"
+          ],
+          "patterns_from": [
+            "pkg/grpc/agent_service.go"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "cd agents/assistant && npm test -- orchestrator-client",
+            "expected": "Orchestrator client tests pass"
+          },
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "phase-3-llm-client",
+      "name": "LLM Gateway Client",
+      "type": "implementation",
+      "description": "Implement HTTP client for LLM Gateway communication",
+      "depends_on": [
+        "phase-1-setup"
+      ],
+      "parallel_safe": true,
+      "subtasks": [
+        {
+          "id": "subtask-3-1",
+          "description": "Create LLM Gateway HTTP client with streaming support",
+          "service": "agent_assistant",
+          "files_to_modify": [],
+          "files_to_create": [
+            "agents/assistant/src/llm/gateway-client.ts",
+            "agents/assistant/src/llm/types.ts"
+          ],
+          "patterns_from": [
+            "pkg/provider/anthropic.go",
+            "proto/llm.proto"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "cd agents/assistant && npx tsc --noEmit",
+            "expected": "No TypeScript compilation errors"
+          },
+          "status": "pending"
+        },
+        {
+          "id": "subtask-3-2",
+          "description": "Implement streaming response parser for SSE chunks",
+          "service": "agent_assistant",
+          "files_to_modify": [],
+          "files_to_create": [
+            "agents/assistant/src/llm/stream-parser.ts"
+          ],
+          "patterns_from": [
+            "pkg/provider/streaming.go"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "cd agents/assistant && npm test -- llm-client",
+            "expected": "LLM client tests pass"
+          },
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "phase-4-session-manager",
+      "name": "Session Context Manager",
+      "type": "implementation",
+      "description": "Implement session context management for conversation history and state",
+      "depends_on": [
+        "phase-1-setup"
+      ],
+      "parallel_safe": true,
+      "subtasks": [
+        {
+          "id": "subtask-4-1",
+          "description": "Create session state manager with message history",
+          "service": "agent_assistant",
+          "files_to_modify": [],
+          "files_to_create": [
+            "agents/assistant/src/session/manager.ts",
+            "agents/assistant/src/session/types.ts"
+          ],
+          "patterns_from": [
+            "pkg/session/manager.go"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "cd agents/assistant && npm test -- session-manager",
+            "expected": "Session manager tests pass"
+          },
+          "status": "pending"
+        },
+        {
+          "id": "subtask-4-2",
+          "description": "Implement message context window management",
+          "service": "agent_assistant",
+          "files_to_modify": [],
+          "files_to_create": [
+            "agents/assistant/src/session/context-window.ts"
+          ],
+          "patterns_from": [
+            "pkg/memory/store.go"
+          ],
+          "verification": {
+            "type": "manual",
+            "instructions": "Review context window implementation - should handle token limits and message pruning"
+          },
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "phase-5-delegate-tool",
+      "name": "Delegate Tool Implementation",
+      "type": "implementation",
+      "description": "Implement the 'delegate' tool - the Assistant's only tool for dispatching to specialized agents",
+      "depends_on": [
+        "phase-2-orchestrator-client",
+        "phase-3-llm-client"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-5-1",
+          "description": "Create delegate tool interface and type definitions",
+          "service": "agent_assistant",
+          "files_to_modify": [],
+          "files_to_create": [
+            "agents/assistant/src/tools/delegate.ts",
+            "agents/assistant/src/tools/types.ts"
+          ],
+          "patterns_from": [
+            "proto/agent.proto"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "cd agents/assistant && npx tsc --noEmit",
+            "expected": "No TypeScript compilation errors"
+          },
+          "status": "pending"
+        },
+        {
+          "id": "subtask-5-2",
+          "description": "Implement delegation logic for Worker agent (file operations, web operations)",
+          "service": "agent_assistant",
+          "files_to_modify": [],
+          "files_to_create": [
+            "agents/assistant/src/tools/worker-delegation.ts"
+          ],
+          "patterns_from": [
+            "pkg/grpc/agent_service.go"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "cd agents/assistant && npm test -- delegate-worker",
+            "expected": "Worker delegation tests pass"
+          },
+          "status": "pending"
+        },
+        {
+          "id": "subtask-5-3",
+          "description": "Add stubs for Researcher and Coder delegation (Phase 2 preparation)",
+          "service": "agent_assistant",
+          "files_to_modify": [],
+          "files_to_create": [
+            "agents/assistant/src/tools/researcher-delegation.ts",
+            "agents/assistant/src/tools/coder-delegation.ts"
+          ],
+          "patterns_from": [
+            "pkg/grpc/agent_service.go"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "cd agents/assistant && npx tsc --noEmit",
+            "expected": "No TypeScript compilation errors"
+          },
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "phase-6-agent-core",
+      "name": "Assistant Agent Core",
+      "type": "implementation",
+      "description": "Implement the main Assistant agent logic with message handling and LLM integration",
+      "depends_on": [
+        "phase-2-orchestrator-client",
+        "phase-3-llm-client",
+        "phase-4-session-manager",
+        "phase-5-delegate-tool"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-6-1",
+          "description": "Create main Agent class with message processing loop",
+          "service": "agent_assistant",
+          "files_to_modify": [],
+          "files_to_create": [
+            "agents/assistant/src/agent.ts",
+            "agents/assistant/src/agent/types.ts"
+          ],
+          "patterns_from": [
+            "pkg/grpc/agent_service.go"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "cd agents/assistant && npx tsc --noEmit",
+            "expected": "No TypeScript compilation errors"
+          },
+          "status": "pending"
+        },
+        {
+          "id": "subtask-6-2",
+          "description": "Implement tool calling logic with function calling",
+          "service": "agent_assistant",
+          "files_to_modify": [],
+          "files_to_create": [
+            "agents/assistant/src/agent/tool-calling.ts"
+          ],
+          "patterns_from": [
+            "pkg/provider/anthropic.go"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "cd agents/assistant && npm test -- tool-calling",
+            "expected": "Tool calling tests pass"
+          },
+          "status": "pending"
+        },
+        {
+          "id": "subtask-6-3",
+          "description": "Implement response streaming and aggregation",
+          "service": "agent_assistant",
+          "files_to_modify": [],
+          "files_to_create": [
+            "agents/assistant/src/agent/response-stream.ts"
+          ],
+          "patterns_from": [
+            "pkg/provider/streaming.go"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "cd agents/assistant && npm test -- response-stream",
+            "expected": "Response stream tests pass"
+          },
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "phase-7-bootstrap",
+      "name": "Agent Bootstrap and Lifecycle",
+      "type": "implementation",
+      "description": "Implement agent bootstrap process for registration, startup, and graceful shutdown",
+      "depends_on": [
+        "phase-6-agent-core"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-7-1",
+          "description": "Create bootstrap process for agent registration with Orchestrator",
+          "service": "agent_assistant",
+          "files_to_modify": [],
+          "files_to_create": [
+            "agents/assistant/src/bootstrap.ts",
+            "agents/assistant/src/lifecycle.ts"
+          ],
+          "patterns_from": [
+            "pkg/orchestrator/bootstrap.go",
+            "pkg/grpc/agent_service.go"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "cd agents/assistant && npm run build",
+            "expected": "Build succeeds with entry point"
+          },
+          "status": "pending"
+        },
+        {
+          "id": "subtask-7-2",
+          "description": "Implement graceful shutdown handler",
+          "service": "agent_assistant",
+          "files_to_modify": [],
+          "files_to_create": [
+            "agents/assistant/src/shutdown.ts"
+          ],
+          "patterns_from": [
+            "pkg/orchestrator/shutdown.go"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "cd agents/assistant && npm test -- shutdown",
+            "expected": "Shutdown handler tests pass"
+          },
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "phase-8-integration",
+      "name": "Integration and Testing",
+      "type": "integration",
+      "description": "Integration testing with Orchestrator and end-to-end verification",
+      "depends_on": [
+        "phase-7-bootstrap"
+      ],
+      "parallel_safe": false,
+      "subtasks": [
+        {
+          "id": "subtask-8-1",
+          "description": "Create integration tests with mock Orchestrator",
+          "service": "agent_assistant",
+          "files_to_modify": [],
+          "files_to_create": [
+            "agents/assistant/tests/integration/agent.test.ts",
+            "agents/assistant/tests/mocks/orchestrator.mock.ts"
+          ],
+          "patterns_from": [
+            "pkg/grpc/agent_service_test.go"
+          ],
+          "verification": {
+            "type": "command",
+            "command": "cd agents/assistant && npm run test:integration",
+            "expected": "Integration tests pass"
+          },
+          "status": "pending"
+        },
+        {
+          "id": "subtask-8-2",
+          "description": "End-to-end test: Assistant receives message, delegates to Worker, returns result",
+          "all_services": true,
+          "files_to_modify": [],
+          "files_to_create": [
+            "tests/integration/assistant_agent_e2e_test.go"
+          ],
+          "patterns_from": [
+            "tests/integration/e2e_test.go"
+          ],
+          "verification": {
+            "type": "e2e",
+            "steps": [
+              "Start Orchestrator with LLM Gateway",
+              "Launch Assistant agent container",
+              "Verify agent registers successfully",
+              "Send test message via gRPC",
+              "Verify Assistant responds via LLM",
+              "Trigger file operation delegation",
+              "Verify Worker agent handles delegation",
+              "Verify Assistant returns result to user"
+            ]
+          },
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "phase-9-documentation",
+      "name": "Documentation and Examples",
+      "type": "cleanup",
+      "description": "Create documentation, examples, and usage guides",
+      "depends_on": [
+        "phase-8-integration"
+      ],
+      "parallel_safe": true,
+      "subtasks": [
+        {
+          "id": "subtask-9-1",
+          "description": "Write agent documentation and usage guide",
+          "service": "agent_assistant",
+          "files_to_modify": [],
+          "files_to_create": [
+            "agents/assistant/docs/ARCHITECTURE.md",
+            "agents/assistant/docs/USAGE.md",
+            "agents/assistant/docs/DELEGATION.md"
+          ],
+          "patterns_from": [
+            "docs/ARCHITECTURE.md"
+          ],
+          "verification": {
+            "type": "manual",
+            "instructions": "Review documentation for completeness and clarity"
+          },
+          "status": "pending"
+        },
+        {
+          "id": "subtask-9-2",
+          "description": "Create example conversation scenarios",
+          "service": "agent_assistant",
+          "files_to_modify": [],
+          "files_to_create": [
+            "agents/assistant/examples/simple-chat.md",
+            "agents/assistant/examples/file-delegation.md",
+            "agents/assistant/examples/web-search.md"
+          ],
+          "patterns_from": [],
+          "verification": {
+            "type": "manual",
+            "instructions": "Verify examples demonstrate expected behavior"
+          },
+          "status": "pending"
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "total_phases": 9,
+    "total_subtasks": 23,
+    "services_involved": [
+      "orchestrator",
+      "agent_assistant",
+      "llm_gateway"
+    ],
+    "parallelism": {
+      "max_parallel_phases": 3,
+      "parallel_groups": [
+        {
+          "phases": [
+            "phase-3-llm-client",
+            "phase-4-session-manager"
+          ],
+          "reason": "Both depend only on phase-1-setup and work on different subsystems"
+        }
+      ],
+      "recommended_workers": 2,
+      "speedup_estimate": "1.5x faster than sequential"
+    },
+    "startup_command": "cat .auto-claude/specs/010-assistant-agent/implementation_plan.json"
+  },
+  "verification_strategy": {
+    "risk_level": "high",
+    "skip_validation": false,
+    "test_creation_phase": "post_implementation",
+    "test_types_required": [
+      "unit",
+      "integration",
+      "e2e"
+    ],
+    "security_scanning_required": true,
+    "staging_deployment_required": false,
+    "acceptance_criteria": [
+      "All unit tests pass (npm test)",
+      "Integration tests with Orchestrator pass",
+      "End-to-end test demonstrates full delegation flow",
+      "No security vulnerabilities detected (npm audit)",
+      "Agent registers successfully with Orchestrator",
+      "Session context is maintained across delegations",
+      "Assistant has no direct tool access except 'delegate'"
+    ],
+    "verification_steps": [
+      {
+        "name": "Unit Tests",
+        "command": "cd agents/assistant && npm test",
+        "expected_outcome": "All unit tests pass",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "TypeScript Compilation",
+        "command": "cd agents/assistant && npx tsc --noEmit",
+        "expected_outcome": "No TypeScript compilation errors",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "Integration Tests",
+        "command": "cd agents/assistant && npm run test:integration",
+        "expected_outcome": "Integration tests pass",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "E2E Test",
+        "command": "go test ./tests/integration/assistant_agent_e2e_test.go -v",
+        "expected_outcome": "End-to-end flow completes successfully",
+        "type": "test",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "Security Audit",
+        "command": "cd agents/assistant && npm audit --audit-level=moderate",
+        "expected_outcome": "No high or critical vulnerabilities",
+        "type": "security",
+        "required": true,
+        "blocking": true
+      },
+      {
+        "name": "Code Linting",
+        "command": "cd agents/assistant && npm run lint",
+        "expected_outcome": "No linting errors",
+        "type": "test",
+        "required": true,
+        "blocking": false
+      }
+    ],
+    "reasoning": "High risk - this is the first TypeScript agent implementation and introduces a new language to the codebase. Requires comprehensive testing including unit, integration, and e2e tests. Security scanning is critical as the agent handles LLM communication and delegation."
+  },
+  "qa_acceptance": {
+    "unit_tests": {
+      "required": true,
+      "commands": [
+        "cd agents/assistant && npm test"
+      ],
+      "minimum_coverage": 80
+    },
+    "integration_tests": {
+      "required": true,
+      "commands": [
+        "cd agents/assistant && npm run test:integration"
+      ],
+      "services_to_test": [
+        "agent_assistant",
+        "orchestrator"
+      ]
+    },
+    "e2e_tests": {
+      "required": true,
+      "commands": [
+        "go test ./tests/integration/assistant_agent_e2e_test.go -v"
+      ],
+      "flows": [
+        "assistant-registration",
+        "message-receive-and-respond",
+        "worker-delegation",
+        "session-context-persistence"
+      ]
+    },
+    "browser_verification": {
+      "required": false,
+      "pages": []
+    },
+    "database_verification": {
+      "required": false,
+      "checks": []
+    }
+  },
+  "qa_signoff": null,
+  "planStatus": "in_progress",
+  "xstateState": "ready_for_implementation",
+  "executionPhase": "coding",
+  "last_updated": "2026-02-10T03:07:00.000000+00:00"
+}
