@@ -27,6 +27,8 @@ const (
 	DefaultReconnectInterval = 5 * time.Second
 	// DefaultReconnectMaxAttempts is the default maximum number of reconnection attempts
 	DefaultReconnectMaxAttempts = 0 // 0 means infinite
+	// DefaultHeartbeatInterval is the default interval between heartbeats
+	DefaultHeartbeatInterval = 30 * time.Second
 	// DefaultMaxRecvMsgSize is the default maximum received message size
 	DefaultMaxRecvMsgSize = 1024 * 1024 * 100 // 100MB
 	// DefaultMaxSendMsgSize is the default maximum sent message size
@@ -53,6 +55,13 @@ type Agent struct {
 	reconnectCloseCh      chan struct{}
 	reconnectWg           sync.WaitGroup
 
+	// Heartbeat fields
+	heartbeatInterval time.Duration
+	heartbeatCtx      context.Context
+	heartbeatCancel   context.CancelFunc
+	heartbeatCloseCh  chan struct{}
+	heartbeatWg       sync.WaitGroup
+
 	// Registration fields
 	agentID             string
 	registrationToken   string
@@ -72,13 +81,14 @@ type AgentStats struct {
 
 // AgentConfig contains agent configuration
 type AgentConfig struct {
-	DialTimeout        time.Duration
-	RPCTimeout         time.Duration
-	MaxRecvMsgSize     int
-	MaxSendMsgSize     int
-	ReconnectInterval  time.Duration
+	DialTimeout         time.Duration
+	RPCTimeout          time.Duration
+	MaxRecvMsgSize      int
+	MaxSendMsgSize      int
+	ReconnectInterval   time.Duration
 	ReconnectMaxAttempts int
-	DialOptions        []grpc.DialOption
+	HeartbeatInterval   time.Duration
+	DialOptions         []grpc.DialOption
 }
 
 // NewAgent creates a new Worker agent with gRPC connection to orchestrator
@@ -121,6 +131,12 @@ func NewAgent(orchestratorAddr string, cfg AgentConfig, log *logger.Logger) (*Ag
 		reconnectMaxAttempts = DefaultReconnectMaxAttempts
 	}
 
+	// Set default heartbeat interval
+	heartbeatInterval := cfg.HeartbeatInterval
+	if heartbeatInterval <= 0 {
+		heartbeatInterval = DefaultHeartbeatInterval
+	}
+
 	a := &Agent{
 		orchestratorAddr:     orchestratorAddr,
 		logger:               log.With("component", "worker_agent", "orchestrator_addr", orchestratorAddr),
@@ -132,6 +148,8 @@ func NewAgent(orchestratorAddr string, cfg AgentConfig, log *logger.Logger) (*Ag
 		reconnectInterval:    reconnectInterval,
 		reconnectMaxAttempts: reconnectMaxAttempts,
 		reconnectCloseCh:     make(chan struct{}),
+		heartbeatInterval:    heartbeatInterval,
+		heartbeatCloseCh:     make(chan struct{}),
 		stats:                AgentStats{},
 	}
 
@@ -142,7 +160,8 @@ func NewAgent(orchestratorAddr string, cfg AgentConfig, log *logger.Logger) (*Ag
 		"max_recv_msg_size", a.maxRecvMsgSize,
 		"max_send_msg_size", a.maxSendMsgSize,
 		"reconnect_interval", a.reconnectInterval.String(),
-		"reconnect_max_attempts", a.reconnectMaxAttempts)
+		"reconnect_max_attempts", a.reconnectMaxAttempts,
+		"heartbeat_interval", a.heartbeatInterval.String())
 
 	return a, nil
 }
@@ -361,13 +380,25 @@ func (a *Agent) Close() error {
 		a.reconnectCancel()
 		a.reconnectCancel = nil
 	}
+
+	// Cancel any ongoing heartbeat context
+	if a.heartbeatCancel != nil {
+		a.heartbeatCancel()
+		a.heartbeatCancel = nil
+	}
 	a.mu.Unlock()
 
 	// Signal reconnection goroutine to stop
 	close(a.reconnectCloseCh)
 
+	// Signal heartbeat goroutine to stop
+	close(a.heartbeatCloseCh)
+
 	// Wait for reconnection goroutine to finish
 	a.reconnectWg.Wait()
+
+	// Wait for heartbeat goroutine to finish
+	a.heartbeatWg.Wait()
 
 	a.logger.Info("Closing worker agent", "addr", a.orchestratorAddr)
 
@@ -571,6 +602,9 @@ func (a *Agent) Register(ctx context.Context, name string) error {
 	a.registered = true
 	a.mu.Unlock()
 
+	// Start heartbeat loop
+	a.startHeartbeatMonitor(ctx)
+
 	a.logger.Info("Agent registered successfully",
 		"agent_id", resp.AgentId,
 		"name", name)
@@ -596,4 +630,105 @@ func (a *Agent) IsRegistered() bool {
 func getWorkerVersion() string {
 	// TODO: Get version from build info using ldflags
 	return "dev"
+}
+
+// =============================================================================
+// Agent Heartbeat
+// =============================================================================
+
+// startHeartbeatMonitor starts a goroutine that sends heartbeats at regular intervals
+func (a *Agent) startHeartbeatMonitor(ctx context.Context) {
+	a.mu.Lock()
+	if a.heartbeatCancel != nil {
+		// Already running
+		a.mu.Unlock()
+		return
+	}
+	// Create a context for the heartbeat goroutine
+	heartbeatCtx, cancel := context.WithCancel(context.Background())
+	a.heartbeatCtx = heartbeatCtx
+	a.heartbeatCancel = cancel
+	a.mu.Unlock()
+
+	a.heartbeatWg.Add(1)
+	go a.heartbeatLoop(ctx, heartbeatCtx)
+}
+
+// heartbeatLoop is the main heartbeat goroutine
+func (a *Agent) heartbeatLoop(dialCtx, heartbeatCtx context.Context) {
+	defer a.heartbeatWg.Done()
+
+	a.logger.Debug("Starting heartbeat monitor",
+		"interval", a.heartbeatInterval.String())
+
+	// Create a ticker for heartbeats
+	ticker := time.NewTicker(a.heartbeatInterval)
+	defer ticker.Stop()
+
+	// Send initial heartbeat immediately
+	a.sendHeartbeat(dialCtx)
+
+	for {
+		select {
+		case <-a.heartbeatCloseCh:
+			a.logger.Debug("Heartbeat monitor stopped via close channel")
+			return
+		case <-heartbeatCtx.Done():
+			a.logger.Debug("Heartbeat monitor stopped via context cancellation")
+			return
+		case <-ticker.C:
+			// Send heartbeat on each tick
+			a.sendHeartbeat(dialCtx)
+		}
+	}
+}
+
+// sendHeartbeat sends a single heartbeat to the orchestrator
+func (a *Agent) sendHeartbeat(ctx context.Context) {
+	a.mu.RLock()
+	agentID := a.agentID
+	registered := a.registered
+	closed := a.closed
+	a.mu.RUnlock()
+
+	if !registered || closed || agentID == "" {
+		// Not registered or closed, skip heartbeat
+		return
+	}
+
+	a.logger.Debug("Sending heartbeat", "agent_id", agentID)
+
+	// Create RPC client
+	client := proto.NewAgentServiceClient(a.conn)
+
+	// Create RPC context with timeout
+	rpcCtx, cancel := context.WithTimeout(ctx, a.rpcTimeout)
+	defer cancel()
+
+	// Create heartbeat request
+	// Note: We could optionally include resource usage and active tasks here
+	// For now, we send minimal heartbeat
+	req := &proto.HeartbeatRequest{
+		AgentId:     agentID,
+		ActiveTasks: []string{}, // TODO: Track active tasks
+	}
+
+	// Call Heartbeat RPC
+	a.stats.TotalRPCs++
+	resp, err := client.Heartbeat(rpcCtx, req)
+	if err != nil {
+		a.stats.FailedRPCs++
+		a.mu.Lock()
+		a.stats.LastRPCError = err.Error()
+		a.mu.Unlock()
+		a.logger.Warn("Failed to send heartbeat", "agent_id", agentID, "error", err)
+		return
+	}
+
+	a.logger.Debug("Heartbeat successful",
+		"agent_id", agentID,
+		"timestamp", resp.Timestamp,
+		"pending_tasks", len(resp.PendingTasks))
+
+	// TODO: Handle pending tasks from response
 }

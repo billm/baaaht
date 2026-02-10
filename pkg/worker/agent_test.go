@@ -214,3 +214,137 @@ func TestWorkerRegisterAlreadyRegistered(t *testing.T) {
 
 	t.Log("Worker agent already registered test passed!")
 }
+
+// TestWorkerHeartbeat tests that heartbeats are sent successfully at expected intervals
+func TestWorkerHeartbeat(t *testing.T) {
+	// Create event bus for agent service
+	eventBus, err := events.New(nil)
+	if err != nil {
+		t.Fatalf("Failed to create event bus: %v", err)
+	}
+	defer eventBus.Close()
+
+	// Create agent service dependencies
+	deps := &mockAgentServiceDependencies{eventBus: eventBus}
+
+	// Create logger
+	log, err := logger.NewDefault()
+	if err != nil {
+		t.Fatalf("Failed to create logger: %v", err)
+	}
+
+	// Create agent service
+	agentService := grpcpkg.NewAgentService(deps, log)
+
+	// Create gRPC server
+	server := grpc.NewServer()
+	proto.RegisterAgentServiceServer(server, agentService)
+
+	// Start server on a random port
+	lis, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		t.Fatalf("Failed to create listener: %v", err)
+	}
+
+	// Start server in background
+	serverErr := make(chan error, 1)
+	go func() {
+		serverErr <- server.Serve(lis)
+	}()
+	defer func() {
+		server.GracefulStop()
+		if err := <-serverErr; err != nil {
+			t.Logf("Server error: %v", err)
+		}
+	}()
+
+	// Get the actual address
+	addr := lis.Addr().String()
+
+	// Create worker agent with short heartbeat interval for testing
+	cfg := AgentConfig{
+		DialTimeout:       5 * time.Second,
+		RPCTimeout:        5 * time.Second,
+		HeartbeatInterval: 2 * time.Second, // Short interval for testing
+	}
+	agent, err := NewAgent(addr, cfg, log)
+	if err != nil {
+		t.Fatalf("Failed to create worker agent: %v", err)
+	}
+	defer agent.Close()
+
+	// Connect to orchestrator
+	ctx := context.Background()
+	if err := agent.Dial(ctx); err != nil {
+		t.Fatalf("Failed to dial orchestrator: %v", err)
+	}
+
+	// Register the agent (this starts the heartbeat loop)
+	workerName := "test-worker-heartbeat"
+	if err := agent.Register(ctx, workerName); err != nil {
+		t.Fatalf("Failed to register agent: %v", err)
+	}
+
+	agentID := agent.GetAgentID()
+	t.Logf("Agent registered with ID: %s", agentID)
+
+	// Get the registry to verify heartbeat updates
+	registry := agentService.GetRegistry()
+
+	// Get initial last heartbeat time
+	registeredAgent, err := registry.Get(agentID)
+	if err != nil {
+		t.Fatalf("Failed to get registered agent from registry: %v", err)
+	}
+	initialHeartbeat := registeredAgent.LastHeartbeat
+	t.Logf("Initial heartbeat: %v", initialHeartbeat)
+
+	// Wait for at least one heartbeat to be sent
+	// Heartbeat interval is 2 seconds, so wait 3 seconds to be safe
+	time.Sleep(3 * time.Second)
+
+	// Verify heartbeat was updated
+	registeredAgent, err = registry.Get(agentID)
+	if err != nil {
+		t.Fatalf("Failed to get registered agent from registry: %v", err)
+	}
+	updatedHeartbeat := registeredAgent.LastHeartbeat
+	t.Logf("Updated heartbeat: %v", updatedHeartbeat)
+
+	// Check that heartbeat was updated (newer time than initial)
+	if updatedHeartbeat.Before(initialHeartbeat) || updatedHeartbeat.Equal(initialHeartbeat) {
+		t.Errorf("Expected heartbeat to be updated, but initial=%v, updated=%v",
+			initialHeartbeat, updatedHeartbeat)
+	}
+
+	// Wait for another heartbeat cycle
+	time.Sleep(3 * time.Second)
+
+	// Verify another heartbeat was sent
+	registeredAgent, err = registry.Get(agentID)
+	if err != nil {
+		t.Fatalf("Failed to get registered agent from registry: %v", err)
+	}
+	finalHeartbeat := registeredAgent.LastHeartbeat
+	t.Logf("Final heartbeat: %v", finalHeartbeat)
+
+	// Check that heartbeat was updated again
+	if finalHeartbeat.Before(updatedHeartbeat) || finalHeartbeat.Equal(updatedHeartbeat) {
+		t.Errorf("Expected heartbeat to be updated again, but updated=%v, final=%v",
+			updatedHeartbeat, finalHeartbeat)
+	}
+
+	// Verify agent stats show successful RPCs
+	stats := agent.Stats()
+	if stats.TotalRPCs == 0 {
+		t.Error("Expected TotalRPCs > 0, but got 0")
+	}
+	// Account for Register RPC + heartbeat RPCs
+	// At minimum: 1 Register + 2 Heartbeats = 3
+	expectedMinRPCs := int64(3)
+	if stats.TotalRPCs < expectedMinRPCs {
+		t.Errorf("Expected at least %d TotalRPCs, got %d", expectedMinRPCs, stats.TotalRPCs)
+	}
+
+	t.Log("Worker agent heartbeat test passed!")
+}
