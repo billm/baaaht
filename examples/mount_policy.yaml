@@ -1,0 +1,184 @@
+# Baaaht Mount Allowlist Policy
+# This file demonstrates per-user and per-group mount allowlist configuration.
+# Mount allowlists restrict which host directories can be mounted into containers,
+# providing fine-grained filesystem access control.
+#
+# Key Concepts:
+# - Per-user allowlists: Grant specific users access to specific paths
+# - Per-group allowlists: Grant members of a group shared access to paths
+# - Access modes: readonly, readwrite, denied (for explicit blocking)
+# - Path matching: Exact paths only (no wildcards in mount allowlist)
+#
+# Default configuration locations:
+# - Unix: ~/.config/baaaht/mount_policy.yaml
+# - Custom path via policy.config_path in config.yaml
+#
+# Environment variable interpolation:
+# Use ${VAR_NAME} to reference environment variables
+# Use ${VAR_NAME:-default} to provide a default value
+
+# ============================================
+# Policy Metadata
+# ============================================
+id: mount-allowlist-example
+name: Mount Allowlist Example Policy
+description: Example policy demonstrating per-user and per-group mount allowlists
+
+# Enforcement mode: strict, permissive, or disabled
+mode: strict
+
+# ============================================
+# Mount Policy with Allowlist
+# ============================================
+mounts:
+  # Allow bind mounts from the host filesystem
+  # Note: When mount_allowlist is configured, it takes precedence over
+  # allowed_bind_sources and denied_bind_sources for path access control
+  allow_bind_mounts: true
+
+  # ============================================
+  # Mount Allowlist Entries
+  # ============================================
+  # Mount allowlist entries define per-user and per-group access to host paths.
+  # Each entry specifies:
+  # - path: Absolute path on the host (required)
+  # - user: Username this entry applies to (optional, mutually exclusive with group)
+  # - group: Group name this entry applies to (optional, mutually exclusive with user)
+  # - mode: Access mode - readonly, readwrite, or denied (required)
+  #
+  # Resolution order:
+  # 1. User-specific entries (most specific)
+  # 2. Group-specific entries (for each group the user belongs to)
+  # 3. Default entries (no user or group specified)
+  # 4. If no match found, access is denied (fail-closed)
+  mount_allowlist:
+    # ============================================
+    # Per-User Mount Allowlists
+    # ============================================
+    # Alice (developer) gets read-write access to her project directory
+    - path: /home/alice/projects
+      user: alice
+      mode: readwrite
+
+    # Alice gets read-only access to shared reference data
+    - path: /data/reference
+      user: alice
+      mode: readonly
+
+    # Bob (developer) gets read-write access to his project directory
+    - path: /home/bob/projects
+      user: bob
+      mode: readwrite
+
+    # Charlie (contractor) gets restricted access
+    # Only read-only access to specific client project
+    - path: /projects/client-alpha
+      user: charlie
+      mode: readonly
+
+    # ============================================
+    # Per-Group Mount Allowlists
+    # ============================================
+    # Engineering team gets read-write access to shared code repository
+    - path: /src/engineering
+      group: engineering
+      mode: readwrite
+
+    # Engineering team gets read-only access to production configs
+    - path: /etc/production
+      group: engineering
+      mode: readonly
+
+    # Data science team gets read-write access to datasets
+    - path: /data/datasets
+      group: data-science
+      mode: readwrite
+
+    # Data science team gets read-write access to models directory
+    - path: /data/models
+      group: data-science
+      mode: readwrite
+
+    # DevOps team gets read-write access to deployment configs
+    - path: /etc/deployments
+      group: devops
+      mode: readwrite
+
+    # ============================================
+    # Default Mount Allowlists (All Users)
+    # ============================================
+    # All users get read-only access to shared documentation
+    - path: /usr/share/docs
+      mode: readonly
+
+    # All users get read-write access to temp directory
+    # Supports environment variable interpolation
+    - path: ${TMPDIR:-/tmp}
+      mode: readwrite
+
+    # ============================================
+    # Explicit Denials
+    # ============================================
+    # Explicitly deny access to sensitive paths, even if a user
+    # might have access through other means
+    - path: /etc/secrets
+      mode: denied
+
+    - path: /var/credentials
+      mode: denied
+
+    # Deny access to SSH keys for all users
+    - path: /home/*/.ssh
+      mode: denied
+
+  # ============================================
+  # Legacy Mount Controls (for backward compatibility)
+  # ============================================
+  # Note: When mount_allowlist has entries, it takes precedence
+  # over these legacy controls for path access decisions
+  allowed_bind_sources:
+    - /data/shared/*
+    - /tmp/work/*
+
+  denied_bind_sources:
+    - /etc/*
+    - /root/*
+    - /home/*/.ssh/*
+
+  # Volume, tmpfs, and other mount controls
+  allow_volumes: true
+  allowed_volumes:
+    - app-data-*
+    - cache-*
+
+  denied_volumes:
+    - secret-*
+
+  allow_tmpfs: true
+  max_tmpfs_size: 268435456  # 256MB
+
+  enforce_read_only_rootfs: false
+
+# ============================================
+# Other Policy Sections
+# ============================================
+# Additional policy sections can be included as needed
+quotas:
+  max_cpus: 4000000000    # 4 CPUs
+  max_memory: 8589934592  # 8GB
+  max_pids: 1024
+
+network:
+  allow_network: true
+  allow_host_network: false
+
+images:
+  allow_latest_tag: false
+  allowed_images:
+    - docker.io/library/*
+    - registry.example.com/*
+
+security:
+  allow_privileged: false
+  require_non_root: true
+  allow_root: false
