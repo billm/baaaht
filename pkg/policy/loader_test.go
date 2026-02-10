@@ -439,6 +439,169 @@ quotas:
 	}
 }
 
+// TestLoadMountAllowlist tests loading a policy with mount allowlist entries from YAML
+func TestLoadMountAllowlist(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	policyContent := `
+id: mount-allowlist-policy
+name: Mount Allowlist Policy
+description: Policy with mount allowlist entries
+mode: strict
+quotas:
+  max_cpus: 1000000000
+mounts:
+  allow_bind_mounts: true
+  allow_volumes: true
+  allow_tmpfs: true
+  mount_allowlist:
+    - path: /home/shared/data
+      mode: readonly
+    - path: /home/alice/projects
+      user: alice
+      mode: readwrite
+    - path: /shared/team-data
+      group: developers
+      mode: readwrite
+    - path: /tmp/cache
+      mode: readonly
+    - path: /restricted/path
+      mode: denied
+`
+
+	policyPath := filepath.Join(tmpDir, "mount-allowlist.yaml")
+	if err := os.WriteFile(policyPath, []byte(policyContent), 0644); err != nil {
+		t.Fatalf("failed to write policy file: %v", err)
+	}
+
+	policy, err := LoadFromFile(policyPath)
+	if err != nil {
+		t.Fatalf("failed to load policy with mount allowlist: %v", err)
+	}
+
+	// Verify basic policy fields
+	if policy.ID != "mount-allowlist-policy" {
+		t.Errorf("policy ID mismatch: got %s, want mount-allowlist-policy", policy.ID)
+	}
+
+	if policy.Name != "Mount Allowlist Policy" {
+		t.Errorf("policy name mismatch: got %s, want Mount Allowlist Policy", policy.Name)
+	}
+
+	// Verify mount allowlist entries
+	allowlist := policy.Mounts.MountAllowlist
+	if len(allowlist) != 5 {
+		t.Fatalf("expected 5 mount allowlist entries, got %d", len(allowlist))
+	}
+
+	// Check default entry (no user/group)
+	if allowlist[0].Path != "/home/shared/data" {
+		t.Errorf("entry 0 path mismatch: got %s, want /home/shared/data", allowlist[0].Path)
+	}
+	if allowlist[0].User != "" {
+		t.Errorf("entry 0 user should be empty, got %s", allowlist[0].User)
+	}
+	if allowlist[0].Group != "" {
+		t.Errorf("entry 0 group should be empty, got %s", allowlist[0].Group)
+	}
+	if allowlist[0].Mode != MountAccessModeReadOnly {
+		t.Errorf("entry 0 mode mismatch: got %s, want readonly", allowlist[0].Mode)
+	}
+
+	// Check user-specific entry
+	if allowlist[1].Path != "/home/alice/projects" {
+		t.Errorf("entry 1 path mismatch: got %s, want /home/alice/projects", allowlist[1].Path)
+	}
+	if allowlist[1].User != "alice" {
+		t.Errorf("entry 1 user mismatch: got %s, want alice", allowlist[1].User)
+	}
+	if allowlist[1].Mode != MountAccessModeReadWrite {
+		t.Errorf("entry 1 mode mismatch: got %s, want readwrite", allowlist[1].Mode)
+	}
+
+	// Check group-specific entry
+	if allowlist[2].Path != "/shared/team-data" {
+		t.Errorf("entry 2 path mismatch: got %s, want /shared/team-data", allowlist[2].Path)
+	}
+	if allowlist[2].Group != "developers" {
+		t.Errorf("entry 2 group mismatch: got %s, want developers", allowlist[2].Group)
+	}
+	if allowlist[2].Mode != MountAccessModeReadWrite {
+		t.Errorf("entry 2 mode mismatch: got %s, want readwrite", allowlist[2].Mode)
+	}
+
+	// Check denied entry
+	if allowlist[4].Path != "/restricted/path" {
+		t.Errorf("entry 4 path mismatch: got %s, want /restricted/path", allowlist[4].Path)
+	}
+	if allowlist[4].Mode != MountAccessModeDenied {
+		t.Errorf("entry 4 mode mismatch: got %s, want denied", allowlist[4].Mode)
+	}
+}
+
+// TestLoadMountAllowlistWithEnvVars tests loading mount allowlist with environment variable interpolation
+func TestLoadMountAllowlistWithEnvVars(t *testing.T) {
+	// Set test environment variables
+	os.Setenv("MOUNT_PATH_SHARED", "/home/shared")
+	os.Setenv("MOUNT_USER_ALICE", "alice")
+	os.Setenv("MOUNT_GROUP_DEVS", "developers")
+	defer os.Unsetenv("MOUNT_PATH_SHARED")
+	defer os.Unsetenv("MOUNT_USER_ALICE")
+	defer os.Unsetenv("MOUNT_GROUP_DEVS")
+
+	tmpDir := t.TempDir()
+
+	policyContent := `
+id: env-mount-policy
+name: Env Mount Policy
+quotas:
+  max_cpus: 1000000000
+mounts:
+  mount_allowlist:
+    - path: ${MOUNT_PATH_SHARED}/data
+      mode: readonly
+    - path: /home/${MOUNT_USER_ALICE}/projects
+      user: ${MOUNT_USER_ALICE}
+      mode: readwrite
+    - path: /shared/team-data
+      group: ${MOUNT_GROUP_DEVS}
+      mode: readwrite
+`
+
+	policyPath := filepath.Join(tmpDir, "env-mount.yaml")
+	if err := os.WriteFile(policyPath, []byte(policyContent), 0644); err != nil {
+		t.Fatalf("failed to write policy file: %v", err)
+	}
+
+	policy, err := LoadFromFile(policyPath)
+	if err != nil {
+		t.Fatalf("failed to load policy with env vars: %v", err)
+	}
+
+	allowlist := policy.Mounts.MountAllowlist
+	if len(allowlist) != 3 {
+		t.Fatalf("expected 3 mount allowlist entries, got %d", len(allowlist))
+	}
+
+	// Check path interpolation
+	if allowlist[0].Path != "/home/shared/data" {
+		t.Errorf("entry 0 path mismatch: got %s, want /home/shared/data", allowlist[0].Path)
+	}
+
+	// Check user interpolation
+	if allowlist[1].Path != "/home/alice/projects" {
+		t.Errorf("entry 1 path mismatch: got %s, want /home/alice/projects", allowlist[1].Path)
+	}
+	if allowlist[1].User != "alice" {
+		t.Errorf("entry 1 user mismatch: got %s, want alice", allowlist[1].User)
+	}
+
+	// Check group interpolation
+	if allowlist[2].Group != "developers" {
+		t.Errorf("entry 2 group mismatch: got %s, want developers", allowlist[2].Group)
+	}
+}
+
 // TestCreateDefaultPolicyFile tests that a default policy file is created when it doesn't exist
 func TestCreateDefaultPolicyFile(t *testing.T) {
 	tmpDir := t.TempDir()
