@@ -176,13 +176,21 @@ func (s *Store) Store(ctx context.Context, skill *types.Skill) error {
 		existing.Metadata.LastError = skill.Metadata.LastError
 		existing.Metadata.Verified = skill.Metadata.Verified
 
+		// Copy pointer fields
+		existing.ActivatedAt = skill.ActivatedAt
+		existing.Metadata.LastUsedAt = skill.Metadata.LastUsedAt
+
 		// Copy fields
 		existing.Content = skill.Content
 		existing.FilePath = skill.FilePath
 		existing.Repository = skill.Repository
 
-		// Update timestamp
-		existing.UpdatedAt = now
+		// Use the UpdatedAt from the input skill if it's set
+		if !skill.UpdatedAt.Time.IsZero() {
+			existing.UpdatedAt = skill.UpdatedAt
+		} else {
+			existing.UpdatedAt = now
+		}
 
 		s.logger.Info("Skill updated", "id", skill.ID, "name", skill.Name)
 	} else {

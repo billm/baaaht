@@ -106,7 +106,7 @@ func (l *Loader) LoadFromPath(ctx context.Context, scope types.SkillScope, owner
 
 	// Load each skill file
 	for _, filePath := range skillFiles {
-		skill, err := l.loadSkillFromFile(filePath, scope, ownerID)
+		skill, err := l.loadSkillFromFile(scope, ownerID, filePath)
 		if err != nil {
 			stats.FailedCount++
 			stats.Errors = append(stats.Errors, fmt.Sprintf("%s: %v", filepath.Base(filePath), err))
@@ -150,6 +150,13 @@ func (l *Loader) LoadFromPath(ctx context.Context, scope types.SkillScope, owner
 
 // LoadAll loads skills from all configured skill paths for a scope and owner
 func (l *Loader) LoadAll(ctx context.Context, scope types.SkillScope, ownerID string) (LoadStats, error) {
+	l.mu.RLock()
+	if l.closed {
+		l.mu.RUnlock()
+		return LoadStats{}, types.NewError(types.ErrCodeUnavailable, "skill loader is closed")
+	}
+	l.mu.RUnlock()
+
 	combinedStats := LoadStats{
 		Scope:   scope,
 		OwnerID: ownerID,
@@ -332,7 +339,7 @@ func (l *Loader) ReloadSkill(ctx context.Context, skillID types.ID) error {
 	ownerID := skill.OwnerID
 	filePath := skill.FilePath
 
-	updatedSkill, err := l.loadSkillFromFile(filePath, scope, ownerID)
+	updatedSkill, err := l.loadSkillFromFile(scope, ownerID, filePath)
 	if err != nil {
 		return types.WrapError(types.ErrCodeInternal, "failed to reload skill", err)
 	}
@@ -414,7 +421,7 @@ func (l *Loader) isPathExcluded(path string) bool {
 }
 
 // loadSkillFromFile loads a skill from a file path
-func (l *Loader) loadSkillFromFile(filePath, scope types.SkillScope, ownerID string) (*types.Skill, error) {
+func (l *Loader) loadSkillFromFile(scope types.SkillScope, ownerID, filePath string) (*types.Skill, error) {
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, types.WrapError(types.ErrCodeInternal, "failed to read skill file", err)
