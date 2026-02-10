@@ -886,3 +886,241 @@ func TestGrepAndFind(t *testing.T) {
 		}
 	})
 }
+
+// TestListFiles verifies that ListFiles function can list directory contents
+// using a containerized ls command
+func TestListFiles(t *testing.T) {
+	t.Run("lists current directory", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		// Create some test files
+		testFiles := []string{"file1.txt", "file2.txt", "subdir"}
+		for _, name := range testFiles {
+			path := tmpDir + "/" + name
+			if name == "subdir" {
+				if err := os.Mkdir(path, 0755); err != nil {
+					t.Fatalf("Failed to create directory: %v", err)
+				}
+			} else {
+				if err := writeTestFile(path, "test content"); err != nil {
+					t.Fatalf("Failed to create test file: %v", err)
+				}
+			}
+		}
+
+		exec, err := NewExecutorDefault(nil)
+		if err != nil {
+			t.Skipf("Cannot create executor (Docker may not be available): %v", err)
+			return
+		}
+		defer exec.Close()
+
+		ctx := context.Background()
+		output, err := ListFiles(ctx, exec, tmpDir, "", false)
+		if err != nil {
+			t.Fatalf("ListFiles() failed: %v", err)
+		}
+
+		// Verify output contains expected file names
+		for _, name := range testFiles {
+			if !strings.Contains(output, name) {
+				t.Errorf("ListFiles() output should contain '%s'. Output: %s", name, output)
+			}
+		}
+	})
+
+	t.Run("lists specific directory", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		// Create a subdirectory with files
+		subDir := tmpDir + "/testdir"
+		if err := os.Mkdir(subDir, 0755); err != nil {
+			t.Fatalf("Failed to create directory: %v", err)
+		}
+
+		testFiles := []string{"a.txt", "b.txt"}
+		for _, name := range testFiles {
+			if err := writeTestFile(subDir+"/"+name, "content"); err != nil {
+				t.Fatalf("Failed to create test file: %v", err)
+			}
+		}
+
+		exec, err := NewExecutorDefault(nil)
+		if err != nil {
+			t.Skipf("Cannot create executor (Docker may not be available): %v", err)
+			return
+		}
+		defer exec.Close()
+
+		ctx := context.Background()
+		output, err := ListFiles(ctx, exec, tmpDir, "testdir", false)
+		if err != nil {
+			t.Fatalf("ListFiles() failed: %v", err)
+		}
+
+		// Verify output contains the files in testdir
+		for _, name := range testFiles {
+			if !strings.Contains(output, name) {
+				t.Errorf("ListFiles() output should contain '%s'. Output: %s", name, output)
+			}
+		}
+	})
+
+	t.Run("lists with relative workspace path", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		// Create a test file
+		if err := writeTestFile(tmpDir+"/workspace_test.txt", "content"); err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+
+		exec, err := NewExecutorDefault(nil)
+		if err != nil {
+			t.Skipf("Cannot create executor (Docker may not be available): %v", err)
+			return
+		}
+		defer exec.Close()
+
+		ctx := context.Background()
+		output, err := ListFiles(ctx, exec, tmpDir, ".", false)
+		if err != nil {
+			t.Fatalf("ListFiles() failed: %v", err)
+		}
+
+		// Verify output contains the test file
+		if !strings.Contains(output, "workspace_test.txt") {
+			t.Errorf("ListFiles() output should contain 'workspace_test.txt'. Output: %s", output)
+		}
+	})
+
+	t.Run("lists with absolute workspace path", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		if err := writeTestFile(tmpDir+"/absolute_test.txt", "content"); err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+
+		exec, err := NewExecutorDefault(nil)
+		if err != nil {
+			t.Skipf("Cannot create executor (Docker may not be available): %v", err)
+			return
+		}
+		defer exec.Close()
+
+		ctx := context.Background()
+		output, err := ListFiles(ctx, exec, tmpDir, "/workspace", false)
+		if err != nil {
+			t.Fatalf("ListFiles() failed: %v", err)
+		}
+
+		if !strings.Contains(output, "absolute_test.txt") {
+			t.Errorf("ListFiles() output should contain 'absolute_test.txt'. Output: %s", output)
+		}
+	})
+
+	t.Run("lists recursively", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		// Create nested directory structure
+		if err := os.MkdirAll(tmpDir+"/level1/level2", 0755); err != nil {
+			t.Fatalf("Failed to create directories: %v", err)
+		}
+		if err := writeTestFile(tmpDir+"/root.txt", "root"); err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+		if err := writeTestFile(tmpDir+"/level1/file1.txt", "level1"); err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+		if err := writeTestFile(tmpDir+"/level1/level2/file2.txt", "level2"); err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+
+		exec, err := NewExecutorDefault(nil)
+		if err != nil {
+			t.Skipf("Cannot create executor (Docker may not be available): %v", err)
+			return
+		}
+		defer exec.Close()
+
+		ctx := context.Background()
+		output, err := ListFiles(ctx, exec, tmpDir, "", true)
+		if err != nil {
+			t.Fatalf("ListFiles() recursive failed: %v", err)
+		}
+
+		// Verify output contains all nested files
+		expectedFiles := []string{"root.txt", "file1.txt", "file2.txt"}
+		for _, name := range expectedFiles {
+			if !strings.Contains(output, name) {
+				t.Errorf("Recursive ListFiles() output should contain '%s'. Output: %s", name, output)
+			}
+		}
+
+		// Recursive output should show directory structure
+		if !strings.Contains(output, "level1") {
+			t.Errorf("Recursive ListFiles() output should contain 'level1' directory. Output: %s", output)
+		}
+	})
+
+	t.Run("returns error for non-existent directory", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		exec, err := NewExecutorDefault(nil)
+		if err != nil {
+			t.Skipf("Cannot create executor (Docker may not be available): %v", err)
+			return
+		}
+		defer exec.Close()
+
+		ctx := context.Background()
+		_, err = ListFiles(ctx, exec, tmpDir, "nonexistent_dir", false)
+		if err == nil {
+			t.Error("ListFiles() should return error for non-existent directory")
+		}
+	})
+
+	t.Run("validates inputs", func(t *testing.T) {
+		exec, err := NewExecutorDefault(nil)
+		if err != nil {
+			t.Skipf("Cannot create executor (Docker may not be available): %v", err)
+			return
+		}
+		defer exec.Close()
+
+		ctx := context.Background()
+
+		// Test nil executor
+		_, err = ListFiles(ctx, nil, "/tmp", "", false)
+		if err == nil {
+			t.Error("ListFiles() should return error for nil executor")
+		}
+
+		// Test empty mount source
+		_, err = ListFiles(ctx, exec, "", "", false)
+		if err == nil {
+			t.Error("ListFiles() should return error for empty mount source")
+		}
+	})
+
+	t.Run("handles empty directory gracefully", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		exec, err := NewExecutorDefault(nil)
+		if err != nil {
+			t.Skipf("Cannot create executor (Docker may not be available): %v", err)
+			return
+		}
+		defer exec.Close()
+
+		ctx := context.Background()
+		output, err := ListFiles(ctx, exec, tmpDir, "", false)
+		if err != nil {
+			t.Fatalf("ListFiles() failed for empty directory: %v", err)
+		}
+
+		// Should return some output (ls -la always shows at least . and ..)
+		if output == "" {
+			t.Error("ListFiles() should return output even for empty directory")
+		}
+	})
+}

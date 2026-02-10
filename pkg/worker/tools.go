@@ -512,6 +512,71 @@ func FileWrite(ctx context.Context, exec *Executor, mountSource, filePath, conte
 	return nil
 }
 
+// ListFiles lists the contents of a directory using a containerized ls command
+// The directory path is relative to the mount source.
+// For example, to list /home/user/project:
+//   - mountSource: "/home/user/project"
+//   - dirPath: "." or "/workspace" or ""
+//
+// For recursive listing, use recursive=true to include -R flag.
+// Returns the directory listing and any error that occurred.
+func ListFiles(ctx context.Context, exec *Executor, mountSource, dirPath string, recursive bool) (string, error) {
+	if exec == nil {
+		return "", fmt.Errorf("executor cannot be nil")
+	}
+	if mountSource == "" {
+		return "", fmt.Errorf("mount source cannot be empty")
+	}
+	// dirPath can be empty (means current directory)
+
+	// Ensure the path is absolute within the container workspace
+	// If the path doesn't start with /workspace, prepend it
+	argPath := dirPath
+	if dirPath == "" || dirPath == "." {
+		argPath = "/workspace"
+	} else if !startsWith(dirPath, "/workspace") {
+		// Convert relative path to absolute path in workspace
+		if dirPath[0] != '/' {
+			argPath = "/workspace/" + dirPath
+		} else {
+			argPath = "/workspace" + dirPath
+		}
+	}
+
+	// Build the ls command with optional recursive flag
+	args := []string{"-la"}
+	if recursive {
+		args = append(args, "-R")
+	}
+	args = append(args, argPath)
+
+	// Execute the list task
+	taskCfg := TaskConfig{
+		ToolType:    ToolTypeList,
+		Args:        args,
+		MountSource: mountSource,
+	}
+
+	result := exec.ExecuteTask(ctx, taskCfg)
+	if result.Error != nil {
+		return "", fmt.Errorf("failed to execute list: %w", result.Error)
+	}
+
+	// Check exit code - ls returns non-zero for directory access errors
+	if result.ExitCode != 0 {
+		errMsg := result.Stderr
+		if errMsg == "" {
+			errMsg = result.Stdout
+		}
+		if errMsg == "" {
+			errMsg = fmt.Sprintf("exit code %d", result.ExitCode)
+		}
+		return "", fmt.Errorf("list failed: %s", errMsg)
+	}
+
+	return result.Stdout, nil
+}
+
 // startsWith checks if a string starts with a prefix
 func startsWith(s, prefix string) bool {
 	if len(s) < len(prefix) {
