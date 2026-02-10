@@ -42,6 +42,12 @@ func New(cfg config.PolicyConfig, log *logger.Logger) (*Enforcer, error) {
 		return nil, types.WrapError(types.ErrCodeInternal, "failed to create mount allowlist resolver", err)
 	}
 
+	// Create audit logger (without file output by default)
+	auditLogger, err := NewDefaultAuditLogger(log)
+	if err != nil {
+		return nil, types.WrapError(types.ErrCodeInternal, "failed to create audit logger", err)
+	}
+
 	e := &Enforcer{
 		policy:                 policy,
 		cfg:                    cfg,
@@ -49,6 +55,7 @@ func New(cfg config.PolicyConfig, log *logger.Logger) (*Enforcer, error) {
 		closed:                 false,
 		sessionPolicies:        make(map[types.ID]*Policy),
 		mountAllowlistResolver: resolver,
+		auditLogger:            auditLogger,
 	}
 
 	e.logger.Info("Policy enforcer initialized",
@@ -304,6 +311,16 @@ func (e *Enforcer) validateMounts(ctx context.Context, policy *Policy, config ty
 					Component: "mount",
 				}
 				result.Violations = append(result.Violations, violation)
+
+				// Log to audit
+				if e.auditLogger != nil {
+					username := getUsernameFromConfig(config)
+					_ = e.auditLogger.LogMountViolation(username, "", mount.Source, MountAccessModeReadWrite,
+						"bind mounts are disabled by policy", map[string]string{
+							"target": mount.Target,
+							"rule":   "mount.bind.disabled",
+						})
+				}
 				continue
 			}
 
@@ -338,6 +355,16 @@ func (e *Enforcer) validateMounts(ctx context.Context, policy *Policy, config ty
 							Component: "mount",
 						}
 						result.Violations = append(result.Violations, violation)
+
+						// Log to audit
+						if e.auditLogger != nil {
+							username := getUsernameFromConfig(config)
+							_ = e.auditLogger.LogMountViolation(username, "", mount.Source, accessMode,
+								"mount source not in allowlist", map[string]string{
+									"target": mount.Target,
+									"rule":   "mount.bind.source_not_allowed",
+								})
+						}
 						continue
 					}
 
@@ -350,6 +377,16 @@ func (e *Enforcer) validateMounts(ctx context.Context, policy *Policy, config ty
 							Component: "mount",
 						}
 						result.Violations = append(result.Violations, violation)
+
+						// Log to audit
+						if e.auditLogger != nil {
+							username := getUsernameFromConfig(config)
+							_ = e.auditLogger.LogMountViolation(username, "", mount.Source, accessMode,
+								"mount requires read-only mode", map[string]string{
+									"target": mount.Target,
+									"rule":   "mount.bind.readonly_required",
+								})
+						}
 					}
 				}
 			}
@@ -364,6 +401,16 @@ func (e *Enforcer) validateMounts(ctx context.Context, policy *Policy, config ty
 						Component: "mount",
 					}
 					result.Violations = append(result.Violations, violation)
+
+					// Log to audit
+					if e.auditLogger != nil {
+						username := getUsernameFromConfig(config)
+						_ = e.auditLogger.LogMountViolation(username, "", mount.Source, MountAccessModeReadWrite,
+							"bind mount source not in legacy allowlist", map[string]string{
+								"target": mount.Target,
+								"rule":   "mount.bind.source_not_allowed",
+							})
+					}
 				}
 			}
 
@@ -376,6 +423,16 @@ func (e *Enforcer) validateMounts(ctx context.Context, policy *Policy, config ty
 					Component: "mount",
 				}
 				result.Violations = append(result.Violations, violation)
+
+				// Log to audit
+				if e.auditLogger != nil {
+					username := getUsernameFromConfig(config)
+					_ = e.auditLogger.LogMountViolation(username, "", mount.Source, MountAccessModeReadWrite,
+						"volume mounts are disabled by policy", map[string]string{
+							"target": mount.Target,
+							"rule":   "mount.volume.disabled",
+						})
+				}
 				continue
 			}
 
@@ -388,6 +445,16 @@ func (e *Enforcer) validateMounts(ctx context.Context, policy *Policy, config ty
 					Component: "mount",
 				}
 				result.Violations = append(result.Violations, violation)
+
+				// Log to audit
+				if e.auditLogger != nil {
+					username := getUsernameFromConfig(config)
+					_ = e.auditLogger.LogMountViolation(username, "", mount.Source, MountAccessModeReadWrite,
+						"volume not in allowlist", map[string]string{
+							"target": mount.Target,
+							"rule":   "mount.volume.not_allowed",
+						})
+				}
 			}
 
 		case types.MountTypeTmpfs:
@@ -399,6 +466,15 @@ func (e *Enforcer) validateMounts(ctx context.Context, policy *Policy, config ty
 					Component: "mount",
 				}
 				result.Violations = append(result.Violations, violation)
+
+				// Log to audit
+				if e.auditLogger != nil {
+					username := getUsernameFromConfig(config)
+					_ = e.auditLogger.LogMountViolation(username, "", mount.Target, MountAccessModeReadWrite,
+						"tmpfs mounts are disabled by policy", map[string]string{
+							"rule": "mount.tmpfs.disabled",
+						})
+				}
 				continue
 			}
 
@@ -423,6 +499,18 @@ func (e *Enforcer) validateMounts(ctx context.Context, policy *Policy, config ty
 						Component: "mount",
 					}
 					result.Violations = append(result.Violations, violation)
+
+					// Log to audit
+					if e.auditLogger != nil {
+						username := getUsernameFromConfig(config)
+						_ = e.auditLogger.LogMountViolation(username, "", mount.Target, MountAccessModeReadWrite,
+							fmt.Sprintf("tmpfs size exceeds maximum: requested %d, maximum %d", size, *policy.Mounts.MaxTmpfsSize),
+							map[string]string{
+								"requested_size": fmt.Sprintf("%d", size),
+								"max_size":       fmt.Sprintf("%d", *policy.Mounts.MaxTmpfsSize),
+								"rule":           "mount.tmpfs.size_exceeded",
+							})
+					}
 				}
 			}
 		}
@@ -437,6 +525,17 @@ func (e *Enforcer) validateMounts(ctx context.Context, policy *Policy, config ty
 			Component: "mount",
 		}
 		result.Violations = append(result.Violations, violation)
+
+		// Log to audit
+		if e.auditLogger != nil {
+			username := getUsernameFromConfig(config)
+			_ = e.auditLogger.LogMountViolation(username, "", "/",
+				MountAccessModeReadWrite,
+				"read-only root filesystem is required by policy",
+				map[string]string{
+					"rule": "mount.readonly_rootfs.required",
+				})
+		}
 	}
 }
 
@@ -659,6 +758,14 @@ func (e *Enforcer) Close() error {
 	}
 
 	e.closed = true
+
+	// Close audit logger
+	if e.auditLogger != nil {
+		if err := e.auditLogger.Close(); err != nil {
+			e.logger.Warn("Failed to close audit logger", "error", err)
+		}
+	}
+
 	e.logger.Info("Policy enforcer closed")
 	return nil
 }
@@ -670,6 +777,16 @@ func (e *Enforcer) Stats(ctx context.Context) (activeSessions int) {
 
 	activeSessions = len(e.sessionPolicies)
 	return
+}
+
+// getUsernameFromConfig extracts the username from container config labels
+func getUsernameFromConfig(config types.ContainerConfig) string {
+	if config.Labels != nil {
+		if user, ok := config.Labels["username"]; ok {
+			return user
+		}
+	}
+	return ""
 }
 
 // parseTmpfsSize parses a tmpfs size string (e.g., "100m", "1g") to bytes
