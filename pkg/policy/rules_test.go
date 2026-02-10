@@ -2,6 +2,7 @@ package policy
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -229,4 +230,190 @@ mode: readonly
 	if entry.Mode != MountAccessModeReadOnly {
 		t.Errorf("Mode mismatch: got %s, want readonly", entry.Mode)
 	}
+}
+
+// TestValidateMountAllowlist validates mount allowlist entry validation
+func TestValidateMountAllowlist(t *testing.T) {
+	tests := []struct {
+		name    string
+		policy  *Policy
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name: "valid policy with mount allowlist",
+			policy: &Policy{
+				ID:   "valid",
+				Name: "Valid Policy",
+				Mode: EnforcementModeStrict,
+				Mounts: MountPolicy{
+					MountAllowlist: []MountAllowlistEntry{
+						{
+							Path: "/home/shared/data",
+							Mode: MountAccessModeReadOnly,
+						},
+						{
+							Path: "/home/alice/projects",
+							User: "alice",
+							Mode: MountAccessModeReadWrite,
+						},
+						{
+							Path:  "/shared/team-data",
+							Group: "developers",
+							Mode:  MountAccessModeReadWrite,
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "empty path is invalid",
+			policy: &Policy{
+				ID:   "invalid",
+				Name: "Invalid Policy",
+				Mode: EnforcementModeStrict,
+				Mounts: MountPolicy{
+					MountAllowlist: []MountAllowlistEntry{
+						{
+							Path: "",
+							Mode: MountAccessModeReadOnly,
+						},
+					},
+				},
+			},
+			wantErr: true,
+			errMsg:  "path cannot be empty",
+		},
+		{
+			name: "relative path is invalid",
+			policy: &Policy{
+				ID:   "invalid",
+				Name: "Invalid Policy",
+				Mode: EnforcementModeStrict,
+				Mounts: MountPolicy{
+					MountAllowlist: []MountAllowlistEntry{
+						{
+							Path: "relative/path",
+							Mode: MountAccessModeReadOnly,
+						},
+					},
+				},
+			},
+			wantErr: true,
+			errMsg:  "path must be absolute",
+		},
+		{
+			name: "invalid mode is rejected",
+			policy: &Policy{
+				ID:   "invalid",
+				Name: "Invalid Policy",
+				Mode: EnforcementModeStrict,
+				Mounts: MountPolicy{
+					MountAllowlist: []MountAllowlistEntry{
+						{
+							Path: "/data",
+							Mode: MountAccessMode("invalid"),
+						},
+					},
+				},
+			},
+			wantErr: true,
+			errMsg:  "invalid mode",
+		},
+		{
+			name: "both user and group is invalid",
+			policy: &Policy{
+				ID:   "invalid",
+				Name: "Invalid Policy",
+				Mode: EnforcementModeStrict,
+				Mounts: MountPolicy{
+					MountAllowlist: []MountAllowlistEntry{
+						{
+							Path:  "/data",
+							User:  "alice",
+							Group: "developers",
+							Mode:  MountAccessModeReadOnly,
+						},
+					},
+				},
+			},
+			wantErr: true,
+			errMsg:  "cannot specify both user and group",
+		},
+		{
+			name: "empty mount allowlist is valid",
+			policy: &Policy{
+				ID:   "valid",
+				Name: "Valid Policy",
+				Mode: EnforcementModeStrict,
+				Mounts: MountPolicy{
+					MountAllowlist: []MountAllowlistEntry{},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "nil mount allowlist is valid",
+			policy: &Policy{
+				ID:     "valid",
+				Name:   "Valid Policy",
+				Mode:   EnforcementModeStrict,
+				Mounts: MountPolicy{},
+			},
+			wantErr: false,
+		},
+		{
+			name: "all valid modes are accepted",
+			policy: &Policy{
+				ID:   "valid",
+				Name: "Valid Policy",
+				Mode: EnforcementModeStrict,
+				Mounts: MountPolicy{
+					MountAllowlist: []MountAllowlistEntry{
+						{
+							Path: "/data1",
+							Mode: MountAccessModeReadOnly,
+						},
+						{
+							Path: "/data2",
+							Mode: MountAccessModeReadWrite,
+						},
+						{
+							Path: "/data3",
+							Mode: MountAccessModeDenied,
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.policy.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if tt.wantErr && tt.errMsg != "" {
+				if err == nil {
+					t.Errorf("Expected error containing %q, got nil", tt.errMsg)
+					return
+				}
+				if !containsErrString(err, tt.errMsg) {
+					t.Errorf("Expected error containing %q, got %q", tt.errMsg, err.Error())
+				}
+			}
+		})
+	}
+}
+
+// containsErrString checks if the error message contains a specific string
+func containsErrString(err error, s string) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), s)
 }

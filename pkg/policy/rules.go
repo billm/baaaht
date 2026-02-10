@@ -297,6 +297,32 @@ func (p *Policy) Validate() error {
 		return fmt.Errorf("max tmpfs size cannot be negative")
 	}
 
+	// Validate mount allowlist entries
+	for i, entry := range p.Mounts.MountAllowlist {
+		// Validate path is not empty
+		if entry.Path == "" {
+			return fmt.Errorf("mount allowlist entry %d: path cannot be empty", i)
+		}
+
+		// Validate path is absolute
+		if !filepath.IsAbs(entry.Path) {
+			return fmt.Errorf("mount allowlist entry %d: path must be absolute: %s", i, entry.Path)
+		}
+
+		// Validate mode
+		switch entry.Mode {
+		case MountAccessModeReadOnly, MountAccessModeReadWrite, MountAccessModeDenied:
+			// Valid modes
+		default:
+			return fmt.Errorf("mount allowlist entry %d: invalid mode %q, must be readonly, readwrite, or denied", i, entry.Mode)
+		}
+
+		// Validate that user and group are not both specified
+		if entry.User != "" && entry.Group != "" {
+			return fmt.Errorf("mount allowlist entry %d: cannot specify both user and group", i)
+		}
+	}
+
 	// Validate image patterns
 	for _, pattern := range p.Images.AllowedImages {
 		if _, _, _, err := parseImagePattern(pattern); err != nil {

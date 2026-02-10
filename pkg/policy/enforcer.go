@@ -368,26 +368,9 @@ func (e *Enforcer) validateMounts(ctx context.Context, policy *Policy, config ty
 						continue
 					}
 
-					// Enforce read-only mode if required by allowlist
-					if accessMode == MountAccessModeReadOnly && !mount.ReadOnly {
-						violation := Violation{
-							Rule:      "mount.bind.readonly_required",
-							Message:   fmt.Sprintf("bind mount requires read-only mode: %s", mount.Source),
-							Severity:  string(SeverityError),
-							Component: "mount",
-						}
-						result.Violations = append(result.Violations, violation)
-
-						// Log to audit
-						if e.auditLogger != nil {
-							username := getUsernameFromConfig(config)
-							_ = e.auditLogger.LogMountViolation(username, "", mount.Source, accessMode,
-								"mount requires read-only mode", map[string]string{
-									"target": mount.Target,
-									"rule":   "mount.bind.readonly_required",
-								})
-						}
-					}
+					// Note: read-only enforcement is handled in EnforceContainerConfig
+					// We don't create a violation here, as the mount will be modified
+					// to be read-only during enforcement
 				}
 			}
 

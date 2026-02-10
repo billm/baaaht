@@ -905,16 +905,14 @@ func TestEnforceMountMode(t *testing.T) {
 	policy.Mounts.AllowBindMounts = true
 	policy.Mounts.MountAllowlist = []MountAllowlistEntry{
 		{
-			Path:        "/readonly/data",
-			AccessMode:  MountAccessModeReadOnly,
-			ScopeType:   MountScopeTypeUser,
-			ScopeValue:  "testuser",
+			Path: "/readonly/data",
+			Mode: MountAccessModeReadOnly,
+			User: "testuser",
 		},
 		{
-			Path:        "/readwrite/data",
-			AccessMode:  MountAccessModeReadWrite,
-			ScopeType:   MountScopeTypeUser,
-			ScopeValue:  "testuser",
+			Path: "/readwrite/data",
+			Mode: MountAccessModeReadWrite,
+			User: "testuser",
 		},
 	}
 
@@ -963,7 +961,8 @@ func TestEnforceMountMode(t *testing.T) {
 					},
 				},
 			},
-			wantReadWrite: true,
+			wantReadOnlyIndex: -1,
+			wantReadWrite:     true,
 		},
 		{
 			name: "enforce read-only even when already set",
@@ -1065,10 +1064,9 @@ func TestEnforceMountModeDisabledMode(t *testing.T) {
 	policy.Mounts.AllowBindMounts = true
 	policy.Mounts.MountAllowlist = []MountAllowlistEntry{
 		{
-			Path:        "/readonly/data",
-			AccessMode:  MountAccessModeReadOnly,
-			ScopeType:   MountScopeTypeUser,
-			ScopeValue:  "testuser",
+			Path: "/readonly/data",
+			Mode: MountAccessModeReadOnly,
+			User: "testuser",
 		},
 	}
 
