@@ -89,6 +89,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.status, _ = m.status.Update(components.StatusErrorMsg{Err: msg.Err})
 		return m, nil
 
+	// Handle shutdown complete
+	case ShutdownCompleteMsg:
+		return m, tea.Quit
+
+	// Handle shutdown failed
+	case ShutdownFailedMsg:
+		m.err = msg.Err
+		// Log the error but still quit
+		return m, tea.Quit
+
 	// Handle component-specific messages for passthrough
 	// These will be expanded in subsequent subtasks:
 	// - gRPC connection status messages (phase-3-grpc)
@@ -121,7 +131,7 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// Quit keys
 	if m.keys.IsQuitKey(msg) {
 		m.quitting = true
-		return m, tea.Quit
+		return m, m.shutdownCmd()
 	}
 
 	// Send message key

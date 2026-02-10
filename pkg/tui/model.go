@@ -245,3 +245,73 @@ func (m Model) waitForStreamMsgCmd() tea.Cmd {
 		return m.waitForStreamMsgCmd()()
 	}
 }
+
+// Shutdown messages
+
+// ShutdownCompleteMsg is sent when graceful shutdown completes successfully.
+type ShutdownCompleteMsg struct{}
+
+// ShutdownFailedMsg is sent when shutdown encounters an error.
+type ShutdownFailedMsg struct {
+	Err error
+}
+
+// shutdownCmd returns a command that gracefully shuts down the TUI by closing
+// the session and gRPC connection before quitting.
+func (m Model) shutdownCmd() tea.Cmd {
+	return func() tea.Msg {
+		// Log shutdown start
+		if m.logger != nil {
+			m.logger.Info("Starting graceful shutdown", "session_id", m.sessionID)
+		}
+
+		ctx := context.Background()
+
+		// Close the stream if active
+		if m.stream != nil {
+			if err := m.stream.CloseSend(); err != nil {
+				if m.logger != nil {
+					m.logger.Warn("Failed to close stream send side", "error", err)
+				}
+				// Continue with shutdown despite stream close error
+			}
+		}
+
+		// Close the session if we have one
+		if m.sessionID != "" && m.client != nil {
+			req := &proto.CloseSessionRequest{
+				SessionId: m.sessionID,
+			}
+			_, err := m.client.CloseSession(ctx, req)
+			if err != nil {
+				if m.logger != nil {
+					m.logger.Warn("Failed to close session", "session_id", m.sessionID, "error", err)
+				}
+				// Continue with shutdown despite session close error
+			} else {
+				if m.logger != nil {
+					m.logger.Info("Closed session", "session_id", m.sessionID)
+				}
+			}
+		}
+
+		// Close the gRPC client connection
+		if m.client != nil {
+			if err := m.client.Close(); err != nil {
+				if m.logger != nil {
+					m.logger.Error("Failed to close gRPC client", "error", err)
+				}
+				return ShutdownFailedMsg{Err: err}
+			}
+			if m.logger != nil {
+				m.logger.Info("Closed gRPC client connection")
+			}
+		}
+
+		if m.logger != nil {
+			m.logger.Info("Graceful shutdown complete")
+		}
+
+		return ShutdownCompleteMsg{}
+	}
+}
