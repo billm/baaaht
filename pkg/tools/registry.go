@@ -878,7 +878,7 @@ func (b *builtinToolPlaceholder) Execute(ctx context.Context, parameters map[str
 		return nil, types.NewError(types.ErrCodeUnavailable, "tool is closed")
 	}
 	// Placeholder - actual execution will be implemented in phase 4
-	return nil, types.NewError(types.ErrCodeUnimplemented,
+	return nil, types.NewError(types.ErrCodeInternal,
 		fmt.Sprintf("tool %s is not yet implemented", b.name))
 }
 
