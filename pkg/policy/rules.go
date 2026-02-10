@@ -31,6 +31,18 @@ const (
 	SeverityInfo Severity = "info"
 )
 
+// MountAccessMode defines the access mode for a mount allowlist entry
+type MountAccessMode string
+
+const (
+	// MountAccessModeReadOnly allows read-only access to the mount
+	MountAccessModeReadOnly MountAccessMode = "readonly"
+	// MountAccessModeReadWrite allows read-write access to the mount
+	MountAccessModeReadWrite MountAccessMode = "readwrite"
+	// MountAccessModeDenied explicitly denies access to the mount
+	MountAccessModeDenied MountAccessMode = "denied"
+)
+
 // Policy represents a set of security rules and restrictions
 type Policy struct {
 	ID          string            `json:"id" yaml:"id"`
@@ -79,6 +91,18 @@ type MountPolicy struct {
 	MaxTmpfsSize *int64 `json:"max_tmpfs_size,omitempty" yaml:"max_tmpfs_size,omitempty"`
 	// Read-only root filesystem enforcement
 	EnforceReadOnlyRootfs bool `json:"enforce_read_only_rootfs,omitempty" yaml:"enforce_read_only_rootfs,omitempty"`
+}
+
+// MountAllowlistEntry defines a single mount allowlist entry with user/group scoping
+type MountAllowlistEntry struct {
+	// Path is the mount path on the host
+	Path string `json:"path" yaml:"path"`
+	// User is the username this entry applies to (empty = all users)
+	User string `json:"user,omitempty" yaml:"user,omitempty"`
+	// Group is the group name this entry applies to (empty = all groups)
+	Group string `json:"group,omitempty" yaml:"group,omitempty"`
+	// Mode defines the access mode for this mount
+	Mode MountAccessMode `json:"mode" yaml:"mode"`
 }
 
 // NetworkPolicy defines network restrictions
