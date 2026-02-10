@@ -152,7 +152,7 @@ func Bootstrap(ctx context.Context, cfg BootstrapConfig) (*BootstrapResult, erro
 
 	// Perform health check if enabled
 	if cfg.EnableHealthCheck {
-		healthCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		_, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
 
 		if !agent.IsConnected() {

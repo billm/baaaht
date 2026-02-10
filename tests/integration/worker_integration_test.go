@@ -11,6 +11,7 @@ import (
 	"github.com/billm/baaaht/orchestrator/internal/logger"
 	"github.com/billm/baaaht/orchestrator/pkg/container"
 	"github.com/billm/baaaht/orchestrator/pkg/orchestrator"
+	"github.com/billm/baaaht/orchestrator/pkg/policy"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 	"github.com/billm/baaaht/orchestrator/pkg/worker"
 	grpcPkg "github.com/billm/baaaht/orchestrator/pkg/grpc"
@@ -135,7 +136,7 @@ func TestWorkerIntegration(t *testing.T) {
 	// Cleanup worker
 	t.Cleanup(func() {
 		t.Log("=== Cleanup: Closing worker ===")
-		closeCtx, closeCancel := context.WithTimeout(context.Background(), 15*time.Second)
+		_, closeCancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer closeCancel()
 
 		if err := workerAgent.Close(); err != nil {
@@ -205,7 +206,7 @@ func TestWorkerIntegration(t *testing.T) {
 	t.Log("=== Step 8: Verifying graceful shutdown ===")
 
 	// Close worker
-	closeCtx, closeCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	_, closeCancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer closeCancel()
 
 	err = workerAgent.Close()
@@ -420,4 +421,356 @@ func TestWorkerVersion(t *testing.T) {
 		assert.NotEmpty(t, worker.DefaultVersion, "Default version should not be empty")
 		t.Logf("Default worker version: %s", worker.DefaultVersion)
 	})
+}
+
+// int64Ptr is a helper function for creating int64 pointers
+func int64Ptr(i int64) *int64 {
+	return &i
+}
+
+// TestWorkerPolicyEnforcement tests policy enforcement with blocked operations
+func TestWorkerPolicyEnforcement(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping worker policy enforcement test in short mode")
+	}
+
+	// Check if Docker is available
+	if err := container.CheckEnvironment(); err != nil {
+		t.Skip("Docker not available:", err)
+	}
+
+	ctx := context.Background()
+	log, err := logger.New(config.DefaultLoggingConfig())
+	require.NoError(t, err, "Failed to create logger")
+
+	// Load test config with temp directories
+	cfg := loadTestConfig(t)
+
+	// Override gRPC socket path to use temp file
+	tmpDir := t.TempDir()
+	grpcSocketPath := filepath.Join(tmpDir, "grpc.sock")
+	cfg.GRPC.SocketPath = grpcSocketPath
+
+	t.Log("=== Step 1: Bootstrapping orchestrator with strict policy ===")
+
+	// Bootstrap orchestrator
+	bootstrapCfg := orchestrator.BootstrapConfig{
+		Config:              *cfg,
+		Logger:              log,
+		Version:             "test-worker-policy-1.0.0",
+		ShutdownTimeout:     30 * time.Second,
+		EnableHealthCheck:   false,
+		HealthCheckInterval: 30 * time.Second,
+	}
+
+	result, err := orchestrator.Bootstrap(ctx, bootstrapCfg)
+	require.NoError(t, err, "Failed to bootstrap orchestrator")
+	require.True(t, result.IsSuccessful(), "Orchestrator bootstrap should be successful")
+
+	orch := result.Orchestrator
+	t.Logf("Orchestrator bootstrapped successfully in %v", result.Duration())
+
+	// Cleanup orchestrator
+	t.Cleanup(func() {
+		t.Log("=== Cleanup: Shutting down orchestrator ===")
+		if err := orch.Close(); err != nil {
+			t.Logf("Warning: Orchestrator close returned error: %v", err)
+		}
+		t.Log("Orchestrator shutdown complete")
+	})
+
+	// Bootstrap gRPC server
+	t.Log("=== Step 2: Bootstrapping gRPC server ===")
+
+	grpcBootstrapCfg := grpcPkg.BootstrapConfig{
+		Config:              cfg.GRPC,
+		Logger:              log,
+		SessionManager:      orch.SessionManager(),
+		EventBus:            orch.EventBus(),
+		IPCBroker:           nil,
+		Version:             "test-worker-1.0.0",
+		ShutdownTimeout:     10 * time.Second,
+		EnableHealthCheck:   true,
+		HealthCheckInterval: 30 * time.Second,
+	}
+
+	grpcResult, err := grpcPkg.Bootstrap(ctx, grpcBootstrapCfg)
+	require.NoError(t, err, "Failed to bootstrap gRPC server")
+	require.True(t, grpcResult.IsSuccessful(), "gRPC bootstrap should be successful")
+
+	// Cleanup gRPC server
+	t.Cleanup(func() {
+		t.Log("=== Cleanup: Shutting down gRPC server ===")
+		if grpcResult.Health != nil {
+			grpcResult.Health.Shutdown()
+		}
+		if grpcResult.Server != nil {
+			if err := grpcResult.Server.Stop(); err != nil {
+				t.Logf("Warning: gRPC server stop returned error: %v", err)
+			}
+		}
+		t.Log("gRPC server shutdown complete")
+	})
+
+	t.Logf("gRPC server started on %s", cfg.GRPC.SocketPath)
+
+	// Give the gRPC server a moment to fully start
+	time.Sleep(500 * time.Millisecond)
+
+	t.Log("=== Step 3: Bootstrapping worker ===")
+
+	// Create worker bootstrap config
+	workerName := fmt.Sprintf("policy-test-worker-%d", time.Now().Unix())
+	workerBootstrapCfg := worker.BootstrapConfig{
+		Logger:               log,
+		Version:              worker.DefaultVersion,
+		OrchestratorAddr:     "unix://" + cfg.GRPC.SocketPath,
+		WorkerName:           workerName,
+		DialTimeout:          30 * time.Second,
+		RPCTimeout:           10 * time.Second,
+		MaxRecvMsgSize:       worker.DefaultMaxRecvMsgSize,
+		MaxSendMsgSize:       worker.DefaultMaxSendMsgSize,
+		ReconnectInterval:    5 * time.Second,
+		ReconnectMaxAttempts: 3,
+		HeartbeatInterval:    5 * time.Second,
+		ShutdownTimeout:      10 * time.Second,
+		EnableHealthCheck:    true,
+	}
+
+	// Bootstrap worker
+	workerResult, err := worker.Bootstrap(ctx, workerBootstrapCfg)
+	require.NoError(t, err, "Failed to bootstrap worker")
+	require.True(t, workerResult.IsSuccessful(), "Worker bootstrap should be successful")
+
+	workerAgent := workerResult.Agent
+	t.Logf("Worker bootstrapped successfully: %s", workerResult.String())
+
+	// Cleanup worker
+	t.Cleanup(func() {
+		t.Log("=== Cleanup: Closing worker ===")
+		_, closeCancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer closeCancel()
+
+		if err := workerAgent.Close(); err != nil {
+			t.Logf("Warning: Worker close returned error: %v", err)
+		}
+		t.Log("Worker closed")
+	})
+
+	// Verify worker is ready
+	t.Log("=== Step 4: Verifying worker is ready ===")
+	assert.True(t, workerAgent.IsConnected(), "Worker should be connected to orchestrator")
+	assert.True(t, workerAgent.IsRegistered(), "Worker should be registered")
+	t.Logf("Worker agent ID: %s", workerAgent.GetAgentID())
+
+	t.Log("=== Step 5: Setting strict policy to block operations ===")
+
+	// Get the policy enforcer from the orchestrator
+	enforcer := orch.PolicyEnforcer()
+	require.NotNil(t, enforcer, "Policy enforcer should not be nil")
+
+	// Set a strict policy that will block certain operations
+	maxCPUs := int64(1000000000)  // 1 CPU
+	maxMemory := int64(1073741824) // 1GB
+
+	strictPolicy := &policy.Policy{
+		ID:          "strict-test-policy",
+		Name:        "Strict Test Policy",
+		Description: "A strict policy for testing blocked operations",
+		Mode:        policy.EnforcementModeStrict,
+		Quotas: policy.ResourceQuota{
+			MaxCPUs:   &maxCPUs,
+			MaxMemory: &maxMemory,
+			MaxPids:   int64Ptr(128),
+		},
+		Mounts: policy.MountPolicy{
+			AllowBindMounts: false,
+			AllowVolumes:    true,
+			AllowTmpfs:      false,
+		},
+		Images: policy.ImagePolicy{
+			AllowLatestTag: false,
+		},
+		Security: policy.SecurityPolicy{
+			AllowPrivileged: false,
+			RequireNonRoot:  true,
+		},
+	}
+
+	err = enforcer.SetPolicy(ctx, strictPolicy)
+	require.NoError(t, err, "Failed to set strict policy")
+	t.Log("Strict policy set successfully")
+
+	t.Log("=== Step 6: Testing blocked operations ===")
+
+	testSessionID := types.GenerateID()
+
+	tests := []struct {
+		name          string
+		config        types.ContainerConfig
+		wantAllowed   bool
+		wantViolation string
+	}{
+		{
+			name: "excessive CPU quota should be blocked",
+			config: types.ContainerConfig{
+				Image: "nginx:1.21",
+				Resources: types.ResourceLimits{
+					NanoCPUs: 8000000000, // 8 CPUs - exceeds max of 1
+				},
+			},
+			wantAllowed:   false,
+			wantViolation: "quota.cpu.max",
+		},
+		{
+			name: "excessive memory quota should be blocked",
+			config: types.ContainerConfig{
+				Image: "nginx:1.21",
+				Resources: types.ResourceLimits{
+					MemoryBytes: 8589934592, // 8GB - exceeds max of 1GB
+				},
+			},
+			wantAllowed:   false,
+			wantViolation: "quota.memory.max",
+		},
+		{
+			name: "bind mount should be blocked",
+			config: types.ContainerConfig{
+				Image: "nginx:1.21",
+				Mounts: []types.Mount{
+					{
+						Type:   types.MountTypeBind,
+						Source: "/tmp/data",
+						Target: "/data",
+					},
+				},
+			},
+			wantAllowed:   false,
+			wantViolation: "mount.bind.disabled",
+		},
+		{
+			name: "tmpfs mount should be blocked",
+			config: types.ContainerConfig{
+				Image: "nginx:1.21",
+				Mounts: []types.Mount{
+					{
+						Type:   types.MountTypeTmpfs,
+						Source: "size=100m",
+						Target: "/tmp",
+					},
+				},
+			},
+			wantAllowed:   false,
+			wantViolation: "mount.tmpfs.disabled",
+		},
+		{
+			name: "latest tag should be blocked",
+			config: types.ContainerConfig{
+				Image: "nginx:latest",
+			},
+			wantAllowed:   false,
+			wantViolation: "image.latest_tag",
+		},
+		{
+			name: "PIDs limit exceeded should be blocked",
+			config: types.ContainerConfig{
+				Image: "nginx:1.21",
+				Resources: types.ResourceLimits{
+					PidsLimit: int64Ptr(256), // exceeds max of 128
+				},
+			},
+			wantAllowed:   false,
+			wantViolation: "quota.pids.max",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := enforcer.ValidateContainerConfig(ctx, testSessionID, tt.config)
+			require.NoError(t, err, "Validation should not error")
+
+			if tt.wantAllowed {
+				assert.True(t, result.Allowed, "Config should be allowed: %s", tt.name)
+				assert.Empty(t, result.Violations, "Should have no violations for allowed config")
+			} else {
+				assert.False(t, result.Allowed, "Config should be blocked: %s", tt.name)
+				assert.NotEmpty(t, result.Violations, "Should have violations for blocked config")
+
+				// Check for specific violation
+				if tt.wantViolation != "" {
+					found := false
+					for _, v := range result.Violations {
+						if v.Rule == tt.wantViolation {
+							found = true
+							t.Logf("Found expected violation: %s - %s", v.Rule, v.Message)
+							break
+						}
+					}
+					assert.True(t, found, "Expected violation %s not found in %v", tt.wantViolation, result.Violations)
+				}
+			}
+		})
+	}
+
+	t.Log("=== Step 7: Testing permissive mode allows violations ===")
+
+	// Switch to permissive mode - violations are logged but not blocked
+	permissivePolicy := &policy.Policy{
+		ID:          "permissive-test-policy",
+		Name:        "Permissive Test Policy",
+		Description: "A permissive policy for testing warning mode",
+		Mode:        policy.EnforcementModePermissive,
+		Quotas: policy.ResourceQuota{
+			MaxCPUs:   &maxCPUs,
+			MaxMemory: &maxMemory,
+		},
+	}
+
+	err = enforcer.SetPolicy(ctx, permissivePolicy)
+	require.NoError(t, err, "Failed to set permissive policy")
+
+	// In permissive mode, config should be allowed even with violations
+	config := types.ContainerConfig{
+		Image: "nginx:latest",
+		Resources: types.ResourceLimits{
+			NanoCPUs: 8000000000, // exceeds quota
+		},
+	}
+
+	validationResult, err := enforcer.ValidateContainerConfig(ctx, testSessionID, config)
+	require.NoError(t, err, "Validation should not error")
+
+	// Permissive mode allows but records violations
+	assert.True(t, validationResult.Allowed, "Permissive mode should allow config with violations")
+	assert.NotEmpty(t, validationResult.Violations, "Permissive mode should record violations")
+	t.Logf("Permissive mode: allowed=%v, violations=%d", validationResult.Allowed, len(validationResult.Violations))
+
+	t.Log("=== Step 8: Testing disabled mode allows everything ===")
+
+	// Switch to disabled mode - no enforcement
+	disabledPolicy := &policy.Policy{
+		ID:          "disabled-test-policy",
+		Name:        "Disabled Test Policy",
+		Description: "A disabled policy for testing",
+		Mode:        policy.EnforcementModeDisabled,
+	}
+
+	err = enforcer.SetPolicy(ctx, disabledPolicy)
+	require.NoError(t, err, "Failed to set disabled policy")
+
+	// In disabled mode, everything should be allowed with no violations
+	validationResult, err = enforcer.ValidateContainerConfig(ctx, testSessionID, config)
+	require.NoError(t, err, "Validation should not error")
+
+	assert.True(t, validationResult.Allowed, "Disabled mode should allow all configs")
+	assert.Empty(t, validationResult.Violations, "Disabled mode should not produce violations")
+	t.Log("Disabled mode: all configurations allowed")
+
+	t.Log("=== Worker Policy Enforcement Test Complete ===")
+	t.Log("All policy enforcement tests passed successfully:")
+	t.Log("  1. Orchestrator and gRPC server bootstrapped")
+	t.Log("  2. Worker bootstrapped and connected")
+	t.Log("  3. Strict policy violations detected and blocked")
+	t.Log("  4. Permissive mode allows with warnings")
+	t.Log("  5. Disabled mode allows everything")
 }

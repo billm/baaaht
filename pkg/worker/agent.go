@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/billm/baaaht/orchestrator/internal/logger"
@@ -867,8 +868,8 @@ func (a *Agent) SendTaskProgress(stream proto.AgentService_StreamTaskClient, per
 		return types.NewError(types.ErrCodeInvalid, "stream is nil")
 	}
 
-	resp := &proto.StreamTaskResponse{
-		Payload: &proto.StreamTaskResponse_Progress{
+	req := &proto.StreamTaskRequest{
+		Payload: &proto.StreamTaskRequest_Progress{
 			Progress: &proto.TaskProgress{
 				Percent: percent,
 				Message: message,
@@ -877,7 +878,7 @@ func (a *Agent) SendTaskProgress(stream proto.AgentService_StreamTaskClient, per
 		},
 	}
 
-	if err := stream.Send(resp); err != nil {
+	if err := stream.Send(req); err != nil {
 		a.logger.Error("Failed to send task progress", "error", err)
 		return types.WrapError(types.ErrCodeInternal, "failed to send task progress", err)
 	}
@@ -892,8 +893,8 @@ func (a *Agent) SendTaskOutput(stream proto.AgentService_StreamTaskClient, data 
 		return types.NewError(types.ErrCodeInvalid, "stream is nil")
 	}
 
-	resp := &proto.StreamTaskResponse{
-		Payload: &proto.StreamTaskResponse_Output{
+	req := &proto.StreamTaskRequest{
+		Payload: &proto.StreamTaskRequest_Output{
 			Output: &proto.TaskOutput{
 				Data:        data,
 				Text:        text,
@@ -902,7 +903,7 @@ func (a *Agent) SendTaskOutput(stream proto.AgentService_StreamTaskClient, data 
 		},
 	}
 
-	if err := stream.Send(resp); err != nil {
+	if err := stream.Send(req); err != nil {
 		a.logger.Error("Failed to send task output", "error", err)
 		return types.WrapError(types.ErrCodeInternal, "failed to send task output", err)
 	}
@@ -917,17 +918,17 @@ func (a *Agent) SendTaskStatus(stream proto.AgentService_StreamTaskClient, state
 		return types.NewError(types.ErrCodeInvalid, "stream is nil")
 	}
 
-	resp := &proto.StreamTaskResponse{
-		Payload: &proto.StreamTaskResponse_Status{
+	req := &proto.StreamTaskRequest{
+		Payload: &proto.StreamTaskRequest_Status{
 			Status: &proto.TaskStatusUpdate{
 				State:     state,
 				Message:   message,
-				Timestamp: time.Now(),
+				Timestamp: timestamppb.Now(),
 			},
 		},
 	}
 
-	if err := stream.Send(resp); err != nil {
+	if err := stream.Send(req); err != nil {
 		a.logger.Error("Failed to send task status", "error", err)
 		return types.WrapError(types.ErrCodeInternal, "failed to send task status", err)
 	}
@@ -950,21 +951,21 @@ func (a *Agent) SendTaskComplete(stream proto.AgentService_StreamTaskClient, tas
 		OutputText:         outputText,
 		ErrorText:          errorText,
 		Metadata:           metadata,
-		CompletedAt:        time.Now(),
+		CompletedAt:        timestamppb.Now(),
 		ExecutionDurationNs: duration.Nanoseconds(),
 	}
 
-	resp := &proto.StreamTaskResponse{
-		Payload: &proto.StreamTaskResponse_Complete{
+	req := &proto.StreamTaskRequest{
+		Payload: &proto.StreamTaskRequest_Complete{
 			Complete: &proto.TaskComplete{
 				TaskId:      taskID,
 				Result:      result,
-				CompletedAt: time.Now(),
+				CompletedAt: timestamppb.Now(),
 			},
 		},
 	}
 
-	if err := stream.Send(resp); err != nil {
+	if err := stream.Send(req); err != nil {
 		a.logger.Error("Failed to send task complete", "error", err)
 		return types.WrapError(types.ErrCodeInternal, "failed to send task complete", err)
 	}
@@ -979,18 +980,18 @@ func (a *Agent) SendTaskError(stream proto.AgentService_StreamTaskClient, code, 
 		return types.NewError(types.ErrCodeInvalid, "stream is nil")
 	}
 
-	resp := &proto.StreamTaskResponse{
-		Payload: &proto.StreamTaskResponse_Error{
-			Error: &proto.TaskError{
+	req := &proto.StreamTaskRequest{
+		Payload: &proto.StreamTaskRequest_ErrorMsg{
+			ErrorMsg: &proto.TaskError{
 				Code:        code,
 				Message:     message,
 				Details:     details,
-				OccurredAt:  time.Now(),
+				OccurredAt:  timestamppb.Now(),
 			},
 		},
 	}
 
-	if err := stream.Send(resp); err != nil {
+	if err := stream.Send(req); err != nil {
 		a.logger.Error("Failed to send task error", "error", err)
 		return types.WrapError(types.ErrCodeInternal, "failed to send task error", err)
 	}
@@ -1005,13 +1006,13 @@ func (a *Agent) SendStreamHeartbeat(stream proto.AgentService_StreamTaskClient) 
 		return types.NewError(types.ErrCodeInvalid, "stream is nil")
 	}
 
-	resp := &proto.StreamTaskResponse{
-		Payload: &proto.StreamTaskResponse_Heartbeat{
+	req := &proto.StreamTaskRequest{
+		Payload: &proto.StreamTaskRequest_Heartbeat{
 			Heartbeat: &emptypb.Empty{},
 		},
 	}
 
-	if err := stream.Send(resp); err != nil {
+	if err := stream.Send(req); err != nil {
 		a.logger.Debug("Failed to send stream heartbeat", "error", err)
 		return types.WrapError(types.ErrCodeInternal, "failed to send stream heartbeat", err)
 	}

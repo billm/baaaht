@@ -383,6 +383,11 @@ message StreamTaskRequest {
     TaskInput input = 2;
     google.protobuf.Empty heartbeat = 3;
     CancelCommand cancel = 4;
+    TaskProgress progress = 5;
+    TaskOutput output = 6;
+    TaskStatusUpdate status = 7;
+    TaskComplete complete = 8;
+    TaskError error_msg = 9;
   }
 }
 
