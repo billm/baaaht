@@ -8,9 +8,11 @@ import (
 
 	"github.com/billm/baaaht/orchestrator/internal/config"
 	"github.com/billm/baaaht/orchestrator/internal/logger"
+	"github.com/billm/baaaht/orchestrator/pkg/container"
 	"github.com/billm/baaaht/orchestrator/pkg/events"
 	"github.com/billm/baaaht/orchestrator/pkg/ipc"
 	"github.com/billm/baaaht/orchestrator/pkg/session"
+	"github.com/billm/baaaht/orchestrator/pkg/tools"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 	"github.com/billm/baaaht/orchestrator/proto"
 	"google.golang.org/grpc"
@@ -41,6 +43,7 @@ type BootstrapConfig struct {
 	SessionManager      *session.Manager
 	EventBus            *events.Bus
 	IPCBroker           *ipc.Broker
+	ContainerRuntime    container.Runtime
 	Version             string
 	ShutdownTimeout     time.Duration
 	EnableHealthCheck   bool
@@ -138,6 +141,26 @@ func Bootstrap(ctx context.Context, cfg BootstrapConfig) (*BootstrapResult, erro
 		sessionManager: cfg.SessionManager,
 		eventBus:       cfg.EventBus,
 		ipcBroker:      cfg.IPCBroker,
+	}
+
+	// Create tool registry and executor
+	toolRegistry := tools.GetGlobalRegistry()
+	_ = tools.RegisterBuiltinTools()
+
+	// Create executor (requires container runtime)
+	if cfg.ContainerRuntime != nil {
+		executor, err := tools.NewExecutorFromRegistry(cfg.ContainerRuntime, log)
+		if err != nil {
+			result.Error = types.WrapError(types.ErrCodeInternal, "failed to create tool executor", err)
+			// Cleanup on failure
+			_ = server.Stop()
+			_ = health.Shutdown()
+			return result, result.Error
+		}
+		deps.executor = executor
+		log.Info("Tool executor created", "runtime", cfg.ContainerRuntime.String())
+	} else {
+		log.Warn("Container runtime not provided, tool service will not execute tools")
 	}
 
 	// Create and register OrchestratorService
@@ -437,6 +460,7 @@ type serviceDependencies struct {
 	sessionManager *session.Manager
 	eventBus       *events.Bus
 	ipcBroker      *ipc.Broker
+	executor       *tools.Executor
 }
 
 func (d *serviceDependencies) SessionManager() *session.Manager {
@@ -449,6 +473,10 @@ func (d *serviceDependencies) EventBus() *events.Bus {
 
 func (d *serviceDependencies) IPCBroker() *ipc.Broker {
 	return d.ipcBroker
+}
+
+func (d *serviceDependencies) Executor() *tools.Executor {
+	return d.executor
 }
 
 // validateDependencies validates that all required dependencies are provided

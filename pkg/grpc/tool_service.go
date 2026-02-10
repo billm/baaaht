@@ -11,6 +11,7 @@ import (
 
 	"github.com/billm/baaaht/orchestrator/internal/logger"
 	"github.com/billm/baaaht/orchestrator/pkg/events"
+	"github.com/billm/baaaht/orchestrator/pkg/tools"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 	"github.com/billm/baaaht/orchestrator/proto"
 )
@@ -18,6 +19,7 @@ import (
 // ToolServiceDependencies represents the tool service dependencies
 type ToolServiceDependencies interface {
 	EventBus() *events.Bus
+	Executor() *tools.Executor
 }
 
 // ToolInfo holds information about a registered tool
@@ -397,6 +399,7 @@ type ToolService struct {
 	deps              ToolServiceDependencies
 	toolRegistry      *ToolRegistry
 	executionRegistry *ExecutionRegistry
+	executor          *tools.Executor
 	logger            *logger.Logger
 	mu                sync.RWMutex
 
@@ -418,6 +421,7 @@ func NewToolService(deps ToolServiceDependencies, log *logger.Logger) *ToolServi
 		deps:              deps,
 		toolRegistry:      NewToolRegistry(log),
 		executionRegistry: NewExecutionRegistry(log),
+		executor:          deps.Executor(),
 		logger:            log.With("component", "tool_service"),
 		streams:           make(map[interface{}]context.CancelFunc),
 	}
@@ -774,11 +778,53 @@ func (s *ToolService) ExecuteTool(ctx context.Context, req *proto.ExecuteToolReq
 		}
 	}
 
-	// TODO: Actually execute the tool (e.g., spawn container, run command)
-	// For now, mark as completed
-	_ = s.executionRegistry.UpdateStatus(execution.ExecutionID, proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_RUNNING)
-	_ = s.executionRegistry.UpdateStatus(execution.ExecutionID, proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_COMPLETED)
-	_ = s.toolRegistry.RecordExecution(req.ToolName, 0, true)
+	// Execute the tool using the executor
+	execCfg := tools.ExecutionConfig{
+		ToolName:    req.ToolName,
+		Parameters:  req.Parameters,
+		SessionID:   types.ID(req.SessionId),
+		Timeout:     time.Duration(req.TimeoutNs),
+		AutoCleanup: true,
+	}
+
+	// Update status to running
+	if err := s.executionRegistry.UpdateStatus(execution.ExecutionID, proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_RUNNING); err != nil {
+		s.logger.Warn("Failed to update execution status to running", "execution_id", execution.ExecutionID, "error", err)
+	}
+
+	result, err := s.executor.Execute(ctx, execCfg)
+	if err != nil {
+		s.logger.Error("Tool execution failed", "execution_id", execution.ExecutionID, "tool_name", req.ToolName, "error", err)
+		_ = s.executionRegistry.UpdateStatus(execution.ExecutionID, proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_FAILED)
+		return nil, grpcErrorFromTypesError(err)
+	}
+
+	// Update execution with result
+	execution.mu.Lock()
+	execution.Status = proto.ToolExecutionStatus(result.Status)
+	execution.Result = &proto.ToolExecutionResult{
+		ExecutionId: result.ExecutionID,
+		ToolName:    result.ToolName,
+		Status:      proto.ToolExecutionStatus(result.Status),
+		ExitCode:    result.ExitCode,
+		OutputData:  result.OutputData,
+		OutputText:  result.OutputText,
+		ErrorData:   result.ErrorData,
+		ErrorText:   result.ErrorText,
+		Metadata:    result.Metadata,
+		DurationNs:  result.Duration.Nanoseconds(),
+		CompletedAt: timestamppb.New(result.CompletedAt),
+		ContainerId: result.ContainerID,
+	}
+	if execution.StartedAt != nil {
+		execution.DurationNs = result.Duration.Nanoseconds()
+	}
+	execution.ContainerID = result.ContainerID
+	execution.mu.Unlock()
+
+	// Record successful execution
+	success := result.Status == tools.ToolExecutionStatusCompleted
+	_ = s.toolRegistry.RecordExecution(req.ToolName, result.Duration.Nanoseconds(), success)
 
 	return &proto.ExecuteToolResponse{
 		ExecutionId: execution.ExecutionID,
