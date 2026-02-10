@@ -150,15 +150,19 @@ func (m Model) handleWindowSize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 	// Status bar uses full width
 	m.status, _ = m.status.Update(msg)
 
-	// Calculate available height for chat (header + status + input = 4 lines)
-	chatHeight := m.height - 4
-	if chatHeight < 1 {
-		chatHeight = 1
+	// Calculate available height for chat and sessions (header + status + input = 4 lines)
+	contentHeight := m.height - 4
+	if contentHeight < 1 {
+		contentHeight = 1
 	}
 
 	// Update chat viewport with proper dimensions
-	chatMsg := tea.WindowSizeMsg{Width: m.width, Height: chatHeight}
+	chatMsg := tea.WindowSizeMsg{Width: m.width, Height: contentHeight}
 	m.chat, _ = m.chat.Update(chatMsg)
+
+	// Update sessions list with proper dimensions
+	sessionsMsg := tea.WindowSizeMsg{Width: m.width, Height: contentHeight}
+	m.sessions, _ = m.sessions.Update(sessionsMsg)
 
 	// Input uses full width
 	m.input, _ = m.input.Update(tea.WindowSizeMsg{Width: m.width, Height: 1})
