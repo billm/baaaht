@@ -30,6 +30,7 @@ type Config struct {
 	GRPC         GRPCConfig         `json:"grpc" yaml:"grpc"`
 	LLM          LLMConfig          `json:"llm" yaml:"llm"`
 	Provider     ProviderConfig     `json:"provider" yaml:"provider"`
+	Skills       SkillsConfig       `json:"skills" yaml:"skills"`
 }
 
 // DockerConfig contains Docker client configuration
@@ -245,6 +246,51 @@ type ProviderSpecificOverride struct {
 	APIKey     string
 }
 
+// SkillsConfig contains skills system configuration
+type SkillsConfig struct {
+	Enabled           bool              `json:"enabled" yaml:"enabled"`
+	StoragePath       string            `json:"storage_path" yaml:"storage_path"`             // Base path for skill files
+	MaxSkillsPerOwner int               `json:"max_skills_per_owner" yaml:"max_skills_per_owner"` // Max skills per user/group
+	AutoLoad          bool              `json:"auto_load" yaml:"auto_load"`                     // Auto-load skills from directories
+	LoadConfig        SkillsLoadConfig  `json:"load_config" yaml:"load_config"`                 // Load configuration
+	GitHubConfig      SkillsGitHubConfig `json:"github_config" yaml:"github_config"`           // GitHub configuration
+	Retention         SkillsRetention   `json:"retention" yaml:"retention"`                     // Retention policy
+}
+
+// SkillsLoadConfig contains configuration for skill loading
+type SkillsLoadConfig struct {
+	Enabled              bool          `json:"enabled" yaml:"enabled"`
+	SkillPaths           []string      `json:"skill_paths" yaml:"skill_paths"`                   // Paths to scan for skills
+	Recursive            bool          `json:"recursive" yaml:"recursive"`                       // Scan directories recursively
+	WatchChanges         bool          `json:"watch_changes" yaml:"watch_changes"`               // Watch for file changes
+	MaxLoadErrors        int           `json:"max_load_errors" yaml:"max_load_errors"`           // Max errors before stopping
+	ExcludedPatterns     []string      `json:"excluded_patterns" yaml:"excluded_patterns"`       // File patterns to exclude
+	RequiredCapabilities []string      `json:"required_capabilities" yaml:"required_capabilities"` // Required capabilities
+	ReloadInterval       time.Duration `json:"reload_interval" yaml:"reload_interval"`            // Interval for reloading skills
+}
+
+// SkillsGitHubConfig contains configuration for GitHub skill installation
+type SkillsGitHubConfig struct {
+	Enabled        bool     `json:"enabled" yaml:"enabled"`
+	APIEndpoint    string   `json:"api_endpoint" yaml:"api_endpoint"`              // GitHub API endpoint
+	MaxRepoSkills  int      `json:"max_repo_skills" yaml:"max_repo_skills"`        // Max skills per repo
+	AllowedOrgs    []string `json:"allowed_orgs" yaml:"allowed_orgs"`              // Allowed GitHub organizations
+	AllowedRepos   []string `json:"allowed_repos" yaml:"allowed_repos"`            // Allowed repositories (format: owner/repo)
+	Token          string   `json:"token,omitempty" yaml:"token,omitempty"`        // GitHub auth token (from env)
+	AutoUpdate     bool     `json:"auto_update" yaml:"auto_update"`                // Auto-update skills from GitHub
+	UpdateInterval time.Duration `json:"update_interval" yaml:"update_interval"`   // Update check interval
+}
+
+// SkillsRetention contains retention policy for skills
+type SkillsRetention struct {
+	Enabled          bool          `json:"enabled" yaml:"enabled"`
+	MaxAge           time.Duration `json:"max_age" yaml:"max_age"`                     // Maximum age before cleanup
+	UnusedMaxAge     time.Duration `json:"unused_max_age" yaml:"unused_max_age"`       // Time unused before cleanup
+	ErrorMaxAge      time.Duration `json:"error_max_age" yaml:"error_max_age"`         // Time in error state before cleanup
+	MinLoadCount     int           `json:"min_load_count" yaml:"min_load_count"`       // Minimum loads to keep
+	PreserveVerified bool          `json:"preserve_verified" yaml:"preserve_verified"` // Don't delete verified skills
+}
+
 // applyDefaults fills in zero-valued NEW config fields with their defaults
 // This is called after loading from YAML to ensure partial configs have sensible defaults
 // for newly added fields (Runtime, Memory, GRPC) that might not be in older YAML files.
@@ -384,6 +430,37 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.Provider.OpenAI.Priority == 0 {
 		cfg.Provider.OpenAI.Priority = defaultProvider.OpenAI.Priority
+	}
+
+	// Skills defaults - NEW field, may not exist in older YAML files
+	// Apply field-by-field to handle partial configs
+	defaultSkills := DefaultSkillsConfig()
+	if cfg.Skills.StoragePath == "" {
+		cfg.Skills.StoragePath = defaultSkills.StoragePath
+	}
+	if cfg.Skills.MaxSkillsPerOwner == 0 {
+		cfg.Skills.MaxSkillsPerOwner = defaultSkills.MaxSkillsPerOwner
+	}
+	if cfg.Skills.LoadConfig.ReloadInterval == 0 {
+		cfg.Skills.LoadConfig.ReloadInterval = defaultSkills.LoadConfig.ReloadInterval
+	}
+	if cfg.Skills.LoadConfig.MaxLoadErrors == 0 {
+		cfg.Skills.LoadConfig.MaxLoadErrors = defaultSkills.LoadConfig.MaxLoadErrors
+	}
+	if cfg.Skills.GitHubConfig.MaxRepoSkills == 0 {
+		cfg.Skills.GitHubConfig.MaxRepoSkills = defaultSkills.GitHubConfig.MaxRepoSkills
+	}
+	if cfg.Skills.GitHubConfig.UpdateInterval == 0 {
+		cfg.Skills.GitHubConfig.UpdateInterval = defaultSkills.GitHubConfig.UpdateInterval
+	}
+	if cfg.Skills.Retention.MaxAge == 0 {
+		cfg.Skills.Retention.MaxAge = defaultSkills.Retention.MaxAge
+	}
+	if cfg.Skills.Retention.UnusedMaxAge == 0 {
+		cfg.Skills.Retention.UnusedMaxAge = defaultSkills.Retention.UnusedMaxAge
+	}
+	if cfg.Skills.Retention.ErrorMaxAge == 0 {
+		cfg.Skills.Retention.ErrorMaxAge = defaultSkills.Retention.ErrorMaxAge
 	}
 }
 
@@ -651,6 +728,7 @@ func Load() (*Config, error) {
 			GRPC:         DefaultGRPCConfig(),
 			LLM:          DefaultLLMConfig(),
 			Provider:     DefaultProviderConfig(),
+			Skills:       DefaultSkillsConfig(),
 		}
 	}
 
@@ -897,6 +975,38 @@ func (c *Config) Validate() error {
 			return types.NewError(types.ErrCodeInvalidArgument, "provider circuit breaker timeout must be positive")
 		}
 	}
+
+	// Validate Skills configuration
+	if c.Skills.Enabled {
+		if c.Skills.StoragePath == "" {
+			return types.NewError(types.ErrCodeInvalidArgument, "skills storage path cannot be empty when skills is enabled")
+		}
+		if c.Skills.MaxSkillsPerOwner < 0 {
+			return types.NewError(types.ErrCodeInvalidArgument, "skills max skills per owner cannot be negative")
+		}
+		if c.Skills.LoadConfig.Enabled {
+			if c.Skills.LoadConfig.MaxLoadErrors < 0 {
+				return types.NewError(types.ErrCodeInvalidArgument, "skills max load errors cannot be negative")
+			}
+			if c.Skills.LoadConfig.ReloadInterval <= 0 {
+				return types.NewError(types.ErrCodeInvalidArgument, "skills reload interval must be positive when load config is enabled")
+			}
+		}
+		if c.Skills.GitHubConfig.Enabled {
+			if c.Skills.GitHubConfig.MaxRepoSkills < 0 {
+				return types.NewError(types.ErrCodeInvalidArgument, "skills github max repo skills cannot be negative")
+			}
+			if c.Skills.GitHubConfig.AutoUpdate && c.Skills.GitHubConfig.UpdateInterval <= 0 {
+				return types.NewError(types.ErrCodeInvalidArgument, "skills github update interval must be positive when auto update is enabled")
+			}
+		}
+		if c.Skills.Retention.Enabled {
+			if c.Skills.Retention.MinLoadCount < 0 {
+				return types.NewError(types.ErrCodeInvalidArgument, "skills retention min load count cannot be negative")
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -917,7 +1027,7 @@ func (c *Config) ProfilingAddress() string {
 
 // String returns a string representation of the configuration (sensitive data is hidden)
 func (c *Config) String() string {
-	return fmt.Sprintf("Config{Docker: %s, API: %s, Logging: %s, Session: %s, Event: %s, IPC: %s, Scheduler: %s, Credentials: %s, Policy: %s, Metrics: %s, Tracing: %s, Orchestrator: %s, Runtime: %s, Memory: %s, GRPC: %s, LLM: %s, Provider: %s}",
+	return fmt.Sprintf("Config{Docker: %s, API: %s, Logging: %s, Session: %s, Event: %s, IPC: %s, Scheduler: %s, Credentials: %s, Policy: %s, Metrics: %s, Tracing: %s, Orchestrator: %s, Runtime: %s, Memory: %s, GRPC: %s, LLM: %s, Provider: %s, Skills: %s}",
 		c.Docker.String(),
 		c.APIServer.String(),
 		c.Logging.String(),
@@ -935,6 +1045,7 @@ func (c *Config) String() string {
 		c.GRPC.String(),
 		c.LLM.String(),
 		c.Provider.String(),
+		c.Skills.String(),
 	)
 }
 
@@ -1098,4 +1209,24 @@ func (c LLMConfig) String() string {
 func (c ProviderConfig) String() string {
 	return fmt.Sprintf("ProviderConfig{DefaultProvider: %s, FailoverEnabled: %v, Anthropic: {Enabled: %v, Priority: %d}, OpenAI: {Enabled: %v, Priority: %d}}",
 		c.DefaultProvider, c.FailoverEnabled, c.Anthropic.Enabled, c.Anthropic.Priority, c.OpenAI.Enabled, c.OpenAI.Priority)
+}
+
+func (c SkillsConfig) String() string {
+	return fmt.Sprintf("SkillsConfig{Enabled: %v, StoragePath: %s, AutoLoad: %v, MaxSkillsPerOwner: %d}",
+		c.Enabled, c.StoragePath, c.AutoLoad, c.MaxSkillsPerOwner)
+}
+
+func (c SkillsLoadConfig) String() string {
+	return fmt.Sprintf("SkillsLoadConfig{Enabled: %v, Recursive: %v, WatchChanges: %v, MaxLoadErrors: %d}",
+		c.Enabled, c.Recursive, c.WatchChanges, c.MaxLoadErrors)
+}
+
+func (c SkillsGitHubConfig) String() string {
+	return fmt.Sprintf("SkillsGitHubConfig{Enabled: %v, AutoUpdate: %v, MaxRepoSkills: %d}",
+		c.Enabled, c.AutoUpdate, c.MaxRepoSkills)
+}
+
+func (c SkillsRetention) String() string {
+	return fmt.Sprintf("SkillsRetention{Enabled: %v, MaxAge: %s, PreserveVerified: %v}",
+		c.Enabled, c.MaxAge, c.PreserveVerified)
 }

@@ -101,6 +101,11 @@ const (
 	EnvOpenAITimeout      = "OPENAI_TIMEOUT"
 	EnvOpenAIMaxRetries   = "OPENAI_MAX_RETRIES"
 	EnvOpenAIEnabled      = "OPENAI_ENABLED"
+	EnvSkillsEnabled      = "SKILLS_ENABLED"
+	EnvSkillsStoragePath  = "SKILLS_STORAGE_PATH"
+	EnvSkillsAutoLoad     = "SKILLS_AUTO_LOAD"
+	EnvSkillsMaxPerOwner  = "SKILLS_MAX_PER_OWNER"
+	EnvSkillsGitHubToken  = "SKILLS_GITHUB_TOKEN"
 )
 
 const (
@@ -189,6 +194,20 @@ const (
 	DefaultOpenAIMaxRetries   = 3
 	DefaultOpenAIEnabled      = true
 	DefaultOpenAIPriority     = 20
+
+	// Default Skills settings
+	DefaultSkillsEnabled      = true
+	DefaultSkillsMaxPerOwner  = 100
+	DefaultSkillsAutoLoad     = true
+	DefaultSkillsMaxLoadErrors = 10
+	DefaultSkillsReloadInterval = 5 * time.Minute
+	DefaultSkillsGitHubAPIEndpoint = "https://api.github.com"
+	DefaultSkillsGitHubMaxRepoSkills = 50
+	DefaultSkillsGitHubUpdateInterval = 24 * time.Hour
+	DefaultSkillsRetentionMaxAge = 90 * 24 * time.Hour // 90 days
+	DefaultSkillsRetentionUnusedMaxAge = 30 * 24 * time.Hour // 30 days
+	DefaultSkillsRetentionErrorMaxAge = 7 * 24 * time.Hour // 7 days
+	DefaultSkillsRetentionMinLoadCount = 0
 )
 
 // DefaultDockerConfig returns the default Docker configuration
@@ -448,6 +467,47 @@ func DefaultLLMConfig() LLMConfig {
 		FallbackChains: map[string][]string{
 			"anthropic/*": {"openai"},
 			"openai/*":    {"anthropic"},
+		},
+	}
+}
+
+// DefaultSkillsConfig returns the default skills configuration
+func DefaultSkillsConfig() SkillsConfig {
+	storagePath := "/var/lib/baaaht/skills" // fallback
+	if configDir, err := GetConfigDir(); err == nil {
+		storagePath = filepath.Join(configDir, "skills")
+	}
+	return SkillsConfig{
+		Enabled:           DefaultSkillsEnabled,
+		StoragePath:       storagePath,
+		MaxSkillsPerOwner: DefaultSkillsMaxPerOwner,
+		AutoLoad:          DefaultSkillsAutoLoad,
+		LoadConfig: SkillsLoadConfig{
+			Enabled:          DefaultSkillsAutoLoad,
+			SkillPaths:       []string{storagePath},
+			Recursive:        true,
+			WatchChanges:     false,
+			MaxLoadErrors:    DefaultSkillsMaxLoadErrors,
+			ExcludedPatterns: []string{".git", ".github", "node_modules", "vendor"},
+			ReloadInterval:   DefaultSkillsReloadInterval,
+		},
+		GitHubConfig: SkillsGitHubConfig{
+			Enabled:        false,
+			APIEndpoint:    DefaultSkillsGitHubAPIEndpoint,
+			MaxRepoSkills:  DefaultSkillsGitHubMaxRepoSkills,
+			AllowedOrgs:    []string{},
+			AllowedRepos:   []string{},
+			Token:          "", // Loaded from SKILLS_GITHUB_TOKEN environment variable
+			AutoUpdate:     false,
+			UpdateInterval: DefaultSkillsGitHubUpdateInterval,
+		},
+		Retention: SkillsRetention{
+			Enabled:          false,
+			MaxAge:           DefaultSkillsRetentionMaxAge,
+			UnusedMaxAge:     DefaultSkillsRetentionUnusedMaxAge,
+			ErrorMaxAge:      DefaultSkillsRetentionErrorMaxAge,
+			MinLoadCount:     DefaultSkillsRetentionMinLoadCount,
+			PreserveVerified: true,
 		},
 	}
 }
