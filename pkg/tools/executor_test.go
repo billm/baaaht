@@ -9,6 +9,7 @@ import (
 
 	"github.com/billm/baaaht/orchestrator/internal/logger"
 	"github.com/billm/baaaht/orchestrator/pkg/container"
+	"github.com/billm/baaaht/orchestrator/pkg/policy"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 
 	"github.com/stretchr/testify/assert"
@@ -715,4 +716,179 @@ func (m *executorMockTool) LastUsed() *time.Time {
 func (m *executorMockTool) Close() error {
 	m.closed = true
 	return nil
+}
+
+// TestExecutorSecurity tests policy enforcement for tool execution
+func TestExecutorSecurity(t *testing.T) {
+	log, err := logger.NewDefault()
+	require.NoError(t, err)
+
+	// Register a test tool factory
+	testToolFactory := func(def ToolDefinition) (Tool, error) {
+		return &executorMockTool{
+			name:       def.Name,
+			toolType:   ToolTypeFile,
+			definition: def,
+			enabled:    true,
+		}, nil
+	}
+
+	registry := NewRegistry(log)
+	err = registry.RegisterTool("test_read_file", testToolFactory)
+	require.NoError(t, err)
+
+	t.Run("set and get enforcer", func(t *testing.T) {
+		mockRuntime := &ExecutorMockRuntime{}
+		executor, err := NewExecutor(mockRuntime, registry, log)
+		require.NoError(t, err)
+
+		// Initially, enforcer should be nil
+		assert.Nil(t, executor.Enforcer())
+
+		// Create a policy enforcer
+		enforcer, err := policy.NewDefault(log)
+		require.NoError(t, err)
+
+		// Set the enforcer
+		executor.SetEnforcer(enforcer)
+
+		// Enforcer should now be set
+		assert.Same(t, enforcer, executor.Enforcer())
+	})
+
+	t.Run("tool execution passes with permissive policy", func(t *testing.T) {
+		mockRuntime := &ExecutorMockRuntime{
+			exitCode: 0,
+			output:   []byte("file contents"),
+		}
+
+		executor, err := NewExecutor(mockRuntime, registry, log)
+		require.NoError(t, err)
+
+		// Create a permissive policy enforcer
+		enforcer, err := policy.NewDefault(log)
+		require.NoError(t, err)
+
+		// Set to disabled mode to allow everything
+		defaultPolicy := policy.DefaultPolicy()
+		defaultPolicy.Mode = policy.EnforcementModeDisabled
+		err = enforcer.SetPolicy(context.Background(), defaultPolicy)
+		require.NoError(t, err)
+
+		executor.SetEnforcer(enforcer)
+
+		cfg := ExecutionConfig{
+			ToolName:    "test_read_file",
+			Parameters:  map[string]string{"path": "/tmp/test.txt"},
+			SessionID:   types.NewID("session-123"),
+			Timeout:     5 * time.Second,
+			AutoCleanup: false,
+		}
+
+		result, err := executor.Execute(context.Background(), cfg)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, ToolExecutionStatusCompleted, result.Status)
+		assert.True(t, mockRuntime.createCalled)
+	})
+
+	t.Run("tool execution blocked by strict policy", func(t *testing.T) {
+		mockRuntime := &ExecutorMockRuntime{
+			exitCode: 0,
+			output:   []byte("file contents"),
+		}
+
+		executor, err := NewExecutor(mockRuntime, registry, log)
+		require.NoError(t, err)
+
+		// Create a strict policy enforcer that denies bind mounts
+		enforcer, err := policy.NewDefault(log)
+		require.NoError(t, err)
+
+		// Create a restrictive policy
+		strictPolicy := policy.DefaultPolicy()
+		strictPolicy.Mode = policy.EnforcementModeStrict
+		strictPolicy.Mounts.AllowBindMounts = false // No bind mounts allowed
+		err = enforcer.SetPolicy(context.Background(), strictPolicy)
+		require.NoError(t, err)
+
+		executor.SetEnforcer(enforcer)
+
+		cfg := ExecutionConfig{
+			ToolName:    "test_read_file",
+			Parameters:  map[string]string{"path": "/tmp/test.txt"},
+			SessionID:   types.NewID("session-456"),
+			Timeout:     5 * time.Second,
+			AutoCleanup: false,
+		}
+
+		result, err := executor.Execute(context.Background(), cfg)
+
+		// Execution should fail due to policy violation
+		assert.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "violates policy")
+		// Container should not be created when policy fails
+		assert.False(t, mockRuntime.createCalled)
+	})
+
+	t.Run("tool execution with policy enforcement", func(t *testing.T) {
+		mockRuntime := &ExecutorMockRuntime{
+			exitCode: 0,
+			output:   []byte("file contents"),
+		}
+
+		executor, err := NewExecutor(mockRuntime, registry, log)
+		require.NoError(t, err)
+
+		// Create a policy enforcer with resource quotas
+		enforcer, err := policy.NewDefault(log)
+		require.NoError(t, err)
+
+		// Set policy with CPU/memory limits
+		quotaPolicy := policy.DefaultPolicy()
+		quotaPolicy.Mode = policy.EnforcementModePermissive // Warnings only, but enforcement applies
+		maxCPUs := int64(1000000000)                        // 1 CPU
+		quotaPolicy.Quotas.MaxCPUs = &maxCPUs
+		maxMemory := int64(512 * 1024 * 1024) // 512 MB
+		quotaPolicy.Quotas.MaxMemory = &maxMemory
+		err = enforcer.SetPolicy(context.Background(), quotaPolicy)
+		require.NoError(t, err)
+
+		executor.SetEnforcer(enforcer)
+
+		cfg := ExecutionConfig{
+			ToolName:    "test_read_file",
+			Parameters:  map[string]string{"path": "/tmp/test.txt"},
+			SessionID:   types.NewID("session-789"),
+			Timeout:     5 * time.Second,
+			AutoCleanup: false,
+		}
+
+		result, err := executor.Execute(context.Background(), cfg)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, ToolExecutionStatusCompleted, result.Status)
+		assert.True(t, mockRuntime.createCalled)
+	})
+
+	t.Run("string output includes enforcer status", func(t *testing.T) {
+		mockRuntime := &ExecutorMockRuntime{}
+		executor, err := NewExecutor(mockRuntime, registry, log)
+		require.NoError(t, err)
+
+		// Without enforcer
+		s := executor.String()
+		assert.Contains(t, s, "Enforcer: none")
+
+		// With enforcer
+		enforcer, err := policy.NewDefault(log)
+		require.NoError(t, err)
+		executor.SetEnforcer(enforcer)
+
+		s = executor.String()
+		assert.Contains(t, s, "Enforcer: enabled")
+	})
 }

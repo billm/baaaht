@@ -10,6 +10,7 @@ import (
 
 	"github.com/billm/baaaht/orchestrator/internal/logger"
 	"github.com/billm/baaaht/orchestrator/pkg/container"
+	"github.com/billm/baaaht/orchestrator/pkg/policy"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 )
 
@@ -26,6 +27,7 @@ type ExecutionConfig struct {
 type Executor struct {
 	runtime  container.Runtime
 	registry *Registry
+	enforcer *policy.Enforcer
 	logger   *logger.Logger
 	mu       sync.RWMutex
 }
@@ -211,6 +213,69 @@ func (e *Executor) createToolContainer(ctx context.Context, toolName string, par
 	// Apply network mode based on security policy
 	if !definition.SecurityPolicy.AllowNetwork {
 		config.NetworkMode = "none"
+	}
+
+	// Validate against policy if enforcer is set
+	if e.enforcer != nil {
+		result, err := e.enforcer.ValidateContainerConfig(ctx, sessionID, config)
+		if err != nil {
+			e.logger.Warn("Policy validation failed", "error", err)
+			return "", types.WrapError(types.ErrCodeInternal, "policy validation error", err)
+		}
+
+		// Log any warnings (non-violation issues)
+		for _, warning := range result.Warnings {
+			e.logger.Warn("Policy validation warning",
+				"rule", warning.Rule,
+				"message", warning.Message,
+				"component", warning.Component)
+		}
+
+		// Log violations (these may or may not be fatal depending on mode)
+		for _, violation := range result.Violations {
+			if violation.Severity == string(policy.SeverityError) {
+				e.logger.Warn("Policy violation detected",
+					"rule", violation.Rule,
+					"message", violation.Message,
+					"component", violation.Component)
+			} else {
+				e.logger.Info("Policy validation notice",
+					"rule", violation.Rule,
+					"message", violation.Message,
+					"component", violation.Component)
+			}
+		}
+
+		// If not allowed, return error
+		if !result.Allowed {
+			// Build a concise summary of top violations for easier remediation
+			const maxViolationsInError = 3
+			var parts []string
+			for i, v := range result.Violations {
+				if i >= maxViolationsInError {
+					break
+				}
+				// Format: "rule (component): message"
+				part := fmt.Sprintf("%s (%s): %s", v.Rule, v.Component, v.Message)
+				parts = append(parts, part)
+			}
+			message := "tool container configuration violates policy"
+			if len(parts) > 0 {
+				detail := strings.Join(parts, "; ")
+				if len(result.Violations) > maxViolationsInError {
+					detail = detail + fmt.Sprintf(" (and %d more violation(s))", len(result.Violations)-maxViolationsInError)
+				}
+				message = message + ": " + detail
+			}
+			return "", types.NewError(types.ErrCodePermission, message)
+		}
+
+		// Enforce policy defaults and constraints
+		config, err = e.enforcer.EnforceContainerConfig(ctx, sessionID, config)
+		if err != nil {
+			e.logger.Warn("Policy enforcement failed", "error", err)
+			return "", types.WrapError(types.ErrCodeInternal, "policy enforcement error", err)
+		}
 	}
 
 	// Create the container
@@ -420,5 +485,24 @@ func (e *Executor) String() string {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
-	return fmt.Sprintf("Executor{Runtime: %s, Registry: %v}", e.runtime.Type(), e.registry)
+	enforcerStatus := "none"
+	if e.enforcer != nil {
+		enforcerStatus = "enabled"
+	}
+
+	return fmt.Sprintf("Executor{Runtime: %s, Registry: %v, Enforcer: %s}", e.runtime.Type(), e.registry, enforcerStatus)
+}
+
+// SetEnforcer sets the policy enforcer for the executor
+func (e *Executor) SetEnforcer(enforcer *policy.Enforcer) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.enforcer = enforcer
+}
+
+// Enforcer returns the current policy enforcer
+func (e *Executor) Enforcer() *policy.Enforcer {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.enforcer
 }
