@@ -2,6 +2,7 @@ package tui
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/billm/baaaht/orchestrator/pkg/tui/components"
 )
 
 // Model represents the main TUI application state.
@@ -15,11 +16,14 @@ type Model struct {
 	quitting bool
 	err      error
 
-	// Components will be added in subsequent subtasks:
-	// - status bar for connection state
-	// - chat viewport for messages
-	// - text input for user input
-	// - session list for navigation
+	// UI Components
+	status components.StatusModel
+	chat   components.ChatModel
+	input  components.InputModel
+
+	// Layout
+	width  int
+	height int
 
 	// gRPC client will be added in phase-3-grpc
 	// client *OrchestratorClient
@@ -32,6 +36,11 @@ func NewModel(socketPath string, verbose bool) Model {
 		verbose:    verbose,
 		quitting:   false,
 		err:        nil,
+		status:     components.NewStatusModel(),
+		chat:       components.NewChatModel(),
+		input:      components.NewInputModel(),
+		width:      0,
+		height:     0,
 	}
 }
 
@@ -39,10 +48,6 @@ func NewModel(socketPath string, verbose bool) Model {
 // This is called once when the program starts.
 // Part of the tea.Model interface.
 func (m Model) Init() tea.Cmd {
-	// Initial commands will be added in subsequent subtasks:
-	// - Connect to gRPC server (phase-3-grpc)
-	// - Create initial session (phase-5-session)
-	// - Start health check ticker (phase-3-grpc)
-
-	return nil
+	// Initialize the input component's cursor blink
+	return m.input.Init
 }

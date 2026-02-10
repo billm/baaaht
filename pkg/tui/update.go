@@ -2,6 +2,7 @@ package tui
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/billm/baaaht/orchestrator/pkg/tui/components"
 )
 
 // Update handles incoming messages and updates the model state.
@@ -12,6 +13,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if m.quitting {
 		return m, tea.Quit
 	}
+
+	var cmd tea.Cmd
+
+	// Update all components with the message
+	m.status, _ = m.status.Update(msg)
+	m.chat, cmd = m.chat.Update(msg)
+	m.input, cmd = tea.Sequence(cmd, m.input.Update(msg))
 
 	switch msg := msg.(type) {
 	// Handle key presses
@@ -27,14 +35,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.err = msg
 		return m, tea.Quit
 
-	// Additional message types will be added in subsequent subtasks:
+	// Handle input submission
+	case components.InputSubmitMsg:
+		// For now, just add user message to chat
+		// In phase-6-streaming, this will be sent to the gRPC server
+		m.chat.AppendMessage(components.MessageTypeUser, msg.Text)
+		m.input.Reset()
+		return m, nil
+
+	// Handle component-specific messages for passthrough
+	// These will be expanded in subsequent subtasks:
 	// - gRPC connection status messages (phase-3-grpc)
 	// - Session messages (phase-5-session)
 	// - Streaming response messages (phase-6-streaming)
 	// - Health check tick messages (phase-3-grpc)
 	}
 
-	return m, nil
+	return m, cmd
 }
 
 // handleKeyMsg handles keyboard input.
@@ -58,9 +75,24 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // handleWindowSize handles terminal resize events.
 func (m Model) handleWindowSize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
-	// Layout adjustments will be added in subtask-4-4 when components are integrated
-	// For now, just store the width/height if needed
-	_ = msg.Width
-	_ = msg.Height
+	m.width = msg.Width
+	m.height = msg.Height
+
+	// Status bar uses full width
+	m.status, _ = m.status.Update(msg)
+
+	// Calculate available height for chat (header + status + input = 4 lines)
+	chatHeight := m.height - 4
+	if chatHeight < 1 {
+		chatHeight = 1
+	}
+
+	// Update chat viewport with proper dimensions
+	chatMsg := tea.WindowSizeMsg{Width: m.width, Height: chatHeight}
+	m.chat, _ = m.chat.Update(chatMsg)
+
+	// Input uses full width
+	m.input, _ = m.input.Update(tea.WindowSizeMsg{Width: m.width, Height: 1})
+
 	return m, nil
 }

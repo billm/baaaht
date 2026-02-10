@@ -16,23 +16,25 @@ func (m Model) View() string {
 	}
 
 	// Build the main view
-	// This will be expanded in subsequent subtasks to include:
-	// - Status bar (subtask-4-1)
-	// - Chat viewport (subtask-4-3)
-	// - Input field (subtask-4-2)
-	// - Session list overlay (subtask-5-2)
-
 	var b strings.Builder
 
 	// Header
 	b.WriteString(m.headerView())
 	b.WriteString("\n")
 
-	// Main content area
-	b.WriteString(m.contentView())
+	// Status bar
+	b.WriteString(m.status.View())
 	b.WriteString("\n")
 
-	// Footer
+	// Chat viewport (main content area)
+	b.WriteString(m.chatView())
+	b.WriteString("\n")
+
+	// Input field
+	b.WriteString(m.input.View())
+	b.WriteString("\n")
+
+	// Footer with help text
 	b.WriteString(m.footerView())
 
 	return b.String()
@@ -40,38 +42,49 @@ func (m Model) View() string {
 
 // headerView renders the header section.
 func (m Model) headerView() string {
-	title := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("86")). // Purple
-		Render("Baaaht TUI v0.1.0")
+	title := Styles.HeaderText.Render("Baaaht TUI")
+	version := Styles.HeaderVersion.Render("v0.1.0")
 
-	return title
+	return lipgloss.JoinHorizontal(lipgloss.Top, title, " ", version)
 }
 
-// contentView renders the main content area.
-// Will be expanded in subtask-4-4 to include chat viewport.
-func (m Model) contentView() string {
-	// Placeholder content until components are integrated
-	return lipgloss.NewStyle().
-		Faint(true).
-		Render("Initializing TUI components...")
+// chatView renders the chat viewport component.
+func (m Model) chatView() string {
+	// Calculate chat height (total height - header - status - input - footer)
+	chatHeight := m.height - 4
+	if chatHeight < 1 {
+		chatHeight = 1
+	}
+
+	// Set the chat viewport height before rendering
+	if m.height > 0 {
+		m.chat.height = chatHeight
+	}
+
+	return m.chat.View()
 }
 
 // footerView renders the footer with help text.
 func (m Model) footerView() string {
-	helpText := "Press 'q', Ctrl+C, or Ctrl+D to quit"
+	keymap := DefaultKeyMap()
+	entries := keymap.ShortHelp()
 
-	return lipgloss.NewStyle().
-		Faint(true).
-		Render(helpText)
+	var parts []string
+	for _, entry := range entries {
+		key := entry.Key
+		desc := entry.Desc
+		parts = append(parts, entry.Style.Render(key+" "+desc))
+	}
+
+	helpText := lipgloss.JoinHorizontal(lipgloss.Top, parts...)
+	return Styles.FooterText.Width(m.width).Render(helpText)
 }
 
 // errorView renders the error state.
 func (m Model) errorView() string {
-	errorStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("196")). // Red
-		Render("Error: " + m.err.Error())
+	title := Styles.ErrorTitle.Render("Error")
+	message := Styles.ErrorText.Render(m.err.Error())
 
-	return errorStyle
+	content := lipgloss.JoinVertical(lipgloss.Left, title, "", message)
+	return Styles.ErrorBorder.Width(m.width).Render(content)
 }
