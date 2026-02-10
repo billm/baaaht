@@ -3,6 +3,9 @@ package worker
 import (
 	"context"
 	"fmt"
+	"os"
+	"runtime"
+	"strconv"
 	"sync"
 	"time"
 
@@ -12,6 +15,7 @@ import (
 
 	"github.com/billm/baaaht/orchestrator/internal/logger"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
+	"github.com/billm/baaaht/orchestrator/proto"
 )
 
 const (
@@ -48,6 +52,12 @@ type Agent struct {
 	reconnectCancel       context.CancelFunc
 	reconnectCloseCh      chan struct{}
 	reconnectWg           sync.WaitGroup
+
+	// Registration fields
+	agentID             string
+	registrationToken   string
+	name                string
+	registered          bool
 }
 
 // AgentStats represents agent statistics
@@ -461,4 +471,129 @@ func (a *Agent) ResetConnection(ctx context.Context) error {
 
 	// Re-establish connection
 	return a.Dial(ctx)
+}
+
+// =============================================================================
+// Agent Registration
+// =============================================================================
+
+// Register registers the worker agent with the orchestrator
+func (a *Agent) Register(ctx context.Context, name string) error {
+	a.mu.Lock()
+	if a.registered {
+		a.mu.Unlock()
+		return types.NewError(types.ErrCodeInvalid, "agent already registered")
+	}
+	a.mu.Unlock()
+
+	a.logger.Info("Registering agent", "name", name)
+
+	// Create RPC client
+	client := proto.NewAgentServiceClient(a.conn)
+
+	// Create RPC context with timeout
+	rpcCtx, cancel := context.WithTimeout(ctx, a.rpcTimeout)
+	defer cancel()
+
+	// Get hostname
+	hostname, err := os.Hostname()
+	if err != nil {
+		a.logger.Warn("Failed to get hostname", "error", err)
+		hostname = "unknown"
+	}
+
+	// Get PID
+	pid := strconv.Itoa(os.Getpid())
+
+	// Create metadata
+	metadata := &proto.AgentMetadata{
+		Version:     getWorkerVersion(),
+		Description: "Worker agent for containerized tool execution",
+		Labels: map[string]string{
+			"component": "worker",
+			"runtime":   runtime.GOOS + "/" + runtime.GOARCH,
+		},
+		Hostname: hostname,
+		Pid:      pid,
+	}
+
+	// Create capabilities
+	capabilities := &proto.AgentCapabilities{
+		SupportedTasks: []string{
+			"file_operation",
+			"network_request",
+			"tool_execution",
+		},
+		SupportedTools: []string{
+			"file_read",
+			"file_write",
+			"file_edit",
+			"grep",
+			"find",
+			"web_search",
+			"web_fetch",
+		},
+		MaxConcurrentTasks: 5,
+		ResourceLimits: &proto.ResourceLimits{
+			NanoCpus:    2000000000, // 2 CPUs
+			MemoryBytes: 2 * 1024 * 1024 * 1024, // 2GB
+		},
+		SupportsStreaming:    true,
+		SupportsCancellation: true,
+		SupportedProtocols:   []string{"grpc"},
+	}
+
+	// Create register request
+	req := &proto.RegisterRequest{
+		Name:         name,
+		Type:         proto.AgentType_AGENT_TYPE_WORKER,
+		Metadata:     metadata,
+		Capabilities: capabilities,
+	}
+
+	// Call Register RPC
+	a.stats.TotalRPCs++
+	resp, err := client.Register(rpcCtx, req)
+	if err != nil {
+		a.stats.FailedRPCs++
+		a.mu.Lock()
+		a.stats.LastRPCError = err.Error()
+		a.mu.Unlock()
+		a.logger.Error("Failed to register agent", "error", err)
+		return types.WrapError(types.ErrCodeUnavailable, "failed to register agent", err)
+	}
+
+	// Store registration info
+	a.mu.Lock()
+	a.agentID = resp.AgentId
+	a.registrationToken = resp.RegistrationToken
+	a.name = name
+	a.registered = true
+	a.mu.Unlock()
+
+	a.logger.Info("Agent registered successfully",
+		"agent_id", resp.AgentId,
+		"name", name)
+
+	return nil
+}
+
+// GetAgentID returns the agent ID
+func (a *Agent) GetAgentID() string {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.agentID
+}
+
+// IsRegistered returns true if the agent is registered
+func (a *Agent) IsRegistered() bool {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.registered
+}
+
+// getWorkerVersion returns the worker version from build info
+func getWorkerVersion() string {
+	// TODO: Get version from build info using ldflags
+	return "dev"
 }
