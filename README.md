@@ -50,6 +50,7 @@ This is a monorepo containing multiple baaaht tools. Each tool has its own direc
 │   ├── policy/                # Security policy enforcement
 │   ├── credentials/           # Credential storage and injection
 │   ├── scheduler/             # Task scheduling
+│   ├── worker/                # Worker agent for tool execution
 │   ├── orchestrator/          # Main orchestrator logic
 │   └── types/                 # Shared data types
 ├── internal/                  # Private packages
@@ -151,6 +152,33 @@ Key configuration options:
 - `session.timeout`: Session inactivity timeout (default: `30m`)
 - `policy.max_containers`: Maximum concurrent containers (default: `10`)
 - `policy.max_memory`: Maximum memory per container (default: `512MB`)
+
+## Worker Agent
+
+The worker is a specialized agent that executes tools in isolated containers. It connects to the orchestrator via gRPC and handles file operations, web requests, and other tasks with proper policy enforcement.
+
+For detailed documentation on the worker, see [docs/worker.md](docs/worker.md).
+
+### Key Features
+
+- **Tool Execution**: Execute tools in isolated containers with resource limits
+- **gRPC Communication**: Connect to orchestrator via Unix domain sockets
+- **Task Routing**: Route tasks to appropriate tool implementations
+- **Auto-Reconnection**: Automatically reconnect on connection loss
+- **Heartbeat**: Send periodic heartbeats to maintain connection health
+
+### Quick Start
+
+```bash
+# Build the worker
+go build -o bin/worker ./cmd/worker
+
+# Run with default settings
+./bin/worker
+
+# Run with custom orchestrator address
+./bin/worker --orchestrator-addr unix:///tmp/baaaht-grpc.sock
+```
 
 ## Container Runtime System
 
