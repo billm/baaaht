@@ -84,9 +84,12 @@ func NewAuditLogger(log *logger.Logger, auditPath string) (*AuditLogger, error) 
 
 	// Initialize audit file if path is provided
 	if auditPath != "" {
-		if err := al.initAuditFile(); err != nil {
+		al.mu.Lock()
+		if err := al.initAuditFileLocked(); err != nil {
+			al.mu.Unlock()
 			return nil, fmt.Errorf("failed to initialize audit file: %w", err)
 		}
+		al.mu.Unlock()
 	}
 
 	al.logger.Info("Audit logger initialized", "audit_path", auditPath)
@@ -99,10 +102,8 @@ func NewDefaultAuditLogger(log *logger.Logger) (*AuditLogger, error) {
 }
 
 // initAuditFile initializes the audit log file
-func (al *AuditLogger) initAuditFile() error {
-	al.mu.Lock()
-	defer al.mu.Unlock()
-
+// Note: This method does NOT acquire a lock. The caller must hold the appropriate lock.
+func (al *AuditLogger) initAuditFileLocked() error {
 	if al.auditPath == "" {
 		return nil
 	}
@@ -280,7 +281,7 @@ func (al *AuditLogger) SetAuditPath(path string) error {
 
 	// Initialize new file if path is not empty
 	if path != "" {
-		if err := al.initAuditFile(); err != nil {
+		if err := al.initAuditFileLocked(); err != nil {
 			return fmt.Errorf("failed to initialize new audit file: %w", err)
 		}
 	}
