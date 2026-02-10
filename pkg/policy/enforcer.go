@@ -13,12 +13,14 @@ import (
 
 // Enforcer enforces security policies on container configurations
 type Enforcer struct {
-	mu              sync.RWMutex
-	policy          *Policy
-	cfg             config.PolicyConfig
-	logger          *logger.Logger
-	closed          bool
-	sessionPolicies map[types.ID]*Policy // Session-specific policies
+	mu                    sync.RWMutex
+	policy                *Policy
+	cfg                   config.PolicyConfig
+	logger                *logger.Logger
+	closed                bool
+	sessionPolicies       map[types.ID]*Policy // Session-specific policies
+	mountAllowlistResolver *MountAllowlistResolver // Mount allowlist resolver
+	auditLogger           *AuditLogger // Audit logger for security events
 }
 
 // New creates a new policy enforcer
