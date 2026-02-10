@@ -296,12 +296,44 @@ export async function bootstrap(
       maxMissed: 3,
     });
 
-    // Step 3: Create agent dependencies
+    // Step 3: Register with orchestrator (creates gRPC client)
+    const registrationResult = await result.registry.register(
+      mergedConfig.registrationInfo,
+      mergedConfig.orchestratorConfig
+    );
+
+    result.agentId = registrationResult.agentId;
+
+    if (signal?.aborted) {
+      throw new BootstrapError(
+        'Bootstrap aborted by signal during registration',
+        'ABORTED',
+        'agent_register',
+        false
+      );
+    }
+
+    // Step 4: Get gRPC client from registry
+    const orchestratorClient = result.registry.getClient();
+    if (!orchestratorClient) {
+      throw new BootstrapError(
+        'Failed to get orchestrator client after registration',
+        'CLIENT_UNAVAILABLE',
+        'grpc_client',
+        false
+      );
+    }
+    const grpcClient = orchestratorClient.getRawClient();
+
+    // Step 5: Create agent dependencies
+    const eventEmitter = new EventEmitter();
     const dependencies: AgentDependencies = {
+      grpcClient,
       sessionManager: result.sessionManager,
+      eventEmitter,
     };
 
-    // Step 4: Create and initialize agent
+    // Step 6: Create and initialize agent
     result.agent = createAgent(mergedConfig.agentConfig, dependencies);
     await result.agent.initialize();
 
@@ -314,27 +346,19 @@ export async function bootstrap(
       );
     }
 
-    // Step 5: Register with orchestrator
-    const registrationResult = await result.registry.register(
-      mergedConfig.registrationInfo,
-      mergedConfig.orchestratorConfig
-    );
-
-    result.agentId = registrationResult.agentId;
-
-    // Step 6: Complete agent registration
+    // Step 7: Complete agent registration
     await result.agent.register(result.agentId);
 
     if (signal?.aborted) {
       throw new BootstrapError(
-        'Bootstrap aborted by signal during registration',
+        'Bootstrap aborted by signal during agent registration',
         'ABORTED',
-        'agent_register',
+        'agent_register_complete',
         false
       );
     }
 
-    // Step 7: Start heartbeat loop (if enabled)
+    // Step 8: Start heartbeat loop (if enabled)
     if (mergedConfig.startHeartbeat) {
       result.registry.startHeartbeat();
     }

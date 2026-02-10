@@ -54,6 +54,10 @@ import type {
 import { LLMGatewayClient } from './llm/gateway-client.js';
 import { SessionManager } from './session/manager.js';
 import { createDelegateToolDefinition } from './tools/delegate.js';
+import { WorkerDelegation } from './tools/worker-delegation.js';
+import { ResearcherDelegation } from './tools/researcher-delegation.js';
+import { CoderDelegation } from './tools/coder-delegation.js';
+import { DelegateTarget } from './tools/types.js';
 
 // =============================================================================
 // Default Configuration
@@ -887,12 +891,88 @@ export class Agent extends EventEmitter {
     sessionId: string,
     params: DelegateParams
   ): Promise<ToolResult> {
-    // For now, return a stub result
-    // This will be fully implemented when we integrate the delegation classes
-    return {
-      success: false,
-      error: `Delegation to ${params.target} for ${params.operation} not yet implemented`,
-    };
+    const startTime = Date.now();
+
+    this.emit(AgentEventType.DELEGATION_START, {
+      type: AgentEventType.DELEGATION_START,
+      timestamp: new Date(),
+      data: { messageId, sessionId, target: params.target, operation: params.operation },
+    });
+
+    try {
+      let result: ToolResult;
+
+      switch (params.target) {
+        case DelegateTarget.WORKER: {
+          const delegation = new WorkerDelegation(this.dependencies.grpcClient);
+          const delegateResult = await delegation.delegate(params, sessionId);
+          result = {
+            success: delegateResult.success,
+            data: delegateResult.data,
+            error: delegateResult.error,
+            output: delegateResult.output,
+            metadata: delegateResult.metadata,
+          };
+          break;
+        }
+        case DelegateTarget.RESEARCHER: {
+          const delegation = new ResearcherDelegation(this.dependencies.grpcClient);
+          const delegateResult = await delegation.delegate(params, sessionId);
+          result = {
+            success: delegateResult.success,
+            data: delegateResult.data,
+            error: delegateResult.error,
+            output: delegateResult.output,
+            metadata: delegateResult.metadata,
+          };
+          break;
+        }
+        case DelegateTarget.CODER: {
+          const delegation = new CoderDelegation(this.dependencies.grpcClient);
+          const delegateResult = await delegation.delegate(params, sessionId);
+          result = {
+            success: delegateResult.success,
+            data: delegateResult.data,
+            error: delegateResult.error,
+            output: delegateResult.output,
+            metadata: delegateResult.metadata,
+          };
+          break;
+        }
+        default:
+          throw createAgentError(
+            `Unknown delegate target: ${params.target}`,
+            AgentErrorCode.TOOL_NOT_AVAILABLE
+          );
+      }
+
+      const durationMs = Date.now() - startTime;
+
+      this.emit(AgentEventType.DELEGATION_COMPLETE, {
+        type: AgentEventType.DELEGATION_COMPLETE,
+        timestamp: new Date(),
+        data: { messageId, sessionId, target: params.target, durationMs, success: result.success },
+      });
+
+      return result;
+    } catch (err) {
+      const error = err as Error;
+      const durationMs = Date.now() - startTime;
+
+      this.emit(AgentEventType.DELEGATION_FAILED, {
+        type: AgentEventType.DELEGATION_FAILED,
+        timestamp: new Date(),
+        error,
+        data: { messageId, sessionId, target: params.target, durationMs },
+      });
+
+      throw createAgentError(
+        `Delegation failed: ${error.message}`,
+        AgentErrorCode.TOOL_EXECUTION_FAILED,
+        false,
+        { target: params.target, operation: params.operation }
+      );
+    }
   }
 
   /**

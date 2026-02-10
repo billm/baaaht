@@ -576,6 +576,11 @@ export enum AgentEventType {
   TOOL_CALL_COMPLETE = 'toolCallComplete',
   TOOL_CALL_FAILED = 'toolCallFailed',
 
+  // Delegation events
+  DELEGATION_START = 'delegation_start',
+  DELEGATION_COMPLETE = 'delegation_complete',
+  DELEGATION_FAILED = 'delegation_failed',
+
   // Session events
   SESSION_CREATED = 'sessionCreated',
   SESSION_ACTIVATED = 'sessionActivated',
