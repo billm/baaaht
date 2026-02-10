@@ -111,6 +111,9 @@ type SessionCreateFailedMsg struct {
 	Err error
 }
 
+// ConnectionRetryMsg is sent when a connection retry is attempted.
+type ConnectionRetryMsg struct{}
+
 // Streaming messages
 
 // StreamMsgReceivedMsg is sent when a streaming response message is received.
@@ -313,5 +316,54 @@ func (m Model) shutdownCmd() tea.Cmd {
 		}
 
 		return ShutdownCompleteMsg{}
+	}
+}
+
+// retryConnectionCmd returns a command that retries the connection.
+// It attempts to re-establish the connection and create a new session.
+func (m Model) retryConnectionCmd() tea.Cmd {
+	return func() tea.Msg {
+		// Signal that retry is starting
+		if m.logger != nil {
+			m.logger.Info("Retrying connection", "previous_session_id", m.sessionID)
+		}
+
+		// Re-dial if needed
+		if m.client != nil {
+			ctx := context.Background()
+			if err := m.client.Dial(ctx); err != nil {
+				if m.logger != nil {
+					m.logger.Warn("Retry dial failed", "error", err)
+				}
+				return SessionCreateFailedMsg{Err: err}
+			}
+		}
+
+		// Attempt to create a new session
+		if m.client == nil {
+			return SessionCreateFailedMsg{Err: logger.NewError("client not initialized")}
+		}
+
+		ctx := context.Background()
+		req := &proto.CreateSessionRequest{
+			Metadata: &proto.SessionMetadata{
+				Name:   "tui-session",
+				Labels: map[string]string{"client": "tui"},
+			},
+		}
+
+		resp, err := m.client.CreateSession(ctx, req)
+		if err != nil {
+			if m.logger != nil {
+				m.logger.Warn("Retry session creation failed", "error", err)
+			}
+			return SessionCreateFailedMsg{Err: err}
+		}
+
+		if m.logger != nil {
+			m.logger.Info("Retry connection successful", "session_id", resp.SessionId)
+		}
+
+		return SessionCreatedMsg{SessionID: resp.SessionId}
 	}
 }

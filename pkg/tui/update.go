@@ -50,13 +50,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.status, _ = m.status.Update(components.StatusSessionMsg{SessionID: msg.SessionID})
 		// Update status bar to connected state
 		m.status, _ = m.status.Update(components.StatusConnectedMsg{})
-		return m, nil
+		// Initialize stream for new session
+		return m, m.initStreamCmd()
 
 	// Handle session creation failure
 	case SessionCreateFailedMsg:
-		m.err = msg.Err
-		// Update status bar with error
+		// Connection errors are recoverable - don't set m.err
+		// Update status bar with error so user can see what happened
 		m.status, _ = m.status.Update(components.StatusErrorMsg{Err: msg.Err})
+		m.status, _ = m.status.Update(components.StatusDisconnectedMsg{})
 		return m, nil
 
 	// Handle stream initialization
@@ -84,9 +86,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Handle stream send failure
 	case StreamSendFailedMsg:
-		m.err = msg.Err
-		// Update status bar with error
+		// Stream errors are recoverable - don't set m.err
+		// Update status bar with error so user can see what happened
 		m.status, _ = m.status.Update(components.StatusErrorMsg{Err: msg.Err})
+		m.status, _ = m.status.Update(components.StatusDisconnectedMsg{})
 		return m, nil
 
 	// Handle shutdown complete
@@ -98,6 +101,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.err = msg.Err
 		// Log the error but still quit
 		return m, tea.Quit
+
+	// Handle connection retry (clear error state and allow retry)
+	case ConnectionRetryMsg:
+		// Connection retry is handled by the command itself
+		return m, nil
 
 	// Handle component-specific messages for passthrough
 	// These will be expanded in subsequent subtasks:
@@ -112,7 +120,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // handleKeyMsg handles keyboard input.
 func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	// Import components package for session commands
+	// Retry connection on ctrl+r when in error state
+	if m.keys.IsRetryConnectionKey(msg) {
+		if m.status.GetError() != nil {
+			// Clear error and retry connection
+			m.status, _ = m.status.Update(components.StatusErrorMsg{Err: nil})
+			m.status, _ = m.status.Update(components.StatusConnectingMsg{Reconnecting: true})
+			return m, m.retryConnectionCmd()
+		}
+	}
+
 	// Session navigation keys (phase-5-session)
 	if m.keys.IsNextSessionKey(msg) {
 		return m, components.SessionsSelectNextCmd()

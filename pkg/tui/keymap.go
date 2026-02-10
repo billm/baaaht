@@ -31,6 +31,9 @@ type KeyMap struct {
 
 	// Input keys
 	TextInput tea.Key // Focus text input
+
+	// Recovery keys
+	RetryConnection tea.Key // Retry connection after failure
 }
 
 // DefaultKeyMap returns the default keybindings for the TUI.
@@ -106,6 +109,12 @@ func DefaultKeyMap() KeyMap {
 			Alt:   "",
 			Runes: []rune{'i'},
 		},
+
+		RetryConnection: tea.Key{
+			Type:  tea.KeyRunes,
+			Alt:   "ctrl",
+			Runes: []rune{'r'},
+		},
 	}
 }
 
@@ -120,6 +129,7 @@ const (
 	keyCtrlN           = "ctrl+n"
 	keyCtrlP           = "ctrl+p"
 	keyCtrlL           = "ctrl+l"
+	keyCtrlR           = "ctrl+r"
 	keyEsc             = "esc"
 	keyUp              = "↑"
 	keyDown            = "↓"
@@ -153,6 +163,7 @@ func (k KeyMap) HelpEntries() []HelpEntry {
 func (k KeyMap) ShortHelp() []HelpEntry {
 	return []HelpEntry{
 		{Key: keyCtrlEnter, Desc: "Send", Style: Styles.HelpKey},
+		{Key: keyCtrlR, Desc: "Retry", Style: Styles.HelpKey},
 		{Key: keyCtrlL, Desc: "Sessions", Style: Styles.HelpKey},
 		{Key: keyQuit, Desc: "Quit", Style: Styles.HelpKey},
 	}
@@ -197,4 +208,9 @@ func (k KeyMap) IsPreviousSessionKey(msg tea.KeyMsg) bool {
 // IsListSessionsKey checks if the given key is the list sessions keybinding.
 func (k KeyMap) IsListSessionsKey(msg tea.KeyMsg) bool {
 	return msg.Type == tea.KeyCtrlL
+}
+
+// IsRetryConnectionKey checks if the given key is the retry connection keybinding.
+func (k KeyMap) IsRetryConnectionKey(msg tea.KeyMsg) bool {
+	return msg.Type == tea.KeyRunes && msg.Alt == "ctrl" && len(msg.Runes) == 1 && msg.Runes[0] == 'r'
 }
