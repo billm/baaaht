@@ -45,7 +45,14 @@ func TestNewDefaultOrganizer(t *testing.T) {
 	log, err := logger.NewDefault()
 	require.NoError(t, err)
 
-	store, err := NewDefaultStore(log)
+	tmpDir := t.TempDir()
+	cfg := config.MemoryConfig{
+		Enabled:         true,
+		StoragePath:     tmpDir,
+		UserMemoryPath:  filepath.Join(tmpDir, "users"),
+		GroupMemoryPath: filepath.Join(tmpDir, "groups"),
+	}
+	store, err := NewStore(cfg, log)
 	require.NoError(t, err)
 	defer store.Close()
 
@@ -1012,13 +1019,13 @@ func TestOrganizeAllMemoriesWithEmptyTopic(t *testing.T) {
 
 func TestOrganizeStats(t *testing.T) {
 	stats := OrganizeStats{
-		Scope:         types.MemoryScopeUser,
-		OwnerID:       "user123",
-		TotalCount:    10,
+		Scope:          types.MemoryScopeUser,
+		OwnerID:        "user123",
+		TotalCount:     10,
 		OrganizedCount: 7,
-		SkippedCount:  2,
-		FailedCount:   1,
-		Errors:        []string{"memory 123: file not found"},
+		SkippedCount:   2,
+		FailedCount:    1,
+		Errors:         []string{"memory 123: file not found"},
 	}
 
 	assert.Equal(t, types.MemoryScopeUser, stats.Scope)

@@ -53,7 +53,18 @@ func TestNewDefaultStore(t *testing.T) {
 	log, err := logger.NewDefault()
 	require.NoError(t, err)
 
-	store, err := NewDefaultStore(log)
+	// Use explicit config with temp dir to avoid writing to real data directory
+	tempDir := t.TempDir()
+	cfg := config.MemoryConfig{
+		StoragePath:     tempDir,
+		UserMemoryPath:  filepath.Join(tempDir, "users"),
+		GroupMemoryPath: filepath.Join(tempDir, "groups"),
+		Enabled:         true,
+		MaxFileSize:     100,
+		FileFormat:      "markdown",
+	}
+
+	store, err := NewStore(cfg, log)
 	require.NoError(t, err)
 	require.NotNil(t, store)
 
@@ -83,12 +94,12 @@ func TestStoreMemory(t *testing.T) {
 	ctx := context.Background()
 
 	mem := &types.Memory{
-		Type:      types.MemoryTypeFact,
-		Scope:     types.MemoryScopeUser,
-		OwnerID:   "user123",
-		Topic:     "preferences",
-		Title:     "User Prefers Dark Mode",
-		Content:   "The user prefers dark mode in their applications.",
+		Type:    types.MemoryTypeFact,
+		Scope:   types.MemoryScopeUser,
+		OwnerID: "user123",
+		Topic:   "preferences",
+		Title:   "User Prefers Dark Mode",
+		Content: "The user prefers dark mode in their applications.",
 		Metadata: types.MemoryMetadata{
 			Labels:     map[string]string{"category": "ui"},
 			Tags:       []string{"ui", "preferences"},
@@ -402,12 +413,12 @@ func TestListMemories(t *testing.T) {
 
 	// Store memories with different properties
 	mem1 := &types.Memory{
-		Type:      types.MemoryTypeFact,
-		Scope:     types.MemoryScopeUser,
-		OwnerID:   "user1",
-		Topic:     "preferences",
-		Title:     "Memory 1",
-		Content:   "Content 1",
+		Type:    types.MemoryTypeFact,
+		Scope:   types.MemoryScopeUser,
+		OwnerID: "user1",
+		Topic:   "preferences",
+		Title:   "Memory 1",
+		Content: "Content 1",
 		Metadata: types.MemoryMetadata{
 			Labels:     map[string]string{"category": "ui"},
 			Tags:       []string{"ui", "important"},
@@ -416,24 +427,24 @@ func TestListMemories(t *testing.T) {
 		},
 	}
 	mem2 := &types.Memory{
-		Type:      types.MemoryTypeFact,
-		Scope:     types.MemoryScopeUser,
-		OwnerID:   "user1",
-		Topic:     "context",
-		Title:     "Memory 2",
-		Content:   "Content 2",
+		Type:    types.MemoryTypeFact,
+		Scope:   types.MemoryScopeUser,
+		OwnerID: "user1",
+		Topic:   "context",
+		Title:   "Memory 2",
+		Content: "Content 2",
 		Metadata: types.MemoryMetadata{
 			Importance: 3,
 			Verified:   false,
 		},
 	}
 	mem3 := &types.Memory{
-		Type:      types.MemoryTypePreference,
-		Scope:     types.MemoryScopeUser,
-		OwnerID:   "user1",
-		Topic:     "preferences",
-		Title:     "Memory 3",
-		Content:   "Content 3",
+		Type:    types.MemoryTypePreference,
+		Scope:   types.MemoryScopeUser,
+		OwnerID: "user1",
+		Topic:   "preferences",
+		Title:   "Memory 3",
+		Content: "Content 3",
 		Metadata: types.MemoryMetadata{
 			Importance: 5,
 			Verified:   true,

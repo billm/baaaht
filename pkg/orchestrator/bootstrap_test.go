@@ -355,16 +355,30 @@ func TestBootstrapWithDefaults(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	result, err := BootstrapWithDefaults(ctx)
+	// Use explicit config with temp dirs to avoid writing to real data directories
+	tmpDir := t.TempDir()
+	cfg := NewDefaultBootstrapConfig()
+	cfg.Config.Session.StoragePath = filepath.Join(tmpDir, "sessions")
+	cfg.Config.Credentials.StorePath = filepath.Join(tmpDir, "credentials")
+	cfg.Config.Policy.ConfigPath = filepath.Join(tmpDir, "policies.yaml")
+	cfg.Config.Memory.StoragePath = filepath.Join(tmpDir, "memory")
+	cfg.Config.Memory.UserMemoryPath = filepath.Join(tmpDir, "memory", "users")
+	cfg.Config.Memory.GroupMemoryPath = filepath.Join(tmpDir, "memory", "groups")
+	cfg.EnableHealthCheck = false
+
+	result, err := Bootstrap(ctx, cfg)
 	if err != nil {
 		// This is expected to fail in test environments without Docker
 		// We're just testing the code path
-		t.Logf("BootstrapWithDefaults failed (expected in test env): %v", err)
+		t.Logf("Bootstrap failed (expected in test env): %v", err)
 	}
 
 	if result != nil {
 		if result.Version != DefaultVersion {
 			t.Errorf("expected version %s, got %s", DefaultVersion, result.Version)
+		}
+		if result.Orchestrator != nil {
+			_ = result.Orchestrator.Close()
 		}
 	}
 }
@@ -400,6 +414,10 @@ func TestBootstrapWithSessionRestore(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	// Create config with session persistence enabled
+	tmpCredDir := t.TempDir()
+	tmpPolicyDir := t.TempDir()
+	tmpMemoryDir := t.TempDir()
+
 	cfg := &config.Config{
 		Docker:    config.DefaultDockerConfig(),
 		APIServer: config.DefaultAPIServerConfig(),
@@ -411,11 +429,30 @@ func TestBootstrapWithSessionRestore(t *testing.T) {
 			PersistenceEnabled: true,
 			StoragePath:        tempDir,
 		},
-		Event:        config.DefaultEventConfig(),
-		IPC:          config.DefaultIPCConfig(),
-		Scheduler:    config.DefaultSchedulerConfig(),
-		Credentials:  config.DefaultCredentialsConfig(),
-		Policy:       config.DefaultPolicyConfig(),
+		Event:     config.DefaultEventConfig(),
+		IPC:       config.DefaultIPCConfig(),
+		Scheduler: config.DefaultSchedulerConfig(),
+		Credentials: config.CredentialsConfig{
+			StorePath:         filepath.Join(tmpCredDir, "credentials"),
+			EncryptionEnabled: true,
+			KeyRotationDays:   90,
+			MaxCredentialAge:  365,
+		},
+		Policy: config.PolicyConfig{
+			ConfigPath:         filepath.Join(tmpPolicyDir, "policies.yaml"),
+			ReloadOnChanges:    false,
+			EnforcementMode:    "strict",
+			DefaultQuotaCPU:    1000000000,
+			DefaultQuotaMemory: 1073741824,
+		},
+		Memory: config.MemoryConfig{
+			StoragePath:     tmpMemoryDir,
+			UserMemoryPath:  filepath.Join(tmpMemoryDir, "users"),
+			GroupMemoryPath: filepath.Join(tmpMemoryDir, "groups"),
+			Enabled:         true,
+			MaxFileSize:     100,
+			FileFormat:      "markdown",
+		},
 		Metrics:      config.DefaultMetricsConfig(),
 		Tracing:      config.DefaultTracingConfig(),
 		Orchestrator: config.DefaultOrchestratorConfig(),
@@ -615,6 +652,10 @@ func TestBootstrapWithCorruptSession(t *testing.T) {
 	}
 
 	// Create config with session persistence enabled pointing to corrupt data
+	tmpCredDir2 := t.TempDir()
+	tmpPolicyDir2 := t.TempDir()
+	tmpMemoryDir2 := t.TempDir()
+
 	cfg := &config.Config{
 		Docker:    config.DefaultDockerConfig(),
 		APIServer: config.DefaultAPIServerConfig(),
@@ -626,11 +667,30 @@ func TestBootstrapWithCorruptSession(t *testing.T) {
 			PersistenceEnabled: true,
 			StoragePath:        tempDir,
 		},
-		Event:        config.DefaultEventConfig(),
-		IPC:          config.DefaultIPCConfig(),
-		Scheduler:    config.DefaultSchedulerConfig(),
-		Credentials:  config.DefaultCredentialsConfig(),
-		Policy:       config.DefaultPolicyConfig(),
+		Event:     config.DefaultEventConfig(),
+		IPC:       config.DefaultIPCConfig(),
+		Scheduler: config.DefaultSchedulerConfig(),
+		Credentials: config.CredentialsConfig{
+			StorePath:         filepath.Join(tmpCredDir2, "credentials"),
+			EncryptionEnabled: true,
+			KeyRotationDays:   90,
+			MaxCredentialAge:  365,
+		},
+		Policy: config.PolicyConfig{
+			ConfigPath:         filepath.Join(tmpPolicyDir2, "policies.yaml"),
+			ReloadOnChanges:    false,
+			EnforcementMode:    "strict",
+			DefaultQuotaCPU:    1000000000,
+			DefaultQuotaMemory: 1073741824,
+		},
+		Memory: config.MemoryConfig{
+			StoragePath:     tmpMemoryDir2,
+			UserMemoryPath:  filepath.Join(tmpMemoryDir2, "users"),
+			GroupMemoryPath: filepath.Join(tmpMemoryDir2, "groups"),
+			Enabled:         true,
+			MaxFileSize:     100,
+			FileFormat:      "markdown",
+		},
 		Metrics:      config.DefaultMetricsConfig(),
 		Tracing:      config.DefaultTracingConfig(),
 		Orchestrator: config.DefaultOrchestratorConfig(),

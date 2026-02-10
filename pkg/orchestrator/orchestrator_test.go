@@ -52,18 +52,29 @@ security:
 	policyCfg.ConfigPath = policyPath
 	policyCfg.ReloadOnChanges = false
 
+	sessCfg := config.DefaultSessionConfig()
+	sessCfg.StoragePath = filepath.Join(tmpDir, "sessions")
+
+	credsCfg := config.DefaultCredentialsConfig()
+	credsCfg.StorePath = filepath.Join(tmpDir, "credentials.json")
+
+	memCfg := config.DefaultMemoryConfig()
+	memCfg.StoragePath = filepath.Join(tmpDir, "memory")
+	memCfg.UserMemoryPath = filepath.Join(tmpDir, "memory", "users")
+	memCfg.GroupMemoryPath = filepath.Join(tmpDir, "memory", "groups")
+
 	cfg := config.Config{
 		Runtime:      config.DefaultRuntimeConfig(),
 		Docker:       config.DefaultDockerConfig(),
 		APIServer:    config.DefaultAPIServerConfig(),
 		Logging:      config.DefaultLoggingConfig(),
-		Session:      config.DefaultSessionConfig(),
+		Session:      sessCfg,
 		Event:        config.DefaultEventConfig(),
 		IPC:          config.DefaultIPCConfig(),
 		Scheduler:    config.DefaultSchedulerConfig(),
-		Credentials:  config.DefaultCredentialsConfig(),
+		Credentials:  credsCfg,
 		Policy:       policyCfg,
-		Memory:       config.DefaultMemoryConfig(),
+		Memory:       memCfg,
 		Metrics:      config.DefaultMetricsConfig(),
 		Tracing:      config.DefaultTracingConfig(),
 		Orchestrator: config.DefaultOrchestratorConfig(),
@@ -121,22 +132,35 @@ security:
 
 // TestInitPolicyEnforcerWithInvalidPath tests initialization with an invalid policy path
 func TestInitPolicyEnforcerWithInvalidPath(t *testing.T) {
+	tmpDir := t.TempDir()
+
 	// Create config with non-existent policy path
 	policyCfg := config.DefaultPolicyConfig()
 	policyCfg.ConfigPath = "/nonexistent/path/to/policy.yaml"
+
+	sessCfg := config.DefaultSessionConfig()
+	sessCfg.StoragePath = filepath.Join(tmpDir, "sessions")
+
+	credsCfg := config.DefaultCredentialsConfig()
+	credsCfg.StorePath = filepath.Join(tmpDir, "credentials.json")
+
+	memCfg := config.DefaultMemoryConfig()
+	memCfg.StoragePath = filepath.Join(tmpDir, "memory")
+	memCfg.UserMemoryPath = filepath.Join(tmpDir, "memory", "users")
+	memCfg.GroupMemoryPath = filepath.Join(tmpDir, "memory", "groups")
 
 	cfg := config.Config{
 		Runtime:      config.DefaultRuntimeConfig(),
 		Docker:       config.DefaultDockerConfig(),
 		APIServer:    config.DefaultAPIServerConfig(),
 		Logging:      config.DefaultLoggingConfig(),
-		Session:      config.DefaultSessionConfig(),
+		Session:      sessCfg,
 		Event:        config.DefaultEventConfig(),
 		IPC:          config.DefaultIPCConfig(),
 		Scheduler:    config.DefaultSchedulerConfig(),
-		Credentials:  config.DefaultCredentialsConfig(),
+		Credentials:  credsCfg,
 		Policy:       policyCfg,
-		Memory:       config.DefaultMemoryConfig(),
+		Memory:       memCfg,
 		Metrics:      config.DefaultMetricsConfig(),
 		Tracing:      config.DefaultTracingConfig(),
 		Orchestrator: config.DefaultOrchestratorConfig(),
@@ -179,18 +203,29 @@ func TestInitPolicyEnforcerWithInvalidYAML(t *testing.T) {
 	policyCfg := config.DefaultPolicyConfig()
 	policyCfg.ConfigPath = policyPath
 
+	sessCfg := config.DefaultSessionConfig()
+	sessCfg.StoragePath = filepath.Join(tmpDir, "sessions")
+
+	credsCfg := config.DefaultCredentialsConfig()
+	credsCfg.StorePath = filepath.Join(tmpDir, "credentials.json")
+
+	memCfg := config.DefaultMemoryConfig()
+	memCfg.StoragePath = filepath.Join(tmpDir, "memory")
+	memCfg.UserMemoryPath = filepath.Join(tmpDir, "memory", "users")
+	memCfg.GroupMemoryPath = filepath.Join(tmpDir, "memory", "groups")
+
 	cfg := config.Config{
 		Runtime:      config.DefaultRuntimeConfig(),
 		Docker:       config.DefaultDockerConfig(),
 		APIServer:    config.DefaultAPIServerConfig(),
 		Logging:      config.DefaultLoggingConfig(),
-		Session:      config.DefaultSessionConfig(),
+		Session:      sessCfg,
 		Event:        config.DefaultEventConfig(),
 		IPC:          config.DefaultIPCConfig(),
 		Scheduler:    config.DefaultSchedulerConfig(),
-		Credentials:  config.DefaultCredentialsConfig(),
+		Credentials:  credsCfg,
 		Policy:       policyCfg,
-		Memory:       config.DefaultMemoryConfig(),
+		Memory:       memCfg,
 		Metrics:      config.DefaultMetricsConfig(),
 		Tracing:      config.DefaultTracingConfig(),
 		Orchestrator: config.DefaultOrchestratorConfig(),
@@ -233,18 +268,29 @@ func TestInitPolicyEnforcerWithoutConfigPath(t *testing.T) {
 	policyCfg := config.DefaultPolicyConfig()
 	policyCfg.ConfigPath = nonExistentPath
 
+	sessCfg := config.DefaultSessionConfig()
+	sessCfg.StoragePath = filepath.Join(tmpDir, "sessions")
+
+	credsCfg := config.DefaultCredentialsConfig()
+	credsCfg.StorePath = filepath.Join(tmpDir, "credentials.json")
+
+	memCfg := config.DefaultMemoryConfig()
+	memCfg.StoragePath = filepath.Join(tmpDir, "memory")
+	memCfg.UserMemoryPath = filepath.Join(tmpDir, "memory", "users")
+	memCfg.GroupMemoryPath = filepath.Join(tmpDir, "memory", "groups")
+
 	cfg := config.Config{
 		Runtime:      config.DefaultRuntimeConfig(),
 		Docker:       config.DefaultDockerConfig(),
 		APIServer:    config.DefaultAPIServerConfig(),
 		Logging:      config.DefaultLoggingConfig(),
-		Session:      config.DefaultSessionConfig(),
+		Session:      sessCfg,
 		Event:        config.DefaultEventConfig(),
 		IPC:          config.DefaultIPCConfig(),
 		Scheduler:    config.DefaultSchedulerConfig(),
-		Credentials:  config.DefaultCredentialsConfig(),
+		Credentials:  credsCfg,
 		Policy:       policyCfg,
-		Memory:       config.DefaultMemoryConfig(),
+		Memory:       memCfg,
 		Metrics:      config.DefaultMetricsConfig(),
 		Tracing:      config.DefaultTracingConfig(),
 		Orchestrator: config.DefaultOrchestratorConfig(),

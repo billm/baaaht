@@ -68,9 +68,14 @@ func TestNewStoreNilLogger(t *testing.T) {
 
 // TestNewDefaultStore tests creating a store with default config
 func TestNewDefaultStore(t *testing.T) {
-	store, err := NewDefault(nil)
+	// Use explicit config with temp dir to avoid writing to real data directory
+	tmpDir := t.TempDir()
+	cfg := config.DefaultCredentialsConfig()
+	cfg.StorePath = filepath.Join(tmpDir, "credentials.json")
+
+	store, err := NewStore(cfg, nil)
 	if err != nil {
-		t.Fatalf("failed to create default store: %v", err)
+		t.Fatalf("failed to create store: %v", err)
 	}
 	defer store.Close()
 
@@ -696,6 +701,19 @@ func TestGlobalStore(t *testing.T) {
 	globalStore = nil
 	storeGlobalOnce = sync.Once{}
 
+	// Override global store with one that uses a temp dir to avoid
+	// reading/writing real credential data
+	tmpDir := t.TempDir()
+	cfg := config.DefaultCredentialsConfig()
+	cfg.StorePath = filepath.Join(tmpDir, "credentials.json")
+
+	tmpStore, err := NewStore(cfg, nil)
+	if err != nil {
+		t.Fatalf("failed to create temp store: %v", err)
+	}
+
+	globalStore = tmpStore
+
 	store1 := Global()
 	store2 := Global()
 
@@ -707,6 +725,10 @@ func TestGlobalStore(t *testing.T) {
 	if store1 != nil && !store1.IsClosed() {
 		store1.Close()
 	}
+
+	// Reset global state for other tests
+	globalStore = nil
+	storeGlobalOnce = sync.Once{}
 }
 
 // TestInvalidCiphertext tests decrypting invalid ciphertext

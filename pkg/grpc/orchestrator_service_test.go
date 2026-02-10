@@ -49,6 +49,7 @@ func setupTestServer(t *testing.T) *mockServer {
 
 	// Create session manager
 	sessionCfg := config.DefaultSessionConfig()
+	sessionCfg.StoragePath = t.TempDir()
 	sessionMgr, err := session.New(sessionCfg, log)
 	if err != nil {
 		t.Fatalf("Failed to create session manager: %v", err)
@@ -243,8 +244,8 @@ func TestOrchestratorService_ListSessions(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "list all sessions",
-			req:  &proto.ListSessionsRequest{},
+			name:    "list all sessions",
+			req:     &proto.ListSessionsRequest{},
 			wantMin: 3,
 			wantErr: false,
 		},
@@ -624,13 +625,13 @@ func TestOrchestratorService_StreamMessages(t *testing.T) {
 // mockMessageStream implements the bidirectional streaming interface for testing
 type mockMessageStream struct {
 	proto.OrchestratorService_StreamMessagesServer
-	ctx        context.Context
-	sessionID  string
-	messages   []*proto.StreamMessageRequest
-	sentCount  int
-	recvCount  int
-	responses  []*proto.StreamMessageResponse
-_responsesMu sync.Mutex
+	ctx          context.Context
+	sessionID    string
+	messages     []*proto.StreamMessageRequest
+	sentCount    int
+	recvCount    int
+	responses    []*proto.StreamMessageResponse
+	_responsesMu sync.Mutex
 }
 
 func (m *mockMessageStream) Context() context.Context {

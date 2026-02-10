@@ -71,9 +71,14 @@ func TestNewStoreNilLogger(t *testing.T) {
 
 // TestNewDefaultStore tests creating a store with default config
 func TestNewDefaultStore(t *testing.T) {
-	store, err := NewDefaultStore(nil)
+	// Use explicit config with temp dir to avoid writing to real data directory
+	tmpDir := t.TempDir()
+	cfg := config.DefaultSessionConfig()
+	cfg.StoragePath = filepath.Join(tmpDir, "sessions")
+
+	store, err := NewStore(cfg, nil)
 	if err != nil {
-		t.Fatalf("failed to create default store: %v", err)
+		t.Fatalf("failed to create store: %v", err)
 	}
 	defer store.Close()
 

@@ -19,6 +19,7 @@ func TestNewManager(t *testing.T) {
 	}
 
 	cfg := config.DefaultSessionConfig()
+	cfg.StoragePath = t.TempDir()
 
 	manager, err := New(cfg, log)
 	if err != nil {
@@ -34,6 +35,7 @@ func TestNewManager(t *testing.T) {
 // TestNewManagerNilLogger tests creating a manager with nil logger
 func TestNewManagerNilLogger(t *testing.T) {
 	cfg := config.DefaultSessionConfig()
+	cfg.StoragePath = t.TempDir()
 
 	manager, err := New(cfg, nil)
 	if err != nil {
@@ -48,9 +50,14 @@ func TestNewManagerNilLogger(t *testing.T) {
 
 // TestNewDefaultManager tests creating a manager with default config
 func TestNewDefaultManager(t *testing.T) {
-	manager, err := NewDefault(nil)
+	// Use explicit config with temp dir to avoid writing to real data directory
+	cfg := config.DefaultSessionConfig()
+	cfg.StoragePath = t.TempDir()
+	log, _ := logger.NewDefault()
+
+	manager, err := New(cfg, log)
 	if err != nil {
-		t.Fatalf("failed to create default manager: %v", err)
+		t.Fatalf("failed to create manager: %v", err)
 	}
 	defer manager.Close()
 
@@ -68,6 +75,7 @@ func TestNewManagerWithPersistence(t *testing.T) {
 
 	cfg := config.DefaultSessionConfig()
 	cfg.PersistenceEnabled = true
+	cfg.StoragePath = t.TempDir()
 
 	manager, err := New(cfg, log)
 	if err != nil {
@@ -115,7 +123,7 @@ func TestNewManagerWithoutPersistence(t *testing.T) {
 
 // TestManagerCreate tests creating a new session
 func TestManagerCreate(t *testing.T) {
-	manager := createTestManager()
+	manager := createTestManager(t)
 	defer manager.Close()
 
 	ctx := context.Background()
@@ -169,6 +177,7 @@ func TestManagerCreate(t *testing.T) {
 func TestManagerCreateMaxSessions(t *testing.T) {
 	cfg := config.DefaultSessionConfig()
 	cfg.MaxSessions = 2
+	cfg.StoragePath = t.TempDir()
 
 	log, _ := logger.NewDefault()
 	manager, err := New(cfg, log)
@@ -206,7 +215,7 @@ func TestManagerCreateMaxSessions(t *testing.T) {
 
 // TestManagerGet tests getting a session
 func TestManagerGet(t *testing.T) {
-	manager := createTestManager()
+	manager := createTestManager(t)
 	defer manager.Close()
 
 	ctx := context.Background()
@@ -235,7 +244,7 @@ func TestManagerGet(t *testing.T) {
 
 // TestManagerList tests listing sessions
 func TestManagerList(t *testing.T) {
-	manager := createTestManager()
+	manager := createTestManager(t)
 	defer manager.Close()
 
 	ctx := context.Background()
@@ -296,7 +305,7 @@ func TestManagerList(t *testing.T) {
 
 // TestManagerUpdate tests updating a session
 func TestManagerUpdate(t *testing.T) {
-	manager := createTestManager()
+	manager := createTestManager(t)
 	defer manager.Close()
 
 	ctx := context.Background()
@@ -335,7 +344,7 @@ func TestManagerUpdate(t *testing.T) {
 
 // TestManagerClose tests closing a session
 func TestManagerClose(t *testing.T) {
-	manager := createTestManager()
+	manager := createTestManager(t)
 	defer manager.Close()
 
 	ctx := context.Background()
@@ -367,7 +376,7 @@ func TestManagerClose(t *testing.T) {
 
 // TestManagerDelete tests deleting a session
 func TestManagerDelete(t *testing.T) {
-	manager := createTestManager()
+	manager := createTestManager(t)
 	defer manager.Close()
 
 	ctx := context.Background()
@@ -402,7 +411,7 @@ func TestManagerDelete(t *testing.T) {
 
 // TestManagerAddContainer tests adding a container to a session
 func TestManagerAddContainer(t *testing.T) {
-	manager := createTestManager()
+	manager := createTestManager(t)
 	defer manager.Close()
 
 	ctx := context.Background()
@@ -443,7 +452,7 @@ func TestManagerAddContainer(t *testing.T) {
 
 // TestManagerMaxContainers tests the max containers limit
 func TestManagerMaxContainers(t *testing.T) {
-	manager := createTestManager()
+	manager := createTestManager(t)
 	defer manager.Close()
 
 	ctx := context.Background()
@@ -472,7 +481,7 @@ func TestManagerMaxContainers(t *testing.T) {
 
 // TestManagerRemoveContainer tests removing a container from a session
 func TestManagerRemoveContainer(t *testing.T) {
-	manager := createTestManager()
+	manager := createTestManager(t)
 	defer manager.Close()
 
 	ctx := context.Background()
@@ -507,7 +516,7 @@ func TestManagerRemoveContainer(t *testing.T) {
 
 // TestManagerAddMessage tests adding a message to a session
 func TestManagerAddMessage(t *testing.T) {
-	manager := createTestManager()
+	manager := createTestManager(t)
 	defer manager.Close()
 
 	ctx := context.Background()
@@ -556,7 +565,7 @@ func TestManagerAddMessage(t *testing.T) {
 
 // TestManagerGetStats tests getting session statistics
 func TestManagerGetStats(t *testing.T) {
-	manager := createTestManager()
+	manager := createTestManager(t)
 	defer manager.Close()
 
 	ctx := context.Background()
@@ -597,7 +606,7 @@ func TestManagerGetStats(t *testing.T) {
 
 // TestManagerStats tests manager statistics
 func TestManagerStats(t *testing.T) {
-	manager := createTestManager()
+	manager := createTestManager(t)
 	defer manager.Close()
 
 	ctx := context.Background()
@@ -632,7 +641,7 @@ func TestManagerStats(t *testing.T) {
 
 // TestManagerValidateSession tests session validation
 func TestManagerValidateSession(t *testing.T) {
-	manager := createTestManager()
+	manager := createTestManager(t)
 	defer manager.Close()
 
 	ctx := context.Background()
@@ -667,7 +676,7 @@ func TestManagerValidateSession(t *testing.T) {
 
 // TestManagerString tests the string representation
 func TestManagerString(t *testing.T) {
-	manager := createTestManager()
+	manager := createTestManager(t)
 	defer manager.Close()
 
 	str := manager.String()
@@ -685,6 +694,7 @@ func TestManagerString(t *testing.T) {
 // TestManagerClosedOperations tests operations on a closed manager
 func TestManagerClosedOperations(t *testing.T) {
 	cfg := config.DefaultSessionConfig()
+	cfg.StoragePath = t.TempDir()
 	log, _ := logger.NewDefault()
 
 	manager, _ := New(cfg, log)
@@ -871,8 +881,10 @@ func TestSessionWithStateMachine(t *testing.T) {
 
 // Helper functions
 
-func createTestManager() *Manager {
+func createTestManager(tb testing.TB) *Manager {
+	tb.Helper()
 	cfg := config.DefaultSessionConfig()
+	cfg.StoragePath = tb.TempDir()
 	log, _ := logger.NewDefault()
 	manager, _ := New(cfg, log)
 	return manager
@@ -912,7 +924,7 @@ func createTestSessionWithOwner(t *testing.T, manager *Manager, ownerID string) 
 
 // BenchmarkManagerCreate benchmarks session creation
 func BenchmarkManagerCreate(b *testing.B) {
-	manager := createTestManager()
+	manager := createTestManager(b)
 	defer manager.Close()
 
 	ctx := context.Background()
@@ -930,7 +942,7 @@ func BenchmarkManagerCreate(b *testing.B) {
 
 // BenchmarkManagerGet benchmarks session retrieval
 func BenchmarkManagerGet(b *testing.B) {
-	manager := createTestManager()
+	manager := createTestManager(b)
 	defer manager.Close()
 
 	ctx := context.Background()
@@ -954,7 +966,7 @@ func BenchmarkManagerGet(b *testing.B) {
 
 // BenchmarkManagerAddMessage benchmarks adding messages
 func BenchmarkManagerAddMessage(b *testing.B) {
-	manager := createTestManager()
+	manager := createTestManager(b)
 	defer manager.Close()
 
 	ctx := context.Background()
@@ -993,6 +1005,7 @@ func TestAddMessageWithPersistence(t *testing.T) {
 	// Create a manager with persistence enabled
 	cfg := config.DefaultSessionConfig()
 	cfg.PersistenceEnabled = true
+	cfg.StoragePath = t.TempDir()
 
 	manager, err := New(cfg, log)
 	if err != nil {
@@ -1130,6 +1143,7 @@ func TestManagerCloseWithPersistence(t *testing.T) {
 	// Create a manager with persistence enabled
 	cfg := config.DefaultSessionConfig()
 	cfg.PersistenceEnabled = true
+	cfg.StoragePath = t.TempDir()
 
 	manager, err := New(cfg, log)
 	if err != nil {
@@ -1462,59 +1476,59 @@ func TestRestoreSessionsDoesNotDuplicate(t *testing.T) {
 // TestCloseSessionFromClosingState tests that CloseSession completes the transition
 // when the session is already in closing state
 func TestCloseSessionFromClosingState(t *testing.T) {
-manager := createTestManager()
-defer manager.Close()
+	manager := createTestManager(t)
+	defer manager.Close()
 
-ctx := context.Background()
+	ctx := context.Background()
 
-// Create a session
-sessionID := createTestSession(t, manager)
+	// Create a session
+	sessionID := createTestSession(t, manager)
 
-// Get the session with state machine to manually put it in closing state
-manager.mu.Lock()
-sessionWithSM, exists := manager.sessions[sessionID]
-if !exists {
-manager.mu.Unlock()
-t.Fatal("session not found")
-}
+	// Get the session with state machine to manually put it in closing state
+	manager.mu.Lock()
+	sessionWithSM, exists := manager.sessions[sessionID]
+	if !exists {
+		manager.mu.Unlock()
+		t.Fatal("session not found")
+	}
 
-// Transition to closing state directly
-if err := sessionWithSM.Close(); err != nil {
-manager.mu.Unlock()
-t.Fatalf("failed to transition to closing state: %v", err)
-}
-manager.mu.Unlock()
+	// Transition to closing state directly
+	if err := sessionWithSM.Close(); err != nil {
+		manager.mu.Unlock()
+		t.Fatalf("failed to transition to closing state: %v", err)
+	}
+	manager.mu.Unlock()
 
-// Verify session is in closing state
-state, err := manager.GetState(ctx, sessionID)
-if err != nil {
-t.Fatalf("failed to get session state: %v", err)
-}
-if state != types.SessionStateClosing {
-t.Fatalf("expected session to be in closing state, got %s", state)
-}
+	// Verify session is in closing state
+	state, err := manager.GetState(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("failed to get session state: %v", err)
+	}
+	if state != types.SessionStateClosing {
+		t.Fatalf("expected session to be in closing state, got %s", state)
+	}
 
-// Call CloseSession to complete the transition to closed
-err = manager.CloseSession(ctx, sessionID)
-if err != nil {
-t.Fatalf("failed to close session from closing state: %v", err)
-}
+	// Call CloseSession to complete the transition to closed
+	err = manager.CloseSession(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("failed to close session from closing state: %v", err)
+	}
 
-// Verify session is now in closed state
-state, err = manager.GetState(ctx, sessionID)
-if err != nil {
-t.Fatalf("failed to get session state after CloseSession: %v", err)
-}
-if state != types.SessionStateClosed {
-t.Errorf("expected session to be in closed state, got %s", state)
-}
+	// Verify session is now in closed state
+	state, err = manager.GetState(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("failed to get session state after CloseSession: %v", err)
+	}
+	if state != types.SessionStateClosed {
+		t.Errorf("expected session to be in closed state, got %s", state)
+	}
 
-// Verify session status is stopped
-session, err := manager.Get(ctx, sessionID)
-if err != nil {
-t.Fatalf("failed to get session: %v", err)
-}
-if session.Status != types.StatusStopped {
-t.Errorf("expected session status to be stopped, got %s", session.Status)
-}
+	// Verify session status is stopped
+	session, err := manager.Get(ctx, sessionID)
+	if err != nil {
+		t.Fatalf("failed to get session: %v", err)
+	}
+	if session.Status != types.StatusStopped {
+		t.Errorf("expected session status to be stopped, got %s", session.Status)
+	}
 }

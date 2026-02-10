@@ -27,6 +27,7 @@ func createTestBootstrapConfig(t *testing.T) (BootstrapConfig, *session.Manager,
 
 	// Create session manager
 	sessionCfg := config.DefaultSessionConfig()
+	sessionCfg.StoragePath = t.TempDir()
 	sessionMgr, err := session.New(sessionCfg, log)
 	if err != nil {
 		t.Fatalf("failed to create session manager: %v", err)
@@ -292,6 +293,7 @@ func TestBootstrapWithDefaults(t *testing.T) {
 	}
 
 	sessionCfg := config.DefaultSessionConfig()
+	sessionCfg.StoragePath = t.TempDir()
 	sessionMgr, err := session.New(sessionCfg, log)
 	if err != nil {
 		t.Fatalf("failed to create session manager: %v", err)

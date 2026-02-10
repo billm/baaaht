@@ -9,6 +9,7 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/billm/baaaht/orchestrator/internal/config"
 	"github.com/billm/baaaht/orchestrator/internal/logger"
 	"github.com/billm/baaaht/orchestrator/pkg/events"
 	"github.com/billm/baaaht/orchestrator/pkg/ipc"
@@ -19,8 +20,8 @@ import (
 
 // mockGatewayServiceDeps implements GatewayServiceDependencies for testing
 type mockGatewayServiceDeps struct {
-	mgr *session.Manager
-	bus *events.Bus
+	mgr    *session.Manager
+	bus    *events.Bus
 	broker *ipc.Broker
 }
 
@@ -46,7 +47,9 @@ func setupGatewayService(t *testing.T) (*GatewayService, *mockGatewayServiceDeps
 	}
 
 	// Create session manager
-	mgr, err := session.NewDefault(log)
+	sessionCfg := config.DefaultSessionConfig()
+	sessionCfg.StoragePath = t.TempDir()
+	mgr, err := session.New(sessionCfg, log)
 	if err != nil {
 		t.Fatalf("Failed to create session manager: %v", err)
 	}
@@ -189,12 +192,12 @@ func TestGatewayService_CreateGatewaySession(t *testing.T) {
 	t.Run("Valid session creation", func(t *testing.T) {
 		req := &proto.CreateGatewaySessionRequest{
 			Metadata: &proto.GatewaySessionMetadata{
-				Name:    "test-gateway-session",
-				UserId:  "user-123",
-				Labels:  map[string]string{"env": "test"},
+				Name:   "test-gateway-session",
+				UserId: "user-123",
+				Labels: map[string]string{"env": "test"},
 			},
 			Config: &proto.GatewaySessionConfig{
-				TimeoutNs:      3600000000000, // 1 hour
+				TimeoutNs:       3600000000000, // 1 hour
 				EnableStreaming: true,
 			},
 		}
@@ -655,7 +658,7 @@ func TestGatewayService_StreamResponses(t *testing.T) {
 
 		// Create a mock server stream
 		mockStream := &mockGatewayStreamResponsesServer{
-			ctx: ctx,
+			ctx:       ctx,
 			responses: make([]*proto.StreamResponsesResponse, 0, 10),
 		}
 
@@ -699,7 +702,7 @@ func TestGatewayService_StreamResponses(t *testing.T) {
 
 	t.Run("StreamResponses with non-existent session fails", func(t *testing.T) {
 		mockStream := &mockGatewayStreamResponsesServer{
-			ctx: ctx,
+			ctx:       ctx,
 			responses: make([]*proto.StreamResponsesResponse, 0),
 		}
 
@@ -720,7 +723,7 @@ func TestGatewayService_Close(t *testing.T) {
 	t.Run("Close closes all streams", func(t *testing.T) {
 		// Create a mock stream and add it to the service
 		mockStream := &mockGatewayStreamResponsesServer{
-			ctx: context.Background(),
+			ctx:       context.Background(),
 			responses: make([]*proto.StreamResponsesResponse, 0),
 		}
 
@@ -761,9 +764,9 @@ func TestGatewayService_String(t *testing.T) {
 
 type mockGatewayStreamResponsesServer struct {
 	proto.GatewayService_StreamResponsesServer
-	ctx        context.Context
-	responses  []*proto.StreamResponsesResponse
-	sendError  error
+	ctx       context.Context
+	responses []*proto.StreamResponsesResponse
+	sendError error
 }
 
 func (m *mockGatewayStreamResponsesServer) Context() context.Context {

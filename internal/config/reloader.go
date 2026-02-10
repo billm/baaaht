@@ -3,7 +3,7 @@ package config
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"sync"
@@ -37,11 +37,13 @@ type Reloader struct {
 	reloadCancel  context.CancelFunc
 	started       bool
 	callbacks     []ReloadCallback
+	log           *slog.Logger
 }
 
 // NewReloader creates a new config reloader
 func NewReloader(configPath string, initialConfig *Config) *Reloader {
 	ctx, cancel := context.WithCancel(context.Background())
+	reloaderLog := slog.With("component", "config_reloader")
 
 	return &Reloader{
 		configPath:    configPath,
@@ -52,6 +54,7 @@ func NewReloader(configPath string, initialConfig *Config) *Reloader {
 		reloadCancel:  cancel,
 		started:       false,
 		callbacks:     make([]ReloadCallback, 0),
+		log:           reloaderLog,
 	}
 }
 
@@ -76,7 +79,7 @@ func (r *Reloader) Start() {
 	signal.Notify(r.signalChan, syscall.SIGHUP)
 
 	r.started = true
-	log.Printf("[config_reloader] started, config_path=%s", r.configPath)
+	r.log.Info("Config reloader started", "config_path", r.configPath)
 
 	// Start signal handler goroutine
 	go r.handleSignals()
@@ -96,7 +99,7 @@ func (r *Reloader) Stop() {
 	r.started = false
 	r.state = ReloadStateStopped
 
-	log.Print("[config_reloader] stopped")
+	r.log.Info("Config reloader stopped")
 }
 
 // Reload reloads the configuration from the file
@@ -105,12 +108,12 @@ func (r *Reloader) Reload(ctx context.Context) error {
 
 	if r.state == ReloadStateReloading {
 		r.mu.Unlock()
-		log.Print("[config_reloader] reload already in progress, skipping")
+		r.log.Info("Config reload already in progress, skipping")
 		return nil
 	}
 
 	r.state = ReloadStateReloading
-	log.Printf("[config_reloader] configuration reload initiated, config_path=%s", r.configPath)
+	r.log.Info("Configuration reload initiated", "config_path", r.configPath)
 	r.mu.Unlock()
 
 	// Load the new configuration from the reloader's config path
@@ -128,7 +131,7 @@ func (r *Reloader) Reload(ctx context.Context) error {
 
 	// Execute callbacks with the new config
 	if err := r.executeCallbacks(ctx, newConfig); err != nil {
-		log.Printf("[config_reloader] reload callbacks failed: %v", err)
+		r.log.Error("Config reload callbacks failed", "error", err)
 		r.setState(ReloadStateIdle)
 		return fmt.Errorf("reload callbacks failed: %w", err)
 	}
@@ -139,7 +142,7 @@ func (r *Reloader) Reload(ctx context.Context) error {
 	r.state = ReloadStateIdle
 	r.mu.Unlock()
 
-	log.Print("[config_reloader] configuration reloaded successfully")
+	r.log.Info("Configuration reloaded successfully")
 
 	return nil
 }
@@ -150,7 +153,7 @@ func (r *Reloader) AddCallback(callback ReloadCallback) {
 	defer r.mu.Unlock()
 
 	r.callbacks = append(r.callbacks, callback)
-	log.Printf("[config_reloader] reload callback registered, total_callbacks=%d", len(r.callbacks))
+	r.log.Info("Config reload callback registered", "total_callbacks", len(r.callbacks))
 }
 
 // GetConfig returns the current configuration
@@ -177,19 +180,19 @@ func (r *Reloader) handleSignals() {
 	for {
 		select {
 		case sig := <-r.signalChan:
-			log.Printf("[config_reloader] reload signal received, signal=%v", sig)
+			r.log.Info("Config reload signal received", "signal", sig)
 
 			// Initiate reload in goroutine to avoid blocking signal handling
 			go func() {
 				ctx, cancel := context.WithTimeout(context.Background(), 30)
 				defer cancel()
 				if err := r.Reload(ctx); err != nil {
-					log.Printf("[config_reloader] configuration reload failed: %v", err)
+					r.log.Error("Configuration reload failed", "error", err)
 				}
 			}()
 
 		case <-r.reloadCtx.Done():
-			log.Print("[config_reloader] signal handler stopping")
+			r.log.Info("Config reloader signal handler stopping")
 			return
 		}
 	}
@@ -202,14 +205,14 @@ func (r *Reloader) executeCallbacks(ctx context.Context, newConfig *Config) erro
 	copy(callbacks, r.callbacks)
 	r.mu.RUnlock()
 
-	log.Printf("[config_reloader] executing reload callbacks, count=%d", len(callbacks))
+	r.log.Info("Executing config reload callbacks", "count", len(callbacks))
 
 	for i, callback := range callbacks {
 		callbackName := fmt.Sprintf("callback-%d", i)
-		log.Printf("[config_reloader] executing reload callback, callback=%s", callbackName)
+		r.log.Info("Executing config reload callback", "callback", callbackName)
 
 		if err := callback(ctx, newConfig); err != nil {
-			log.Printf("[config_reloader] reload callback failed, callback=%s, error=%v", callbackName, err)
+			r.log.Error("Config reload callback failed", "callback", callbackName, "error", err)
 			return err
 		}
 	}
@@ -222,7 +225,7 @@ func (r *Reloader) setState(state ReloadState) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.state = state
-	log.Printf("[config_reloader] reload state changed, state=%s", state)
+	r.log.Info("Config reload state changed", "state", state)
 }
 
 // String returns a string representation of the reload state

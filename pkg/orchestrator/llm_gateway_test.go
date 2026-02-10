@@ -3,6 +3,7 @@ package orchestrator
 import (
 	"context"
 	"io"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -13,6 +14,20 @@ import (
 	"github.com/billm/baaaht/orchestrator/pkg/credentials"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 )
+
+// createTestCredentialStore creates a credential store using a temp directory
+func createTestCredentialStore(t *testing.T) *credentials.Store {
+	t.Helper()
+	log, _ := logger.NewDefault()
+	tmpDir := t.TempDir()
+	cfg := config.DefaultCredentialsConfig()
+	cfg.StorePath = filepath.Join(tmpDir, "credentials.json")
+	store, err := credentials.NewStore(cfg, log)
+	if err != nil {
+		t.Fatalf("failed to create test credential store: %v", err)
+	}
+	return store
+}
 
 // MockRuntime is a mock implementation of container.Runtime for testing
 type MockRuntime struct {
@@ -290,7 +305,7 @@ func TestLLMGatewayHealth_MonitoringEnabled(t *testing.T) {
 		},
 	}
 
-	credStore, _ := credentials.NewDefaultStore(log)
+	credStore := createTestCredentialStore(t)
 	_ = credStore.StoreLLMCredential(context.Background(), "anthropic", "test-api-key")
 
 	manager, err := NewLLMGatewayManager(mockRuntime, cfg, credStore, log)
@@ -346,7 +361,7 @@ func TestLLMGatewayHealth_AutoRestart(t *testing.T) {
 		},
 	}
 
-	credStore, _ := credentials.NewDefaultStore(log)
+	credStore := createTestCredentialStore(t)
 	_ = credStore.StoreLLMCredential(context.Background(), "anthropic", "test-api-key")
 
 	manager, err := NewLLMGatewayManager(mockRuntime, cfg, credStore, log)
@@ -418,7 +433,7 @@ func TestLLMGatewayHealth_HealthRestoration(t *testing.T) {
 		},
 	}
 
-	credStore, _ := credentials.NewDefaultStore(log)
+	credStore := createTestCredentialStore(t)
 	_ = credStore.StoreLLMCredential(context.Background(), "anthropic", "test-api-key")
 
 	manager, err := NewLLMGatewayManager(mockRuntime, cfg, credStore, log)
@@ -478,7 +493,7 @@ func TestLLMGatewayHealth_StopStopsMonitoring(t *testing.T) {
 		},
 	}
 
-	credStore, _ := credentials.NewDefaultStore(log)
+	credStore := createTestCredentialStore(t)
 	_ = credStore.StoreLLMCredential(context.Background(), "anthropic", "test-api-key")
 
 	manager, err := NewLLMGatewayManager(mockRuntime, cfg, credStore, log)
@@ -541,7 +556,7 @@ func TestLLMGatewayHealth_MultipleUnhealthyChecks(t *testing.T) {
 		},
 	}
 
-	credStore, _ := credentials.NewDefaultStore(log)
+	credStore := createTestCredentialStore(t)
 	_ = credStore.StoreLLMCredential(context.Background(), "anthropic", "test-api-key")
 
 	manager, err := NewLLMGatewayManager(mockRuntime, cfg, credStore, log)

@@ -33,6 +33,11 @@ func loadTestConfig(t *testing.T) *config.Config {
 	cfg.Credentials.StorePath = filepath.Join(tmpDir, "credentials")
 	cfg.Session.StoragePath = filepath.Join(tmpDir, "sessions")
 	cfg.IPC.SocketPath = filepath.Join(tmpDir, "ipc.sock")
+	cfg.Memory.StoragePath = filepath.Join(tmpDir, "memory")
+	cfg.Memory.UserMemoryPath = filepath.Join(tmpDir, "memory", "users")
+	cfg.Memory.GroupMemoryPath = filepath.Join(tmpDir, "memory", "groups")
+	cfg.Policy.ConfigPath = filepath.Join(tmpDir, "policies.yaml")
+	cfg.Policy.ReloadOnChanges = false
 	return cfg
 }
 
@@ -813,11 +818,11 @@ func TestGRPCCommunication(t *testing.T) {
 	t.Log("=== Step 3: Creating gRPC client ===")
 
 	clientCfg := grpcPkg.ClientConfig{
-		DialTimeout:        5 * time.Second,
-		RPCTimeout:         5 * time.Second,
-		MaxRecvMsgSize:     grpcPkg.DefaultMaxRecvMsgSize,
-		MaxSendMsgSize:     grpcPkg.DefaultMaxSendMsgSize,
-		ReconnectInterval:  5 * time.Second,
+		DialTimeout:          5 * time.Second,
+		RPCTimeout:           5 * time.Second,
+		MaxRecvMsgSize:       grpcPkg.DefaultMaxRecvMsgSize,
+		MaxSendMsgSize:       grpcPkg.DefaultMaxSendMsgSize,
+		ReconnectInterval:    5 * time.Second,
 		ReconnectMaxAttempts: 0, // Infinite retries
 	}
 

@@ -2,6 +2,7 @@ package integration
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -15,6 +16,18 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// createTestCredentialStore creates a credential store that uses a temp directory for testing
+func createTestCredentialStore(t *testing.T, log *logger.Logger) *credentials.Store {
+	t.Helper()
+	tmpDir := t.TempDir()
+	cfg := config.CredentialsConfig{
+		StorePath: filepath.Join(tmpDir, "credentials.json"),
+	}
+	store, err := credentials.NewStore(cfg, log)
+	require.NoError(t, err, "Failed to create test credential store")
+	return store
+}
 
 // TestLLMGatewayLifecycle tests the complete lifecycle of the LLM Gateway manager
 func TestLLMGatewayLifecycle(t *testing.T) {
@@ -53,8 +66,7 @@ func TestLLMGatewayLifecycle(t *testing.T) {
 	t.Log("=== Step 1: Creating credential store and runtime ===")
 
 	// Create credential store
-	credStore, err := credentials.NewDefaultStore(log)
-	require.NoError(t, err, "Failed to create credential store")
+	credStore := createTestCredentialStore(t, log)
 
 	// Store test credentials
 	err = credStore.Store(ctx, &credentials.Credential{
@@ -226,8 +238,7 @@ func TestLLMGatewayDisabled(t *testing.T) {
 	t.Log("=== Testing LLM Gateway with disabled configuration ===")
 
 	// Create credential store
-	credStore, err := credentials.NewDefaultStore(log)
-	require.NoError(t, err, "Failed to create credential store")
+	credStore := createTestCredentialStore(t, log)
 
 	// Create Docker runtime
 	runtime, err := container.NewDockerRuntime(cfg.Docker, log)
@@ -278,8 +289,7 @@ func TestLLMGatewayInvalidCredentials(t *testing.T) {
 	t.Log("=== Testing LLM Gateway with invalid credentials ===")
 
 	// Create credential store
-	credStore, err := credentials.NewDefaultStore(log)
-	require.NoError(t, err, "Failed to create credential store")
+	credStore := createTestCredentialStore(t, log)
 
 	// Create Docker runtime
 	runtime, err := container.NewDockerRuntime(cfg.Docker, log)
@@ -332,8 +342,7 @@ func TestLLMGatewayCloseWithoutStart(t *testing.T) {
 	t.Log("=== Testing LLM Gateway Close without Start ===")
 
 	// Create credential store
-	credStore, err := credentials.NewDefaultStore(log)
-	require.NoError(t, err, "Failed to create credential store")
+	credStore := createTestCredentialStore(t, log)
 
 	// Create Docker runtime
 	runtime, err := container.NewDockerRuntime(cfg.Docker, log)
@@ -388,8 +397,7 @@ func TestLLMGatewayHealthMonitoring(t *testing.T) {
 	t.Log("=== Testing LLM Gateway health monitoring ===")
 
 	// Create credential store
-	credStore, err := credentials.NewDefaultStore(log)
-	require.NoError(t, err, "Failed to create credential store")
+	credStore := createTestCredentialStore(t, log)
 
 	err = credStore.Store(ctx, &credentials.Credential{Name: "llm-test", Type: "api_key", Value: "test-api-key", Metadata: map[string]string{"provider": "test"}})
 	require.NoError(t, err, "Failed to store credential")
@@ -477,8 +485,7 @@ func TestLLMGatewayDoubleStart(t *testing.T) {
 	t.Log("=== Testing LLM Gateway double start ===")
 
 	// Create credential store
-	credStore, err := credentials.NewDefaultStore(log)
-	require.NoError(t, err, "Failed to create credential store")
+	credStore := createTestCredentialStore(t, log)
 
 	err = credStore.Store(ctx, &credentials.Credential{Name: "llm-test", Type: "api_key", Value: "test-api-key", Metadata: map[string]string{"provider": "test"}})
 	require.NoError(t, err, "Failed to store credential")
@@ -546,8 +553,7 @@ func TestLLMGatewayStopWithoutStart(t *testing.T) {
 	t.Log("=== Testing LLM Gateway stop without start ===")
 
 	// Create credential store
-	credStore, err := credentials.NewDefaultStore(log)
-	require.NoError(t, err, "Failed to create credential store")
+	credStore := createTestCredentialStore(t, log)
 
 	// Create Docker runtime
 	runtime, err := container.NewDockerRuntime(cfg.Docker, log)
@@ -638,8 +644,7 @@ func TestLLMProviderFailover(t *testing.T) {
 	t.Log("=== Step 3: Creating credential store and runtime ===")
 
 	// Create credential store
-	credStore, err := credentials.NewDefaultStore(log)
-	require.NoError(t, err, "Failed to create credential store")
+	credStore := createTestCredentialStore(t, log)
 
 	// Store credentials for all providers
 	for providerName, provider := range cfg.LLM.Providers {

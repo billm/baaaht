@@ -1,6 +1,6 @@
 # Baaaht Monorepo Makefile
 
-.PHONY: all build test clean lint docker-build docker-run help build-orchestrator proto-gen proto-clean
+.PHONY: all build test clean lint docker-build docker-run help build-orchestrator proto-gen proto-clean orchestrator
 
 # Variables
 BUILD_DIR=bin
@@ -14,7 +14,7 @@ PROTO_GO_FILES=$(patsubst $(PROTO_DIR)/%.proto,$(PROTO_DIR)/%.pb.go,$(PROTO_FILE
 PROTO_GRPC_GO_FILES=$(patsubst $(PROTO_DIR)/%.proto,$(PROTO_DIR)/%_grpc.pb.go,$(PROTO_FILES))
 
 # Available tools (binaries to build)
-TOOLS=orchestrator
+TOOLS=$(BUILD_DIR)/orchestrator
 
 # Go build flags
 GO_FLAGS=-v
@@ -25,7 +25,9 @@ all: build
 build: $(TOOLS)
 
 ## build-orchestrator: Build the orchestrator binary
-orchestrator:
+orchestrator: $(BUILD_DIR)/orchestrator
+
+$(BUILD_DIR)/orchestrator: $(PROTO_GO_FILES) $(PROTO_GRPC_GO_FILES)
 	@echo "Building orchestrator..."
 	@mkdir -p $(BUILD_DIR)
 	go build $(GO_FLAGS) -o $(BUILD_DIR)/orchestrator ./cmd/orchestrator
