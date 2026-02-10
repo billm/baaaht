@@ -11,6 +11,8 @@ import (
 	"github.com/billm/baaaht/orchestrator/pkg/grpc"
 	"github.com/billm/baaaht/orchestrator/pkg/orchestrator"
 	"github.com/billm/baaaht/orchestrator/pkg/provider"
+	"github.com/billm/baaaht/orchestrator/pkg/skills"
+	"github.com/billm/baaaht/orchestrator/pkg/types"
 	"github.com/spf13/cobra"
 )
 
@@ -39,6 +41,7 @@ var (
 	cfgReloader *config.Reloader
 	grpcResult *grpc.BootstrapResult
 	providerRegistry *provider.Registry
+	skillsLoader *skills.Loader
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -237,6 +240,54 @@ func runOrchestrator(cmd *cobra.Command, args []string) error {
 		"available_providers", len(availableProviders),
 		"default_provider", providerRegistryCfg.DefaultProvider)
 
+	// Initialize skills loader
+	if cfg.Skills.Enabled {
+		rootLog.Info("Initializing skills loader...")
+		skillsCfg := types.SkillConfig{
+			Enabled:           cfg.Skills.Enabled,
+			StoragePath:       cfg.Skills.StoragePath,
+			MaxSkillsPerOwner: cfg.Skills.MaxSkillsPerOwner,
+			AutoLoad:          cfg.Skills.AutoLoad,
+			LoadConfig: types.SkillLoadConfig{
+				Enabled:          cfg.Skills.LoadConfig.Enabled,
+				SkillPaths:       cfg.Skills.LoadConfig.SkillPaths,
+				Recursive:        cfg.Skills.LoadConfig.Recursive,
+				WatchChanges:     cfg.Skills.LoadConfig.WatchChanges,
+				MaxLoadErrors:    cfg.Skills.LoadConfig.MaxLoadErrors,
+			},
+			GitHubConfig: types.SkillGitHubConfig{
+				Enabled:        cfg.Skills.GitHubConfig.Enabled,
+				APIEndpoint:    cfg.Skills.GitHubConfig.APIEndpoint,
+				MaxRepoSkills:  cfg.Skills.GitHubConfig.MaxRepoSkills,
+				AutoUpdate:     cfg.Skills.GitHubConfig.AutoUpdate,
+				UpdateInterval: cfg.Skills.GitHubConfig.UpdateInterval,
+			},
+			Retention: types.SkillRetention{
+				Enabled:          cfg.Skills.Retention.Enabled,
+				MaxAge:           cfg.Skills.Retention.MaxAge,
+				UnusedMaxAge:     cfg.Skills.Retention.UnusedMaxAge,
+				ErrorMaxAge:      cfg.Skills.Retention.ErrorMaxAge,
+				MinLoadCount:     cfg.Skills.Retention.MinLoadCount,
+				PreserveVerified: cfg.Skills.Retention.PreserveVerified,
+			},
+		}
+		skillsStore, err := skills.NewStore(skillsCfg, rootLog)
+		if err != nil {
+			rootLog.Error("Failed to create skills store", "error", err)
+			return err
+		}
+		skillsLoader, err = skills.NewLoader(skillsCfg, skillsStore, rootLog)
+		if err != nil {
+			rootLog.Error("Failed to create skills loader", "error", err)
+			return err
+		}
+		rootLog.Info("Skills loader initialized successfully",
+			"storage_path", skillsCfg.StoragePath,
+			"auto_load", skillsCfg.AutoLoad)
+	} else {
+		rootLog.Info("Skills loader disabled")
+	}
+
 	// Create shutdown manager
 	shutdown = orchestrator.NewShutdownManager(
 		orch,
@@ -285,6 +336,14 @@ func runOrchestrator(cmd *cobra.Command, args []string) error {
 				rootLog.Error("Failed to close provider registry", "error", err)
 			} else {
 				rootLog.Info("Provider registry closed")
+			}
+		}
+		// Close skills loader
+		if skillsLoader != nil {
+			if err := skillsLoader.Close(); err != nil {
+				rootLog.Error("Failed to close skills loader", "error", err)
+			} else {
+				rootLog.Info("Skills loader closed")
 			}
 		}
 		// Stop config reloader
