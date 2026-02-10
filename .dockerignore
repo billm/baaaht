@@ -47,9 +47,6 @@ docs/
 
 # Auto-claude files
 .auto-claude/
-!.auto-claude/002-container-runtime-integration
-!.auto-claude/005-filesystem-memory
-!.auto-claude/009-provider-registry-initial
 .claude_settings.json
 .auto-claude-status
 .auto-claude-security.json
