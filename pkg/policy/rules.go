@@ -91,6 +91,8 @@ type MountPolicy struct {
 	MaxTmpfsSize *int64 `json:"max_tmpfs_size,omitempty" yaml:"max_tmpfs_size,omitempty"`
 	// Read-only root filesystem enforcement
 	EnforceReadOnlyRootfs bool `json:"enforce_read_only_rootfs,omitempty" yaml:"enforce_read_only_rootfs,omitempty"`
+	// Mount allowlist with per-user/per-group entries
+	MountAllowlist []MountAllowlistEntry `json:"mount_allowlist,omitempty" yaml:"mount_allowlist,omitempty"`
 }
 
 // MountAllowlistEntry defines a single mount allowlist entry with user/group scoping
@@ -214,6 +216,9 @@ func (p *Policy) Merge(other *Policy) *Policy {
 		merged.Mounts.MaxTmpfsSize = other.Mounts.MaxTmpfsSize
 	}
 	merged.Mounts.EnforceReadOnlyRootfs = other.Mounts.EnforceReadOnlyRootfs
+	if len(other.Mounts.MountAllowlist) > 0 {
+		merged.Mounts.MountAllowlist = other.Mounts.MountAllowlist
+	}
 
 	// Merge network policy
 	merged.Network.AllowNetwork = other.Network.AllowNetwork
