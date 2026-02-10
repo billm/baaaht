@@ -826,14 +826,9 @@ func builtinWebToolFactory(def ToolDefinition) (Tool, error) {
 	return builtin.WebToolFactory(def)
 }
 
-// builtinMessageToolFactory is a placeholder factory for the messaging tool.
-// The actual implementation will be provided in phase 4.
+// builtinMessageToolFactory creates message tools using the builtin implementation.
 func builtinMessageToolFactory(def ToolDefinition) (Tool, error) {
-	return &builtinToolPlaceholder{
-		name:       def.Name,
-		toolType:   ToolTypeMessage,
-		definition: def,
-	}, nil
+	return builtin.MessageToolFactory(def)
 }
 
 // builtinToolPlaceholder is a placeholder implementation for built-in tools.
