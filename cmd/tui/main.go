@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/billm/baaaht/orchestrator/pkg/tui"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 )
@@ -62,9 +63,11 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	// For now, just show a placeholder message
 	rootLog.Info("TUI initialization complete", "socket", socketPath)
 
-	// Placeholder: Start the Bubbletea program with a simple model
-	// This will be replaced with the actual TUI model in subtask-2-2
-	p := tea.NewProgram(initialModel(), tea.WithAltScreen())
+	// Create the TUI model
+	model := tui.NewModel(socketPath, verbose)
+
+	// Start the Bubbletea program
+	p := tea.NewProgram(model, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		rootLog.Error("Failed to run TUI", "error", err)
 		return fmt.Errorf("failed to run TUI: %w", err)
@@ -80,37 +83,6 @@ func initLogger() error {
 	// This avoids dependency on the orchestrator's internal logger
 	rootLog = &noopLogger{}
 	return nil
-}
-
-// initialModel creates a simple placeholder model
-// This will be replaced with the actual TUI model in subtask-2-2
-func initialModel() tea.Model {
-	return simpleModel{}
-}
-
-// simpleModel is a placeholder model that allows the TUI to compile
-// TODO: Replace this with the actual TUI model in subtask-2-2
-type simpleModel struct{}
-
-func (m simpleModel) Init() tea.Cmd {
-	return nil
-}
-
-func (m simpleModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "q", "ctrl+c", "ctrl+d":
-			return m, tea.Quit
-		}
-	}
-	return m, nil
-}
-
-func (m simpleModel) View() string {
-	return "Baaaht TUI v" + DefaultVersion + "\n\n" +
-		"TUI is initializing...\n\n" +
-		"Press 'q', Ctrl+C, or Ctrl+D to quit\n"
 }
 
 // noopLogger is a simple no-op logger for initial TUI implementation
