@@ -20,6 +20,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.status, _ = m.status.Update(msg)
 	m.chat, cmd = m.chat.Update(msg)
 	m.input, cmd = tea.Sequence(cmd, m.input.Update(msg))
+	m.sessions, cmd = tea.Sequence(cmd, m.sessions.Update(msg))
 
 	switch msg := msg.(type) {
 	// Handle key presses
@@ -72,19 +73,31 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // handleKeyMsg handles keyboard input.
 func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
+	// Import components package for session commands
+	// Session navigation keys (phase-5-session)
+	if m.keys.IsNextSessionKey(msg) {
+		return m, components.SessionsSelectNextCmd()
+	}
+	if m.keys.IsPreviousSessionKey(msg) {
+		return m, components.SessionsSelectPrevCmd()
+	}
+	if m.keys.IsListSessionsKey(msg) {
+		// Toggle sessions list visibility
+		if m.sessions.IsVisible() {
+			return m, components.SessionsHideCmd()
+		}
+		return m, components.SessionsShowCmd()
+	}
+
 	// Quit keys
-	case "q", "ctrl+c", "ctrl+d":
+	if m.keys.IsQuitKey(msg) {
 		m.quitting = true
 		return m, tea.Quit
+	}
 
 	// Additional key bindings will be added in subsequent subtasks:
 	// - ctrl+enter: send message (phase-6-streaming)
-	// - ctrl+n: next session (phase-5-session)
-	// - ctrl+p: previous session (phase-5-session)
-	// - ctrl+l: list sessions (phase-5-session)
 	// - esc: cancel current operation
-	}
 
 	return m, nil
 }
