@@ -5,6 +5,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/billm/baaaht/orchestrator/pkg/tui/components"
+	"github.com/billm/baaaht/orchestrator/pkg/tui/styles"
 )
 
 // View renders the model state as a string for display.
@@ -42,8 +44,8 @@ func (m Model) View() string {
 
 // headerView renders the header section.
 func (m Model) headerView() string {
-	title := Styles.HeaderText.Render("Baaaht TUI")
-	version := Styles.HeaderVersion.Render("v0.1.0")
+	title := styles.Styles.HeaderText.Render("Baaaht TUI")
+	version := styles.Styles.HeaderVersion.Render("v0.1.0")
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, title, " ", version)
 }
@@ -56,10 +58,10 @@ func (m Model) chatView() string {
 		chatHeight = 1
 	}
 
-	// Set the chat viewport height before rendering
-	if m.height > 0 {
-		m.chat.height = chatHeight
-	}
+	// Update chat component with the new size
+	chatMsg := tea.WindowSizeMsg{Width: m.width, Height: chatHeight}
+	cm, _ := m.chat.Update(chatMsg)
+	m.chat = cm.(components.ChatModel)
 
 	return m.chat.View()
 }
@@ -72,11 +74,10 @@ func (m Model) sessionsView() string {
 		sessionsHeight = 1
 	}
 
-	// Set the sessions list height before rendering
-	if m.height > 0 {
-		m.sessions.height = sessionsHeight
-		m.sessions.width = m.width
-	}
+	// Update sessions component with the new size
+	sessionsMsg := tea.WindowSizeMsg{Width: m.width, Height: sessionsHeight}
+	sessm, _ := m.sessions.Update(sessionsMsg)
+	m.sessions = sessm.(components.SessionsModel)
 
 	return m.sessions.View()
 }
@@ -94,14 +95,14 @@ func (m Model) footerView() string {
 	}
 
 	helpText := lipgloss.JoinHorizontal(lipgloss.Top, parts...)
-	return Styles.FooterText.Width(m.width).Render(helpText)
+	return styles.Styles.FooterText.Width(m.width).Render(helpText)
 }
 
 // errorView renders the error state.
 func (m Model) errorView() string {
-	title := Styles.ErrorTitle.Render("Error")
-	message := Styles.ErrorText.Render(m.err.Error())
+	title := styles.Styles.ErrorTitle.Render("Error")
+	message := styles.Styles.ErrorText.Render(m.err.Error())
 
 	content := lipgloss.JoinVertical(lipgloss.Left, title, "", message)
-	return Styles.ErrorBorder.Width(m.width).Render(content)
+	return styles.Styles.ErrorBorder.Width(m.width).Render(content)
 }

@@ -6,7 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/billm/baaaht/orchestrator/pkg/tui"
+	"github.com/billm/baaaht/orchestrator/pkg/tui/styles"
 )
 
 // SessionItem represents a single session in the list.
@@ -68,10 +68,10 @@ func NewSessionsModel() SessionsModel {
 	delegate := list.NewDefaultDelegate()
 
 	// Customize the selected and normal styles
-	delegate.Styles.SelectedTitle = tui.Styles.SessionSelected
-	delegate.Styles.SelectedDesc = tui.Styles.SessionSelected.Copy().Foreground(lipgloss.Color("251"))
-	delegate.Styles.NormalTitle = tui.Styles.SessionNormal
-	delegate.Styles.NormalDesc = tui.Styles.SessionNormal.Copy().Faint(true)
+	delegate.Styles.SelectedTitle = styles.Styles.SessionSelected
+	delegate.Styles.SelectedDesc = styles.Styles.SessionSelected.Copy().Foreground(lipgloss.Color("251"))
+	delegate.Styles.NormalTitle = styles.Styles.SessionNormal
+	delegate.Styles.NormalDesc = styles.Styles.SessionNormal.Copy().Faint(true)
 
 	// Set spacing between items
 	delegate.ShowDescription = true
@@ -83,9 +83,9 @@ func NewSessionsModel() SessionsModel {
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(false)
 	l.Title = "Sessions"
-	l.Styles.Title = tui.Styles.HeaderText
-	l.Styles.PaginationStyle = tui.Styles.Muted
-	l.Styles.HelpStyle = tui.Styles.Muted
+	l.Styles.Title = styles.Styles.HeaderText
+	l.Styles.PaginationStyle = styles.Styles.Muted
+	l.Styles.HelpStyle = styles.Styles.Muted
 
 	return SessionsModel{
 		list:     l,
@@ -182,8 +182,8 @@ func (m SessionsModel) View() string {
 
 	// If no sessions, show placeholder
 	if len(m.sessions) == 0 {
-		placeholder := tui.Styles.Muted.Render("No sessions available.")
-		return tui.Styles.SessionBorder.
+		placeholder := styles.Styles.Muted.Render("No sessions available.")
+		return styles.Styles.SessionBorder.
 			Width(m.width).
 			Height(m.height).
 			Render(placeholder)
@@ -191,7 +191,7 @@ func (m SessionsModel) View() string {
 
 	// Render the list with border
 	content := m.list.View()
-	return tui.Styles.SessionBorder.
+	return styles.Styles.SessionBorder.
 		Width(m.width).
 		Height(m.height).
 		Render(content)

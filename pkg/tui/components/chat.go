@@ -6,11 +6,10 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/bubbles/viewport"
-	"github.com/billm/baaaht/orchestrator/pkg/tui"
+	"github.com/billm/baaaht/orchestrator/pkg/tui/styles"
 	"github.com/alecthomas/chroma"
 	"github.com/alecthomas/chroma/lexers"
 	"github.com/alecthomas/chroma/quick"
-	"github.com/alecthomas/chroma/styles"
 )
 
 // MessageType represents the type of message in the chat.
@@ -134,8 +133,8 @@ func (m ChatModel) View() string {
 
 	// If no messages, show placeholder
 	if len(m.messages) == 0 {
-		placeholder := tui.Styles.Muted.Render("No messages yet. Start a conversation!")
-		return tui.Styles.ChatBorder.
+		placeholder := styles.Styles.Muted.Render("No messages yet. Start a conversation!")
+		return styles.Styles.ChatBorder.
 			Width(m.width).
 			Height(m.height).
 			Render(placeholder)
@@ -143,7 +142,7 @@ func (m ChatModel) View() string {
 
 	// Render the viewport with border
 	content := m.viewport.View()
-	return tui.Styles.ChatBorder.
+	return styles.Styles.ChatBorder.
 		Width(m.width).
 		Height(m.height).
 		Render(content)
@@ -167,7 +166,7 @@ func (m ChatModel) renderMessages() string {
 // renderMessage renders a single message with appropriate styling.
 func (m ChatModel) renderMessage(msg Message) string {
 	// Get the appropriate style for this message type
-	style := tui.MessageTypeStyle(string(msg.Type))
+	style := styles.MessageTypeStyle(string(msg.Type))
 
 	// Create the message header
 	var prefix string
@@ -229,8 +228,8 @@ func (m ChatModel) formatCodeBlocks(content string) string {
 		highlightedCode := m.highlightCode(code, lang)
 
 		// Wrap with code block styles (border + background)
-		return tui.Styles.CodeBorder.Render(
-			tui.Styles.CodeBlock.Render(highlightedCode),
+		return styles.Styles.CodeBorder.Render(
+			styles.Styles.CodeBlock.Render(highlightedCode),
 		)
 	})
 

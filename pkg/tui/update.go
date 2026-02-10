@@ -14,13 +14,32 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	}
 
-	var cmd tea.Cmd
+	var cmds []tea.Cmd
 
 	// Update all components with the message
-	m.status, _ = m.status.Update(msg)
-	m.chat, cmd = m.chat.Update(msg)
-	m.input, cmd = tea.Sequence(cmd, m.input.Update(msg))
-	m.sessions, cmd = tea.Sequence(cmd, m.sessions.Update(msg))
+	statusModel, statusCmd := m.status.Update(msg)
+	m.status = statusModel.(components.StatusModel)
+	if statusCmd != nil {
+		cmds = append(cmds, statusCmd)
+	}
+
+	chatModel, chatCmd := m.chat.Update(msg)
+	m.chat = chatModel.(components.ChatModel)
+	if chatCmd != nil {
+		cmds = append(cmds, chatCmd)
+	}
+
+	inputModel, inputCmd := m.input.Update(msg)
+	m.input = inputModel.(components.InputModel)
+	if inputCmd != nil {
+		cmds = append(cmds, inputCmd)
+	}
+
+	sessionsModel, sessionsCmd := m.sessions.Update(msg)
+	m.sessions = sessionsModel.(components.SessionsModel)
+	if sessionsCmd != nil {
+		cmds = append(cmds, sessionsCmd)
+	}
 
 	switch msg := msg.(type) {
 	// Handle key presses
@@ -47,9 +66,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case SessionCreatedMsg:
 		m.sessionID = msg.SessionID
 		// Update status bar with session ID
-		m.status, _ = m.status.Update(components.StatusSessionMsg{SessionID: msg.SessionID})
+		sm, _ := m.status.Update(components.StatusSessionMsg{SessionID: msg.SessionID})
+		m.status = sm.(components.StatusModel)
 		// Update status bar to connected state
-		m.status, _ = m.status.Update(components.StatusConnectedMsg{})
+		sm, _ = m.status.Update(components.StatusConnectedMsg{})
+		m.status = sm.(components.StatusModel)
 		// Initialize stream for new session
 		return m, m.initStreamCmd()
 
@@ -57,8 +78,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case SessionCreateFailedMsg:
 		// Connection errors are recoverable - don't set m.err
 		// Update status bar with error so user can see what happened
-		m.status, _ = m.status.Update(components.StatusErrorMsg{Err: msg.Err})
-		m.status, _ = m.status.Update(components.StatusDisconnectedMsg{})
+		sm, _ := m.status.Update(components.StatusErrorMsg{Err: msg.Err})
+		m.status = sm.(components.StatusModel)
+		sm, _ = m.status.Update(components.StatusDisconnectedMsg{})
+		m.status = sm.(components.StatusModel)
 		return m, nil
 
 	// Handle stream initialization
@@ -88,8 +111,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case StreamSendFailedMsg:
 		// Stream errors are recoverable - don't set m.err
 		// Update status bar with error so user can see what happened
-		m.status, _ = m.status.Update(components.StatusErrorMsg{Err: msg.Err})
-		m.status, _ = m.status.Update(components.StatusDisconnectedMsg{})
+		sm, _ := m.status.Update(components.StatusErrorMsg{Err: msg.Err})
+		m.status = sm.(components.StatusModel)
+		sm, _ = m.status.Update(components.StatusDisconnectedMsg{})
+		m.status = sm.(components.StatusModel)
 		return m, nil
 
 	// Handle shutdown complete
@@ -115,7 +140,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// - Health check tick messages (phase-3-grpc)
 	}
 
-	return m, cmd
+	return m, tea.Batch(cmds...)
 }
 
 // handleKeyMsg handles keyboard input.
@@ -124,8 +149,10 @@ func (m Model) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.keys.IsRetryConnectionKey(msg) {
 		if m.status.GetError() != nil {
 			// Clear error and retry connection
-			m.status, _ = m.status.Update(components.StatusErrorMsg{Err: nil})
-			m.status, _ = m.status.Update(components.StatusConnectingMsg{Reconnecting: true})
+			sm, _ := m.status.Update(components.StatusErrorMsg{Err: nil})
+			m.status = sm.(components.StatusModel)
+			sm, _ = m.status.Update(components.StatusConnectingMsg{Reconnecting: true})
+			m.status = sm.(components.StatusModel)
 			return m, m.retryConnectionCmd()
 		}
 	}
@@ -175,7 +202,8 @@ func (m Model) handleWindowSize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 	m.height = msg.Height
 
 	// Status bar uses full width
-	m.status, _ = m.status.Update(msg)
+	sm, _ := m.status.Update(msg)
+	m.status = sm.(components.StatusModel)
 
 	// Calculate available height for chat and sessions (header + status + input = 4 lines)
 	contentHeight := m.height - 4
@@ -185,14 +213,17 @@ func (m Model) handleWindowSize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 
 	// Update chat viewport with proper dimensions
 	chatMsg := tea.WindowSizeMsg{Width: m.width, Height: contentHeight}
-	m.chat, _ = m.chat.Update(chatMsg)
+	cm, _ := m.chat.Update(chatMsg)
+	m.chat = cm.(components.ChatModel)
 
 	// Update sessions list with proper dimensions
 	sessionsMsg := tea.WindowSizeMsg{Width: m.width, Height: contentHeight}
-	m.sessions, _ = m.sessions.Update(sessionsMsg)
+	sessm, _ := m.sessions.Update(sessionsMsg)
+	m.sessions = sessm.(components.SessionsModel)
 
 	// Input uses full width
-	m.input, _ = m.input.Update(tea.WindowSizeMsg{Width: m.width, Height: 1})
+	im, _ := m.input.Update(tea.WindowSizeMsg{Width: m.width, Height: 1})
+	m.input = im.(components.InputModel)
 
 	return m, nil
 }

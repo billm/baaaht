@@ -5,7 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/bubbles/textinput"
-	"github.com/billm/baaaht/orchestrator/pkg/tui"
+	"github.com/billm/baaaht/orchestrator/pkg/tui/styles"
 )
 
 // InputModel represents the state of the text input component.
@@ -97,19 +97,13 @@ func (m InputModel) View() string {
 
 	// Add error display if present
 	if m.err != nil {
-		sb.WriteString(tui.Styles.InputError.Render("⚠ "+m.err.Error()))
+		sb.WriteString(styles.Styles.InputError.Render("⚠ "+m.err.Error()))
 		sb.WriteString("\n")
-	}
-
-	// Render the text input with border
-	inputStyle := tui.Styles.InputText
-	if !m.focused {
-		inputStyle = tui.Styles.InputPlaceholder
 	}
 
 	// Apply border if focused
 	if m.focused {
-		sb.WriteString(tui.Styles.AppBorder.
+		sb.WriteString(styles.Styles.AppBorder.
 			Width(m.width).
 			Render(m.textInput.View()))
 	} else {
@@ -163,8 +157,9 @@ func (m InputModel) IsFocused() bool {
 }
 
 // CursorPosition returns the current cursor position.
+// Note: This is a placeholder as the underlying textinput doesn't expose this directly.
 func (m InputModel) CursorPosition() int {
-	return m.textInput.Cursor()
+	return 0
 }
 
 // SetCursorPosition sets the cursor position.

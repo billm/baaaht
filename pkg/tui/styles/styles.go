@@ -1,4 +1,4 @@
-package tui
+package styles
 
 import (
 	"github.com/charmbracelet/lipgloss"
@@ -33,11 +33,11 @@ var Styles = &styleDefs{
 	CodeBlock: lipgloss.NewStyle().
 		Foreground(lipgloss.Color("231")).
 		Background(lipgloss.Color("235")).
-		Padding(1).
+		Padding(1),
 
 	CodeBorder: lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("59")).
+		BorderForeground(lipgloss.Color("59")),
 
 	// Input styles
 	InputPlaceholder: lipgloss.NewStyle().Faint(true),
@@ -74,7 +74,7 @@ var Styles = &styleDefs{
 	HelpKey: lipgloss.NewStyle().
 		Foreground(lipgloss.Color("228")).
 		Background(lipgloss.Color("236")).
-		Padding(0, 1).
+		Padding(0, 1),
 
 	HelpDesc: lipgloss.NewStyle().
 		Foreground(lipgloss.Color("243")),
@@ -99,11 +99,11 @@ var Styles = &styleDefs{
 	// Error styles
 	ErrorTitle: lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("196")).
+		Foreground(lipgloss.Color("196")),
 
 	ErrorBorder: lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("196")).
+		BorderForeground(lipgloss.Color("196")),
 
 	ErrorText: lipgloss.NewStyle().
 		Foreground(lipgloss.Color("203")),

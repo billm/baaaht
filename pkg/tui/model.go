@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/billm/baaaht/orchestrator/internal/logger"
@@ -96,7 +97,7 @@ func NewModel(socketPath string, verbose bool) Model {
 // Part of the tea.Model interface.
 func (m Model) Init() tea.Cmd {
 	// Initialize the input component's cursor blink and create a session
-	return tea.Sequence(m.input.Init, m.createSessionCmd(), m.initStreamCmd())
+	return tea.Sequence(m.input.Init(), m.createSessionCmd(), m.initStreamCmd())
 }
 
 // Session creation messages
@@ -131,7 +132,7 @@ type StreamSendFailedMsg struct {
 func (m Model) createSessionCmd() tea.Cmd {
 	return func() tea.Msg {
 		if m.client == nil {
-			return SessionCreateFailedMsg{Err: logger.NewError("client not initialized")}
+			return SessionCreateFailedMsg{Err: fmt.Errorf("client not initialized")}
 		}
 
 		// Connect to the gRPC server
@@ -162,7 +163,7 @@ func (m Model) createSessionCmd() tea.Cmd {
 func (m Model) initStreamCmd() tea.Cmd {
 	return func() tea.Msg {
 		if m.client == nil || m.sessionID == "" {
-			return StreamSendFailedMsg{Err: logger.NewError("client or session not initialized")}
+			return StreamSendFailedMsg{Err: fmt.Errorf("client or session not initialized")}
 		}
 
 		ctx := context.Background()
@@ -185,7 +186,7 @@ type StreamInitializedMsg struct {
 func (m Model) sendMessageCmd(content string) tea.Cmd {
 	return func() tea.Msg {
 		if m.stream == nil {
-			return StreamSendFailedMsg{Err: logger.NewError("stream not initialized")}
+			return StreamSendFailedMsg{Err: fmt.Errorf("stream not initialized")}
 		}
 
 		// Send the user message
@@ -212,7 +213,7 @@ func (m Model) sendMessageCmd(content string) tea.Cmd {
 func (m Model) waitForStreamMsgCmd() tea.Cmd {
 	return func() tea.Msg {
 		if m.stream == nil {
-			return StreamSendFailedMsg{Err: logger.NewError("stream not initialized")}
+			return StreamSendFailedMsg{Err: fmt.Errorf("stream not initialized")}
 		}
 
 		resp, err := m.stream.Recv()
@@ -341,7 +342,7 @@ func (m Model) retryConnectionCmd() tea.Cmd {
 
 		// Attempt to create a new session
 		if m.client == nil {
-			return SessionCreateFailedMsg{Err: logger.NewError("client not initialized")}
+			return SessionCreateFailedMsg{Err: fmt.Errorf("client not initialized")}
 		}
 
 		ctx := context.Background()

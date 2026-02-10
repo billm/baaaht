@@ -3,9 +3,8 @@ package components
 import (
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/billm/baaaht/orchestrator/pkg/tui"
+	"github.com/billm/baaaht/orchestrator/pkg/tui/styles"
 )
 
 // StatusModel represents the state of the status bar component.
@@ -92,22 +91,22 @@ func (m StatusModel) View() string {
 	var sections []string
 
 	// Connection status section (left)
-	connStyle := tui.StatusStyle(m.connected, m.thinking, m.error)
+	connStyle := styles.StatusStyle(m.connected, m.thinking, m.error)
 	connText := m.connectionText()
 	sections = append(sections, connStyle.Render(connText))
 
 	// Session info section (center)
 	if m.sessionID != "" {
-		sessionStyle := tui.Styles.Muted
+		sessionStyle := styles.Styles.Muted
 		if m.connected {
-			sessionStyle = tui.Styles.StatusInfo
+			sessionStyle = styles.Styles.StatusInfo
 		}
 		sections = append(sections, sessionStyle.Render("Session: "+m.shortSessionID()))
 	}
 
 	// Error section (right, if present)
 	if m.error != nil {
-		errorStyle := tui.Styles.StatusError
+		errorStyle := styles.Styles.StatusError
 		errorText := strings.TrimSpace(m.error.Error())
 		if len(errorText) > 30 {
 			errorText = errorText[:27] + "..."
@@ -128,10 +127,10 @@ func (m StatusModel) View() string {
 	}
 
 	// Create the status bar with border
-	statusBar := strings.Join(renderedSections, tui.Styles.HelpSeparator.Render(" • "))
+	statusBar := strings.Join(renderedSections, styles.Styles.HelpSeparator.Render(" • "))
 
 	// Apply border style
-	return tui.Styles.StatusBorder.
+	return styles.Styles.StatusBorder.
 		Width(m.width).
 		Render(statusBar)
 }
