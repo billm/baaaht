@@ -538,3 +538,185 @@ func TestMountEnforcementPermissiveMode(t *testing.T) {
 
 	t.Logf("Permissive mode test: Allowed=%v, Violations=%d", result.Allowed, len(result.Violations))
 }
+
+// TestNetworkPolicy verifies that network policy validation works correctly for web operations
+func TestNetworkPolicy(t *testing.T) {
+	// Create logger and policy enforcer
+	log, err := logger.NewDefault()
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
+
+	policyEnforcer, err := policy.NewDefault(log)
+	if err != nil {
+		t.Fatalf("failed to create policy enforcer: %v", err)
+	}
+	defer policyEnforcer.Close()
+
+	// Set a policy that disables network access
+	ctx := context.Background()
+	noNetworkPolicy := &policy.Policy{
+		ID:          "no-network",
+		Name:        "No Network Policy",
+		Description: "Policy that disables all network access",
+		Mode:        policy.EnforcementModeStrict,
+		Mounts: policy.MountPolicy{
+			AllowBindMounts: true,
+		},
+		Network: policy.NetworkPolicy{
+			AllowNetwork:     false,
+			AllowHostNetwork: false,
+		},
+		Images: policy.ImagePolicy{
+			AllowLatestTag: true,
+		},
+		Security: policy.SecurityPolicy{
+			AllowPrivileged: false,
+		},
+	}
+
+	if err := policyEnforcer.SetPolicy(ctx, noNetworkPolicy); err != nil {
+		t.Fatalf("failed to set no-network policy: %v", err)
+	}
+
+	// Create executor with policy enforcer
+	exec, err := NewExecutor(ExecutorConfig{
+		PolicyEnforcer: policyEnforcer,
+		Logger:         log,
+	})
+	if err != nil {
+		t.Fatalf("failed to create executor: %v", err)
+	}
+	defer exec.Close()
+
+	tests := []struct {
+		name          string
+		toolType      ToolType
+		wantAllowed   bool
+		wantViolation string
+	}{
+		{
+			name:          "web search - blocked when network disabled",
+			toolType:      ToolTypeWebSearch,
+			wantAllowed:   false,
+			wantViolation: "network.disabled",
+		},
+		{
+			name:          "fetch URL - blocked when network disabled",
+			toolType:      ToolTypeFetchURL,
+			wantAllowed:   false,
+			wantViolation: "network.disabled",
+		},
+		{
+			name:        "file read - allowed (no network needed)",
+			toolType:    ToolTypeFileRead,
+			wantAllowed: true,
+		},
+		{
+			name:        "list files - allowed (no network needed)",
+			toolType:    ToolTypeList,
+			wantAllowed: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Get tool spec
+			toolSpec, err := GetToolSpec(tt.toolType)
+			if err != nil {
+				t.Fatalf("failed to get tool spec: %v", err)
+			}
+
+			// Create container config
+			containerConfig := toolSpec.ToContainerConfig(exec.SessionID(), "/tmp")
+
+			// Validate the config
+			result, err := exec.ValidateConfig(ctx, containerConfig)
+			if err != nil {
+				t.Fatalf("ValidateConfig failed: %v", err)
+			}
+
+			// Check if allowed status matches expectation
+			if result.Allowed != tt.wantAllowed {
+				t.Errorf("Allowed = %v, want %v\nViolations: %+v\nWarnings: %+v",
+					result.Allowed, tt.wantAllowed, result.Violations, result.Warnings)
+			}
+
+			// If we expect a specific violation, verify it exists
+			if tt.wantViolation != "" {
+				found := false
+				for _, v := range result.Violations {
+					if v.Rule == tt.wantViolation {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("Expected violation %s not found. Got violations: %+v", tt.wantViolation, result.Violations)
+				}
+			}
+
+			// Log the result for debugging
+			t.Logf("Test '%s': Allowed=%v, Violations=%d, Warnings=%d",
+				tt.name, result.Allowed, len(result.Violations), len(result.Warnings))
+			for i, v := range result.Violations {
+				t.Logf("  Violation[%d]: Rule=%s, Message=%s, Severity=%s",
+					i, v.Rule, v.Message, v.Severity)
+			}
+		})
+	}
+}
+
+// TestNetworkPolicyAllowed verifies that web operations are allowed when network is enabled
+func TestNetworkPolicyAllowed(t *testing.T) {
+	// Create logger and policy enforcer
+	log, err := logger.NewDefault()
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
+
+	policyEnforcer, err := policy.NewDefault(log)
+	if err != nil {
+		t.Fatalf("failed to create policy enforcer: %v", err)
+	}
+	defer policyEnforcer.Close()
+
+	// Set a policy that allows network access (this is the default)
+	ctx := context.Background()
+	allowNetworkPolicy := policy.DefaultPolicy()
+	allowNetworkPolicy.Network.AllowNetwork = true
+
+	if err := policyEnforcer.SetPolicy(ctx, allowNetworkPolicy); err != nil {
+		t.Fatalf("failed to set allow-network policy: %v", err)
+	}
+
+	// Create executor with policy enforcer
+	exec, err := NewExecutor(ExecutorConfig{
+		PolicyEnforcer: policyEnforcer,
+		Logger:         log,
+	})
+	if err != nil {
+		t.Fatalf("failed to create executor: %v", err)
+	}
+	defer exec.Close()
+
+	// Test web operations are allowed
+	webToolSpec, err := GetToolSpec(ToolTypeWebSearch)
+	if err != nil {
+		t.Fatalf("failed to get web search tool spec: %v", err)
+	}
+
+	containerConfig := webToolSpec.ToContainerConfig(exec.SessionID(), "")
+
+	result, err := exec.ValidateConfig(ctx, containerConfig)
+	if err != nil {
+		t.Fatalf("ValidateConfig failed: %v", err)
+	}
+
+	// Should be allowed
+	if !result.Allowed {
+		t.Errorf("Web operation should be allowed when network is enabled. Got violations: %+v", result.Violations)
+	}
+
+	t.Logf("Web operation allowed: %v, Violations: %d", result.Allowed, len(result.Violations))
+}

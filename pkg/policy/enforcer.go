@@ -387,10 +387,23 @@ func (e *Enforcer) validateNetwork(policy *Policy, config types.ContainerConfig,
 		result.Violations = append(result.Violations, violation)
 	}
 
+	// If network access is disabled, reject any container that requires networking
+	// NetworkMode is empty (default/bridged) or set to a specific network when networking is needed
+	// NetworkMode is "none" when no networking is required
+	if !policy.Network.AllowNetwork && config.NetworkMode != "none" {
+		violation := Violation{
+			Rule:      "network.disabled",
+			Message:   "network access is disabled but container requires networking",
+			Severity:  string(SeverityError),
+			Component: "network",
+		}
+		result.Violations = append(result.Violations, violation)
+	}
+
 	// If network access is disabled, warn about any network configuration
 	if !policy.Network.AllowNetwork && len(config.Networks) > 0 {
 		violation := Violation{
-			Rule:      "network.disabled",
+			Rule:      "network.configured",
 			Message:   "network access is disabled but networks are configured",
 			Severity:  string(SeverityWarning),
 			Component: "network",
