@@ -833,7 +833,7 @@ func TestEnforcerString(t *testing.T) {
 	}
 
 	// Should contain mode
-	if !containsString(s, "mode:") {
+	if !containsSubstring(s, "mode:") {
 		t.Error("string representation should contain mode")
 	}
 }
@@ -869,7 +869,7 @@ func BenchmarkValidateConfig(b *testing.B) {
 }
 
 // Helper function
-func containsString(s, substr string) bool {
+func containsSubstring(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
 		(len(s) > 0 && len(substr) > 0 && findSubstring(s, substr)))
 }
