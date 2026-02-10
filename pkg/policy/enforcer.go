@@ -36,12 +36,19 @@ func New(cfg config.PolicyConfig, log *logger.Logger) (*Enforcer, error) {
 	// Start with default policy
 	policy := DefaultPolicy()
 
+	// Create mount allowlist resolver
+	resolver, err := NewMountAllowlistResolver(policy, log)
+	if err != nil {
+		return nil, types.WrapError(types.ErrCodeInternal, "failed to create mount allowlist resolver", err)
+	}
+
 	e := &Enforcer{
-		policy:          policy,
-		cfg:             cfg,
-		logger:          log.With("component", "policy_enforcer"),
-		closed:          false,
-		sessionPolicies: make(map[types.ID]*Policy),
+		policy:                 policy,
+		cfg:                    cfg,
+		logger:                 log.With("component", "policy_enforcer"),
+		closed:                 false,
+		sessionPolicies:        make(map[types.ID]*Policy),
+		mountAllowlistResolver: resolver,
 	}
 
 	e.logger.Info("Policy enforcer initialized",
@@ -73,6 +80,14 @@ func (e *Enforcer) SetPolicy(ctx context.Context, policy *Policy) error {
 	}
 
 	e.policy = policy
+
+	// Update the resolver's policy as well
+	if e.mountAllowlistResolver != nil {
+		if err := e.mountAllowlistResolver.SetPolicy(ctx, policy); err != nil {
+			e.logger.Warn("Failed to update mount allowlist resolver policy", "error", err)
+			// Continue anyway - the resolver will use its cached policy
+		}
+	}
 
 	e.logger.Info("Policy updated",
 		"policy_id", policy.ID,
@@ -182,7 +197,7 @@ func (e *Enforcer) ValidateContainerConfig(ctx context.Context, sessionID types.
 	e.validateQuotas(policy, config, result)
 
 	// Validate mounts
-	e.validateMounts(policy, config, result)
+	e.validateMounts(ctx, policy, config, result)
 
 	// Validate network
 	e.validateNetwork(policy, config, result)
@@ -277,7 +292,7 @@ func (e *Enforcer) validateQuotas(policy *Policy, config types.ContainerConfig, 
 }
 
 // validateMounts validates mount configurations
-func (e *Enforcer) validateMounts(policy *Policy, config types.ContainerConfig, result *ValidationResult) {
+func (e *Enforcer) validateMounts(ctx context.Context, policy *Policy, config types.ContainerConfig, result *ValidationResult) {
 	for _, mount := range config.Mounts {
 		switch mount.Type {
 		case types.MountTypeBind:
@@ -292,15 +307,64 @@ func (e *Enforcer) validateMounts(policy *Policy, config types.ContainerConfig, 
 				continue
 			}
 
-			// Check bind mount source against allow/deny lists
-			if !isPathAllowed(mount.Source, policy.Mounts.AllowedBindSources, policy.Mounts.DeniedBindSources) {
-				violation := Violation{
-					Rule:      "mount.bind.source_not_allowed",
-					Message:   fmt.Sprintf("bind mount source not allowed: %s", mount.Source),
-					Severity:  string(SeverityError),
-					Component: "mount",
+			// Use resolver if available to check mount access and mode
+			// For backward compatibility, only use the resolver if the allowlist is configured
+			useResolver := false
+			var accessMode MountAccessMode = MountAccessModeReadWrite // Default to read-write for backward compatibility
+
+			if e.mountAllowlistResolver != nil && len(policy.Mounts.MountAllowlist) > 0 {
+				// Try to get username from config labels or context
+				username := ""
+				if config.Labels != nil {
+					if user, ok := config.Labels["username"]; ok {
+						username = user
+					}
 				}
-				result.Violations = append(result.Violations, violation)
+
+				mode, err := e.mountAllowlistResolver.ResolveMountAccess(ctx, mount.Source, username)
+				if err != nil {
+					e.logger.Warn("Failed to resolve mount access", "path", mount.Source, "error", err)
+					// Fall through to legacy allow/deny list checking
+				} else {
+					useResolver = true
+					accessMode = mode
+
+					// Check if access is denied by the allowlist
+					if accessMode == MountAccessModeDenied {
+						violation := Violation{
+							Rule:      "mount.bind.source_not_allowed",
+							Message:   fmt.Sprintf("bind mount source not in allowlist: %s", mount.Source),
+							Severity:  string(SeverityError),
+							Component: "mount",
+						}
+						result.Violations = append(result.Violations, violation)
+						continue
+					}
+
+					// Enforce read-only mode if required by allowlist
+					if accessMode == MountAccessModeReadOnly && !mount.ReadOnly {
+						violation := Violation{
+							Rule:      "mount.bind.readonly_required",
+							Message:   fmt.Sprintf("bind mount requires read-only mode: %s", mount.Source),
+							Severity:  string(SeverityError),
+							Component: "mount",
+						}
+						result.Violations = append(result.Violations, violation)
+					}
+				}
+			}
+
+			// Fall back to legacy allow/deny list checking if resolver was not used or is not available
+			if !useResolver {
+				if !isPathAllowed(mount.Source, policy.Mounts.AllowedBindSources, policy.Mounts.DeniedBindSources) {
+					violation := Violation{
+						Rule:      "mount.bind.source_not_allowed",
+						Message:   fmt.Sprintf("bind mount source not allowed: %s", mount.Source),
+						Severity:  string(SeverityError),
+						Component: "mount",
+					}
+					result.Violations = append(result.Violations, violation)
+				}
 			}
 
 		case types.MountTypeVolume:
