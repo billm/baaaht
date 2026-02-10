@@ -1,0 +1,322 @@
+# Baaaht TUI Configuration
+# This file contains all available configuration options for the Terminal UI (TUI)
+# client with their default values and documentation for each setting.
+#
+# Configuration Priority (highest to lowest):
+# 1. CLI flags (e.g., --socket-path, --log-level)
+# 2. Environment variables
+# 3. YAML configuration file
+# 4. Built-in defaults
+#
+# Default configuration locations:
+# - Unix: ~/.config/baaaht/tui-config.yaml
+# - Custom path via --config flag
+
+# ============================================
+# gRPC Client Configuration
+# ============================================
+grpc:
+  # Path to the Unix Domain Socket for connecting to the orchestrator
+  # Environment variable: TUI_GRPC_SOCKET_PATH
+  # Default: /tmp/baaaht-grpc.sock
+  socket_path: /tmp/baaaht-grpc.sock
+
+  # Timeout for establishing the gRPC connection
+  # Format: Go duration string (e.g., 30s, 5m, 1h)
+  # Environment variable: TUI_GRPC_DIAL_TIMEOUT
+  # Default: 30s
+  dial_timeout: 30s
+
+  # Timeout for individual RPC calls
+  # Format: Go duration string
+  # Environment variable: TUI_GRPC_RPC_TIMEOUT
+  # Default: 10s
+  rpc_timeout: 10s
+
+  # Maximum message size for receiving (in bytes)
+  # Environment variable: TUI_GRPC_MAX_RECV_MSG_SIZE
+  # Default: 104857600 (100 MB)
+  max_recv_msg_size: 104857600
+
+  # Maximum message size for sending (in bytes)
+  # Environment variable: TUI_GRPC_MAX_SEND_MSG_SIZE
+  # Default: 104857600 (100 MB)
+  max_send_msg_size: 104857600
+
+  # Interval between reconnection attempts when connection is lost
+  # Format: Go duration string
+  # Environment variable: TUI_GRPC_RECONNECT_INTERVAL
+  # Default: 5s
+  reconnect_interval: 5s
+
+  # Maximum number of reconnection attempts (0 for infinite retries)
+  # Environment variable: TUI_GRPC_RECONNECT_MAX_ATTEMPTS
+  # Default: 0 (infinite)
+  reconnect_max_attempts: 0
+
+# ============================================
+# TUI Appearance Configuration
+# ============================================
+appearance:
+  # Color theme for the TUI
+  # Options: default, dark, light, monokai, dracula
+  # Environment variable: TUI_THEME
+  # Default: default
+  theme: default
+
+  # Enable syntax highlighting for code blocks
+  # Default: true
+  syntax_highlighting: true
+
+  # Show line numbers in code blocks
+  # Default: true
+  code_line_numbers: true
+
+  # Maximum width for code blocks before horizontal scrolling (in columns)
+  # Default: 120
+  code_max_width: 120
+
+  # Enable mouse support for scrolling and selection
+  # Default: false
+  enable_mouse: false
+
+  # Alternate screen mode (true) vs inline mode (false)
+  # Alternate screen provides a dedicated TUI that restores terminal on exit
+  # Default: true
+  alternate_screen: true
+
+# ============================================
+# TUI Layout Configuration
+# ============================================
+layout:
+  # Minimum terminal width required for TUI to start (in columns)
+  # Default: 80
+  min_width: 80
+
+  # Minimum terminal height required for TUI to start (in rows)
+  # Default: 24
+  min_height: 24
+
+  # Height of the status bar (in rows)
+  # Default: 3
+  status_height: 3
+
+  # Height of the input area (in rows)
+  # Default: 3
+  input_height: 3
+
+  # Width of the session list panel (in columns)
+  # Default: 30
+  session_panel_width: 30
+
+  # Show session panel by default on startup
+  # Default: false
+  show_session_panel: false
+
+# ============================================
+# Keyboard Shortcuts Configuration
+# ============================================
+keybindings:
+  # Keybinding for quitting the TUI
+  # Options: ctrl+c, ctrl+d, q
+  # Default: ctrl+c
+  quit: ctrl+c
+
+  # Keybinding for sending messages
+  # Options: enter, ctrl+enter
+  # Default: ctrl+enter
+  send_message: ctrl+enter
+
+  # Keybinding for switching to next session
+  # Options: ctrl+n, ctrl+tab
+  # Default: ctrl+n
+  next_session: ctrl+n
+
+  # Keybinding for switching to previous session
+  # Options: ctrl+p, ctrl+shift+tab
+  # Default: ctrl+p
+  previous_session: ctrl+p
+
+  # Keybinding for showing session list
+  # Options: ctrl+l, ctrl+s
+  # Default: ctrl+l
+  list_sessions: ctrl+l
+
+  # Keybinding for canceling operations or closing modals
+  # Options: esc, ctrl+g
+  # Default: esc
+  cancel: esc
+
+  # Keybinding for retrying connection after failure
+  # Options: ctrl+r
+  # Default: ctrl+r
+  retry_connection: ctrl+r
+
+# ============================================
+# Chat Configuration
+# ============================================
+chat:
+  # Maximum number of messages to keep in memory
+  # Default: 1000
+  max_history: 1000
+
+  # Enable automatic scrolling to newest message
+  # Default: true
+  auto_scroll: true
+
+  # Show timestamps on messages
+  # Default: true
+  show_timestamps: true
+
+  # Timestamp format (Go time format string)
+  # Default: "15:04:05"
+  timestamp_format: "15:04:05"
+
+  # Maximum message display width before wrapping (in columns, 0 for terminal width)
+  # Default: 0 (use terminal width)
+  max_message_width: 0
+
+  # Show typing indicator when assistant is generating response
+  # Default: true
+  show_typing_indicator: true
+
+  # Typing indicator animation style
+  # Options: dots, pulse, wave
+  # Default: dots
+  typing_indicator_style: dots
+
+# ============================================
+# Session Management Configuration
+# ============================================
+session:
+  # Session name prefix for auto-created sessions
+  # Default: "tui-session"
+  name_prefix: tui-session
+
+  # Labels to apply to all TUI-created sessions (key-value pairs)
+  # Default: {client: "tui"}
+  labels:
+    client: tui
+
+  # Enable session persistence across TUI restarts
+  # Default: true
+  persistence_enabled: true
+
+  # Path to session state storage
+  # Default: ~/.config/baaaht/tui/sessions
+  storage_path: ~/.config/baaaht/tui/sessions
+
+  # Auto-resume last session on startup
+  # Default: true
+  auto_resume_last: true
+
+  # Maximum number of sessions to display in session list
+  # Default: 20
+  max_display_sessions: 20
+
+# ============================================
+# Logging Configuration
+# ============================================
+logging:
+  # Log level: debug, info, warn, error
+  # Environment variable: TUI_LOG_LEVEL
+  # Default: info
+  level: info
+
+  # Log output format: json, text
+  # Environment variable: TUI_LOG_FORMAT
+  # Default: text (text format preferred for TUI)
+  format: text
+
+  # Log output destination: stdout, stderr, or a file path
+  # Default: stderr (stderr avoids interfering with stdout redirects)
+  output: stderr
+
+  # Enable automatic log rotation
+  # Default: true
+  rotation_enabled: true
+
+  # Maximum size of a log file before rotation (in megabytes)
+  # Default: 100
+  max_size: 100
+
+  # Maximum number of old log files to retain
+  # Default: 3
+  max_backups: 3
+
+  # Maximum number of days to retain old log files
+  # Default: 28
+  max_age: 28
+
+  # Compress rotated log files with gzip
+  # Default: true
+  compress: true
+
+# ============================================
+# Performance Configuration
+# ============================================
+performance:
+  # Frame rate for UI updates (frames per second)
+  # Default: 60
+  frame_rate: 60
+
+  # Enable streaming rendering for faster display of long responses
+  # Default: true
+  streaming_render: true
+
+  # Debounce delay for terminal resize events (prevents excessive re-renders)
+  # Format: Go duration string
+  # Default: 100ms
+  resize_debounce: 100ms
+
+  # Buffer size for incoming gRPC stream messages
+  # Default: 100
+  stream_buffer_size: 100
+
+# ============================================
+# Help and Documentation Configuration
+# ============================================
+help:
+  # Show inline keyboard shortcut hints in the footer
+  # Default: true
+  show_short_hints: true
+
+  # Show detailed help on startup
+  # Default: false
+  show_on_startup: false
+
+  # Keybinding for showing full help screen
+  # Options: ?, f1, ctrl+h
+  # Default: ?
+  show_help_key: "?"
+
+# ============================================
+# Advanced Configuration
+# ============================================
+advanced:
+  # Enable debug mode (shows additional diagnostics and internal state)
+  # Default: false
+  debug_mode: false
+
+  # Enable profiling for performance analysis
+  # Default: false
+  enable_profiling: false
+
+  # Profile output path (when enable_profiling is true)
+  # Default: ~/.config/baaaht/tui/profiles
+  profile_path: ~/.config/baaaht/tui/profiles
+
+  # Custom gRPC dial options (advanced use only)
+  # This is an array of option names that will be parsed as gRPC dial options
+  # Default: (empty - use defaults)
+  custom_dial_options: []
+
+  # Timeout for graceful shutdown on exit
+  # Format: Go duration string
+  # Default: 10s
+  shutdown_timeout: 10s
+
+  # Suppress connection error messages on startup
+  # (Useful for scripts that check connection status themselves)
+  # Default: false
+  suppress_startup_errors: false
