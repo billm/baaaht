@@ -1,11 +1,16 @@
 package components
 
 import (
+	"regexp"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/billm/baaaht/orchestrator/pkg/tui"
+	"github.com/alecthomas/chroma"
+	"github.com/alecthomas/chroma/lexers"
+	"github.com/alecthomas/chroma/quick"
+	"github.com/alecthomas/chroma/styles"
 )
 
 // MessageType represents the type of message in the chat.
@@ -193,13 +198,68 @@ func (m ChatModel) renderMessage(msg Message) string {
 	return header + "\n" + body
 }
 
-// formatCodeBlocks formats code blocks within a message.
-// This is a placeholder for more sophisticated syntax highlighting
-// which will be implemented in subtask-6-3.
+// formatCodeBlocks formats code blocks within a message with syntax highlighting.
+// Detects markdown-style code blocks (```language or ```) and applies syntax highlighting.
 func (m ChatModel) formatCodeBlocks(content string) string {
-	// For now, just return the content as-is
-	// Syntax highlighting will be added in phase 6
-	return content
+	// Regular expression to match code blocks: ```language\ncode\n```
+	// Captures the language (optional) and the code content
+	codeBlockRegex := regexp.MustCompile("```(?P<lang>\\w*)\\n(?P<code>[^`]+?)\\n```")
+
+	// Replace each code block with highlighted version
+	result := codeBlockRegex.ReplaceAllStringFunc(content, func(match string) string {
+		// Extract the submatches
+		matches := codeBlockRegex.FindStringSubmatch(match)
+		if matches == nil {
+			return match
+		}
+
+		// Get the language and code from named groups
+		var lang, code string
+		for i, name := range codeBlockRegex.SubexpNames() {
+			if i < len(matches) && name != "" {
+				if name == "lang" {
+					lang = matches[i]
+				} else if name == "code" {
+					code = matches[i]
+				}
+			}
+		}
+
+		// Apply syntax highlighting
+		highlightedCode := m.highlightCode(code, lang)
+
+		// Wrap with code block styles (border + background)
+		return tui.Styles.CodeBorder.Render(
+			tui.Styles.CodeBlock.Render(highlightedCode),
+		)
+	})
+
+	return result
+}
+
+// highlightCode applies syntax highlighting to code using chroma.
+// If the language is not recognized, it falls back to plain text.
+func (m ChatModel) highlightCode(code, lang string) string {
+	// Get the lexer for the language
+	var lexer chroma.Lexer
+	if lang != "" {
+		lexer = lexers.Get(lang)
+	}
+	if lexer == nil {
+		// Fallback to plaintext if language not recognized
+		lexer = lexers.Fallback
+	}
+
+	// Apply syntax highlighting with monokai style (good for dark terminals)
+	// and terminal formatter for TUI display
+	var sb strings.Builder
+	err := quick.Highlight(&sb, code, lexer.Config().Name, "terminal16m", "monokai")
+	if err != nil {
+		// Fallback to original code if highlighting fails
+		return code
+	}
+
+	return sb.String()
 }
 
 // AppendMessage adds a new message to the chat.
