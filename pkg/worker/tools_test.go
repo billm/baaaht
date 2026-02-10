@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/billm/baaaht/orchestrator/pkg/types"
@@ -632,4 +633,256 @@ func TestFileWrite(t *testing.T) {
 // writeTestFile is a helper function to write test content to a file
 func writeTestFile(path, content string) error {
 	return os.WriteFile(path, []byte(content), 0644)
+}
+
+// TestGrepAndFind verifies that grep and find tools work correctly
+// This test requires Docker to be available (run with -requires_docker flag)
+func TestGrepAndFind(t *testing.T) {
+	t.Run("grep finds patterns in files", func(t *testing.T) {
+		// Create temporary directory with test files
+		tmpDir := t.TempDir()
+
+		// Create test files with content
+		testFiles := map[string]string{
+			"file1.txt": "Hello World\nThis is a test\nAnother line",
+			"file2.txt": "Hello Universe\nTesting is fun\nHello again",
+			"subdir/file3.txt": "Hello Subdirectory\nNested content",
+		}
+
+		for path, content := range testFiles {
+			fullPath := tmpDir + "/" + path
+			dir := tmpDir + "/" + path[:len(path)-len(path[strings.LastIndex(path, "/")+1:])]
+			if strings.Contains(path, "/") {
+				if err := os.MkdirAll(dir, 0755); err != nil {
+					t.Fatalf("Failed to create directory: %v", err)
+				}
+			}
+			if err := writeTestFile(fullPath, content); err != nil {
+				t.Fatalf("Failed to create test file: %v", err)
+			}
+		}
+
+		// Create executor
+		exec, err := NewExecutorDefault(nil)
+		if err != nil {
+			t.Skipf("Cannot create executor (Docker may not be available): %v", err)
+			return
+		}
+		defer exec.Close()
+
+		// Test grep for "Hello" pattern
+		ctx := context.Background()
+		taskCfg := TaskConfig{
+			ToolType:    ToolTypeGrep,
+			Args:        []string{"-r", "-n", "-I", "Hello"},
+			MountSource: tmpDir,
+		}
+
+		result := exec.ExecuteTask(ctx, taskCfg)
+		if result.Error != nil {
+			t.Fatalf("Grep execution failed: %v", result.Error)
+		}
+
+		// Check that grep found the pattern
+		if result.ExitCode != 0 {
+			t.Errorf("Grep exit code = %d, want 0. Stderr: %s", result.ExitCode, result.Stderr)
+		}
+
+		// Verify output contains "Hello" matches
+		output := result.Stdout
+		if !strings.Contains(output, "Hello") {
+			t.Errorf("Grep output should contain 'Hello', got: %s", output)
+		}
+
+		// Should have found at least 4 occurrences of "Hello"
+		helloCount := strings.Count(output, "Hello")
+		if helloCount < 4 {
+			t.Errorf("Expected at least 4 'Hello' occurrences, got %d. Output: %s", helloCount, output)
+		}
+	})
+
+	t.Run("grep with case insensitive flag", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		// Create test file with mixed case
+		testContent := "hello HELLO HeLLo hElLo World"
+		testFile := tmpDir + "/case_test.txt"
+		if err := writeTestFile(testFile, testContent); err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+
+		exec, err := NewExecutorDefault(nil)
+		if err != nil {
+			t.Skipf("Cannot create executor (Docker may not be available): %v", err)
+			return
+		}
+		defer exec.Close()
+
+		ctx := context.Background()
+
+		// Test case-insensitive grep with -i flag
+		taskCfg := TaskConfig{
+			ToolType:    ToolTypeGrep,
+			Args:        []string{"-r", "-n", "-I", "-i", "hello"},
+			MountSource: tmpDir,
+		}
+
+		result := exec.ExecuteTask(ctx, taskCfg)
+		if result.Error != nil {
+			t.Fatalf("Grep execution failed: %v", result.Error)
+		}
+
+		// Should find all case variations
+		output := result.Stdout
+		if !strings.Contains(strings.ToLower(output), "hello") {
+			t.Errorf("Case-insensitive grep should find 'hello' in any case. Output: %s", output)
+		}
+	})
+
+	t.Run("find lists files recursively", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		// Create nested directory structure
+		testFiles := []string{
+			"root.txt",
+			"level1/file1.txt",
+			"level1/level2/file2.txt",
+			"level1/level2/level3/file3.txt",
+			"another.txt",
+		}
+
+		for _, path := range testFiles {
+			fullPath := tmpDir + "/" + path
+			dir := tmpDir + "/" + path[:len(path)-len(path[strings.LastIndex(path, "/")+1:])]
+			if strings.Contains(path, "/") {
+				if err := os.MkdirAll(dir, 0755); err != nil {
+					t.Fatalf("Failed to create directory: %v", err)
+				}
+			}
+			if err := writeTestFile(fullPath, "test content"); err != nil {
+				t.Fatalf("Failed to create test file: %v", err)
+			}
+		}
+
+		exec, err := NewExecutorDefault(nil)
+		if err != nil {
+			t.Skipf("Cannot create executor (Docker may not be available): %v", err)
+			return
+		}
+		defer exec.Close()
+
+		// Test find to list all .txt files recursively
+		ctx := context.Background()
+		taskCfg := TaskConfig{
+			ToolType:    ToolTypeFind,
+			Args:        []string{".", "-name", "*.txt"},
+			MountSource: tmpDir,
+		}
+
+		result := exec.ExecuteTask(ctx, taskCfg)
+		if result.Error != nil {
+			t.Fatalf("Find execution failed: %v", result.Error)
+		}
+
+		// Check that find succeeded
+		if result.ExitCode != 0 {
+			t.Errorf("Find exit code = %d, want 0. Stderr: %s", result.ExitCode, result.Stderr)
+		}
+
+		// Verify output contains expected files
+		output := result.Stdout
+		expectedFiles := []string{"root.txt", "file1.txt", "file2.txt", "file3.txt", "another.txt"}
+
+		for _, expectedFile := range expectedFiles {
+			if !strings.Contains(output, expectedFile) {
+				t.Errorf("Find output should contain '%s'. Output: %s", expectedFile, output)
+			}
+		}
+	})
+
+	t.Run("find with directory filter", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		// Create files and directories
+		if err := os.MkdirAll(tmpDir+"/dir1", 0755); err != nil {
+			t.Fatalf("Failed to create directory: %v", err)
+		}
+		if err := os.MkdirAll(tmpDir+"/dir2", 0755); err != nil {
+			t.Fatalf("Failed to create directory: %v", err)
+		}
+		if err := writeTestFile(tmpDir+"/dir1/file.txt", "content"); err != nil {
+			t.Fatalf("Failed to create file: %v", err)
+		}
+		if err := writeTestFile(tmpDir+"/dir2/file.txt", "content"); err != nil {
+			t.Fatalf("Failed to create file: %v", err)
+		}
+
+		exec, err := NewExecutorDefault(nil)
+		if err != nil {
+			t.Skipf("Cannot create executor (Docker may not be available): %v", err)
+			return
+		}
+		defer exec.Close()
+
+		// Find files only in dir1
+		ctx := context.Background()
+		taskCfg := TaskConfig{
+			ToolType:    ToolTypeFind,
+			Args:        []string{"./dir1", "-type", "f"},
+			MountSource: tmpDir,
+		}
+
+		result := exec.ExecuteTask(ctx, taskCfg)
+		if result.Error != nil {
+			t.Fatalf("Find execution failed: %v", result.Error)
+		}
+
+		output := result.Stdout
+
+		// Should contain dir1/file.txt
+		if !strings.Contains(output, "dir1/file.txt") || strings.Contains(output, "dir2/file.txt") {
+			t.Errorf("Find should only list files in dir1. Output: %s", output)
+		}
+	})
+
+	t.Run("grep handles no match gracefully", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		// Create a file without the pattern we'll search for
+		testContent := "This is some content\nWithout the target pattern"
+		if err := writeTestFile(tmpDir+"/test.txt", testContent); err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+
+		exec, err := NewExecutorDefault(nil)
+		if err != nil {
+			t.Skipf("Cannot create executor (Docker may not be available): %v", err)
+			return
+		}
+		defer exec.Close()
+
+		ctx := context.Background()
+
+		// Search for a pattern that doesn't exist
+		taskCfg := TaskConfig{
+			ToolType:    ToolTypeGrep,
+			Args:        []string{"-r", "-n", "-I", "NonExistentPattern12345"},
+			MountSource: tmpDir,
+		}
+
+		result := exec.ExecuteTask(ctx, taskCfg)
+		if result.Error != nil {
+			t.Fatalf("Grep execution failed: %v", result.Error)
+		}
+
+		// Grep returns exit code 1 when no matches found
+		if result.ExitCode != 1 {
+			t.Logf("Grep exit code for no match = %d (expected 1)", result.ExitCode)
+		}
+
+		// Stdout should be empty when no matches
+		if result.Stdout != "" {
+			t.Errorf("Grep stdout should be empty when no matches, got: %s", result.Stdout)
+		}
+	})
 }
