@@ -3,6 +3,9 @@ module github.com/billm/baaaht/orchestrator
 go 1.24.0
 
 require (
+	github.com/charmbracelet/bubbletea v1.3.4
+	github.com/charmbracelet/lipgloss v1.0.0
+	github.com/charmbracelet/bubbles v1.5.0
 	github.com/docker/docker v27.3.1+incompatible
 	github.com/docker/go-connections v0.6.0
 	github.com/spf13/cobra v1.8.1
