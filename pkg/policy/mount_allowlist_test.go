@@ -547,3 +547,225 @@ func TestString(t *testing.T) {
 		}
 	})
 }
+
+// TestGroupMountSharing tests group mount sharing between multiple users
+func TestGroupMountSharing(t *testing.T) {
+	t.Run("Multiple users in same group can access group mount", func(t *testing.T) {
+		resolver := createTestResolver(t)
+		defer resolver.Close()
+
+		// Set up a provider with multiple users in the developers group
+		provider := &mockGroupProvider{
+			groups: map[string][]string{
+				"alice":   {"developers", "admins"},
+				"bob":     {"developers"},
+				"charlie": {"developers", "ops"},
+			},
+		}
+
+		err := resolver.SetGroupProvider(provider)
+		if err != nil {
+			t.Fatalf("failed to set group provider: %v", err)
+		}
+
+		ctx := context.Background()
+
+		// All three users should be able to access the developers group mount
+		for _, username := range []string{"alice", "bob", "charlie"} {
+			mode, err := resolver.ResolveMountAccess(ctx, "/shared/team-data", username)
+			if err != nil {
+				t.Fatalf("failed to resolve mount access for %s: %v", username, err)
+			}
+
+			if mode != MountAccessModeReadWrite {
+				t.Errorf("%s expected readwrite mode, got '%s'", username, mode)
+			}
+		}
+	})
+
+	t.Run("Users in different groups have different access", func(t *testing.T) {
+		// Create a custom resolver with multiple group mounts
+		log, err := logger.NewDefault()
+		if err != nil {
+			t.Fatalf("failed to create logger: %v", err)
+		}
+
+		policy := &Policy{
+			ID:          "test-policy",
+			Name:        "Test Policy",
+			Description: "A test policy for group access",
+			Mode:        EnforcementModeStrict,
+			Mounts: MountPolicy{
+				MountAllowlist: []MountAllowlistEntry{
+					{
+						Path:  "/shared/dev-data",
+						Group: "developers",
+						Mode:  MountAccessModeReadWrite,
+					},
+					{
+						Path:  "/shared/ops-data",
+						Group: "ops",
+						Mode:  MountAccessModeReadOnly,
+					},
+				},
+			},
+		}
+
+		resolver, err := NewMountAllowlistResolver(policy, log)
+		if err != nil {
+			t.Fatalf("failed to create resolver: %v", err)
+		}
+		defer resolver.Close()
+
+		// Set up users with different group memberships
+		provider := &mockGroupProvider{
+			groups: map[string][]string{
+				"alice":   {"developers"},
+				"bob":     {"developers", "ops"},
+				"charlie": {"ops"},
+			},
+		}
+
+		err = resolver.SetGroupProvider(provider)
+		if err != nil {
+			t.Fatalf("failed to set group provider: %v", err)
+		}
+
+		ctx := context.Background()
+
+		// alice can access developers mount but not ops mount
+		mode, err := resolver.ResolveMountAccess(ctx, "/shared/dev-data", "alice")
+		if err != nil {
+			t.Fatalf("failed to resolve mount access for alice: %v", err)
+		}
+		if mode != MountAccessModeReadWrite {
+			t.Errorf("alice expected readwrite for developers mount, got '%s'", mode)
+		}
+
+		mode, err = resolver.ResolveMountAccess(ctx, "/shared/ops-data", "alice")
+		if err != nil {
+			t.Fatalf("failed to resolve mount access for alice: %v", err)
+		}
+		if mode != MountAccessModeDenied {
+			t.Errorf("alice expected denied for ops mount, got '%s'", mode)
+		}
+
+		// bob can access both mounts
+		mode, err = resolver.ResolveMountAccess(ctx, "/shared/dev-data", "bob")
+		if err != nil {
+			t.Fatalf("failed to resolve mount access for bob: %v", err)
+		}
+		if mode != MountAccessModeReadWrite {
+			t.Errorf("bob expected readwrite for developers mount, got '%s'", mode)
+		}
+
+		mode, err = resolver.ResolveMountAccess(ctx, "/shared/ops-data", "bob")
+		if err != nil {
+			t.Fatalf("failed to resolve mount access for bob: %v", err)
+		}
+		if mode != MountAccessModeReadOnly {
+			t.Errorf("bob expected readonly for ops mount, got '%s'", mode)
+		}
+
+		// charlie can access ops mount but not developers mount
+		mode, err = resolver.ResolveMountAccess(ctx, "/shared/dev-data", "charlie")
+		if err != nil {
+			t.Fatalf("failed to resolve mount access for charlie: %v", err)
+		}
+		if mode != MountAccessModeDenied {
+			t.Errorf("charlie expected denied for developers mount, got '%s'", mode)
+		}
+
+		mode, err = resolver.ResolveMountAccess(ctx, "/shared/ops-data", "charlie")
+		if err != nil {
+			t.Fatalf("failed to resolve mount access for charlie: %v", err)
+		}
+		if mode != MountAccessModeReadOnly {
+			t.Errorf("charlie expected readonly for ops mount, got '%s'", mode)
+		}
+	})
+
+	t.Run("GetAllowedMounts returns correct group mounts for each user", func(t *testing.T) {
+		// Create a custom resolver with multiple group mounts
+		log, err := logger.NewDefault()
+		if err != nil {
+			t.Fatalf("failed to create logger: %v", err)
+		}
+
+		policy := &Policy{
+			ID:          "test-policy",
+			Name:        "Test Policy",
+			Description: "A test policy for group access",
+			Mode:        EnforcementModeStrict,
+			Mounts: MountPolicy{
+				MountAllowlist: []MountAllowlistEntry{
+					{
+						Path:  "/shared/dev-data",
+						Group: "developers",
+						Mode:  MountAccessModeReadWrite,
+					},
+					{
+						Path:  "/shared/ops-data",
+						Group: "ops",
+						Mode:  MountAccessModeReadOnly,
+					},
+				},
+			},
+		}
+
+		resolver, err := NewMountAllowlistResolver(policy, log)
+		if err != nil {
+			t.Fatalf("failed to create resolver: %v", err)
+		}
+		defer resolver.Close()
+
+		// Set up users with different group memberships
+		provider := &mockGroupProvider{
+			groups: map[string][]string{
+				"alice":   {"developers"},
+				"bob":     {"developers", "ops"},
+				"charlie": {"ops"},
+			},
+		}
+
+		err = resolver.SetGroupProvider(provider)
+		if err != nil {
+			t.Fatalf("failed to set group provider: %v", err)
+		}
+
+		ctx := context.Background()
+
+		// alice should only get developers mount
+		aliceMounts, err := resolver.GetAllowedMounts(ctx, "alice")
+		if err != nil {
+			t.Fatalf("failed to get allowed mounts for alice: %v", err)
+		}
+		if len(aliceMounts) != 1 {
+			t.Errorf("alice expected 1 mount, got %d", len(aliceMounts))
+		}
+		if len(aliceMounts) > 0 && aliceMounts[0].Path != "/shared/dev-data" {
+			t.Errorf("alice expected /shared/dev-data, got '%s'", aliceMounts[0].Path)
+		}
+
+		// bob should get both mounts
+		bobMounts, err := resolver.GetAllowedMounts(ctx, "bob")
+		if err != nil {
+			t.Fatalf("failed to get allowed mounts for bob: %v", err)
+		}
+		if len(bobMounts) != 2 {
+			t.Errorf("bob expected 2 mounts, got %d", len(bobMounts))
+		}
+
+		// charlie should only get ops mount
+		charlieMounts, err := resolver.GetAllowedMounts(ctx, "charlie")
+		if err != nil {
+			t.Fatalf("failed to get allowed mounts for charlie: %v", err)
+		}
+		if len(charlieMounts) != 1 {
+			t.Errorf("charlie expected 1 mount, got %d", len(charlieMounts))
+		}
+		if len(charlieMounts) > 0 && charlieMounts[0].Path != "/shared/ops-data" {
+			t.Errorf("charlie expected /shared/ops-data, got '%s'", charlieMounts[0].Path)
+		}
+	})
+}
