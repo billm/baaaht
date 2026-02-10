@@ -860,3 +860,445 @@ func (a *Agent) ListenForTasks(ctx context.Context, taskID string) (proto.AgentS
 
 	return stream, nil
 }
+
+// =============================================================================
+// Task Routing
+// =============================================================================
+
+// RouteTask routes a task to the appropriate executor based on task type
+// It parses the task configuration and executes the corresponding tool operation
+func (a *Agent) RouteTask(ctx context.Context, executor *Executor, taskType proto.TaskType, config *proto.TaskConfig, mountSource string) (string, error) {
+	a.logger.Info("Routing task",
+		"task_type", taskType.String(),
+		"command", config.Command,
+		"args", config.Arguments)
+
+	// Extract operation from command (e.g., "file_read", "web_search", etc.)
+	// If command is empty, look for it in parameters
+	operation := config.Command
+	if opParam, ok := config.Parameters["operation"]; ok && operation == "" {
+		operation = opParam
+	}
+	if operation == "" {
+		operation = config.Parameters["op"]
+	}
+
+	// Use Arguments for additional arguments
+	args := config.Arguments
+
+	switch taskType {
+	case proto.TaskType_TASK_TYPE_FILE_OPERATION:
+		// Route file operations to appropriate tool
+		return a.routeFileOperation(ctx, executor, operation, args, config, mountSource)
+
+	case proto.TaskType_TASK_TYPE_NETWORK_REQUEST:
+		// Route network requests to web tools
+		return a.routeNetworkRequest(ctx, executor, operation, args, config)
+
+	case proto.TaskType_TASK_TYPE_TOOL_EXECUTION:
+		// Direct tool execution
+		return a.routeToolExecution(ctx, executor, operation, args, config, mountSource)
+
+	case proto.TaskType_TASK_TYPE_CODE_EXECUTION,
+		proto.TaskType_TASK_TYPE_DATA_PROCESSING,
+		proto.TaskType_TASK_TYPE_CONTAINER_OPERATION,
+		proto.TaskType_TASK_TYPE_CUSTOM:
+		// For custom tasks, execute as a shell command
+		return a.executeCustomCommand(ctx, executor, config, mountSource)
+
+	default:
+		return "", fmt.Errorf("unsupported task type: %s", taskType.String())
+	}
+}
+
+// routeFileOperation routes file operations to the appropriate tool
+func (a *Agent) routeFileOperation(ctx context.Context, executor *Executor, operation string, args []string, config *proto.TaskConfig, mountSource string) (string, error) {
+	switch operation {
+	case "read", "file_read", "cat":
+		// File read operation
+		filePath := a.extractFilePath(config, args)
+		return FileRead(ctx, executor, mountSource, filePath)
+
+	case "write", "file_write":
+		// File write operation
+		filePath := a.extractFilePath(config, args)
+		content := a.extractContent(config)
+		return "", FileWrite(ctx, executor, mountSource, filePath, content)
+
+	case "edit", "file_edit", "sed":
+		// File edit operation - uses ExecuteTask with sed tool
+		return a.executeFileEdit(ctx, executor, config, mountSource)
+
+	case "grep", "search":
+		// Grep/search operation
+		return a.executeGrep(ctx, executor, config, mountSource)
+
+	case "find":
+		// Find operation
+		return a.executeFind(ctx, executor, config, mountSource)
+
+	case "list", "ls":
+		// List directory operation
+		return a.executeList(ctx, executor, config, mountSource)
+
+	default:
+		// Try to execute as direct tool
+		toolType := a.mapOperationToToolType(operation)
+		if toolType != "" {
+			return a.executeWithTool(ctx, executor, toolType, args, mountSource)
+		}
+		return "", fmt.Errorf("unknown file operation: %s", operation)
+	}
+}
+
+// routeNetworkRequest routes network requests to the appropriate web tool
+func (a *Agent) routeNetworkRequest(ctx context.Context, executor *Executor, operation string, args []string, config *proto.TaskConfig) (string, error) {
+	switch operation {
+	case "search", "web_search":
+		// Web search operation
+		url := a.extractURLFromConfig(config, args)
+		return WebSearch(ctx, executor, url)
+
+	case "fetch", "web_fetch", "get", "curl":
+		// URL fetch operation
+		url := a.extractURLFromConfig(config, args)
+		return FetchURL(ctx, executor, url)
+
+	default:
+		return "", fmt.Errorf("unknown network request operation: %s", operation)
+	}
+}
+
+// routeToolExecution routes tool execution to the specified tool
+func (a *Agent) routeToolExecution(ctx context.Context, executor *Executor, operation string, args []string, config *proto.TaskConfig, mountSource string) (string, error) {
+	// Map operation to tool type
+	toolType := a.mapOperationToToolType(operation)
+	if toolType == "" {
+		return "", fmt.Errorf("unknown tool type: %s", operation)
+	}
+
+	return a.executeWithTool(ctx, executor, toolType, args, mountSource)
+}
+
+// executeCustomCommand executes a custom command using the sh tool
+func (a *Agent) executeCustomCommand(ctx context.Context, executor *Executor, config *proto.TaskConfig, mountSource string) (string, error) {
+	// Build shell command from config
+	command := config.Command
+	if command == "" {
+		return "", fmt.Errorf("command is required for custom tasks")
+	}
+
+	// Execute using a shell command
+	taskCfg := TaskConfig{
+		ToolType:    ToolTypeFileWrite, // Reuse file write tool for shell execution
+		Args:        []string{"sh", "-c", command},
+		MountSource: mountSource,
+	}
+
+	result := executor.ExecuteTask(ctx, taskCfg)
+	if result.Error != nil {
+		return "", fmt.Errorf("failed to execute custom command: %w", result.Error)
+	}
+
+	if result.ExitCode != 0 {
+		errMsg := result.Stderr
+		if errMsg == "" {
+			errMsg = result.Stdout
+		}
+		if errMsg == "" {
+			errMsg = fmt.Sprintf("exit code %d", result.ExitCode)
+		}
+		return "", fmt.Errorf("custom command failed: %s", errMsg)
+	}
+
+	return result.Stdout, nil
+}
+
+// executeFileEdit executes a file edit operation using sed
+func (a *Agent) executeFileEdit(ctx context.Context, executor *Executor, config *proto.TaskConfig, mountSource string) (string, error) {
+	filePath := a.extractFilePath(config, nil)
+	search := config.Parameters["search"]
+	replace := config.Parameters["replace"]
+
+	if filePath == "" {
+		return "", fmt.Errorf("file path is required for edit operation")
+	}
+	if search == "" {
+		return "", fmt.Errorf("search pattern is required for edit operation")
+	}
+
+	// Build sed command: sed -i "s/search/replace/g" filepath
+	sedCmd := fmt.Sprintf("s/%s/%s/g", search, replace)
+	if replace == "" {
+		// If replace is empty, delete matching lines
+		sedCmd = fmt.Sprintf("/%s/d", search)
+	}
+
+	// Ensure the path is absolute within the container workspace
+	argPath := filePath
+	if !startsWith(filePath, "/workspace") {
+		if filePath[0] != '/' {
+			argPath = "/workspace/" + filePath
+		} else {
+			argPath = "/workspace" + filePath
+		}
+	}
+
+	taskCfg := TaskConfig{
+		ToolType:    ToolTypeFileEdit,
+		Args:        []string{"-i", sedCmd, argPath},
+		MountSource: mountSource,
+	}
+
+	result := executor.ExecuteTask(ctx, taskCfg)
+	if result.Error != nil {
+		return "", fmt.Errorf("failed to execute file edit: %w", result.Error)
+	}
+
+	if result.ExitCode != 0 {
+		errMsg := result.Stderr
+		if errMsg == "" {
+			errMsg = result.Stdout
+		}
+		if errMsg == "" {
+			errMsg = fmt.Sprintf("exit code %d", result.ExitCode)
+		}
+		return "", fmt.Errorf("file edit failed: %s", errMsg)
+	}
+
+	return result.Stdout, nil
+}
+
+// executeGrep executes a grep search operation
+func (a *Agent) executeGrep(ctx context.Context, executor *Executor, config *proto.TaskConfig, mountSource string) (string, error) {
+	pattern := config.Parameters["pattern"]
+	if pattern == "" && len(config.Arguments) > 0 {
+		pattern = config.Arguments[0]
+	}
+	if pattern == "" {
+		return "", fmt.Errorf("pattern is required for grep operation")
+	}
+
+	path := config.Parameters["path"]
+	if path == "" {
+		path = "."
+	}
+
+	// Ensure the path is absolute within the container workspace
+	argPath := path
+	if !startsWith(path, "/workspace") {
+		if path[0] != '/' {
+			argPath = "/workspace/" + path
+		} else {
+			argPath = "/workspace" + path
+		}
+	}
+
+	// Build grep args: -r -n for recursive with line numbers
+	args := []string{"-r", "-n", pattern, argPath}
+
+	taskCfg := TaskConfig{
+		ToolType:    ToolTypeGrep,
+		Args:        args,
+		MountSource: mountSource,
+	}
+
+	result := executor.ExecuteTask(ctx, taskCfg)
+	if result.Error != nil {
+		return "", fmt.Errorf("failed to execute grep: %w", result.Error)
+	}
+
+	if result.ExitCode != 0 && result.ExitCode != 1 {
+		// Grep returns 1 when no matches found, which is valid
+		errMsg := result.Stderr
+		if errMsg == "" {
+			errMsg = result.Stdout
+		}
+		if errMsg == "" {
+			errMsg = fmt.Sprintf("exit code %d", result.ExitCode)
+		}
+		return "", fmt.Errorf("grep failed: %s", errMsg)
+	}
+
+	return result.Stdout, nil
+}
+
+// executeFind executes a find operation
+func (a *Agent) executeFind(ctx context.Context, executor *Executor, config *proto.TaskConfig, mountSource string) (string, error) {
+	path := config.Parameters["path"]
+	if path == "" {
+		path = "."
+	}
+
+	name := config.Parameters["name"]
+	pattern := config.Parameters["pattern"]
+	fileType := config.Parameters["type"]
+
+	// Ensure the path is absolute within the container workspace
+	argPath := path
+	if !startsWith(path, "/workspace") {
+		if path[0] != '/' {
+			argPath = "/workspace/" + path
+		} else {
+			argPath = "/workspace" + path
+		}
+	}
+
+	// Build find args
+	args := []string{argPath}
+
+	if name != "" {
+		args = append(args, "-name", name)
+	}
+	if pattern != "" {
+		args = append(args, "-name", pattern)
+	}
+	if fileType != "" {
+		args = append(args, "-type", fileType)
+	}
+
+	taskCfg := TaskConfig{
+		ToolType:    ToolTypeFind,
+		Args:        args,
+		MountSource: mountSource,
+	}
+
+	result := executor.ExecuteTask(ctx, taskCfg)
+	if result.Error != nil {
+		return "", fmt.Errorf("failed to execute find: %w", result.Error)
+	}
+
+	if result.ExitCode != 0 {
+		errMsg := result.Stderr
+		if errMsg == "" {
+			errMsg = result.Stdout
+		}
+		if errMsg == "" {
+			errMsg = fmt.Sprintf("exit code %d", result.ExitCode)
+		}
+		return "", fmt.Errorf("find failed: %s", errMsg)
+	}
+
+	return result.Stdout, nil
+}
+
+// executeList executes a directory listing operation
+func (a *Agent) executeList(ctx context.Context, executor *Executor, config *proto.TaskConfig, mountSource string) (string, error) {
+	path := config.Parameters["path"]
+	recursiveStr := config.Parameters["recursive"]
+	recursive := recursiveStr == "true" || recursiveStr == "1"
+
+	return ListFiles(ctx, executor, mountSource, path, recursive)
+}
+
+// executeWithTool executes a task using a specific tool type
+func (a *Agent) executeWithTool(ctx context.Context, executor *Executor, toolType ToolType, args []string, mountSource string) (string, error) {
+	taskCfg := TaskConfig{
+		ToolType:    toolType,
+		Args:        args,
+		MountSource: mountSource,
+	}
+
+	result := executor.ExecuteTask(ctx, taskCfg)
+	if result.Error != nil {
+		return "", fmt.Errorf("failed to execute tool %s: %w", toolType, result.Error)
+	}
+
+	if result.ExitCode != 0 {
+		errMsg := result.Stderr
+		if errMsg == "" {
+			errMsg = result.Stdout
+		}
+		if errMsg == "" {
+			errMsg = fmt.Sprintf("exit code %d", result.ExitCode)
+		}
+		return "", fmt.Errorf("tool %s failed: %s", toolType, errMsg)
+	}
+
+	return result.Stdout, nil
+}
+
+// mapOperationToToolType maps an operation name to a ToolType
+func (a *Agent) mapOperationToToolType(operation string) ToolType {
+	switch operation {
+	case "file_read", "read", "cat":
+		return ToolTypeFileRead
+	case "file_write", "write", "tee":
+		return ToolTypeFileWrite
+	case "file_edit", "edit", "sed":
+		return ToolTypeFileEdit
+	case "grep", "search":
+		return ToolTypeGrep
+	case "find":
+		return ToolTypeFind
+	case "list", "ls":
+		return ToolTypeList
+	case "web_search", "search_web":
+		return ToolTypeWebSearch
+	case "fetch", "web_fetch", "curl":
+		return ToolTypeFetchURL
+	default:
+		return ""
+	}
+}
+
+// extractFilePath extracts file path from config or args
+func (a *Agent) extractFilePath(config *proto.TaskConfig, args []string) string {
+	// Try parameters first
+	if path, ok := config.Parameters["path"]; ok && path != "" {
+		return path
+	}
+	if target, ok := config.Parameters["target"]; ok && target != "" {
+		return target
+	}
+	if file, ok := config.Parameters["file"]; ok && file != "" {
+		return file
+	}
+
+	// Try args
+	if len(args) > 0 {
+		return args[0]
+	}
+
+	// Try first argument from config
+	if len(config.Arguments) > 0 {
+		return config.Arguments[0]
+	}
+
+	return ""
+}
+
+// extractContent extracts content from config
+func (a *Agent) extractContent(config *proto.TaskConfig) string {
+	// Try parameters first
+	if content, ok := config.Parameters["content"]; ok {
+		return content
+	}
+
+	// Try InputData
+	if len(config.InputData) > 0 {
+		return string(config.InputData)
+	}
+
+	return ""
+}
+
+// extractURLFromConfig extracts URL from config or args
+func (a *Agent) extractURLFromConfig(config *proto.TaskConfig, args []string) string {
+	// Try parameters first
+	if url, ok := config.Parameters["url"]; ok && url != "" {
+		return url
+	}
+
+	// Try args
+	if len(args) > 0 {
+		return args[0]
+	}
+
+	// Try first argument from config
+	if len(config.Arguments) > 0 {
+		return config.Arguments[0]
+	}
+
+	return ""
+}

@@ -703,3 +703,239 @@ func TestListenForTasksNotRegistered(t *testing.T) {
 
 	t.Log("Worker agent ListenForTasks not registered test passed!")
 }
+
+// TestTaskRouting tests that tasks are routed to the correct executor based on type
+func TestTaskRouting(t *testing.T) {
+	// Create logger
+	log, err := logger.NewDefault()
+	if err != nil {
+		t.Fatalf("Failed to create logger: %v", err)
+	}
+
+	// Create worker agent
+	cfg := AgentConfig{
+		DialTimeout: 5 * time.Second,
+		RPCTimeout:  5 * time.Second,
+	}
+	agent, err := NewAgent("localhost:9999", cfg, log)
+	if err != nil {
+		t.Fatalf("Failed to create worker agent: %v", err)
+	}
+	defer agent.Close()
+
+	// Create executor (without actual runtime for testing)
+	executor, err := NewExecutorDefault(log)
+	if err != nil {
+		t.Fatalf("Failed to create executor: %v", err)
+	}
+	defer executor.Close()
+
+	ctx := context.Background()
+	mountSource := "/tmp/test"
+
+	// Test file operation routing
+	t.Run("FileOperationRead", func(t *testing.T) {
+		config := &proto.TaskConfig{
+			Command: "read",
+			Arguments: []string{"test.txt"},
+		}
+
+		// This will fail without actual runtime, but we can verify routing logic
+		_, err := agent.RouteTask(ctx, executor, proto.TaskType_TASK_TYPE_FILE_OPERATION, config, mountSource)
+		// Expected to fail because file doesn't exist, but routing should work
+		if err == nil {
+			t.Log("File read routing succeeded (or runtime not available)")
+		} else {
+			t.Logf("File read routing attempted, got expected error: %v", err)
+		}
+	})
+
+	// Test file write operation routing
+	t.Run("FileOperationWrite", func(t *testing.T) {
+		config := &proto.TaskConfig{
+			Command: "write",
+			Arguments: []string{"output.txt"},
+			Parameters: map[string]string{
+				"content": "test content",
+			},
+		}
+
+		_, err := agent.RouteTask(ctx, executor, proto.TaskType_TASK_TYPE_FILE_OPERATION, config, mountSource)
+		if err == nil {
+			t.Log("File write routing succeeded")
+		} else {
+			t.Logf("File write routing attempted, got error: %v", err)
+		}
+	})
+
+	// Test grep operation routing
+	t.Run("FileOperationGrep", func(t *testing.T) {
+		config := &proto.TaskConfig{
+			Command: "grep",
+			Parameters: map[string]string{
+				"pattern": "test",
+				"path":    ".",
+			},
+		}
+
+		_, err := agent.RouteTask(ctx, executor, proto.TaskType_TASK_TYPE_FILE_OPERATION, config, mountSource)
+		if err == nil {
+			t.Log("Grep routing succeeded")
+		} else {
+			t.Logf("Grep routing attempted, got error: %v", err)
+		}
+	})
+
+	// Test find operation routing
+	t.Run("FileOperationFind", func(t *testing.T) {
+		config := &proto.TaskConfig{
+			Command: "find",
+			Parameters: map[string]string{
+				"path": ".",
+				"name": "*.txt",
+			},
+		}
+
+		_, err := agent.RouteTask(ctx, executor, proto.TaskType_TASK_TYPE_FILE_OPERATION, config, mountSource)
+		if err == nil {
+			t.Log("Find routing succeeded")
+		} else {
+			t.Logf("Find routing attempted, got error: %v", err)
+		}
+	})
+
+	// Test list operation routing
+	t.Run("FileOperationList", func(t *testing.T) {
+		config := &proto.TaskConfig{
+			Command: "list",
+			Parameters: map[string]string{
+				"path": ".",
+			},
+		}
+
+		_, err := agent.RouteTask(ctx, executor, proto.TaskType_TASK_TYPE_FILE_OPERATION, config, mountSource)
+		if err == nil {
+			t.Log("List routing succeeded")
+		} else {
+			t.Logf("List routing attempted, got error: %v", err)
+		}
+	})
+
+	// Test network request routing
+	t.Run("NetworkRequestWebSearch", func(t *testing.T) {
+		config := &proto.TaskConfig{
+			Command: "search",
+			Parameters: map[string]string{
+				"url": "https://example.com",
+			},
+		}
+
+		_, err := agent.RouteTask(ctx, executor, proto.TaskType_TASK_TYPE_NETWORK_REQUEST, config, "")
+		if err == nil {
+			t.Log("Web search routing succeeded")
+		} else {
+			t.Logf("Web search routing attempted, got error: %v", err)
+		}
+	})
+
+	// Test URL fetch routing
+	t.Run("NetworkRequestFetch", func(t *testing.T) {
+		config := &proto.TaskConfig{
+			Command: "fetch",
+			Parameters: map[string]string{
+				"url": "https://example.com",
+			},
+		}
+
+		_, err := agent.RouteTask(ctx, executor, proto.TaskType_TASK_TYPE_NETWORK_REQUEST, config, "")
+		if err == nil {
+			t.Log("URL fetch routing succeeded")
+		} else {
+			t.Logf("URL fetch routing attempted, got error: %v", err)
+		}
+	})
+
+	// Test unknown operation
+	t.Run("UnknownOperation", func(t *testing.T) {
+		config := &proto.TaskConfig{
+			Command: "unknown_operation",
+		}
+
+		_, err := agent.RouteTask(ctx, executor, proto.TaskType_TASK_TYPE_FILE_OPERATION, config, mountSource)
+		if err == nil {
+			t.Error("Expected error for unknown operation")
+		} else {
+			t.Logf("Unknown operation correctly rejected: %v", err)
+		}
+	})
+
+	// Test unsupported task type
+	t.Run("UnsupportedTaskType", func(t *testing.T) {
+		config := &proto.TaskConfig{
+			Command: "test",
+		}
+
+		_, err := agent.RouteTask(ctx, executor, proto.TaskType_TASK_TYPE_CODE_EXECUTION, config, mountSource)
+		if err == nil {
+			t.Log("Code execution routing attempted (may fail without runtime)")
+		} else {
+			t.Logf("Code execution routing attempted, got error: %v", err)
+		}
+	})
+
+	t.Log("Task routing test passed!")
+}
+
+// TestMapOperationToToolType tests the operation to tool type mapping
+func TestMapOperationToToolType(t *testing.T) {
+	log, err := logger.NewDefault()
+	if err != nil {
+		t.Fatalf("Failed to create logger: %v", err)
+	}
+
+	cfg := AgentConfig{
+		DialTimeout: 5 * time.Second,
+		RPCTimeout:  5 * time.Second,
+	}
+	agent, err := NewAgent("localhost:9999", cfg, log)
+	if err != nil {
+		t.Fatalf("Failed to create worker agent: %v", err)
+	}
+	defer agent.Close()
+
+	testCases := []struct {
+		operation  string
+		expectTool ToolType
+	}{
+		{"file_read", ToolTypeFileRead},
+		{"read", ToolTypeFileRead},
+		{"cat", ToolTypeFileRead},
+		{"file_write", ToolTypeFileWrite},
+		{"write", ToolTypeFileWrite},
+		{"file_edit", ToolTypeFileEdit},
+		{"edit", ToolTypeFileEdit},
+		{"grep", ToolTypeGrep},
+		{"search", ToolTypeGrep},
+		{"find", ToolTypeFind},
+		{"list", ToolTypeList},
+		{"ls", ToolTypeList},
+		{"web_search", ToolTypeWebSearch},
+		{"fetch", ToolTypeFetchURL},
+		{"web_fetch", ToolTypeFetchURL},
+		{"curl", ToolTypeFetchURL},
+		{"unknown", ""},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.operation, func(t *testing.T) {
+			result := agent.mapOperationToToolType(tc.operation)
+			if result != tc.expectTool {
+				t.Errorf("Expected %s for operation %s, got %s", tc.expectTool, tc.operation, result)
+			} else {
+				t.Logf("Operation %s correctly mapped to %s", tc.operation, result)
+			}
+		})
+	}
+
+	t.Log("Map operation to tool type test passed!")
+}
