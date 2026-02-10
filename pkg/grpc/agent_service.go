@@ -11,6 +11,7 @@ import (
 
 	"github.com/billm/baaaht/orchestrator/internal/logger"
 	"github.com/billm/baaaht/orchestrator/pkg/events"
+	"github.com/billm/baaaht/orchestrator/pkg/skills"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 	"github.com/billm/baaaht/orchestrator/proto"
 )
@@ -225,17 +226,18 @@ func (r *AgentRegistry) ListTasks(agentID string) []*TaskInfo {
 // AgentService implements the gRPC AgentService interface
 type AgentService struct {
 	proto.UnimplementedAgentServiceServer
-	deps     AgentServiceDependencies
-	registry *AgentRegistry
-	logger   *logger.Logger
-	mu       sync.RWMutex
+	deps          AgentServiceDependencies
+	registry      *AgentRegistry
+	skillsLoader  *skills.Loader
+	logger        *logger.Logger
+	mu            sync.RWMutex
 
 	// Track active streams for graceful shutdown
 	streams map[interface{}]context.CancelFunc
 }
 
 // NewAgentService creates a new agent service
-func NewAgentService(deps AgentServiceDependencies, log *logger.Logger) *AgentService {
+func NewAgentService(deps AgentServiceDependencies, log *logger.Logger, skillsLoader *skills.Loader) *AgentService {
 	if log == nil {
 		var err error
 		log, err = logger.NewDefault()
@@ -244,17 +246,69 @@ func NewAgentService(deps AgentServiceDependencies, log *logger.Logger) *AgentSe
 		}
 	}
 
-	return &AgentService{
-		deps:     deps,
-		registry: NewAgentRegistry(log),
-		logger:   log.With("component", "agent_service"),
-		streams:  make(map[interface{}]context.CancelFunc),
+	service := &AgentService{
+		deps:         deps,
+		registry:     NewAgentRegistry(log),
+		skillsLoader: skillsLoader,
+		logger:       log.With("component", "agent_service"),
+		streams:      make(map[interface{}]context.CancelFunc),
 	}
+
+	if skillsLoader != nil {
+		service.logger.Info("Agent service initialized with skills loader")
+	}
+
+	return service
 }
 
 // GetRegistry returns the agent registry
 func (s *AgentService) GetRegistry() *AgentRegistry {
 	return s.registry
+}
+
+// GetSkillsLoader returns the skills loader (may be nil)
+func (s *AgentService) GetSkillsLoader() *skills.Loader {
+	return s.skillsLoader
+}
+
+// =============================================================================
+// Skills Management
+// =============================================================================
+
+// ActivateSkillsForAgent activates skills for a specific agent
+func (s *AgentService) ActivateSkillsForAgent(ctx context.Context, agentID string, agentType string) error {
+	if s.skillsLoader == nil {
+		s.logger.Debug("Skills loader not available, skipping skill activation", "agent_id", agentID)
+		return nil
+	}
+
+	s.logger.Info("Activating skills for agent", "agent_id", agentID, "agent_type", agentType)
+
+	// Activate skills for the agent type
+	// The scope is typically "user" for individual agents
+	skillsScope := types.SkillScopeUser
+	err := s.skillsLoader.ActivateByOwner(ctx, skillsScope, agentID)
+	if err != nil {
+		s.logger.Error("Failed to activate skills for agent", "agent_id", agentID, "error", err)
+		return err
+	}
+
+	// Get active skills for the agent
+	activeSkills := s.skillsLoader.GetActiveSkills(skillsScope, agentID)
+	s.logger.Info("Skills activated for agent", "agent_id", agentID, "skill_count", len(activeSkills))
+
+	return nil
+}
+
+// GetActiveSkillsForAgent returns the active skills for a specific agent
+func (s *AgentService) GetActiveSkillsForAgent(agentID string) ([]types.Skill, error) {
+	if s.skillsLoader == nil {
+		return []types.Skill{}, nil
+	}
+
+	scope := types.SkillScopeUser
+	activeSkills := s.skillsLoader.GetActiveSkills(scope, agentID)
+	return activeSkills, nil
 }
 
 // =============================================================================
@@ -293,6 +347,15 @@ func (s *AgentService) Register(ctx context.Context, req *proto.RegisterRequest)
 	}
 
 	s.logger.Info("Agent registered", "agent_id", agentID, "name", req.Name)
+
+	// Activate skills for this agent if skills loader is available
+	if s.skillsLoader != nil {
+		agentType := protoToAgentType(req.Type)
+		if err := s.ActivateSkillsForAgent(ctx, agentID, agentType); err != nil {
+			s.logger.Warn("Failed to activate skills for agent", "agent_id", agentID, "error", err)
+			// Don't fail registration if skill activation fails
+		}
+	}
 
 	// Publish event to event bus
 	if s.deps != nil {

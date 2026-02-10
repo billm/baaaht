@@ -27,7 +27,7 @@ func newTestAgentService(t *testing.T) *AgentService {
 	if err != nil {
 		t.Fatalf("Failed to create logger: %v", err)
 	}
-	return NewAgentService(&mockAgentServiceDeps{}, log)
+	return NewAgentService(&mockAgentServiceDeps{}, log, nil)
 }
 
 // =============================================================================
@@ -803,6 +803,38 @@ func TestAgentRegistry(t *testing.T) {
 		_, err = registry.Get(agentID)
 		if err == nil {
 			t.Error("Expected error when getting unregistered agent")
+		}
+	})
+}
+
+// =============================================================================
+// Test Skills Integration
+// =============================================================================
+
+func TestAgentService_SkillsIntegration(t *testing.T) {
+	service := newTestAgentService(t)
+
+	t.Run("get_skills_loader_returns_nil_when_not_set", func(t *testing.T) {
+		loader := service.GetSkillsLoader()
+		if loader != nil {
+			t.Error("Expected nil skills loader when not provided")
+		}
+	})
+
+	t.Run("get_active_skills_returns_empty_when_no_loader", func(t *testing.T) {
+		skills, err := service.GetActiveSkillsForAgent("test-agent")
+		if err != nil {
+			t.Fatalf("GetActiveSkillsForAgent failed: %v", err)
+		}
+		if len(skills) != 0 {
+			t.Errorf("Expected 0 skills when no loader, got %d", len(skills))
+		}
+	})
+
+	t.Run("activate_skills_for_agent_does_not_panic_when_no_loader", func(t *testing.T) {
+		err := service.ActivateSkillsForAgent(context.Background(), "test-agent", "worker")
+		if err != nil {
+			t.Fatalf("ActivateSkillsForAgent should not error when no loader: %v", err)
 		}
 	})
 }
