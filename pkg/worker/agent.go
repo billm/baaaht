@@ -365,7 +365,7 @@ func (a *Agent) reconnect(ctx context.Context) error {
 	return nil
 }
 
-// Close closes the agent connection
+// Close closes the agent connection and unregisters from the orchestrator
 func (a *Agent) Close() error {
 	a.mu.Lock()
 	if a.closed {
@@ -386,7 +386,23 @@ func (a *Agent) Close() error {
 		a.heartbeatCancel()
 		a.heartbeatCancel = nil
 	}
+
+	// Check if agent is registered
+	registered := a.registered
+	conn := a.conn
 	a.mu.Unlock()
+
+	// Unregister from orchestrator if registered
+	if registered && conn != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), a.rpcTimeout)
+		defer cancel()
+
+		reason := "worker agent closing"
+		if err := a.Unregister(ctx, reason); err != nil {
+			a.logger.Warn("Failed to unregister agent during close", "error", err)
+			// Continue with cleanup even if unregister fails
+		}
+	}
 
 	// Signal reconnection goroutine to stop
 	close(a.reconnectCloseCh)
@@ -404,7 +420,7 @@ func (a *Agent) Close() error {
 
 	// Close the connection
 	a.mu.Lock()
-	conn := a.conn
+	conn = a.conn
 	a.mu.Unlock()
 
 	if conn != nil {
@@ -630,6 +646,58 @@ func (a *Agent) IsRegistered() bool {
 func getWorkerVersion() string {
 	// TODO: Get version from build info using ldflags
 	return "dev"
+}
+
+// Unregister unregisters the worker agent from the orchestrator
+func (a *Agent) Unregister(ctx context.Context, reason string) error {
+	a.mu.Lock()
+	if !a.registered {
+		a.mu.Unlock()
+		return types.NewError(types.ErrCodeInvalid, "agent not registered")
+	}
+	agentID := a.agentID
+	a.mu.Unlock()
+
+	a.logger.Info("Unregistering agent", "agent_id", agentID, "reason", reason)
+
+	// Create RPC client
+	client := proto.NewAgentServiceClient(a.conn)
+
+	// Create RPC context with timeout
+	rpcCtx, cancel := context.WithTimeout(ctx, a.rpcTimeout)
+	defer cancel()
+
+	// Create unregister request
+	req := &proto.UnregisterRequest{
+		AgentId: agentID,
+		Reason:  reason,
+	}
+
+	// Call Unregister RPC
+	a.stats.TotalRPCs++
+	resp, err := client.Unregister(rpcCtx, req)
+	if err != nil {
+		a.stats.FailedRPCs++
+		a.mu.Lock()
+		a.stats.LastRPCError = err.Error()
+		a.mu.Unlock()
+		a.logger.Error("Failed to unregister agent", "agent_id", agentID, "error", err)
+		return types.WrapError(types.ErrCodeUnavailable, "failed to unregister agent", err)
+	}
+
+	// Clear registration state
+	a.mu.Lock()
+	a.registered = false
+	a.agentID = ""
+	a.registrationToken = ""
+	a.name = ""
+	a.mu.Unlock()
+
+	a.logger.Info("Agent unregistered successfully",
+		"agent_id", agentID,
+		"message", resp.Message)
+
+	return nil
 }
 
 // =============================================================================

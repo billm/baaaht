@@ -348,3 +348,150 @@ func TestWorkerHeartbeat(t *testing.T) {
 
 	t.Log("Worker agent heartbeat test passed!")
 }
+
+// TestWorkerShutdown tests that a worker agent gracefully shuts down and unregisters
+func TestWorkerShutdown(t *testing.T) {
+	// Create event bus for agent service
+	eventBus, err := events.New(nil)
+	if err != nil {
+		t.Fatalf("Failed to create event bus: %v", err)
+	}
+	defer eventBus.Close()
+
+	// Create agent service dependencies
+	deps := &mockAgentServiceDependencies{eventBus: eventBus}
+
+	// Create logger
+	log, err := logger.NewDefault()
+	if err != nil {
+		t.Fatalf("Failed to create logger: %v", err)
+	}
+
+	// Create agent service
+	agentService := grpcpkg.NewAgentService(deps, log)
+
+	// Create gRPC server
+	server := grpc.NewServer()
+	proto.RegisterAgentServiceServer(server, agentService)
+
+	// Start server on a random port
+	lis, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		t.Fatalf("Failed to create listener: %v", err)
+	}
+
+	// Start server in background
+	serverErr := make(chan error, 1)
+	go func() {
+		serverErr <- server.Serve(lis)
+	}()
+	defer func() {
+		server.GracefulStop()
+		if err := <-serverErr; err != nil {
+			t.Logf("Server error: %v", err)
+		}
+	}()
+
+	// Get the actual address
+	addr := lis.Addr().String()
+
+	// Wait for server to be ready
+	ctx := context.Background()
+	clientConn, err := grpc.DialContext(ctx, addr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithBlock(),
+	)
+	if err != nil {
+		t.Fatalf("Failed to connect to server: %v", err)
+	}
+	defer clientConn.Close()
+
+	// Verify client can connect
+	agentClient := proto.NewAgentServiceClient(clientConn)
+	_, err = agentClient.HealthCheck(ctx, &emptypb.Empty{})
+	if err != nil {
+		t.Fatalf("Health check failed: %v", err)
+	}
+
+	// Create worker agent
+	cfg := AgentConfig{
+		DialTimeout:   5 * time.Second,
+		RPCTimeout:    5 * time.Second,
+	}
+	agent, err := NewAgent(addr, cfg, log)
+	if err != nil {
+		t.Fatalf("Failed to create worker agent: %v", err)
+	}
+
+	// Connect to orchestrator
+	if err := agent.Dial(ctx); err != nil {
+		t.Fatalf("Failed to dial orchestrator: %v", err)
+	}
+
+	// Register the agent
+	workerName := "test-worker-shutdown"
+	if err := agent.Register(ctx, workerName); err != nil {
+		t.Fatalf("Failed to register agent: %v", err)
+	}
+
+	agentID := agent.GetAgentID()
+	t.Logf("Agent registered with ID: %s", agentID)
+
+	// Verify the agent is in the registry
+	registry := agentService.GetRegistry()
+	registeredAgent, err := registry.Get(agentID)
+	if err != nil {
+		t.Fatalf("Failed to get registered agent from registry: %v", err)
+	}
+
+	if registeredAgent.Name != workerName {
+		t.Errorf("Expected agent name %s, got %s", workerName, registeredAgent.Name)
+	}
+
+	// Verify agent is registered
+	if !agent.IsRegistered() {
+		t.Error("Agent should be registered")
+	}
+
+	// Close the agent (this should unregister)
+	if err := agent.Close(); err != nil {
+		t.Fatalf("Failed to close agent: %v", err)
+	}
+
+	// Verify agent is no longer registered
+	if agent.IsRegistered() {
+		t.Error("Agent should not be registered after close")
+	}
+
+	if agent.GetAgentID() != "" {
+		t.Error("Agent ID should be empty after close")
+	}
+
+	// Verify the agent is removed from the registry
+	_, err = registry.Get(agentID)
+	if err == nil {
+		t.Error("Expected error when getting unregistered agent from registry")
+	}
+
+	// Verify it's a not found error
+	if err != nil {
+		if typesErr, ok := err.(*types.Error); ok {
+			if typesErr.Code != types.ErrCodeNotFound {
+				t.Errorf("Expected ErrCodeNotFound, got %v", typesErr.Code)
+			}
+		}
+	}
+
+	// Verify agent can be closed again without error
+	if err := agent.Close(); err == nil {
+		t.Error("Expected error when closing already closed agent")
+	} else if err != nil {
+		if typesErr, ok := err.(*types.Error); ok {
+			if typesErr.Code != types.ErrCodeInvalid {
+				t.Errorf("Expected ErrCodeInvalid, got %v", typesErr.Code)
+			}
+		}
+	}
+
+	t.Log("Worker agent shutdown test passed!")
+}
