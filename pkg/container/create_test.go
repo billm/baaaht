@@ -1246,9 +1246,10 @@ func TestMountAllowlist(t *testing.T) {
 
 	t.Run("group-scoped allowlist entries work", func(t *testing.T) {
 		// Create a mock group provider
+		// The mock expects username -> groups mapping
 		mockProvider := &MockGroupMembershipProvider{
 			groups: map[string][]string{
-				"developers": {"alice"},
+				"alice": {"developers"},
 			},
 		}
 
@@ -1396,7 +1397,7 @@ type MockGroupMembershipProvider struct {
 	groups map[string][]string
 }
 
-func (m *MockGroupMembershipProvider) GetGroupsForUser(ctx context.Context, username string) ([]string, error) {
+func (m *MockGroupMembershipProvider) GetUserGroups(ctx context.Context, username string) ([]string, error) {
 	if groups, ok := m.groups[username]; ok {
 		return groups, nil
 	}
@@ -1522,7 +1523,8 @@ func TestPolicyViolationLogging(t *testing.T) {
 		if err != nil && assert.ErrorAs(t, err, &customErr) {
 			assert.NotEqual(t, types.ErrCodePermission, customErr.Code,
 				"permissive mode should not block with permission error")
-		})
+		}
+	})
 }
 
 // TestMountAllowlistE2E tests end-to-end mount allowlist enforcement with audit logging
@@ -1555,7 +1557,6 @@ func TestMountAllowlistE2E(t *testing.T) {
 		// Create enforcer
 		enforcer, err := policy.New(config.DefaultPolicyConfig(), log)
 		require.NoError(t, err)
-		defer enforcer.Close()
 
 		// Set the policy
 		err = enforcer.SetPolicy(context.Background(), allowlistPolicy)
@@ -1651,7 +1652,6 @@ func TestMountAllowlistE2E(t *testing.T) {
 		// Create enforcer
 		enforcer, err := policy.New(config.DefaultPolicyConfig(), log)
 		require.NoError(t, err)
-		defer enforcer.Close()
 
 		// Set the policy
 		err = enforcer.SetPolicy(context.Background(), allowlistPolicy)
@@ -1706,10 +1706,11 @@ func TestMountAllowlistE2E(t *testing.T) {
 		err := os.Truncate(auditPath, 0)
 		require.NoError(t, err)
 
-		// Create a mock group provider
+		// Create a mock group provider - expects username -> groups mapping
 		mockProvider := &MockGroupMembershipProvider{
 			groups: map[string][]string{
-				"developers": {"alice"},
+				"alice": {"developers"},  // alice is in developers group
+				// bob is not in any group
 			},
 		}
 
@@ -1728,7 +1729,6 @@ func TestMountAllowlistE2E(t *testing.T) {
 		// Create enforcer
 		enforcer, err := policy.New(config.DefaultPolicyConfig(), log)
 		require.NoError(t, err)
-		defer enforcer.Close()
 
 		// Set the policy
 		err = enforcer.SetPolicy(context.Background(), allowlistPolicy)
@@ -1784,9 +1784,24 @@ func TestMountAllowlistE2E(t *testing.T) {
 		data, err := os.ReadFile(auditPath)
 		require.NoError(t, err, "should be able to read audit log file")
 
+		// The audit log contains JSON lines, need to parse line by line
+		lines := strings.Split(string(data), "\n")
 		var auditEvent map[string]interface{}
-		err = json.Unmarshal(data, &auditEvent)
-		require.NoError(t, err, "audit log should contain valid JSON")
+		found := false
+		for _, line := range lines {
+			if strings.TrimSpace(line) == "" {
+				continue
+			}
+			err = json.Unmarshal([]byte(line), &auditEvent)
+			if err == nil && auditEvent["type"] == string(policy.AuditEventTypeMountViolation) {
+				// Check if this is the event we're looking for (bob, /shared/team-data)
+				if auditEvent["user"] == "bob" && auditEvent["path"] == "/shared/team-data" {
+					found = true
+					break
+				}
+			}
+		}
+		require.True(t, found, "should find a mount_violation event for bob and /shared/team-data in audit log")
 
 		assert.Equal(t, string(policy.AuditEventTypeMountViolation), auditEvent["type"],
 			"audit event type should be mount_violation")
