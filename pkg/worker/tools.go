@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -388,4 +389,69 @@ func AllToolSpecs() []*ToolSpec {
 		WebSearchTool(),
 		FetchURLTool(),
 	}
+}
+
+// FileRead reads the contents of a file using a containerized cat command
+// The file path is relative to the mount source.
+// For example, to read /home/user/project/main.go:
+//   - mountSource: "/home/user/project"
+//   - filePath: "main.go" or "/workspace/main.go"
+//
+// Returns the file contents and any error that occurred.
+func FileRead(ctx context.Context, exec *Executor, mountSource, filePath string) (string, error) {
+	if exec == nil {
+		return "", fmt.Errorf("executor cannot be nil")
+	}
+	if mountSource == "" {
+		return "", fmt.Errorf("mount source cannot be empty")
+	}
+	if filePath == "" {
+		return "", fmt.Errorf("file path cannot be empty")
+	}
+
+	// Ensure the path is absolute within the container workspace
+	// If the path doesn't start with /workspace, prepend it
+	argPath := filePath
+	if !startsWith(filePath, "/workspace") {
+		// Convert relative path to absolute path in workspace
+		if filePath[0] != '/' {
+			argPath = "/workspace/" + filePath
+		} else {
+			argPath = "/workspace" + filePath
+		}
+	}
+
+	// Execute the file read task
+	taskCfg := TaskConfig{
+		ToolType:    ToolTypeFileRead,
+		Args:        []string{argPath},
+		MountSource: mountSource,
+	}
+
+	result := exec.ExecuteTask(ctx, taskCfg)
+	if result.Error != nil {
+		return "", fmt.Errorf("failed to execute file read: %w", result.Error)
+	}
+
+	// Check exit code
+	if result.ExitCode != 0 {
+		errMsg := result.Stderr
+		if errMsg == "" {
+			errMsg = result.Stdout
+		}
+		if errMsg == "" {
+			errMsg = fmt.Sprintf("exit code %d", result.ExitCode)
+		}
+		return "", fmt.Errorf("file read failed: %s", errMsg)
+	}
+
+	return result.Stdout, nil
+}
+
+// startsWith checks if a string starts with a prefix
+func startsWith(s, prefix string) bool {
+	if len(s) < len(prefix) {
+		return false
+	}
+	return s[:len(prefix)] == prefix
 }

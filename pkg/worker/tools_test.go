@@ -1,6 +1,8 @@
 package worker
 
 import (
+	"context"
+	"os"
 	"testing"
 
 	"github.com/billm/baaaht/orchestrator/pkg/types"
@@ -302,4 +304,150 @@ func TestAllToolSpecs(t *testing.T) {
 			t.Errorf("Missing tool spec for: %v", toolType)
 		}
 	}
+}
+
+// TestFileRead verifies that FileRead function can read file contents
+// from a containerized cat command
+func TestFileRead(t *testing.T) {
+	// This test requires Docker to be available
+	t.Run("reads file content successfully", func(t *testing.T) {
+		// Create a temporary file to read
+		tmpDir := t.TempDir()
+		testFile := tmpDir + "/test.txt"
+		testContent := "Hello, World!\nThis is a test file."
+
+		// Write test content to the file
+		if err := writeTestFile(testFile, testContent); err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+
+		// Create executor
+		exec, err := NewExecutorDefault(nil)
+		if err != nil {
+			t.Skipf("Cannot create executor (Docker may not be available): %v", err)
+			return
+		}
+		defer exec.Close()
+
+		// Read the file using FileRead function
+		ctx := context.Background()
+		content, err := FileRead(ctx, exec, tmpDir, "test.txt")
+		if err != nil {
+			t.Fatalf("FileRead() failed: %v", err)
+		}
+
+		// Verify content matches
+		if content != testContent {
+			t.Errorf("FileRead() content = %q, want %q", content, testContent)
+		}
+	})
+
+	t.Run("reads file with absolute workspace path", func(t *testing.T) {
+		// Create a temporary file to read
+		tmpDir := t.TempDir()
+		testFile := tmpDir + "/test.txt"
+		testContent := "Absolute path test"
+
+		if err := writeTestFile(testFile, testContent); err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+
+		exec, err := NewExecutorDefault(nil)
+		if err != nil {
+			t.Skipf("Cannot create executor (Docker may not be available): %v", err)
+			return
+		}
+		defer exec.Close()
+
+		// Read using absolute workspace path
+		ctx := context.Background()
+		content, err := FileRead(ctx, exec, tmpDir, "/workspace/test.txt")
+		if err != nil {
+			t.Fatalf("FileRead() with absolute path failed: %v", err)
+		}
+
+		if content != testContent {
+			t.Errorf("FileRead() content = %q, want %q", content, testContent)
+		}
+	})
+
+	t.Run("returns error for non-existent file", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		exec, err := NewExecutorDefault(nil)
+		if err != nil {
+			t.Skipf("Cannot create executor (Docker may not be available): %v", err)
+			return
+		}
+		defer exec.Close()
+
+		ctx := context.Background()
+		_, err = FileRead(ctx, exec, tmpDir, "nonexistent.txt")
+		if err == nil {
+			t.Error("FileRead() should return error for non-existent file")
+		}
+	})
+
+	t.Run("handles binary files gracefully", func(t *testing.T) {
+		// Create a temporary binary file
+		tmpDir := t.TempDir()
+		testFile := tmpDir + "/binary.dat"
+		testContent := string([]byte{0x00, 0x01, 0x02, 0x03, 0xFF, 0xFE, 0xFD})
+
+		if err := writeTestFile(testFile, testContent); err != nil {
+			t.Fatalf("Failed to create test file: %v", err)
+		}
+
+		exec, err := NewExecutorDefault(nil)
+		if err != nil {
+			t.Skipf("Cannot create executor (Docker may not be available): %v", err)
+			return
+		}
+		defer exec.Close()
+
+		ctx := context.Background()
+		content, err := FileRead(ctx, exec, tmpDir, "binary.dat")
+		if err != nil {
+			t.Fatalf("FileRead() failed for binary file: %v", err)
+		}
+
+		// Binary content should be preserved (though cat may have issues with null bytes)
+		if len(content) == 0 {
+			t.Error("FileRead() returned empty content for binary file")
+		}
+	})
+
+	t.Run("validates inputs", func(t *testing.T) {
+		exec, err := NewExecutorDefault(nil)
+		if err != nil {
+			t.Skipf("Cannot create executor (Docker may not be available): %v", err)
+			return
+		}
+		defer exec.Close()
+
+		ctx := context.Background()
+
+		// Test nil executor
+		_, err = FileRead(ctx, nil, "/tmp", "test.txt")
+		if err == nil {
+			t.Error("FileRead() should return error for nil executor")
+		}
+
+		// Test empty mount source
+		_, err = FileRead(ctx, exec, "", "test.txt")
+		if err == nil {
+			t.Error("FileRead() should return error for empty mount source")
+		}
+
+		// Test empty file path
+		_, err = FileRead(ctx, exec, "/tmp", "")
+		if err == nil {
+			t.Error("FileRead() should return error for empty file path")
+		}
+	})
+}
+
+// writeTestFile is a helper function to write test content to a file
+func writeTestFile(path, content string) error {
+	return os.WriteFile(path, []byte(content), 0644)
 }
