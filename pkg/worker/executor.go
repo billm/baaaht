@@ -1,9 +1,12 @@
 package worker
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"sync"
+	"time"
 
 	"github.com/billm/baaaht/orchestrator/internal/logger"
 	"github.com/billm/baaaht/orchestrator/pkg/container"
@@ -27,6 +30,55 @@ type ExecutorConfig struct {
 	PolicyEnforcer *policy.Enforcer
 	SessionID      types.ID
 	Logger         *logger.Logger
+}
+
+// TaskConfig holds configuration for executing a task
+type TaskConfig struct {
+	// ToolType specifies which tool to use
+	ToolType ToolType
+
+	// Args are additional arguments to pass to the tool command
+	Args []string
+
+	// MountSource is the source path for filesystem mounts
+	// Required for file operation tools
+	MountSource string
+
+	// Timeout overrides the tool's default timeout
+	// If zero, the tool's default timeout is used
+	Timeout time.Duration
+
+	// ContainerName is an optional name for the container
+	// If empty, a name will be generated
+	ContainerName string
+}
+
+// TaskResult holds the result of executing a task
+type TaskResult struct {
+	// ExitCode is the container's exit code
+	ExitCode int
+
+	// Stdout contains the standard output from the container
+	Stdout string
+
+	// Stderr contains the standard error output from the container
+	Stderr string
+
+	// Error contains any error that occurred during execution
+	// This is different from stderr - it's about the execution itself
+	Error error
+
+	// ContainerID is the ID of the container that was created
+	ContainerID string
+
+	// StartedAt is when the container started
+	StartedAt time.Time
+
+	// CompletedAt is when the container finished
+	CompletedAt time.Time
+
+	// Duration is how long the task took to execute
+	Duration time.Duration
 }
 
 // NewExecutor creates a new tool container executor
@@ -249,4 +301,219 @@ func (e *Executor) EnforceConfig(ctx context.Context, config types.ContainerConf
 	}
 
 	return enforced, nil
+}
+
+// ExecuteTask executes a task using a tool container
+// The method handles the complete lifecycle: create, start, wait, capture output, and cleanup
+func (e *Executor) ExecuteTask(ctx context.Context, cfg TaskConfig) *TaskResult {
+	startTime := time.Now()
+
+	result := &TaskResult{
+		StartedAt: startTime,
+	}
+
+	// Get the tool specification
+	toolSpec, err := GetToolSpec(cfg.ToolType)
+	if err != nil {
+		result.Error = types.WrapError(types.ErrCodeInvalidArgument, "invalid tool type", err)
+		result.CompletedAt = time.Now()
+		result.Duration = result.CompletedAt.Sub(startTime)
+		e.logger.Warn("Failed to get tool spec", "tool_type", cfg.ToolType, "error", err)
+		return result
+	}
+
+	e.logger.Info("Executing task",
+		"tool_type", cfg.ToolType,
+		"tool_name", toolSpec.Name,
+		"args", cfg.Args)
+
+	// Convert tool spec to container config
+	containerConfig := toolSpec.ToContainerConfig(e.sessionID, cfg.MountSource)
+
+	// Add runtime arguments
+	if len(cfg.Args) > 0 {
+		// Append args to the command's args
+		containerConfig.Args = append(containerConfig.Args, cfg.Args...)
+	}
+
+	// Validate configuration against policy
+	validationResult, err := e.ValidateConfig(ctx, containerConfig)
+	if err != nil {
+		result.Error = types.WrapError(types.ErrCodeInternal, "policy validation failed", err)
+		result.CompletedAt = time.Now()
+		result.Duration = result.CompletedAt.Sub(startTime)
+		e.logger.Warn("Policy validation error", "error", err)
+		return result
+	}
+
+	// Check if validation rejected the config
+	if !validationResult.Allowed {
+		result.Error = types.NewError(types.ErrCodePermission, "task rejected by policy enforcement")
+		result.CompletedAt = time.Now()
+		result.Duration = result.CompletedAt.Sub(startTime)
+		e.logger.Warn("Task rejected by policy", "tool_type", cfg.ToolType)
+		return result
+	}
+
+	// Generate container name if not provided
+	containerName := cfg.ContainerName
+	if containerName == "" {
+		containerName = fmt.Sprintf("tool-%s-%s", cfg.ToolType, e.sessionID.String()[:8])
+	}
+
+	// Determine timeout
+	timeout := cfg.Timeout
+	if timeout == 0 {
+		timeout = toolSpec.Timeout
+	}
+
+	// Create context with timeout for execution
+	execCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	// Create the container
+	createCfg := container.CreateConfig{
+		Config:    containerConfig,
+		Name:      containerName,
+		SessionID: e.sessionID,
+		AutoPull:  true,
+	}
+
+	createResult, err := e.runtime.Create(execCtx, createCfg)
+	if err != nil {
+		result.Error = types.WrapError(types.ErrCodeInternal, "failed to create container", err)
+		result.CompletedAt = time.Now()
+		result.Duration = result.CompletedAt.Sub(startTime)
+		e.logger.Warn("Failed to create container", "error", err)
+		return result
+	}
+
+	result.ContainerID = createResult.ContainerID
+	e.logger.Info("Container created", "container_id", result.ContainerID, "name", containerName)
+
+	// Ensure cleanup happens even if errors occur
+	defer func() {
+		destroyCfg := container.DestroyConfig{
+			ContainerID: result.ContainerID,
+			Name:        containerName,
+			Force:       true,
+		}
+		if destroyErr := e.runtime.Destroy(context.Background(), destroyCfg); destroyErr != nil {
+			e.logger.Warn("Failed to destroy container",
+				"container_id", result.ContainerID,
+				"error", destroyErr)
+		} else {
+			e.logger.Info("Container destroyed", "container_id", result.ContainerID)
+		}
+	}()
+
+	// Start the container
+	startCfg := container.StartConfig{
+		ContainerID: result.ContainerID,
+		Name:        containerName,
+	}
+	if err := e.runtime.Start(execCtx, startCfg); err != nil {
+		result.Error = types.WrapError(types.ErrCodeInternal, "failed to start container", err)
+		result.CompletedAt = time.Now()
+		result.Duration = result.CompletedAt.Sub(startTime)
+		e.logger.Warn("Failed to start container", "error", err)
+		return result
+	}
+
+	e.logger.Info("Container started", "container_id", result.ContainerID)
+
+	// Wait for container to complete
+	exitCode, err := e.runtime.Wait(execCtx, result.ContainerID)
+	if err != nil {
+		// Check if it was a timeout
+		if execCtx.Err() == context.DeadlineExceeded {
+			result.Error = types.NewError(types.ErrCodeTimeout, "task execution timed out")
+		} else {
+			result.Error = types.WrapError(types.ErrCodeInternal, "container wait failed", err)
+		}
+		result.ExitCode = -1
+		result.CompletedAt = time.Now()
+		result.Duration = result.CompletedAt.Sub(startTime)
+		e.logger.Warn("Container wait failed", "error", err)
+		return result
+	}
+
+	result.ExitCode = exitCode
+	e.logger.Info("Container exited", "container_id", result.ContainerID, "exit_code", exitCode)
+
+	// Capture logs
+	logsCfg := container.LogsConfig{
+		ContainerID: result.ContainerID,
+		Stdout:      true,
+		Stderr:      true,
+		Tail:        "all",
+		Timestamps:  false,
+	}
+
+	logReader, err := e.runtime.Logs(execCtx, logsCfg)
+	if err != nil {
+		e.logger.Warn("Failed to retrieve logs", "error", err)
+		// Continue anyway - we have the exit code
+	} else {
+		defer logReader.Close()
+
+		// Read all logs
+		var stdoutBuf, stderrBuf bytes.Buffer
+
+		// Docker logs multiplex stdout and stderr together
+		// We need to demultiplex them
+		buf := make([]byte, 8192)
+		for {
+			n, readErr := logReader.Read(buf)
+			if n > 0 {
+				// Docker logs format: header byte + stream type + data
+				// We need to strip the 8-byte header
+				data := buf[:n]
+				i := 0
+				for i < len(data) {
+					if i+8 > len(data) {
+						break
+					}
+					// Skip 4-byte header (protocol info) + 4-byte length
+					// The 5th byte indicates the stream: 1 = stdout, 2 = stderr
+					streamType := data[4]
+					payloadStart := i + 8
+					payloadEnd := payloadStart
+
+					// Find the end of this payload
+					remaining := len(data) - payloadStart
+					if remaining > 0 {
+						payloadEnd = len(data)
+						payload := data[payloadStart:payloadEnd]
+
+						if streamType == 1 {
+							stdoutBuf.Write(payload)
+						} else if streamType == 2 {
+							stderrBuf.Write(payload)
+						}
+					}
+					i = payloadEnd
+				}
+			}
+			if readErr != nil {
+				if readErr != io.EOF {
+					e.logger.Warn("Error reading logs", "error", readErr)
+				}
+				break
+			}
+		}
+
+		result.Stdout = stdoutBuf.String()
+		result.Stderr = stderrBuf.String()
+	}
+
+	result.CompletedAt = time.Now()
+	result.Duration = result.CompletedAt.Sub(startTime)
+
+	e.logger.Info("Task completed",
+		"container_id", result.ContainerID,
+		"exit_code", result.ExitCode,
+		"duration", result.Duration.String())
+
+	return result
 }
