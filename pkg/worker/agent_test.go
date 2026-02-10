@@ -939,3 +939,331 @@ func TestMapOperationToToolType(t *testing.T) {
 
 	t.Log("Map operation to tool type test passed!")
 }
+
+// TestStreamingResults tests that streaming result updates are sent via StreamTaskResponse
+func TestStreamingResults(t *testing.T) {
+	// Create event bus for agent service
+	eventBus, err := events.New(nil)
+	if err != nil {
+		t.Fatalf("Failed to create event bus: %v", err)
+	}
+	defer eventBus.Close()
+
+	// Create agent service dependencies
+	deps := &mockAgentServiceDependencies{eventBus: eventBus}
+
+	// Create logger
+	log, err := logger.NewDefault()
+	if err != nil {
+		t.Fatalf("Failed to create logger: %v", err)
+	}
+
+	// Create agent service
+	agentService := grpcpkg.NewAgentService(deps, log)
+
+	// Create gRPC server
+	server := grpc.NewServer()
+	proto.RegisterAgentServiceServer(server, agentService)
+
+	// Start server on a random port
+	lis, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		t.Fatalf("Failed to create listener: %v", err)
+	}
+
+	// Start server in background
+	serverErr := make(chan error, 1)
+	go func() {
+		serverErr <- server.Serve(lis)
+	}()
+	defer func() {
+		server.GracefulStop()
+		if err := <-serverErr; err != nil {
+			t.Logf("Server error: %v", err)
+		}
+	}()
+
+	// Get the actual address
+	addr := lis.Addr().String()
+	t.Logf("Agent service listening on %s", addr)
+
+	// Create worker agent
+	cfg := AgentConfig{
+		DialTimeout: 5 * time.Second,
+		RPCTimeout:  5 * time.Second,
+	}
+	agent, err := NewAgent(addr, cfg, log)
+	if err != nil {
+		t.Fatalf("Failed to create worker agent: %v", err)
+	}
+	defer agent.Close()
+
+	// Connect to orchestrator
+	ctx := context.Background()
+	if err := agent.Dial(ctx); err != nil {
+		t.Fatalf("Failed to dial orchestrator: %v", err)
+	}
+
+	// Register the agent
+	workerName := "test-worker-streaming"
+	if err := agent.Register(ctx, workerName); err != nil {
+		t.Fatalf("Failed to register agent: %v", err)
+	}
+
+	agentID := agent.GetAgentID()
+	t.Logf("Agent registered with ID: %s", agentID)
+
+	// Create a task via ExecuteTask RPC
+	taskReq := &proto.ExecuteTaskRequest{
+		AgentId:   agentID,
+		SessionId: "test-session-streaming",
+		Type:      proto.TaskType_TASK_TYPE_CUSTOM,
+		Priority:  proto.TaskPriority_TASK_PRIORITY_NORMAL,
+		Config: &proto.TaskConfig{
+			Command: "echo 'streaming test'",
+		},
+	}
+
+	taskResp, err := proto.NewAgentServiceClient(agent.GetConn()).ExecuteTask(ctx, taskReq)
+	if err != nil {
+		t.Fatalf("Failed to create task: %v", err)
+	}
+
+	taskID := taskResp.TaskId
+	t.Logf("Task created with ID: %s", taskID)
+
+	// Establish stream for task execution
+	streamCtx, streamCancel := context.WithTimeout(ctx, 15*time.Second)
+	defer streamCancel()
+
+	stream, err := agent.ListenForTasks(streamCtx, taskID)
+	if err != nil {
+		t.Fatalf("Failed to listen for tasks: %v", err)
+	}
+
+	// Test 1: Send progress updates
+	t.Run("SendProgress", func(t *testing.T) {
+		details := map[string]string{
+			"step":  "1",
+			"total": "3",
+		}
+		err := agent.SendTaskProgress(stream, 0.33, "Processing step 1", details)
+		if err != nil {
+			t.Errorf("Failed to send task progress: %v", err)
+		} else {
+			t.Log("Progress update sent successfully")
+		}
+
+		// Send another progress update
+		details["step"] = "2"
+		err = agent.SendTaskProgress(stream, 0.66, "Processing step 2", details)
+		if err != nil {
+			t.Errorf("Failed to send task progress: %v", err)
+		} else {
+			t.Log("Second progress update sent successfully")
+		}
+	})
+
+	// Test 2: Send status update
+	t.Run("SendStatus", func(t *testing.T) {
+		err := agent.SendTaskStatus(stream, proto.TaskState_TASK_STATE_RUNNING, "Task is running")
+		if err != nil {
+			t.Errorf("Failed to send task status: %v", err)
+		} else {
+			t.Log("Status update sent successfully")
+		}
+	})
+
+	// Test 3: Send output update
+	t.Run("SendOutput", func(t *testing.T) {
+		outputText := "Sample output from task execution"
+		err := agent.SendTaskOutput(stream, []byte(outputText), outputText, "stdout")
+		if err != nil {
+			t.Errorf("Failed to send task output: %v", err)
+		} else {
+			t.Log("Output update sent successfully")
+		}
+	})
+
+	// Test 4: Send task completion
+	t.Run("SendComplete", func(t *testing.T) {
+		metadata := map[string]string{
+			"execution_time": "1.5s",
+			"container_id":   "test-container-123",
+		}
+		err := agent.SendTaskComplete(stream, taskID, 0, "Task completed successfully", "", metadata)
+		if err != nil {
+			t.Errorf("Failed to send task complete: %v", err)
+		} else {
+			t.Log("Task completion sent successfully")
+		}
+	})
+
+	// Test 5: Send heartbeat to keep stream alive
+	t.Run("SendHeartbeat", func(t *testing.T) {
+		err := agent.SendStreamHeartbeat(stream)
+		if err != nil {
+			t.Errorf("Failed to send stream heartbeat: %v", err)
+		} else {
+			t.Log("Stream heartbeat sent successfully")
+		}
+	})
+
+	// Test 6: Send error message
+	t.Run("SendError", func(t *testing.T) {
+		details := []string{
+			"Step 1 failed: timeout",
+			"Retry attempt 1 exhausted",
+		}
+		err := agent.SendTaskError(stream, "TIMEOUT", "Task execution timeout", details)
+		if err != nil {
+			t.Errorf("Failed to send task error: %v", err)
+		} else {
+			t.Log("Task error sent successfully")
+		}
+	})
+
+	// Test 7: Test error handling for nil stream
+	t.Run("NilStreamError", func(t *testing.T) {
+		var nilStream proto.AgentService_StreamTaskClient = nil
+		err := agent.SendTaskProgress(nilStream, 0.5, "test", nil)
+		if err == nil {
+			t.Error("Expected error for nil stream, got nil")
+		} else {
+			t.Logf("Correctly returned error for nil stream: %v", err)
+		}
+	})
+
+	// Close the stream
+	if err := stream.CloseSend(); err != nil {
+		t.Logf("Warning: Failed to close send stream: %v", err)
+	}
+
+	t.Log("Streaming results test passed!")
+}
+
+// TestStreamingResultsIntegration tests full streaming flow with actual message exchange
+func TestStreamingResultsIntegration(t *testing.T) {
+	// Create event bus for agent service
+	eventBus, err := events.New(nil)
+	if err != nil {
+		t.Fatalf("Failed to create event bus: %v", err)
+	}
+	defer eventBus.Close()
+
+	// Create agent service dependencies
+	deps := &mockAgentServiceDependencies{eventBus: eventBus}
+
+	// Create logger
+	log, err := logger.NewDefault()
+	if err != nil {
+		t.Fatalf("Failed to create logger: %v", err)
+	}
+
+	// Create agent service
+	agentService := grpcpkg.NewAgentService(deps, log)
+
+	// Create gRPC server
+	server := grpc.NewServer()
+	proto.RegisterAgentServiceServer(server, agentService)
+
+	// Start server on a random port
+	lis, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		t.Fatalf("Failed to create listener: %v", err)
+	}
+
+	// Start server in background
+	serverErr := make(chan error, 1)
+	go func() {
+		serverErr <- server.Serve(lis)
+	}()
+	defer func() {
+		server.GracefulStop()
+		if err := <-serverErr; err != nil {
+			t.Logf("Server error: %v", err)
+		}
+	}()
+
+	// Get the actual address
+	addr := lis.Addr().String()
+
+	// Create worker agent
+	cfg := AgentConfig{
+		DialTimeout: 5 * time.Second,
+		RPCTimeout:  5 * time.Second,
+	}
+	agent, err := NewAgent(addr, cfg, log)
+	if err != nil {
+		t.Fatalf("Failed to create worker agent: %v", err)
+	}
+	defer agent.Close()
+
+	// Connect and register
+	ctx := context.Background()
+	if err := agent.Dial(ctx); err != nil {
+		t.Fatalf("Failed to dial orchestrator: %v", err)
+	}
+
+	if err := agent.Register(ctx, "test-worker-integration"); err != nil {
+		t.Fatalf("Failed to register agent: %v", err)
+	}
+
+	agentID := agent.GetAgentID()
+	taskID := "integration-test-task-" + agentID
+
+	// Establish stream
+	streamCtx, streamCancel := context.WithTimeout(ctx, 15*time.Second)
+	defer streamCancel()
+
+	stream, err := agent.ListenForTasks(streamCtx, taskID)
+	if err != nil {
+		t.Fatalf("Failed to listen for tasks: %v", err)
+	}
+
+	// Simulate a task execution flow with multiple updates
+	updates := []struct {
+		updateType string
+		expectErr  bool
+	}{
+		{"progress", false},
+		{"status", false},
+		{"output", false},
+		{"progress", false},
+		{"complete", false},
+	}
+
+	for i, update := range updates {
+		switch update.updateType {
+		case "progress":
+			err := agent.SendTaskProgress(stream, float64(i+1)/float64(len(updates)), "Step completed", nil)
+			if (err != nil) != update.expectErr {
+				t.Errorf("Update %d (%s): expected error=%v, got error=%v", i, update.updateType, update.expectErr, err)
+			}
+
+		case "status":
+			err := agent.SendTaskStatus(stream, proto.TaskState_TASK_STATE_RUNNING, "Task running")
+			if (err != nil) != update.expectErr {
+				t.Errorf("Update %d (%s): expected error=%v, got error=%v", i, update.updateType, update.expectErr, err)
+			}
+
+		case "output":
+			err := agent.SendTaskOutput(stream, []byte("output line"), "output line", "stdout")
+			if (err != nil) != update.expectErr {
+				t.Errorf("Update %d (%s): expected error=%v, got error=%v", i, update.updateType, update.expectErr, err)
+			}
+
+		case "complete":
+			err := agent.SendTaskComplete(stream, taskID, 0, "Done", "", nil)
+			if (err != nil) != update.expectErr {
+				t.Errorf("Update %d (%s): expected error=%v, got error=%v", i, update.updateType, update.expectErr, err)
+			}
+		}
+		t.Logf("Sent %s update (%d/%d)", update.updateType, i+1, len(updates))
+	}
+
+	// Close stream
+	stream.CloseSend()
+
+	t.Log("Streaming results integration test passed!")
+}

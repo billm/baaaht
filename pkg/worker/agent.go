@@ -861,6 +861,164 @@ func (a *Agent) ListenForTasks(ctx context.Context, taskID string) (proto.AgentS
 	return stream, nil
 }
 
+// SendTaskProgress sends a progress update for a task via the stream
+func (a *Agent) SendTaskProgress(stream proto.AgentService_StreamTaskClient, percent float64, message string, details map[string]string) error {
+	if stream == nil {
+		return types.NewError(types.ErrCodeInvalid, "stream is nil")
+	}
+
+	resp := &proto.StreamTaskResponse{
+		Payload: &proto.StreamTaskResponse_Progress{
+			Progress: &proto.TaskProgress{
+				Percent: percent,
+				Message: message,
+				Details: details,
+			},
+		},
+	}
+
+	if err := stream.Send(resp); err != nil {
+		a.logger.Error("Failed to send task progress", "error", err)
+		return types.WrapError(types.ErrCodeInternal, "failed to send task progress", err)
+	}
+
+	a.logger.Debug("Sent task progress", "percent", percent, "message", message)
+	return nil
+}
+
+// SendTaskOutput sends an output update for a task via the stream
+func (a *Agent) SendTaskOutput(stream proto.AgentService_StreamTaskClient, data []byte, text, streamType string) error {
+	if stream == nil {
+		return types.NewError(types.ErrCodeInvalid, "stream is nil")
+	}
+
+	resp := &proto.StreamTaskResponse{
+		Payload: &proto.StreamTaskResponse_Output{
+			Output: &proto.TaskOutput{
+				Data:        data,
+				Text:        text,
+				StreamType:  streamType,
+			},
+		},
+	}
+
+	if err := stream.Send(resp); err != nil {
+		a.logger.Error("Failed to send task output", "error", err)
+		return types.WrapError(types.ErrCodeInternal, "failed to send task output", err)
+	}
+
+	a.logger.Debug("Sent task output", "stream_type", streamType, "text_length", len(text))
+	return nil
+}
+
+// SendTaskStatus sends a status update for a task via the stream
+func (a *Agent) SendTaskStatus(stream proto.AgentService_StreamTaskClient, state proto.TaskState, message string) error {
+	if stream == nil {
+		return types.NewError(types.ErrCodeInvalid, "stream is nil")
+	}
+
+	resp := &proto.StreamTaskResponse{
+		Payload: &proto.StreamTaskResponse_Status{
+			Status: &proto.TaskStatusUpdate{
+				State:     state,
+				Message:   message,
+				Timestamp: time.Now(),
+			},
+		},
+	}
+
+	if err := stream.Send(resp); err != nil {
+		a.logger.Error("Failed to send task status", "error", err)
+		return types.WrapError(types.ErrCodeInternal, "failed to send task status", err)
+	}
+
+	a.logger.Debug("Sent task status", "state", state.String(), "message", message)
+	return nil
+}
+
+// SendTaskComplete sends a task completion message via the stream
+func (a *Agent) SendTaskComplete(stream proto.AgentService_StreamTaskClient, taskID string, exitCode int32, outputText, errorText string, metadata map[string]string) error {
+	if stream == nil {
+		return types.NewError(types.ErrCodeInvalid, "stream is nil")
+	}
+
+	// Calculate execution duration from creation time
+	duration := time.Since(time.Now()) // Placeholder - actual duration would be tracked during execution
+
+	result := &proto.TaskResult{
+		ExitCode:           exitCode,
+		OutputText:         outputText,
+		ErrorText:          errorText,
+		Metadata:           metadata,
+		CompletedAt:        time.Now(),
+		ExecutionDurationNs: duration.Nanoseconds(),
+	}
+
+	resp := &proto.StreamTaskResponse{
+		Payload: &proto.StreamTaskResponse_Complete{
+			Complete: &proto.TaskComplete{
+				TaskId:      taskID,
+				Result:      result,
+				CompletedAt: time.Now(),
+			},
+		},
+	}
+
+	if err := stream.Send(resp); err != nil {
+		a.logger.Error("Failed to send task complete", "error", err)
+		return types.WrapError(types.ErrCodeInternal, "failed to send task complete", err)
+	}
+
+	a.logger.Info("Sent task complete", "task_id", taskID, "exit_code", exitCode)
+	return nil
+}
+
+// SendTaskError sends an error message for a task via the stream
+func (a *Agent) SendTaskError(stream proto.AgentService_StreamTaskClient, code, message string, details []string) error {
+	if stream == nil {
+		return types.NewError(types.ErrCodeInvalid, "stream is nil")
+	}
+
+	resp := &proto.StreamTaskResponse{
+		Payload: &proto.StreamTaskResponse_Error{
+			Error: &proto.TaskError{
+				Code:        code,
+				Message:     message,
+				Details:     details,
+				OccurredAt:  time.Now(),
+			},
+		},
+	}
+
+	if err := stream.Send(resp); err != nil {
+		a.logger.Error("Failed to send task error", "error", err)
+		return types.WrapError(types.ErrCodeInternal, "failed to send task error", err)
+	}
+
+	a.logger.Debug("Sent task error", "code", code, "message", message)
+	return nil
+}
+
+// SendStreamHeartbeat sends a heartbeat via the stream to keep it alive
+func (a *Agent) SendStreamHeartbeat(stream proto.AgentService_StreamTaskClient) error {
+	if stream == nil {
+		return types.NewError(types.ErrCodeInvalid, "stream is nil")
+	}
+
+	resp := &proto.StreamTaskResponse{
+		Payload: &proto.StreamTaskResponse_Heartbeat{
+			Heartbeat: &emptypb.Empty{},
+		},
+	}
+
+	if err := stream.Send(resp); err != nil {
+		a.logger.Debug("Failed to send stream heartbeat", "error", err)
+		return types.WrapError(types.ErrCodeInternal, "failed to send stream heartbeat", err)
+	}
+
+	return nil
+}
+
 // =============================================================================
 // Task Routing
 // =============================================================================
