@@ -148,7 +148,7 @@ func (m *LLMGatewayManager) Start(ctx context.Context) error {
 	// Start the container
 	startCfg := container.StartConfig{
 		ContainerID: m.containerID,
-		Name:        "llm-gateway",
+		Name:        "baaaht-llm-gateway",
 	}
 	if err := m.lifecycle.Start(ctx, startCfg); err != nil {
 		// Clean up the container if start fails
@@ -211,7 +211,7 @@ func (m *LLMGatewayManager) Stop(ctx context.Context) error {
 	timeout := 30 * time.Second
 	stopCfg := container.StopConfig{
 		ContainerID: m.containerID,
-		Name:        "llm-gateway",
+		Name:        "baaaht-llm-gateway",
 		Timeout:     &timeout,
 	}
 
@@ -256,7 +256,7 @@ func (m *LLMGatewayManager) Restart(ctx context.Context) error {
 	timeout := 30 * time.Second
 	restartCfg := container.RestartConfig{
 		ContainerID: m.containerID,
-		Name:        "llm-gateway",
+		Name:        "baaaht-llm-gateway",
 		Timeout:     &timeout,
 	}
 
@@ -340,14 +340,22 @@ func (m *LLMGatewayManager) Close() error {
 		m.logger.Warn("Health monitoring did not stop gracefully during close")
 	}
 
-	// Stop the container if it's running
-	if m.started && m.containerID != "" {
+	// Stop and destroy the container if it's running
+	if m.containerID != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
-		// Attempt graceful shutdown
-		if err := m.stopInternal(ctx); err != nil {
-			m.logger.Error("Failed to stop LLM Gateway during close",
+		// Attempt graceful shutdown first
+		if m.started {
+			if err := m.stopInternal(ctx); err != nil {
+				m.logger.Error("Failed to stop LLM Gateway during close",
+					"error", err)
+			}
+		}
+
+		// Always attempt to clean up the container, even if stop failed
+		if err := m.cleanupContainer(ctx); err != nil {
+			m.logger.Warn("Failed to cleanup LLM Gateway container during close",
 				"error", err)
 		}
 	}
@@ -516,7 +524,7 @@ func (m *LLMGatewayManager) cleanupContainer(ctx context.Context) error {
 
 	destroyCfg := container.DestroyConfig{
 		ContainerID:   m.containerID,
-		Name:         "llm-gateway",
+		Name:         "baaaht-llm-gateway",
 		Force:        true,
 		RemoveVolumes: false,
 	}
@@ -540,7 +548,7 @@ func (m *LLMGatewayManager) stopInternal(ctx context.Context) error {
 	timeout := 30 * time.Second
 	stopCfg := container.StopConfig{
 		ContainerID: m.containerID,
-		Name:        "llm-gateway",
+		Name:        "baaaht-llm-gateway",
 		Timeout:     &timeout,
 	}
 

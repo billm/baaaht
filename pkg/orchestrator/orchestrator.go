@@ -36,6 +36,7 @@ type Orchestrator struct {
 	eventRouter    *events.Router
 	ipcBroker      *ipc.Broker
 	policyEnforcer *policy.Enforcer
+	policyReloader *policy.Reloader
 	credStore      *credentials.Store
 	scheduler      *scheduler.Scheduler
 	memoryStore    *memory.Store

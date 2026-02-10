@@ -2430,7 +2430,7 @@ func TestLLMValidation(t *testing.T) {
 				DefaultModel:          "anthropic/claude-sonnet-4-20250514",
 				Timeout:               120 * time.Second,
 				MaxConcurrentRequests: 10,
-				Providers: map[string]ProviderConfig{
+				Providers: map[string]LLMProviderConfig{
 					"anthropic": {
 						Name:    "anthropic",
 						APIKey:  "sk-test-key",
@@ -2451,7 +2451,7 @@ func TestLLMValidation(t *testing.T) {
 				DefaultModel:          "anthropic/claude-sonnet-4-20250514",
 				Timeout:               120 * time.Second,
 				MaxConcurrentRequests: 10,
-				Providers: map[string]ProviderConfig{
+				Providers: map[string]LLMProviderConfig{
 					"anthropic": {
 						Name:    "anthropic",
 						APIKey:  "sk-test-key",
@@ -2471,7 +2471,7 @@ func TestLLMValidation(t *testing.T) {
 				DefaultModel:          "anthropic/claude-sonnet-4-20250514",
 				Timeout:               120 * time.Second,
 				MaxConcurrentRequests: 10,
-				Providers: map[string]ProviderConfig{
+				Providers: map[string]LLMProviderConfig{
 					"anthropic": {
 						Name:    "anthropic",
 						APIKey:  "sk-test-key",
@@ -2491,7 +2491,7 @@ func TestLLMValidation(t *testing.T) {
 				DefaultModel:          "",
 				Timeout:               120 * time.Second,
 				MaxConcurrentRequests: 10,
-				Providers: map[string]ProviderConfig{
+				Providers: map[string]LLMProviderConfig{
 					"anthropic": {
 						Name:    "anthropic",
 						APIKey:  "sk-test-key",
@@ -2511,7 +2511,7 @@ func TestLLMValidation(t *testing.T) {
 				DefaultModel:          "anthropic/claude-sonnet-4-20250514",
 				Timeout:               0,
 				MaxConcurrentRequests: 10,
-				Providers: map[string]ProviderConfig{
+				Providers: map[string]LLMProviderConfig{
 					"anthropic": {
 						Name:    "anthropic",
 						APIKey:  "sk-test-key",
@@ -2531,7 +2531,7 @@ func TestLLMValidation(t *testing.T) {
 				DefaultModel:          "anthropic/claude-sonnet-4-20250514",
 				Timeout:               120 * time.Second,
 				MaxConcurrentRequests: 0,
-				Providers: map[string]ProviderConfig{
+				Providers: map[string]LLMProviderConfig{
 					"anthropic": {
 						Name:    "anthropic",
 						APIKey:  "sk-test-key",
@@ -2551,7 +2551,7 @@ func TestLLMValidation(t *testing.T) {
 				DefaultModel:          "openai/gpt-4o",
 				Timeout:               120 * time.Second,
 				MaxConcurrentRequests: 10,
-				Providers: map[string]ProviderConfig{
+				Providers: map[string]LLMProviderConfig{
 					"anthropic": {
 						Name:    "anthropic",
 						APIKey:  "sk-test-key",
@@ -2571,7 +2571,7 @@ func TestLLMValidation(t *testing.T) {
 				DefaultModel:          "anthropic/claude-sonnet-4-20250514",
 				Timeout:               120 * time.Second,
 				MaxConcurrentRequests: 10,
-				Providers: map[string]ProviderConfig{
+				Providers: map[string]LLMProviderConfig{
 					"anthropic": {
 						Name:    "anthropic",
 						APIKey:  "",
@@ -2591,7 +2591,7 @@ func TestLLMValidation(t *testing.T) {
 				DefaultModel:          "anthropic/claude-sonnet-4-20250514",
 				Timeout:               120 * time.Second,
 				MaxConcurrentRequests: 10,
-				Providers: map[string]ProviderConfig{
+				Providers: map[string]LLMProviderConfig{
 					"anthropic": {
 						Name:    "anthropic",
 						APIKey:  "sk-test-key",
@@ -2615,7 +2615,7 @@ func TestLLMValidation(t *testing.T) {
 				DefaultModel:          "anthropic/claude-sonnet-4-20250514",
 				Timeout:               120 * time.Second,
 				MaxConcurrentRequests: 10,
-				Providers: map[string]ProviderConfig{
+				Providers: map[string]LLMProviderConfig{
 					"emptyprovider": {
 						Name:    "",
 						APIKey:  "sk-test-key",
@@ -2635,7 +2635,7 @@ func TestLLMValidation(t *testing.T) {
 				DefaultModel:          "anthropic/claude-sonnet-4-20250514",
 				Timeout:               120 * time.Second,
 				MaxConcurrentRequests: 10,
-				Providers: map[string]ProviderConfig{
+				Providers: map[string]LLMProviderConfig{
 					"anthropic": {
 						Name:    "anthropic",
 						APIKey:  "sk-ant-test-key",
@@ -2666,6 +2666,23 @@ func TestLLMValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Save and restore environment variables for API key tests
+			var savedAnthropicKey, savedOpenAIKey string
+			if tt.name == "enabled provider without API key" {
+				savedAnthropicKey = os.Getenv("ANTHROPIC_API_KEY")
+				savedOpenAIKey = os.Getenv("OPENAI_API_KEY")
+				os.Unsetenv("ANTHROPIC_API_KEY")
+				os.Unsetenv("OPENAI_API_KEY")
+				defer func() {
+					if savedAnthropicKey != "" {
+						os.Setenv("ANTHROPIC_API_KEY", savedAnthropicKey)
+					}
+					if savedOpenAIKey != "" {
+						os.Setenv("OPENAI_API_KEY", savedOpenAIKey)
+					}
+				}()
+			}
+
 			cfg := &Config{
 				Docker: DefaultDockerConfig(),
 				APIServer: APIServerConfig{
