@@ -73,7 +73,7 @@ func NewDefaultBootstrapConfig(cfg config.GRPCConfig, log *logger.Logger) Bootst
 // It performs the following steps:
 // 1. Creates the gRPC server with UDS transport
 // 2. Creates the health check server
-// 3. Creates and registers all gRPC services (Orchestrator, Agent, Gateway)
+// 3. Creates and registers all gRPC services (Orchestrator, Agent, Gateway, LLM, Tool)
 // 4. Starts the gRPC server
 // 5. Performs health checks (if enabled)
 // 6. Returns the initialized gRPC server
@@ -187,6 +187,18 @@ func Bootstrap(ctx context.Context, cfg BootstrapConfig) (*BootstrapResult, erro
 
 	// Set health status for LLM service
 	health.SetServingStatus("llm", grpc_health.HealthCheckResponse_SERVING)
+
+	// Create and register ToolService
+	toolSvc := NewToolService(deps, log)
+	if err := server.RegisterService(&proto.ToolService_ServiceDesc, toolSvc); err != nil {
+		result.Error = types.WrapError(types.ErrCodeInternal, "failed to register tool service", err)
+		// Cleanup on failure
+		_ = server.Stop()
+		return result, result.Error
+	}
+
+	// Set health status for tool service
+	health.SetServingStatus("tool", grpc_health.HealthCheckResponse_SERVING)
 
 	// Start the gRPC server
 	if err := server.Start(ctx); err != nil {
