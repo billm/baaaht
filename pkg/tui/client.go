@@ -656,6 +656,49 @@ func (c *OrchestratorClient) StreamMessages(ctx context.Context) (proto.Orchestr
 	return stream, nil
 }
 
+// SendMsg sends a user message via the StreamMessages bidirectional stream
+func (c *OrchestratorClient) SendMsg(ctx context.Context, sessionID, content string) error {
+	c.mu.RLock()
+	client := c.client
+	c.mu.RUnlock()
+
+	if client == nil {
+		return types.NewError(types.ErrCodeUnavailable, "client not connected")
+	}
+
+	// Establish the stream
+	stream, err := c.StreamMessages(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Create the stream request with the user message
+	req := &proto.StreamMessageRequest{
+		SessionId: sessionID,
+		Payload: &proto.StreamMessageRequest_Message{
+			Message: &proto.Message{
+				Role:    proto.MessageRole_MESSAGE_ROLE_USER,
+				Content: content,
+			},
+		},
+	}
+
+	// Send the message
+	if err := stream.Send(req); err != nil {
+		c.mu.Lock()
+		c.stats.FailedRPCs++
+		c.stats.LastRPCError = err.Error()
+		c.mu.Unlock()
+		return types.WrapError(types.ErrCodeInternal, "send message failed", err)
+	}
+
+	c.mu.Lock()
+	c.stats.TotalRPCs++
+	c.mu.Unlock()
+
+	return nil
+}
+
 // GetState returns the current connection state
 func (c *OrchestratorClient) GetState() connectivity.State {
 	c.mu.RLock()
