@@ -7,6 +7,8 @@ import (
 	"github.com/billm/baaaht/orchestrator/internal/config"
 	"github.com/billm/baaaht/orchestrator/internal/logger"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // createTestEnforcer creates a policy enforcer for testing
@@ -1099,4 +1101,85 @@ func TestEnforceMountModeDisabledMode(t *testing.T) {
 	if enforced.Mounts[0].ReadOnly {
 		t.Error("in disabled mode, mount should not be forced to read-only")
 	}
+}
+
+// TestSetAuditLogger tests setting a custom audit logger on the enforcer
+func TestSetAuditLogger(t *testing.T) {
+	enforcer := createTestEnforcer(t)
+	defer enforcer.Close()
+
+	log, err := logger.NewDefault()
+	require.NoError(t, err)
+
+	// Create a custom audit logger
+	customAuditLogger, err := NewAuditLogger(log, "")
+	require.NoError(t, err)
+
+	// Set the custom audit logger
+	err = enforcer.SetAuditLogger(customAuditLogger)
+	require.NoError(t, err, "setting audit logger should succeed")
+
+	// Get the audit logger to verify it was set
+	retrievedLogger := enforcer.GetAuditLogger()
+	require.NotNil(t, retrievedLogger, "audit logger should not be nil")
+	assert.Same(t, customAuditLogger, retrievedLogger, "retrieved logger should be the same as the one set")
+}
+
+// TestSetAuditLoggerOnClosedEnforcer tests that setting audit logger on closed enforcer fails
+func TestSetAuditLoggerOnClosedEnforcer(t *testing.T) {
+	enforcer := createTestEnforcer(t)
+	enforcer.Close()
+
+	log, err := logger.NewDefault()
+	require.NoError(t, err)
+
+	customAuditLogger, err := NewAuditLogger(log, "")
+	require.NoError(t, err)
+
+	err = enforcer.SetAuditLogger(customAuditLogger)
+	assert.Error(t, err, "setting audit logger on closed enforcer should fail")
+	var customErr *types.Error
+	assert.ErrorAs(t, err, &customErr)
+	assert.Equal(t, types.ErrCodeUnavailable, customErr.Code)
+}
+
+// TestSetGroupProvider tests setting a group membership provider on the enforcer
+func TestSetGroupProvider(t *testing.T) {
+	enforcer := createTestEnforcer(t)
+	defer enforcer.Close()
+
+	// Create a mock group provider
+	mockProvider := &mockGroupProvider{
+		groups: map[string][]string{
+			"testuser": {"developers"},
+		},
+	}
+
+	// Set the group provider
+	err := enforcer.SetGroupProvider(mockProvider)
+	require.NoError(t, err, "setting group provider should succeed")
+}
+
+// TestSetGroupProviderOnClosedEnforcer tests that setting group provider on closed enforcer fails
+func TestSetGroupProviderOnClosedEnforcer(t *testing.T) {
+	enforcer := createTestEnforcer(t)
+	enforcer.Close()
+
+	mockProvider := &mockGroupProvider{}
+
+	err := enforcer.SetGroupProvider(mockProvider)
+	assert.Error(t, err, "setting group provider on closed enforcer should fail")
+	var customErr *types.Error
+	assert.ErrorAs(t, err, &customErr)
+	assert.Equal(t, types.ErrCodeUnavailable, customErr.Code)
+}
+
+// TestGetAuditLoggerReturnsNilForNewEnforcer tests that GetAuditLogger returns the default audit logger
+func TestGetAuditLoggerReturnsDefaultLogger(t *testing.T) {
+	enforcer := createTestEnforcer(t)
+	defer enforcer.Close()
+
+	// Get the default audit logger
+	retrievedLogger := enforcer.GetAuditLogger()
+	require.NotNil(t, retrievedLogger, "audit logger should not be nil for new enforcer")
 }

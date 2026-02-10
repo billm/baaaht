@@ -831,3 +831,52 @@ func (e *Enforcer) String() string {
 	return fmt.Sprintf("PolicyEnforcer{mode: %s, active_sessions: %d}",
 		e.policy.Mode, len(e.sessionPolicies))
 }
+
+// SetAuditLogger sets a custom audit logger for the enforcer
+// This is primarily used for testing to inject audit loggers with file output
+func (e *Enforcer) SetAuditLogger(auditLogger *AuditLogger) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if e.closed {
+		return types.NewError(types.ErrCodeUnavailable, "enforcer is closed")
+	}
+
+	// Close existing audit logger if present
+	if e.auditLogger != nil {
+		if err := e.auditLogger.Close(); err != nil {
+			e.logger.Warn("Failed to close existing audit logger", "error", err)
+		}
+	}
+
+	e.auditLogger = auditLogger
+	return nil
+}
+
+// GetAuditLogger returns the current audit logger
+// This is primarily used for testing to verify audit log contents
+func (e *Enforcer) GetAuditLogger() *AuditLogger {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.auditLogger
+}
+
+// SetGroupProvider sets the group membership provider for the mount allowlist resolver
+func (e *Enforcer) SetGroupProvider(provider GroupMembershipProvider) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if e.closed {
+		return types.NewError(types.ErrCodeUnavailable, "enforcer is closed")
+	}
+
+	if e.mountAllowlistResolver == nil {
+		return types.NewError(types.ErrCodeInternal, "mount allowlist resolver not initialized")
+	}
+
+	if err := e.mountAllowlistResolver.SetGroupProvider(provider); err != nil {
+		return types.WrapError(types.ErrCodeInternal, "failed to set group provider", err)
+	}
+
+	return nil
+}
