@@ -240,37 +240,40 @@ func (m Model) waitForStreamMsgCmd() tea.Cmd {
 			return StreamSendFailedMsg{Err: fmt.Errorf("stream not initialized")}
 		}
 
-		resp, err := m.stream.Recv()
-		if err != nil {
-			return StreamSendFailedMsg{Err: err}
-		}
-
-		// Handle different response types
-		switch payload := resp.Payload.(type) {
-		case *proto.StreamMessageResponse_Message:
-			msg := payload.Message
-			role := "assistant"
-			switch msg.Role {
-			case proto.MessageRole_MESSAGE_ROLE_ASSISTANT:
-				role = "assistant"
-			case proto.MessageRole_MESSAGE_ROLE_SYSTEM:
-				role = "system"
-			case proto.MessageRole_MESSAGE_ROLE_TOOL:
-				role = "tool"
+		for {
+			resp, err := m.stream.Recv()
+			if err != nil {
+				return StreamSendFailedMsg{Err: err}
 			}
-			return StreamMsgReceivedMsg{
-				Role:    role,
-				Content: msg.Content,
-			}
-		case *proto.StreamMessageResponse_Event:
-			// For now, ignore events or handle them differently
-			return m.waitForStreamMsgCmd()()
-		case *proto.StreamMessageResponse_Heartbeat:
-			// Continue waiting for messages after heartbeat
-			return m.waitForStreamMsgCmd()()
-		}
 
-		return m.waitForStreamMsgCmd()()
+			// Handle different response types
+			switch payload := resp.Payload.(type) {
+			case *proto.StreamMessageResponse_Message:
+				msg := payload.Message
+				role := "assistant"
+				switch msg.Role {
+				case proto.MessageRole_MESSAGE_ROLE_ASSISTANT:
+					role = "assistant"
+				case proto.MessageRole_MESSAGE_ROLE_SYSTEM:
+					role = "system"
+				case proto.MessageRole_MESSAGE_ROLE_TOOL:
+					role = "tool"
+				}
+				return StreamMsgReceivedMsg{
+					Role:    role,
+					Content: msg.Content,
+				}
+			case *proto.StreamMessageResponse_Event:
+				// For now, ignore events and continue waiting for the next message
+				continue
+			case *proto.StreamMessageResponse_Heartbeat:
+				// Continue waiting for messages after heartbeat
+				continue
+			default:
+				// Unknown payload type; skip and wait for the next message
+				continue
+			}
+		}
 	}
 }
 
