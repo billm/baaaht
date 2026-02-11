@@ -196,8 +196,8 @@ function createDefaultBootstrapConfig(): Required<
       maxSessions: 100,
       idleTimeout: 3600000, // 1 hour
       timeout: 3600000,
-      maxDuration: 3600000,
     },
+    registrationInfo: {
     registrationInfo: {
       name: 'assistant',
       type: AgentType.AGENT_TYPE_WORKER,
