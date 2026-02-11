@@ -64,7 +64,7 @@ func runTUI(cmd *cobra.Command, args []string) error {
 	rootLog.Info("TUI initialization complete", "socket", socketPath)
 
 	// Create the TUI model
-	model := tui.NewModel(socketPath, verbose)
+	model := tui.NewModel(socketPath, verbose, DefaultVersion)
 
 	// Start the Bubbletea program
 	p := tea.NewProgram(model, tea.WithAltScreen())

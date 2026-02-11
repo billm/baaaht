@@ -3,9 +3,7 @@ package tui
 import (
 	"strings"
 
-	"github.com/billm/baaaht/orchestrator/pkg/tui/components"
 	"github.com/billm/baaaht/orchestrator/pkg/tui/styles"
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -57,7 +55,7 @@ func (m Model) View() string {
 // headerView renders the header section with full width.
 func (m Model) headerView() string {
 	title := styles.Styles.HeaderText.Render("Baaaht TUI")
-	version := styles.Styles.HeaderVersion.Render("v0.1.0")
+	version := styles.Styles.HeaderVersion.Render("v" + m.version)
 
 	// Join the title and version
 	header := lipgloss.JoinHorizontal(lipgloss.Top, title, " ", version)
@@ -72,46 +70,15 @@ func (m Model) headerView() string {
 
 // chatView renders the chat viewport component.
 func (m Model) chatView() string {
-	// Calculate chat height accounting for:
-	// - header (1 line) + newline (1)
-	// - status with border (3 lines) + newline (1)
-	// - input with border (3 lines) + newline (1)
-	// - footer (1 line)
-	// Total overhead: 11 lines
-	chatHeight := m.height - 11
-	if chatHeight < 5 {
-		chatHeight = 5
-	}
-
-	// Update chat component with the new size (width - 2 for left+right borders)
-	width := m.width - 2
-	if width < 1 {
-		width = 1
-	}
-	chatMsg := tea.WindowSizeMsg{Width: width, Height: chatHeight}
-	cm, _ := m.chat.Update(chatMsg)
-	m.chat = cm.(components.ChatModel)
-
+	// The chat component should already have been resized in the Update handler.
+	// Here we only render it without causing side effects.
 	return m.chat.View()
 }
 
 // sessionsView renders the sessions list component.
 func (m Model) sessionsView() string {
-	// Calculate sessions height (same as chat)
-	sessionsHeight := m.height - 11
-	if sessionsHeight < 5 {
-		sessionsHeight = 5
-	}
-
-	// Update sessions component with the new size (width - 2 for left+right borders)
-	width := m.width - 2
-	if width < 1 {
-		width = 1
-	}
-	sessionsMsg := tea.WindowSizeMsg{Width: width, Height: sessionsHeight}
-	sessm, _ := m.sessions.Update(sessionsMsg)
-	m.sessions = sessm.(components.SessionsModel)
-
+	// The sessions component should already have been resized in the Update handler.
+	// Here we only render it without causing side effects.
 	return m.sessions.View()
 }
 
@@ -178,21 +145,8 @@ func (m Model) renderSessionsOverlay(mainView string) string {
 		modalHeight = m.height - 4
 	}
 
-	// Update sessions component with modal dimensions (minus border/padding)
-	innerWidth := modalWidth - 4   // Account for border
-	innerHeight := modalHeight - 2 // Account for border
-	if innerWidth < 10 {
-		innerWidth = 10
-	}
-	if innerHeight < 5 {
-		innerHeight = 5
-	}
-
-	sessionsMsg := tea.WindowSizeMsg{Width: innerWidth, Height: innerHeight}
-	sessm, _ := m.sessions.Update(sessionsMsg)
-	m.sessions = sessm.(components.SessionsModel)
-
 	// Get the sessions list content
+	// The sessions component should already have been properly sized in Update handler
 	sessionsContent := m.sessions.View()
 
 	// Size the modal content without adding an extra border

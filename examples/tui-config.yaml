@@ -1,6 +1,6 @@
 # Baaaht TUI Configuration
-# This file contains all available configuration options for the Terminal UI (TUI)
-# client with their default values and documentation for each setting.
+# Example configuration file for the Terminal UI (TUI) client.
+# It documents many configuration options, their default values, and notes for each setting.
 #
 # Configuration Priority (highest to lowest):
 # 1. CLI flags (e.g., --socket-path, --log-level)
