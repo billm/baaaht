@@ -10,9 +10,8 @@ import type { Client } from '@grpc/grpc-js';
 import type {
   AgentMessage,
   MessageType,
-  AgentType,
-  AgentState,
 } from './proto/agent.js';
+import { AgentType, AgentState } from './proto/agent.js';
 import type {
   LLMRequest,
   LLMMessage as LLMMsg,

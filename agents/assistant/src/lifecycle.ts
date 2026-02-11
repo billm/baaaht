@@ -6,7 +6,7 @@
 // Copyright 2026 baaaht project
 
 import { EventEmitter } from 'events';
-import { Agent, type AgentStatus, type AgentState } from './agent.js';
+import { Agent, AgentState, type AgentStatus } from './agent.js';
 import type { SessionManager } from './session/manager.js';
 import type { AgentRegistry } from './orchestrator/registration.js';
 

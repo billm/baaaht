@@ -6,7 +6,7 @@
 // Copyright 2026 baaaht project
 
 import { EventEmitter } from 'events';
-import type { AgentType, AgentState } from './proto/agent.js';
+import { AgentType, AgentState } from './proto/agent.js';
 import type { OrchestratorClientConfig } from './orchestrator/grpc-client.js';
 import type {
   AgentConfig,
@@ -189,7 +189,8 @@ function createDefaultBootstrapConfig(): Required<
       description: 'Primary conversational agent with tool delegation',
     },
     orchestratorConfig: {
-      url: process.env.ORCHESTRATOR_URL ?? 'localhost:50051',
+      address: process.env.ORCHESTRATOR_URL ?? '/tmp/baaaht-grpc.sock',
+      useUnixSocket: process.env.ORCHESTRATOR_URL === undefined,
     },
     sessionManagerConfig: {
       maxSessions: 100,
@@ -199,7 +200,7 @@ function createDefaultBootstrapConfig(): Required<
     },
     registrationInfo: {
       name: 'assistant',
-      type: 'AGENT_TYPE_ASSISTANT' as unknown as AgentType,
+      type: AgentType.AGENT_TYPE_WORKER,
     },
     version: process.env.npm_package_version ?? DEFAULT_VERSION,
     shutdownTimeout: DEFAULT_SHUTDOWN_TIMEOUT,
@@ -469,7 +470,7 @@ export function isReady(agent: Agent | null): boolean {
   const status = agent.getStatus();
 
   // Agent must be in IDLE state (registered and ready)
-  return status.state === 'AGENT_STATE_IDLE';
+  return status.state === AgentState.AGENT_STATE_IDLE;
 }
 
 /**

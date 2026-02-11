@@ -15,7 +15,7 @@
     "lint:fix": "eslint src --ext .ts --fix",
     "typecheck": "tsc --noEmit",
     "start": "node dist/index.js",
-    "dev": "ts-node src/index.ts",
+    "dev": "tsx src/index.ts",
     "proto": "protoc --ts_out ./src/proto --proto_path ../.. ../../proto/agent.proto ../../proto/llm.proto ../../proto/common.proto"
   },
   "keywords": [
@@ -44,6 +44,7 @@
     "ts-jest": "^29.2.6",
     "ts-node": "^10.9.2",
     "ts-protoc-gen": "^0.12.0",
+    "tsx": "^4.21.0",
     "typescript": "^5.8.3"
   },
   "engines": {

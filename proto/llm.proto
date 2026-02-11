@@ -14,7 +14,7 @@ option go_package = "github.com/billm/baaaht/orchestrator/proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/empty.proto";
-import "proto/common.proto";
+import "common.proto";
 
 // =============================================================================
 // LLM Service

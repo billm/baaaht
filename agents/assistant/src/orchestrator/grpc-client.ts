@@ -5,7 +5,8 @@
 //
 // Copyright 2026 baaaht project
 
-import { credentials, Client, ChannelCredentials } from '@grpc/grpc-js';
+import { credentials, Client, ChannelCredentials, loadPackageDefinition } from '@grpc/grpc-js';
+import { loadSync } from '@grpc/proto-loader';
 import type {
   RegisterRequest,
   RegisterResponse,
@@ -102,8 +103,7 @@ export class OrchestratorClient {
       try {
         // Load the proto definition dynamically
         // Note: This assumes proto files have been compiled and are available
-        const protoLoader = require('@grpc/proto-loader');
-        const packageDefinition = protoLoader.loadSync(
+        const packageDefinition = loadSync(
           '../../proto/agent.proto',
           {
             keepCase: false,
@@ -114,7 +114,7 @@ export class OrchestratorClient {
           }
         );
 
-        const protoDescriptor = require('@grpc/proto-js').loadPackageDefinition(packageDefinition);
+        const protoDescriptor = loadPackageDefinition(packageDefinition);
         const agentService = protoDescriptor.agent.v1.AgentService;
 
         // Create the gRPC client
