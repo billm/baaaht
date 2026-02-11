@@ -62,6 +62,10 @@ var Styles = &styleDefs{
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("96")),
 
+	ModalBackground: lipgloss.NewStyle().
+		Background(lipgloss.Color("235")).
+		Padding(1),
+
 	SessionSelected: lipgloss.NewStyle().
 		Foreground(lipgloss.Color("231")).
 		Background(lipgloss.Color("62")).
@@ -149,10 +153,11 @@ type styleDefs struct {
 	InputError       lipgloss.Style
 
 	// Component border styles
-	AppBorder     lipgloss.Style
-	ChatBorder    lipgloss.Style
-	StatusBorder  lipgloss.Style
-	SessionBorder lipgloss.Style
+	AppBorder       lipgloss.Style
+	ChatBorder      lipgloss.Style
+	StatusBorder    lipgloss.Style
+	SessionBorder   lipgloss.Style
+	ModalBackground lipgloss.Style
 
 	// Session list styles
 	SessionSelected lipgloss.Style

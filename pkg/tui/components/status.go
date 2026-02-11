@@ -17,6 +17,7 @@ type StatusModel struct {
 	thinking     bool
 	reconnecting bool
 	width        int
+	height       int // Terminal height for debugging
 }
 
 // NewStatusModel creates a new status bar model with default values.
@@ -75,6 +76,11 @@ func (m StatusModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case StatusThinkingMsg:
 		m.thinking = msg.Thinking
 		return m, nil
+
+	case StatusDimensionsMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		return m, nil
 	}
 
 	return m, nil
@@ -108,8 +114,8 @@ func (m StatusModel) View() string {
 	if m.error != nil {
 		errorStyle := styles.Styles.StatusError
 		errorText := strings.TrimSpace(m.error.Error())
-		if len(errorText) > 30 {
-			errorText = errorText[:27] + "..."
+		if len(errorText) > 60 {
+			errorText = errorText[:57] + "..."
 		}
 		sections = append(sections, errorStyle.Render("⚠ "+errorText))
 	}
@@ -158,9 +164,9 @@ func (m StatusModel) shortSessionID() string {
 	if m.sessionID == "" {
 		return ""
 	}
-	// Show first 8 characters of session ID
-	if len(m.sessionID) > 8 {
-		return m.sessionID[:8] + "..."
+	// Show first 12 characters of session ID
+	if len(m.sessionID) > 12 {
+		return m.sessionID[:12] + "..."
 	}
 	return m.sessionID
 }
@@ -252,6 +258,12 @@ type StatusErrorMsg struct {
 // StatusThinkingMsg is sent when the thinking state changes.
 type StatusThinkingMsg struct {
 	Thinking bool
+}
+
+// StatusDimensionsMsg is sent when the terminal dimensions change.
+type StatusDimensionsMsg struct {
+	Width  int
+	Height int
 }
 
 // StatusConnectedCmd returns a command that sends a StatusConnectedMsg.

@@ -56,6 +56,11 @@ func (m InputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case tea.KeyMsg:
+		// Pass all keys to textinput - special keys are handled at parent level
+		m.textInput, cmd = m.textInput.Update(msg)
+		return m, cmd
+
 	case InputFocusMsg:
 		m.focused = true
 		m.textInput.Focus()
@@ -135,9 +140,11 @@ func (m InputModel) Value() string {
 	return m.textInput.Value()
 }
 
-// Reset clears the input value.
-func (m *InputModel) Reset() {
+// Reset clears the input value and returns the updated model with blink command.
+func (m *InputModel) Reset() tea.Cmd {
 	m.textInput.Reset()
+	// Return blink command to keep cursor visible
+	return textinput.Blink
 }
 
 // SetPlaceholder sets the placeholder text.

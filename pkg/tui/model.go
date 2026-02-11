@@ -45,11 +45,15 @@ type Model struct {
 
 // NewModel creates a new TUI model with the specified configuration.
 func NewModel(socketPath string, verbose bool) Model {
-	// Create logger
-	log, err := logger.NewDefault()
-	if err != nil {
-		// If logger creation fails, continue without logger
-		log = nil
+	// Create logger only if verbose is enabled
+	var log *logger.Logger
+	if verbose {
+		var err error
+		log, err = logger.NewDefault()
+		if err != nil {
+			// If logger creation fails, continue without logger
+			log = nil
+		}
 	}
 
 	// Create gRPC client
@@ -97,7 +101,8 @@ func NewModel(socketPath string, verbose bool) Model {
 // Part of the tea.Model interface.
 func (m Model) Init() tea.Cmd {
 	// Initialize the input component's cursor blink and create a session
-	return tea.Sequence(m.input.Init(), m.createSessionCmd(), m.initStreamCmd())
+	// Note: initStreamCmd is called after session creation succeeds (see SessionCreatedMsg handler)
+	return tea.Sequence(m.input.Init(), m.createSessionCmd())
 }
 
 // Session creation messages
@@ -185,8 +190,16 @@ type StreamInitializedMsg struct {
 // sendMessageCmd returns a command that sends a message via the stream.
 func (m Model) sendMessageCmd(content string) tea.Cmd {
 	return func() tea.Msg {
+		if m.verbose && m.logger != nil {
+			m.logger.Info("sendMessageCmd called", "session_id", m.sessionID, "content", content, "stream_nil", m.stream == nil)
+		}
+
 		if m.stream == nil {
-			return StreamSendFailedMsg{Err: fmt.Errorf("stream not initialized")}
+			err := fmt.Errorf("stream not initialized")
+			if m.verbose && m.logger != nil {
+				m.logger.Error("Cannot send message - stream not initialized", "error", err)
+			}
+			return StreamSendFailedMsg{Err: err}
 		}
 
 		// Send the user message
@@ -200,8 +213,19 @@ func (m Model) sendMessageCmd(content string) tea.Cmd {
 			},
 		}
 
+		if m.verbose && m.logger != nil {
+			m.logger.Info("Sending message to stream", "session_id", m.sessionID, "content", content)
+		}
+
 		if err := m.stream.Send(req); err != nil {
+			if m.verbose && m.logger != nil {
+				m.logger.Error("Failed to send message via stream", "error", err)
+			}
 			return StreamSendFailedMsg{Err: err}
+		}
+
+		if m.verbose && m.logger != nil {
+			m.logger.Info("Message sent successfully, waiting for response")
 		}
 
 		// After sending, wait for response
@@ -366,5 +390,41 @@ func (m Model) retryConnectionCmd() tea.Cmd {
 		}
 
 		return SessionCreatedMsg{SessionID: resp.SessionId}
+	}
+}
+
+// SessionsListMsg is sent when the list of sessions is retrieved.
+type SessionsListMsg struct {
+	Sessions []*proto.Session
+}
+
+// SessionsListFailedMsg is sent when listing sessions fails.
+type SessionsListFailedMsg struct {
+	Err error
+}
+
+// listSessionsCmd returns a command that fetches all sessions from the orchestrator.
+func (m Model) listSessionsCmd() tea.Cmd {
+	return func() tea.Msg {
+		if m.client == nil {
+			return SessionsListFailedMsg{Err: fmt.Errorf("client not initialized")}
+		}
+
+		ctx := context.Background()
+		req := &proto.ListSessionsRequest{}
+
+		resp, err := m.client.ListSessions(ctx, req)
+		if err != nil {
+			if m.logger != nil {
+				m.logger.Warn("Failed to list sessions", "error", err)
+			}
+			return SessionsListFailedMsg{Err: err}
+		}
+
+		if m.logger != nil {
+			m.logger.Info("Successfully listed sessions", "count", len(resp.Sessions))
+		}
+
+		return SessionsListMsg{Sessions: resp.Sessions}
 	}
 }
