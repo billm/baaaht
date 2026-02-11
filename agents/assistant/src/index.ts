@@ -12,12 +12,14 @@ import { bootstrapWithDefaults, closeGlobal } from './bootstrap.js';
 async function main() {
   console.log('Starting Assistant Agent...');
 
-  // Check if AgentState is available
-  try {
-    const { AgentState } = await import('./proto/agent.js');
-    console.log('AgentState available:', Object.keys(AgentState));
-  } catch (e) {
-    console.error('AgentState import failed:', e);
+  // Optional debug check: verify AgentState import when explicitly enabled
+  if (process.env.ASSISTANT_DEBUG_AGENTSTATE_IMPORT === '1') {
+    try {
+      const { AgentState } = await import('./proto/agent.js');
+      console.log('AgentState available:', Object.keys(AgentState));
+    } catch (e) {
+      console.error('AgentState import failed:', e);
+    }
   }
 
   const result = await bootstrapWithDefaults();
