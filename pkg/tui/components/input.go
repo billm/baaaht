@@ -52,7 +52,11 @@ func (m InputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		// Update the textinput width to match the window
 		if m.width > 0 {
-			m.textInput.Width = m.width - 4 // Account for padding/borders
+			w := m.width - 4 // Account for padding/borders
+			if w < 1 {
+				w = 1
+			}
+			m.textInput.Width = w
 		}
 		return m, nil
 
