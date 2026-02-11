@@ -12,14 +12,8 @@
 
 import type { Client } from '@grpc/grpc-js';
 import {
-  TaskType,
-  TaskPriority,
   TaskState,
   type TaskConfig,
-  type TaskResult,
-  type ExecuteTaskRequest,
-  type ExecuteTaskResponse,
-  type Task,
 } from '../proto/agent.js';
 import type {
   DelegateParams,

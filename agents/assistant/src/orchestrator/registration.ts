@@ -424,8 +424,10 @@ export class AgentRegistry {
     const memoryUsage = process.memoryUsage();
 
     return {
-      cpuUsageNs: BigInt((usage.user + usage.system) * 1000),
-      memoryBytes: BigInt(memoryUsage.heapUsed),
+      cpuPercent: 0, // TODO: Calculate actual CPU percentage
+      memoryUsage: BigInt(memoryUsage.heapUsed),
+      memoryLimit: BigInt(memoryUsage.heapTotal),
+      memoryPercent: (memoryUsage.heapUsed / memoryUsage.heapTotal) * 100,
     };
   }
 }
