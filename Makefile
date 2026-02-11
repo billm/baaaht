@@ -1,11 +1,15 @@
 # Baaaht Monorepo Makefile
 
-.PHONY: all build test clean lint docker-build docker-run help build-orchestrator proto-gen proto-clean orchestrator
+.PHONY: all build test clean lint docker-build docker-run help build-orchestrator proto-gen proto-clean orchestrator \
+       llm-gateway llm-gateway-build llm-gateway-docker llm-gateway-clean
 
 # Variables
 BUILD_DIR=bin
 DOCKER_IMAGE=baaaht/orchestrator
 DOCKER_TAG=latest
+LLM_GATEWAY_IMAGE=baaaht/llm-gateway
+LLM_GATEWAY_TAG=latest
+LLM_GATEWAY_DIR=llm-gateway
 
 # Proto variables
 PROTO_DIR=proto
@@ -49,7 +53,7 @@ test-integration:
 	go test -v ./tests/integration/...
 
 ## clean: Clean build artifacts
-clean: proto-clean
+clean: proto-clean llm-gateway-clean
 	@echo "Cleaning..."
 	rm -rf $(BUILD_DIR)
 	rm -f coverage.out coverage.html
@@ -74,7 +78,7 @@ mod-tidy:
 	go mod verify
 
 ## docker-build: Build Docker image
-docker-build:
+docker-build: llm-gateway-docker
 	@echo "Building Docker image..."
 	docker build -t $(DOCKER_IMAGE):$(DOCKER_TAG) -f Dockerfile .
 
@@ -82,6 +86,24 @@ docker-build:
 docker-run:
 	@echo "Running Docker container..."
 	docker run --rm -it $(DOCKER_IMAGE):$(DOCKER_TAG)
+
+## llm-gateway: Build the LLM Gateway TypeScript service
+llm-gateway: llm-gateway-build
+
+## llm-gateway-build: Install deps and compile the LLM Gateway
+llm-gateway-build:
+	@echo "Building LLM Gateway..."
+	cd $(LLM_GATEWAY_DIR) && npm ci && npx tsc
+
+## llm-gateway-docker: Build the LLM Gateway Docker image
+llm-gateway-docker:
+	@echo "Building LLM Gateway Docker image..."
+	docker build -t $(LLM_GATEWAY_IMAGE):$(LLM_GATEWAY_TAG) $(LLM_GATEWAY_DIR)
+
+## llm-gateway-clean: Remove LLM Gateway build artifacts
+llm-gateway-clean:
+	@echo "Cleaning LLM Gateway..."
+	rm -rf $(LLM_GATEWAY_DIR)/dist $(LLM_GATEWAY_DIR)/node_modules
 
 ## deps: Download dependencies
 deps:
