@@ -33,7 +33,7 @@ import type {
 export const DEFAULT_DELEGATE_CONFIG: Required<DelegateToolConfig> = {
   defaultTimeout: 60000, // 60 seconds
   maxTimeout: 300000, // 5 minutes
-  defaultPriority: 2, // TASK_PRIORITY_NORMAL
+  defaultPriority: 'normal', // default priority for schema (low|normal|high|critical)
   enableStreaming: true,
   maxConcurrent: 10,
   retry: {
