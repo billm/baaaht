@@ -36,11 +36,9 @@ describe('Agent Integration Tests', () => {
     mockOrchestrator = createMockOrchestratorClient();
     mockLLM = createMockLLMClient();
 
-    // Create mock gRPC client
-    mockGrpcClient = {
-      streamAgent: jest.fn(() => new EventEmitter()),
-      streamTask: jest.fn(() => new EventEmitter()),
-    };
+    // Use the mock orchestrator's raw gRPC client so Agent.register()
+    // updates mockOrchestrator's internal registration state.
+    mockGrpcClient = mockOrchestrator.getRawClient();
 
     // Create event emitter
     mockEventEmitter = new EventEmitter();
