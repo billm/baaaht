@@ -195,8 +195,8 @@ func (m Model) renderSessionsOverlay(mainView string) string {
 	// Get the sessions list content
 	sessionsContent := m.sessions.View()
 
-	// Create the bordered modal content
-	borderedContent := styles.Styles.SessionBorder.
+	// Size the modal content without adding an extra border
+	borderedContent := lipgloss.NewStyle().
 		Width(modalWidth).
 		Height(modalHeight).
 		Render(sessionsContent)
