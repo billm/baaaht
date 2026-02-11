@@ -1,0 +1,515 @@
+# ============================================================================
+# Baaaht Orchestrator Configuration Example
+# ============================================================================
+#
+# This file shows all available configuration options with their default values.
+# Options marked as "REQUIRED" must be set for the feature to work properly.
+# All other options are optional and will use the default values shown here.
+#
+# Configuration Priority (highest to lowest):
+# 1. CLI flags (e.g., --log-level, --port)
+# 2. Environment variables (see inline comments for variable names)
+# 3. This YAML configuration file
+# 4. Built-in defaults
+#
+# Default configuration locations:
+# - Linux/macOS: ~/.config/baaaht/config.yaml
+# - Custom path via --config flag
+#
+# ============================================================================
+
+# ============================================================================
+# Docker Client Configuration
+# ============================================================================
+docker:
+  # Docker daemon socket address
+  # Environment variable: DOCKER_HOST
+  host: unix:///var/run/docker.sock
+  
+  # Docker API version to use
+  api_version: "1.44"
+  
+  # Timeout for Docker API operations (Go duration string)
+  timeout: 30s
+  
+  # Maximum number of retry attempts for failed Docker operations
+  max_retries: 3
+  
+  # Delay between retry attempts (Go duration string)
+  retry_delay: 1s
+  
+  # Optional TLS configuration for Docker daemon
+  # Environment variable: DOCKER_TLS_CERT
+  tls_cert: ""
+  
+  # Environment variable: DOCKER_TLS_KEY
+  tls_key: ""
+  
+  # Environment variable: DOCKER_TLS_CA_CERT
+  tls_ca_cert: ""
+  
+  # Environment variable: DOCKER_TLS_VERIFY
+  tls_verify: false
+
+# ============================================================================
+# API Server Configuration
+# ============================================================================
+api_server:
+  # Host address to bind the API server to
+  # Use 0.0.0.0 to bind to all interfaces
+  # Environment variable: API_SERVER_HOST
+  host: 0.0.0.0
+  
+  # Port number for the API server
+  # Environment variable: API_SERVER_PORT
+  port: 8080
+  
+  # Maximum time to read a request (Go duration string)
+  read_timeout: 30s
+  
+  # Maximum time to write a response (Go duration string)
+  write_timeout: 30s
+  
+  # Maximum idle time before closing connection (Go duration string)
+  idle_timeout: 60s
+  
+  # Maximum number of concurrent connections
+  max_connections: 1000
+  
+  # Enable TLS/HTTPS for the API server
+  tls_enabled: false
+  
+  # Path to TLS certificate file (required if tls_enabled is true)
+  tls_cert: ""
+  
+  # Path to TLS private key file (required if tls_enabled is true)
+  tls_key: ""
+
+# ============================================================================
+# Logging Configuration
+# ============================================================================
+logging:
+  # Log level: debug, info, warn, error
+  # Environment variable: LOG_LEVEL
+  level: info
+  
+  # Log output format: json, text
+  # Environment variable: LOG_FORMAT
+  format: json
+  
+  # Log output destination: stdout, stderr, syslog, or a file path
+  output: stdout
+  
+  # Syslog facility (only used when output is syslog)
+  syslog_facility: local0
+  
+  # Enable automatic log rotation
+  rotation_enabled: true
+  
+  # Maximum size of a log file before rotation (in megabytes)
+  max_size: 100
+  
+  # Maximum number of old log files to retain
+  max_backups: 3
+  
+  # Maximum number of days to retain old log files
+  max_age: 28
+  
+  # Compress rotated log files with gzip
+  compress: true
+
+# ============================================================================
+# Session Management Configuration
+# ============================================================================
+session:
+  # Maximum duration a session can be active (Go duration string)
+  # Environment variable: SESSION_TIMEOUT
+  timeout: 30m
+  
+  # Maximum number of concurrent sessions allowed
+  # Environment variable: MAX_SESSIONS
+  max_sessions: 100
+  
+  # Interval between session cleanup runs (Go duration string)
+  cleanup_interval: 5m
+  
+  # Maximum idle time before a session is terminated (Go duration string)
+  idle_timeout: 10m
+  
+  # Enable persistent session storage across restarts
+  # Environment variable: SESSION_PERSISTENCE
+  persistence_enabled: true
+  
+  # Directory path for session storage
+  # Environment variable: SESSION_STORAGE_PATH
+  # Default: ~/.config/baaaht/sessions
+  storage_path: ~/.config/baaaht/sessions
+
+# ============================================================================
+# Event System Configuration
+# ============================================================================
+event:
+  # Size of the event queue (number of events)
+  # Environment variable: EVENT_QUEUE_SIZE
+  queue_size: 10000
+  
+  # Number of event processing workers
+  # Environment variable: EVENT_WORKERS
+  workers: 4
+  
+  # Buffer size for event channels (number of events)
+  buffer_size: 1000
+  
+  # Timeout for event processing operations (Go duration string)
+  timeout: 5s
+  
+  # Maximum number of retry attempts for failed events
+  retry_attempts: 3
+  
+  # Delay between retry attempts (Go duration string)
+  retry_delay: 100ms
+  
+  # Enable persistent event storage across restarts
+  persistence_enabled: false
+
+# ============================================================================
+# IPC (Inter-Process Communication) Configuration
+# ============================================================================
+ipc:
+  # Path to the Unix domain socket for IPC
+  # Environment variable: IPC_SOCKET_PATH
+  socket_path: /tmp/baaaht-ipc.sock
+  
+  # Buffer size for IPC communication (in bytes)
+  buffer_size: 65536
+  
+  # Timeout for IPC operations (Go duration string)
+  timeout: 30s
+  
+  # Maximum number of concurrent IPC connections
+  max_connections: 100
+  
+  # Enable authentication for IPC connections
+  enable_auth: true
+
+# ============================================================================
+# Task Scheduler Configuration
+# ============================================================================
+scheduler:
+  # Size of the task queue (number of tasks)
+  # Environment variable: SCHEDULER_QUEUE_SIZE
+  queue_size: 1000
+  
+  # Number of task execution workers
+  # Environment variable: SCHEDULER_WORKERS
+  workers: 2
+  
+  # Maximum number of retry attempts for failed tasks
+  max_retries: 3
+  
+  # Delay between task retry attempts (Go duration string)
+  retry_delay: 1s
+  
+  # Maximum time allowed for a task to complete (Go duration string)
+  task_timeout: 5m
+  
+  # Maximum time a task can wait in the queue (Go duration string)
+  queue_timeout: 1m
+
+# ============================================================================
+# Credential Management Configuration
+# ============================================================================
+credentials:
+  # Path to the credential store file
+  # Environment variable: CREDENTIAL_STORE_PATH
+  # Default: ~/.config/baaaht/credentials
+  store_path: ~/.config/baaaht/credentials
+  
+  # Enable encryption for stored credentials
+  encryption_enabled: true
+  
+  # Number of days between encryption key rotations
+  key_rotation_days: 90
+  
+  # Maximum age of credentials before they must be refreshed (in days)
+  max_credential_age: 365
+
+# ============================================================================
+# Policy Engine Configuration
+# ============================================================================
+policy:
+  # Path to the policy configuration file
+  # Environment variable: POLICY_CONFIG_PATH
+  # Default: ~/.config/baaaht/policies.yaml
+  config_path: ~/.config/baaaht/policies.yaml
+  
+  # Automatically reload policies when the config file changes
+  reload_on_changes: true
+  
+  # Interval between policy reload checks (Go duration string)
+  reload_interval: 1m
+  
+  # Policy enforcement mode
+  # Options: strict (enforce all policies), permissive (log violations), disabled (no enforcement)
+  enforcement_mode: strict
+  
+  # Default CPU quota per task (in nanoseconds, 1,000,000,000 = 1 CPU core)
+  default_quota_cpu: 1000000000
+  
+  # Default memory quota per task (in bytes, 1073741824 = 1GB)
+  default_quota_memory: 1073741824
+
+# ============================================================================
+# Metrics Configuration
+# ============================================================================
+metrics:
+  # Enable the metrics collection and export endpoint
+  # Environment variable: METRICS_ENABLED
+  enabled: false
+  
+  # Port for the metrics server
+  # Environment variable: METRICS_PORT
+  port: 9090
+  
+  # Path for the metrics HTTP endpoint
+  path: /metrics
+  
+  # Interval between metric reports (Go duration string)
+  report_interval: 15s
+
+# ============================================================================
+# Distributed Tracing Configuration
+# ============================================================================
+tracing:
+  # Enable distributed tracing
+  # Environment variable: TRACE_ENABLED
+  enabled: false
+  
+  # Sampling rate for traces (0.0 to 1.0, where 1.0 is 100%)
+  sample_rate: 0.1
+  
+  # Trace exporter type
+  # Options: stdout, jaeger, otlp
+  exporter: stdout
+  
+  # Endpoint for the trace exporter (required for jaeger and otlp)
+  # Examples:
+  #   Jaeger: http://localhost:14268/api/traces
+  #   OTLP: http://localhost:4318/v1/traces
+  exporter_endpoint: ""
+
+# ============================================================================
+# Orchestrator Configuration
+# ============================================================================
+orchestrator:
+  # Maximum time to wait for graceful shutdown (Go duration string)
+  # Environment variable: SHUTDOWN_TIMEOUT
+  shutdown_timeout: 30s
+  
+  # Interval between health check runs (Go duration string)
+  health_check_interval: 30s
+  
+  # Timeout for graceful stop of individual components (Go duration string)
+  graceful_stop_timeout: 10s
+  
+  # Enable the pprof profiling endpoints
+  enable_profiling: false
+  
+  # Port for the profiling server
+  profiling_port: 6060
+
+# ============================================================================
+# Container Runtime Configuration
+# ============================================================================
+runtime:
+  # Container runtime type
+  # Options: auto (auto-detect), docker, apple (Apple Virtualization)
+  # Environment variable: CONTAINER_RUNTIME
+  type: auto
+  
+  # Path to the runtime socket (auto-detected if empty)
+  # Environment variable: CONTAINER_RUNTIME_SOCKET
+  socket_path: ""
+  
+  # Timeout for runtime operations (Go duration string)
+  # Environment variable: CONTAINER_RUNTIME_TIMEOUT
+  timeout: 30s
+  
+  # Maximum number of retry attempts for failed operations
+  max_retries: 3
+  
+  # Delay between retry attempts (Go duration string)
+  retry_delay: 1s
+  
+  # Enable TLS for runtime communication
+  # Environment variable: CONTAINER_RUNTIME_TLS_ENABLED
+  tls_enabled: false
+  
+  # Path to TLS certificate file (required if tls_enabled is true)
+  # Environment variable: CONTAINER_RUNTIME_TLS_CERT
+  tls_cert_path: ""
+  
+  # Path to TLS key file (required if tls_enabled is true)
+  # Environment variable: CONTAINER_RUNTIME_TLS_KEY
+  tls_key_path: ""
+  
+  # Path to TLS CA certificate file (required if tls_enabled is true)
+  # Environment variable: CONTAINER_RUNTIME_TLS_CA
+  tls_ca_path: ""
+
+# ============================================================================
+# Memory Storage Configuration
+# ============================================================================
+memory:
+  # Enable memory storage
+  # Environment variable: MEMORY_ENABLED
+  enabled: true
+  
+  # Base path for memory files
+  # Environment variable: MEMORY_STORAGE_PATH
+  # Default: ~/.config/baaaht/memory
+  storage_path: ~/.config/baaaht/memory
+  
+  # Path for user-specific memory (auto-set from storage_path)
+  user_memory_path: ~/.config/baaaht/memory/users
+  
+  # Path for group-specific memory (auto-set from storage_path)
+  group_memory_path: ~/.config/baaaht/memory/groups
+  
+  # Maximum size of a memory file in KB
+  # Environment variable: MEMORY_MAX_FILE_SIZE
+  max_file_size: 100
+  
+  # File format for memory storage
+  # Options: markdown, md
+  # Environment variable: MEMORY_FILE_FORMAT
+  file_format: markdown
+
+# ============================================================================
+# gRPC Server Configuration
+# ============================================================================
+grpc:
+  # Path to the Unix domain socket for gRPC
+  # Environment variable: GRPC_SOCKET_PATH
+  socket_path: /tmp/baaaht-grpc.sock
+  
+  # Maximum receive message size in bytes (100 MB default)
+  # Environment variable: GRPC_MAX_RECV_MSG_SIZE
+  max_recv_msg_size: 104857600
+  
+  # Maximum send message size in bytes (100 MB default)
+  # Environment variable: GRPC_MAX_SEND_MSG_SIZE
+  max_send_msg_size: 104857600
+  
+  # Connection timeout (Go duration string)
+  # Environment variable: GRPC_TIMEOUT
+  timeout: 30s
+  
+  # Maximum number of concurrent connections
+  # Environment variable: GRPC_MAX_CONNECTIONS
+  max_connections: 100
+
+# ============================================================================
+# LLM Gateway Configuration
+# ============================================================================
+llm:
+  # Enable LLM Gateway
+  # Environment variable: LLM_ENABLED
+  enabled: false
+  
+  # Container image for LLM Gateway
+  # Environment variable: LLM_CONTAINER_IMAGE
+  container_image: baaaht/llm-gateway:latest
+  
+  # Default LLM provider to use
+  # Environment variable: LLM_DEFAULT_PROVIDER
+  default_provider: anthropic
+  
+  # Default model to use
+  # Environment variable: LLM_DEFAULT_MODEL
+  default_model: anthropic/claude-sonnet-4-20250514
+  
+  # Timeout for LLM requests (Go duration string)
+  # Environment variable: LLM_TIMEOUT
+  timeout: 120s
+  
+  # Maximum concurrent LLM requests
+  # Environment variable: LLM_MAX_CONCURRENT_REQUESTS
+  max_concurrent_requests: 10
+  
+  # Rate limits per provider (requests per minute)
+  rate_limits:
+    anthropic: 60
+    openai: 60
+  
+  # Fallback chains for model patterns
+  fallback_chains:
+    "anthropic/*":
+      - openai
+    "openai/*":
+      - anthropic
+  
+  # LLM Provider configurations
+  providers:
+    anthropic:
+      name: anthropic
+      # REQUIRED if provider is enabled: Set via environment variable ANTHROPIC_API_KEY
+      api_key: ""
+      base_url: https://api.anthropic.com
+      enabled: true
+      models:
+        - anthropic/claude-sonnet-4-20250514
+        - anthropic/claude-3-5-sonnet-20241022
+    
+    openai:
+      name: openai
+      # REQUIRED if provider is enabled: Set via environment variable OPENAI_API_KEY
+      api_key: ""
+      base_url: https://api.openai.com/v1
+      enabled: true
+      models:
+        - openai/gpt-4o
+        - openai/gpt-4o-mini
+        - openai/gpt-4-turbo
+
+# ============================================================================
+# Provider Configuration (Advanced)
+# ============================================================================
+provider:
+  # Default provider to use
+  # Environment variable: PROVIDER_DEFAULT
+  default_provider: anthropic
+  
+  # Enable automatic failover between providers
+  # Environment variable: PROVIDER_FAILOVER_ENABLED
+  failover_enabled: true
+  
+  # Number of failures before triggering failover
+  # Environment variable: PROVIDER_FAILOVER_THRESHOLD
+  failover_threshold: 3
+  
+  # Interval between health checks (Go duration string)
+  health_check_interval: 30s
+  
+  # Circuit breaker timeout (Go duration string)
+  circuit_breaker_timeout: 60s
+  
+  # Anthropic provider configuration
+  anthropic:
+    enabled: true
+    base_url: https://api.anthropic.com
+    # Timeout in seconds
+    timeout: 60
+    max_retries: 3
+    # Lower priority value = higher priority
+    priority: 10
+  
+  # OpenAI provider configuration
+  openai:
+    enabled: true
+    base_url: https://api.openai.com
+    # Timeout in seconds
+    timeout: 60
+    max_retries: 3
+    # Lower priority value = higher priority
+    priority: 20

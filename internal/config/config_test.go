@@ -685,15 +685,16 @@ docker:
 		}
 	})
 
-	t.Run("returns error when YAML file has invalid config", func(t *testing.T) {
-		// Create a valid YAML but invalid config (empty docker host)
-		configPath := filepath.Join(tmpDir, "invalid-config.yaml")
-		invalidConfig := `
-docker:
-  host: ""
-  timeout: 30s
+	t.Run("loads partial config with defaults applied", func(t *testing.T) {
+		// Create a partial YAML config (docker host not specified)
+		configPath := filepath.Join(tmpDir, "partial-config.yaml")
+		partialConfig := `
+logging:
+  level: debug
+api_server:
+  port: 9090
 `
-		if err := os.WriteFile(configPath, []byte(invalidConfig), 0644); err != nil {
+		if err := os.WriteFile(configPath, []byte(partialConfig), 0644); err != nil {
 			t.Fatalf("Failed to write config file: %v", err)
 		}
 
@@ -701,9 +702,25 @@ docker:
 		SetTestConfigPath(configPath)
 		defer SetTestConfigPath("")
 
-		_, err := Load()
-		if err == nil {
-			t.Error("Load() expected error for invalid config (empty docker host), got nil")
+		// Should succeed with defaults applied
+		cfg, err := Load()
+		if err != nil {
+			t.Errorf("Load() failed with partial config: %v", err)
+		}
+
+		// Verify defaults were applied
+		if cfg.Docker.Host != DefaultDockerHost {
+			t.Errorf("Expected default docker host %q, got %q", DefaultDockerHost, cfg.Docker.Host)
+		}
+		if cfg.Docker.Timeout == 0 {
+			t.Error("Expected docker timeout to have default value, got 0")
+		}
+		// Verify YAML overrides were applied
+		if cfg.Logging.Level != "debug" {
+			t.Errorf("Expected log level 'debug', got %q", cfg.Logging.Level)
+		}
+		if cfg.APIServer.Port != 9090 {
+			t.Errorf("Expected API port 9090, got %d", cfg.APIServer.Port)
 		}
 	})
 }
@@ -900,7 +917,7 @@ func TestValidateDockerConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &Config{
-				Docker: tt.config,
+				Docker:    tt.config,
 				APIServer: DefaultAPIServerConfig(),
 				Logging:   DefaultLoggingConfig(),
 				Session:   DefaultSessionConfig(),
@@ -1021,7 +1038,7 @@ func TestValidateAPIServerConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &Config{
-				Docker: DefaultDockerConfig(),
+				Docker:    DefaultDockerConfig(),
 				APIServer: tt.config,
 				Logging:   DefaultLoggingConfig(),
 				Session:   DefaultSessionConfig(),
@@ -1587,11 +1604,11 @@ func TestValidateCredentialsConfig(t *testing.T) {
 					ReadTimeout:  30 * time.Second,
 					WriteTimeout: 30 * time.Second,
 				},
-				Logging:   DefaultLoggingConfig(),
-				Session:   DefaultSessionConfig(),
-				Event:     DefaultEventConfig(),
-				IPC:       DefaultIPCConfig(),
-				Scheduler: DefaultSchedulerConfig(),
+				Logging:     DefaultLoggingConfig(),
+				Session:     DefaultSessionConfig(),
+				Event:       DefaultEventConfig(),
+				IPC:         DefaultIPCConfig(),
+				Scheduler:   DefaultSchedulerConfig(),
 				Credentials: tt.config,
 				Policy: PolicyConfig{
 					ConfigPath:      "/tmp/policies.yaml",
@@ -1692,9 +1709,9 @@ func TestValidatePolicyConfig(t *testing.T) {
 					StorePath:       "/tmp/credentials",
 					KeyRotationDays: 90,
 				},
-				Policy:      tt.config,
-				Metrics:     DefaultMetricsConfig(),
-				Tracing:     DefaultTracingConfig(),
+				Policy:       tt.config,
+				Metrics:      DefaultMetricsConfig(),
+				Tracing:      DefaultTracingConfig(),
 				Orchestrator: DefaultOrchestratorConfig(),
 				Runtime:      DefaultRuntimeConfig(),
 				Memory:       DefaultMemoryConfig(),
@@ -2054,9 +2071,9 @@ func TestConfigStringMethods(t *testing.T) {
 
 	t.Run("IPCConfig.String()", func(t *testing.T) {
 		cfg := IPCConfig{
-			SocketPath:  "/tmp/baaaht-ipc.sock",
-			BufferSize:  65536,
-			EnableAuth:  true,
+			SocketPath: "/tmp/baaaht-ipc.sock",
+			BufferSize: 65536,
+			EnableAuth: true,
 		}
 		str := cfg.String()
 		if !strings.Contains(str, "/tmp/baaaht-ipc.sock") {
@@ -2143,9 +2160,9 @@ func TestConfigStringMethods(t *testing.T) {
 
 	t.Run("OrchestratorConfig.String()", func(t *testing.T) {
 		cfg := OrchestratorConfig{
-			ShutdownTimeout:  30 * time.Second,
-			EnableProfiling:  true,
-			ProfilingPort:    6060,
+			ShutdownTimeout: 30 * time.Second,
+			EnableProfiling: true,
+			ProfilingPort:   6060,
 		}
 		str := cfg.String()
 		if !strings.Contains(str, "30s") {
@@ -2347,9 +2364,9 @@ func TestConfigFullString(t *testing.T) {
 			PersistenceEnabled: false,
 		},
 		IPC: IPCConfig{
-			SocketPath:  "/tmp/baaaht-ipc.sock",
-			BufferSize:  65536,
-			EnableAuth:  true,
+			SocketPath: "/tmp/baaaht-ipc.sock",
+			BufferSize: 65536,
+			EnableAuth: true,
 		},
 		Scheduler: SchedulerConfig{
 			QueueSize:  1000,
@@ -2375,9 +2392,9 @@ func TestConfigFullString(t *testing.T) {
 			Exporter:   "stdout",
 		},
 		Orchestrator: OrchestratorConfig{
-			ShutdownTimeout:  30 * time.Second,
-			EnableProfiling:  false,
-			ProfilingPort:    6060,
+			ShutdownTimeout: 30 * time.Second,
+			EnableProfiling: false,
+			ProfilingPort:   6060,
 		},
 	}
 
