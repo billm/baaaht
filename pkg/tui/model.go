@@ -16,6 +16,7 @@ type Model struct {
 	// Configuration
 	socketPath string
 	verbose    bool
+	version    string
 
 	// Application state
 	quitting bool
@@ -44,7 +45,7 @@ type Model struct {
 }
 
 // NewModel creates a new TUI model with the specified configuration.
-func NewModel(socketPath string, verbose bool) Model {
+func NewModel(socketPath string, verbose bool, version string) Model {
 	// Create logger only if verbose is enabled
 	var log *logger.Logger
 	if verbose {
@@ -63,6 +64,7 @@ func NewModel(socketPath string, verbose bool) Model {
 		return Model{
 			socketPath: socketPath,
 			verbose:    verbose,
+			version:    version,
 			quitting:   false,
 			err:        err,
 			status:     components.NewStatusModel(),
@@ -81,6 +83,7 @@ func NewModel(socketPath string, verbose bool) Model {
 	return Model{
 		socketPath: socketPath,
 		verbose:    verbose,
+		version:    version,
 		quitting:   false,
 		err:        nil,
 		status:     components.NewStatusModel(),

@@ -2,7 +2,8 @@
 # TUI End-to-End Verification Script
 # This script verifies the TUI can connect to the orchestrator
 
-set -e
+# Note: We don't use `set -e` here because we want to report which step failed
+# instead of terminating immediately.
 
 SOCKET_PATH="/tmp/baaaht-grpc.sock"
 TUI_BIN="./bin/tui"
@@ -23,6 +24,7 @@ check_step() {
         echo -e "${GREEN}✓${NC} $1"
     else
         echo -e "${RED}✗${NC} $1"
+        cleanup
         exit 1
     fi
 }
@@ -30,6 +32,19 @@ check_step() {
 info() {
     echo -e "${YELLOW}ℹ${NC} $1"
 }
+
+# Cleanup function to ensure orchestrator is stopped
+cleanup() {
+    if [ -n "$ORCH_PID" ] && ps -p $ORCH_PID > /dev/null 2>&1; then
+        info "Stopping orchestrator (PID: $ORCH_PID)..."
+        kill $ORCH_PID 2>/dev/null
+        wait $ORCH_PID 2>/dev/null
+    fi
+    rm -f "$SOCKET_PATH"
+}
+
+# Set up trap to cleanup on exit or error
+trap cleanup EXIT INT TERM
 
 # Step 1: Check binaries exist
 echo "Step 1: Checking binaries..."
@@ -73,7 +88,9 @@ echo ""
 
 # Step 4: Run integration test
 echo "Step 4: Running integration tests..."
-/opt/homebrew/bin/go test -v ./pkg/tui -run TestOrchestratorConnection -timeout 30s
+# Use go from PATH instead of hard-coded path
+GO_BIN="${GO:-go}"
+$GO_BIN test -v ./pkg/tui -run TestOrchestratorConnection -timeout 30s
 check_step "Integration tests passed"
 
 echo ""
@@ -102,5 +119,4 @@ echo "  2. Start TUI: $TUI_BIN"
 echo "  3. Type a message and press Ctrl+Enter to send"
 echo "  4. Press Ctrl+C or Ctrl+D to quit"
 echo ""
-echo "To stop the orchestrator:"
-echo "  kill $ORCH_PID"
+echo "Orchestrator will be stopped automatically on script exit."

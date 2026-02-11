@@ -210,8 +210,8 @@ func (c *OrchestratorClient) Dial(ctx context.Context) error {
 	c.stats.ReconnectAttempts = 0 // Reset reconnection attempts on successful connect
 	c.mu.Unlock()
 
-	// Start reconnection monitor
-	c.startReconnectMonitor(ctx)
+	// Start reconnection monitor with a long-lived context
+	c.startReconnectMonitor(context.Background())
 
 	c.logger.Info("Connected to orchestrator gRPC server", "path", c.path)
 	return nil
