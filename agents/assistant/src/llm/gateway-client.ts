@@ -19,14 +19,13 @@ import type {
   CompletionResult,
   CompletionStream,
   StreamingChunk,
-  LLMGatewayErrorCode,
-  LLMGatewayError,
   HealthCheckResult,
   GatewayStatus,
   ProviderStatus,
   ModelInfo,
   ModelCapabilities,
 } from './types.js';
+import { LLMGatewayErrorCode, LLMGatewayError } from './types.js';
 
 // Default configuration values
 const DEFAULT_BASE_URL = 'http://localhost:8080';
