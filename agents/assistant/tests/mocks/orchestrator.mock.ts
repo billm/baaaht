@@ -248,8 +248,8 @@ export class MockOrchestratorClient extends EventEmitter {
 
     // Return a mock client object with stream methods
     const mockClient = {
-      streamAgent: (() => this.createMockTaskStream()) as any,
-      streamTask: (() => this.createMockAgentStream()) as any,
+      streamAgent: (() => this.createMockAgentStream()) as any,
+      streamTask: (() => this.createMockTaskStream()) as any,
     } as unknown;
 
     return mockClient as Client;
