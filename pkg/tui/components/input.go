@@ -3,9 +3,9 @@ package components
 import (
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/billm/baaaht/orchestrator/pkg/tui/styles"
+	"github.com/charmbracelet/bubbles/textinput"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // InputModel represents the state of the text input component.
@@ -97,7 +97,7 @@ func (m InputModel) View() string {
 
 	// Add error display if present
 	if m.err != nil {
-		sb.WriteString(styles.Styles.InputError.Render("⚠ "+m.err.Error()))
+		sb.WriteString(styles.Styles.InputError.Render("⚠ " + m.err.Error()))
 		sb.WriteString("\n")
 	}
 

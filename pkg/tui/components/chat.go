@@ -4,12 +4,12 @@ import (
 	"regexp"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/bubbles/viewport"
-	"github.com/billm/baaaht/orchestrator/pkg/tui/styles"
 	"github.com/alecthomas/chroma"
 	"github.com/alecthomas/chroma/lexers"
 	"github.com/alecthomas/chroma/quick"
+	"github.com/billm/baaaht/orchestrator/pkg/tui/styles"
+	"github.com/charmbracelet/bubbles/viewport"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // MessageType represents the type of message in the chat.
@@ -31,10 +31,10 @@ type Message struct {
 // ChatModel represents the state of the chat display component.
 // It uses a viewport for scrolling through chat messages.
 type ChatModel struct {
-	viewport  viewport.Model
-	messages  []Message
-	width     int
-	height    int
+	viewport   viewport.Model
+	messages   []Message
+	width      int
+	height     int
 	autoscroll bool
 }
 

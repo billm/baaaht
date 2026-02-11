@@ -35,11 +35,11 @@ func TestOrchestratorConnection(t *testing.T) {
 
 	// Create a new orchestrator client
 	cfg := ClientConfig{
-		DialTimeout:        30 * time.Second,
-		RPCTimeout:         10 * time.Second,
-		MaxRecvMsgSize:     100 * 1024 * 1024, // 100 MB
-		MaxSendMsgSize:     100 * 1024 * 1024, // 100 MB
-		ReconnectInterval:  5 * time.Second,
+		DialTimeout:          30 * time.Second,
+		RPCTimeout:           10 * time.Second,
+		MaxRecvMsgSize:       100 * 1024 * 1024, // 100 MB
+		MaxSendMsgSize:       100 * 1024 * 1024, // 100 MB
+		ReconnectInterval:    5 * time.Second,
 		ReconnectMaxAttempts: 0, // infinite reconnect attempts
 	}
 

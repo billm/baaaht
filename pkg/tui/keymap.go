@@ -1,9 +1,9 @@
 package tui
 
 import (
+	"github.com/billm/baaaht/orchestrator/pkg/tui/styles"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/billm/baaaht/orchestrator/pkg/tui/styles"
 )
 
 // KeyMap defines keyboard shortcuts for the TUI.
@@ -50,8 +50,8 @@ func DefaultKeyMap() KeyMap {
 
 // HelpEntry represents a single keybinding help entry.
 type HelpEntry struct {
-	Key   string        // Display text for the key
-	Desc  string        // Description of what the key does
+	Key   string         // Display text for the key
+	Desc  string         // Description of what the key does
 	Style lipgloss.Style // Optional style for the key
 }
 

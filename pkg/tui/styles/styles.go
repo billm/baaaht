@@ -8,26 +8,26 @@ import (
 // These styles provide consistent visual theming across all UI components.
 var Styles = &styleDefs{
 	// General styles
-	Title:            lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("86")), // Purple
-	Subtitle:         lipgloss.NewStyle().Foreground(lipgloss.Color("243")),           // Gray
-	Normal:           lipgloss.NewStyle().Foreground(lipgloss.Color("252")),           // White-ish
-	Faint:            lipgloss.NewStyle().Faint(true),
-	Muted:            lipgloss.NewStyle().Foreground(lipgloss.Color("241")), // Dark gray
+	Title:    lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("86")), // Purple
+	Subtitle: lipgloss.NewStyle().Foreground(lipgloss.Color("243")),           // Gray
+	Normal:   lipgloss.NewStyle().Foreground(lipgloss.Color("252")),           // White-ish
+	Faint:    lipgloss.NewStyle().Faint(true),
+	Muted:    lipgloss.NewStyle().Foreground(lipgloss.Color("241")), // Dark gray
 
 	// Status indicator styles
-	StatusConnected:    lipgloss.NewStyle().Foreground(lipgloss.Color("86")),  // Green-purple
-	StatusDisconnected: lipgloss.NewStyle().Foreground(lipgloss.Color("203")), // Red-pink
-	StatusError:        lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true), // Bright red
-	StatusWarning:      lipgloss.NewStyle().Foreground(lipgloss.Color("226")), // Yellow
-	StatusInfo:         lipgloss.NewStyle().Foreground(lipgloss.Color("39")),  // Cyan
+	StatusConnected:    lipgloss.NewStyle().Foreground(lipgloss.Color("86")),              // Green-purple
+	StatusDisconnected: lipgloss.NewStyle().Foreground(lipgloss.Color("203")),             // Red-pink
+	StatusError:        lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true),  // Bright red
+	StatusWarning:      lipgloss.NewStyle().Foreground(lipgloss.Color("226")),             // Yellow
+	StatusInfo:         lipgloss.NewStyle().Foreground(lipgloss.Color("39")),              // Cyan
 	StatusThinking:     lipgloss.NewStyle().Foreground(lipgloss.Color("213")).Faint(true), // Pink
 
 	// Message styles
-	MessageUser:      lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Bold(true), // Gold
-	MessageAssistant: lipgloss.NewStyle().Foreground(lipgloss.Color("86")),             // Purple
+	MessageUser:      lipgloss.NewStyle().Foreground(lipgloss.Color("220")).Bold(true),   // Gold
+	MessageAssistant: lipgloss.NewStyle().Foreground(lipgloss.Color("86")),               // Purple
 	MessageSystem:    lipgloss.NewStyle().Foreground(lipgloss.Color("242")).Italic(true), // Gray
-	MessageError:     lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true), // Red
-	MessageCode:      lipgloss.NewStyle().Foreground(lipgloss.Color("117")),            // Light blue
+	MessageError:     lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true),   // Red
+	MessageCode:      lipgloss.NewStyle().Foreground(lipgloss.Color("117")),              // Light blue
 
 	// Code block styles
 	CodeBlock: lipgloss.NewStyle().
@@ -117,11 +117,11 @@ var Styles = &styleDefs{
 // styleDefs defines all style variables used throughout the TUI.
 type styleDefs struct {
 	// General text styles
-	Title            lipgloss.Style
-	Subtitle         lipgloss.Style
-	Normal           lipgloss.Style
-	Faint            lipgloss.Style
-	Muted            lipgloss.Style
+	Title    lipgloss.Style
+	Subtitle lipgloss.Style
+	Normal   lipgloss.Style
+	Faint    lipgloss.Style
+	Muted    lipgloss.Style
 
 	// Status indicator styles
 	StatusConnected    lipgloss.Style

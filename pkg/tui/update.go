@@ -1,8 +1,8 @@
 package tui
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/billm/baaaht/orchestrator/pkg/tui/components"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // Update handles incoming messages and updates the model state.
@@ -132,12 +132,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Connection retry is handled by the command itself
 		return m, nil
 
-	// Handle component-specific messages for passthrough
-	// These will be expanded in subsequent subtasks:
-	// - gRPC connection status messages (phase-3-grpc)
-	// - Session messages (phase-5-session)
-	// - Streaming response messages (phase-6-streaming)
-	// - Health check tick messages (phase-3-grpc)
+		// Handle component-specific messages for passthrough
+		// These will be expanded in subsequent subtasks:
+		// - gRPC connection status messages (phase-3-grpc)
+		// - Session messages (phase-5-session)
+		// - Streaming response messages (phase-6-streaming)
+		// - Health check tick messages (phase-3-grpc)
 	}
 
 	return m, tea.Batch(cmds...)

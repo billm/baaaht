@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/billm/baaaht/orchestrator/internal/logger"
 	"github.com/billm/baaaht/orchestrator/pkg/tui/components"
 	"github.com/billm/baaaht/orchestrator/proto"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // Model represents the main TUI application state.

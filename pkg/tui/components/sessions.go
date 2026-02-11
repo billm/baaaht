@@ -3,10 +3,10 @@ package components
 import (
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/billm/baaaht/orchestrator/pkg/tui/styles"
+	"github.com/charmbracelet/bubbles/list"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // SessionItem represents a single session in the list.
@@ -156,7 +156,7 @@ func (m SessionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case SessionsSelectLastMsg:
 		if m.visible {
-		 itemCount := m.list.Width()
+			itemCount := m.list.Width()
 			if itemCount > 0 {
 				m.list.Select(itemCount - 1)
 			}

@@ -3,10 +3,10 @@ package tui
 import (
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/billm/baaaht/orchestrator/pkg/tui/components"
 	"github.com/billm/baaaht/orchestrator/pkg/tui/styles"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // View renders the model state as a string for display.

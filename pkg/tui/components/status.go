@@ -3,8 +3,8 @@ package components
 import (
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/billm/baaaht/orchestrator/pkg/tui/styles"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // StatusModel represents the state of the status bar component.

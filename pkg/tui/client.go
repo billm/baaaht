@@ -34,25 +34,25 @@ const (
 
 // OrchestratorClient represents a gRPC client for the TUI to connect to the orchestrator
 type OrchestratorClient struct {
-	path                  string
-	conn                  *grpc.ClientConn
-	client                proto.OrchestratorServiceClient
-	logger                *logger.Logger
-	mu                    sync.RWMutex
-	closed                bool
-	dialTimeout           time.Duration
-	rpcTimeout            time.Duration
-	maxRecvMsgSize        int
-	maxSendMsgSize        int
-	dialOptions           []grpc.DialOption
-	stats                 ClientStats
-	reconnectInterval     time.Duration
-	reconnectMaxAttempts  int
-	reconnectAttempts     int
-	reconnectCtx          context.Context
-	reconnectCancel       context.CancelFunc
-	reconnectCloseCh      chan struct{}
-	reconnectWg           sync.WaitGroup
+	path                 string
+	conn                 *grpc.ClientConn
+	client               proto.OrchestratorServiceClient
+	logger               *logger.Logger
+	mu                   sync.RWMutex
+	closed               bool
+	dialTimeout          time.Duration
+	rpcTimeout           time.Duration
+	maxRecvMsgSize       int
+	maxSendMsgSize       int
+	dialOptions          []grpc.DialOption
+	stats                ClientStats
+	reconnectInterval    time.Duration
+	reconnectMaxAttempts int
+	reconnectAttempts    int
+	reconnectCtx         context.Context
+	reconnectCancel      context.CancelFunc
+	reconnectCloseCh     chan struct{}
+	reconnectWg          sync.WaitGroup
 }
 
 // ClientStats represents client statistics
@@ -67,13 +67,13 @@ type ClientStats struct {
 
 // ClientConfig contains client configuration
 type ClientConfig struct {
-	DialTimeout        time.Duration
-	RPCTimeout         time.Duration
-	MaxRecvMsgSize     int
-	MaxSendMsgSize     int
-	ReconnectInterval  time.Duration
+	DialTimeout          time.Duration
+	RPCTimeout           time.Duration
+	MaxRecvMsgSize       int
+	MaxSendMsgSize       int
+	ReconnectInterval    time.Duration
 	ReconnectMaxAttempts int
-	DialOptions        []grpc.DialOption
+	DialOptions          []grpc.DialOption
 }
 
 // NewOrchestratorClient creates a new gRPC client for connecting to the orchestrator
