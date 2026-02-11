@@ -117,7 +117,7 @@ func (m Model) sessionsView() string {
 
 // footerView renders the footer with help text and dimensions.
 func (m Model) footerView() string {
-	keymap := DefaultKeyMap()
+	keymap := m.keys
 	entries := keymap.ShortHelp()
 
 	var parts []string
