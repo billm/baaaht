@@ -178,9 +178,10 @@ function createDelegateInputSchema(): ToolInputSchema {
         description: 'Optional timeout in milliseconds. Defaults to 60000 (60 seconds). Maximum is 300000 (5 minutes).',
       },
       priority: {
-        type: 'string',
-        description: 'Optional task priority. Supported values: "low", "normal", "high", "critical". Defaults to "normal".',
-        enum: ['low', 'normal', 'high', 'critical'],
+        type: 'number',
+        description:
+          'Optional task priority as a numeric level. Supported values: 0 (low), 1 (normal), 2 (high), 3 (critical). Defaults to 2 (normal).',
+        enum: [0, 1, 2, 3],
       },
     },
     required: ['target', 'operation', 'parameters'],
