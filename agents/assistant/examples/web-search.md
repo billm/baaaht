@@ -62,7 +62,7 @@ A user asks for current information about a technology topic that requires up-to
   "id": "msg-001",
   "sessionId": "session-web-search",
   "content": "What are the latest features in TypeScript 5.8? Search for recent announcements.",
-  "type": "MESSAGE_TYPE_USER",
+  "type": "MESSAGE_TYPE_DATA",
   "timestamp": "2026-02-10T16:45:00Z"
 }
 ```
