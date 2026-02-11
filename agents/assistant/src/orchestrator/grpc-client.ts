@@ -14,7 +14,6 @@ import type {
   UnregisterResponse,
   HeartbeatRequest,
   HeartbeatResponse,
-  Empty,
 } from '../proto/agent.js';
 
 /**
