@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 import { EventEmitter } from 'events';
-import { Agent, AgentEventType, AgentErrorCode } from '../../src/agent.js';
+import { Agent, AgentEventType } from '../../src/agent.js';
 import type { AgentConfig, AgentDependencies, AgentResponse } from '../../src/agent/types.js';
 import { SessionManager } from '../../src/session/manager.js';
 import { AgentType, AgentState, MessageType } from '../../src/proto/agent.js';
