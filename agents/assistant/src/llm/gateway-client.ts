@@ -154,7 +154,7 @@ export class LLMGatewayClient {
       options.signal = controller.signal;
     }
 
-    const streamIterator = this.createStreamIterator(requestId, request, timeout, options.signal);
+    const streamIterator = this.createStreamIterator(requestId, request, options.signal);
 
     return {
       [Symbol.asyncIterator]: () => streamIterator,
@@ -291,7 +291,6 @@ export class LLMGatewayClient {
   private async *createStreamIterator(
     requestId: string,
     request: LLMRequest,
-    timeout: number,
     signal: AbortSignal
   ): AsyncIterator<StreamingChunk> {
     const body: StreamLLMRequest = { payload: { request } };
@@ -520,19 +519,19 @@ export class LLMGatewayClient {
   private mapHttpStatusToErrorCode(status: number): LLMGatewayErrorCode {
     switch (status) {
       case 400:
-        return 'INVALID_REQUEST';
+        return LLMGatewayErrorCode.INVALID_REQUEST;
       case 401:
-        return 'AUTHENTICATION_FAILED';
+        return LLMGatewayErrorCode.AUTHENTICATION_FAILED;
       case 429:
-        return 'RATE_LIMITED';
+        return LLMGatewayErrorCode.RATE_LIMITED;
       case 413:
-        return 'CONTEXT_TOO_LONG';
+        return LLMGatewayErrorCode.CONTEXT_TOO_LONG;
       case 502:
       case 503:
       case 504:
-        return 'PROVIDER_NOT_AVAILABLE';
+        return LLMGatewayErrorCode.PROVIDER_NOT_AVAILABLE;
       default:
-        return 'UPSTREAM_ERROR';
+        return LLMGatewayErrorCode.UPSTREAM_ERROR;
     }
   }
 

@@ -198,7 +198,6 @@ function createDefaultBootstrapConfig(): Required<
       timeout: 3600000,
     },
     registrationInfo: {
-    registrationInfo: {
       name: 'assistant',
       type: AgentType.AGENT_TYPE_WORKER,
     },

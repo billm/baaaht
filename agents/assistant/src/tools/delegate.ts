@@ -7,6 +7,7 @@
 // Copyright 2026 baaaht project
 
 import type { Tool, ToolInputSchema } from '../proto/llm.js';
+import { TaskPriority, AgentType } from '../proto/agent.js';
 import type {
   ToolDefinition,
   DelegateTarget,
@@ -33,7 +34,7 @@ import type {
 export const DEFAULT_DELEGATE_CONFIG: Required<DelegateToolConfig> = {
   defaultTimeout: 60000, // 60 seconds
   maxTimeout: 300000, // 5 minutes
-  defaultPriority: 'normal', // default priority for schema (low|normal|high|critical)
+  defaultPriority: TaskPriority.TASK_PRIORITY_NORMAL, // default priority (numeric enum)
   enableStreaming: true,
   maxConcurrent: 10,
   retry: {
@@ -180,8 +181,8 @@ function createDelegateInputSchema(): ToolInputSchema {
       priority: {
         type: 'number',
         description:
-          'Optional task priority as a numeric level. Supported values: 0 (low), 1 (normal), 2 (high), 3 (critical). Defaults to 2 (normal).',
-        enum: [0, 1, 2, 3],
+          'Optional task priority as a numeric level. Supported values: 1 (low), 2 (normal), 3 (high), 4 (critical). Defaults to 2 (normal).',
+        enum: [1, 2, 3, 4],
       },
     },
     required: ['target', 'operation', 'parameters'],
@@ -464,15 +465,15 @@ export function formatDelegateResult(result: DelegateResult): string {
  * @param target - The delegate target
  * @returns The corresponding agent type from proto
  */
-export function targetToAgentType(target: DelegateTarget): string {
+export function targetToAgentType(target: DelegateTarget): AgentType {
   switch (target) {
     case DelegateTarget.WORKER:
-      return 'AGENT_TYPE_WORKER';
+      return AgentType.AGENT_TYPE_WORKER;
     case DelegateTarget.RESEARCHER:
-      return 'AGENT_TYPE_WORKER'; // Researcher is a specialized worker for now
+      return AgentType.AGENT_TYPE_WORKER; // Researcher is a specialized worker for now
     case DelegateTarget.CODER:
-      return 'AGENT_TYPE_WORKER'; // Coder is a specialized worker for now
+      return AgentType.AGENT_TYPE_WORKER; // Coder is a specialized worker for now
     default:
-      return 'AGENT_TYPE_WORKER';
+      return AgentType.AGENT_TYPE_WORKER;
   }
 }
