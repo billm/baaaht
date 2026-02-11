@@ -156,7 +156,7 @@ func (m SessionsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case SessionsSelectLastMsg:
 		if m.visible {
-			itemCount := m.list.Width()
+			itemCount := len(m.list.Items())
 			if itemCount > 0 {
 				m.list.Select(itemCount - 1)
 			}
