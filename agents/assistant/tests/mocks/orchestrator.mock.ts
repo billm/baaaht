@@ -161,7 +161,7 @@ export class MockOrchestratorClient extends EventEmitter {
       agent: {
         id: agentId,
         name: request.name,
-        type: request.type,
+        type: agentInfo.type,
         state: AgentState.AGENT_STATE_IDLE,
         registeredAt: new Date(),
         lastHeartbeat: new Date(),
