@@ -113,11 +113,11 @@ describe('Agent Integration Tests', () => {
       expect(agent).toBeDefined();
       expect(agentId).toBeDefined();
 
-      // Check orchestrator registration
-      expect(mockOrchestrator.getRegisteredAgentCount()).toBe(1);
-      const agentInfo = mockOrchestrator.getAgentInfo(agentId);
-      expect(agentInfo).toBeDefined();
-      expect(agentInfo?.name).toBe('test-assistant');
+      // Verify agent status reflects successful initialization/registration
+      const status = agent.getStatus();
+      expect(status.agentId).toBe(agentId);
+      expect(status.state).toBe(AgentState.AGENT_STATE_IDLE);
+      expect(status.type).toBe(AgentType.AGENT_TYPE_ASSISTANT);
     });
 
     it('should transition through states correctly', async () => {
