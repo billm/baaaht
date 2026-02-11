@@ -9,24 +9,6 @@
 //
 // Copyright 2026 baaaht project
 
-import type { Client } from '@grpc/grpc-js';
-import {
-  TaskType,
-  TaskPriority,
-  TaskState,
-  type TaskConfig,
-  type TaskResult,
-  type ExecuteTaskRequest,
-  type ExecuteTaskResponse,
-  type Task,
-} from '../proto/agent.js';
-import type {
-  DelegateParams,
-  DelegateResult,
-  DelegateMetadata,
-  DelegateOperation,
-} from './types.js';
-
 // =============================================================================
 // Configuration
 // =============================================================================
