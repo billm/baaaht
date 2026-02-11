@@ -5,7 +5,8 @@
 //
 // Copyright 2026 baaaht project
 
-import { AgentType, AgentState, AgentMetadata, AgentCapabilities, ResourceLimits, ResourceUsage } from '../proto/agent.js';
+import { AgentType, AgentState, AgentMetadata, AgentCapabilities, ResourceLimits } from '../proto/agent.js';
+import { ResourceUsage } from '../proto/common.js';
 import { OrchestratorClient, OrchestratorClientConfig, createOrchestratorClient } from './grpc-client.js';
 
 /**
