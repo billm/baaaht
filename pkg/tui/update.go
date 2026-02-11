@@ -40,7 +40,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case "enter":
 			// TEMPORARY: Also accept plain enter for testing
-			// This helps us verify the message sending works
+			// Only enabled when running in verbose mode to avoid surprising users.
+			if !m.verbose {
+				break
+			}
 			text := m.input.Value()
 			if m.verbose && m.logger != nil {
 				m.logger.Info("Sending message via Enter", "text", text)
