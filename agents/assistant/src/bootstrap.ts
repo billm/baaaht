@@ -366,7 +366,7 @@ export async function bootstrap(
 
     // Step 8: Perform health check (if enabled)
     if (mergedConfig.enableHealthCheck) {
-      const isHealthy = await isReady(result.agent, DEFAULT_READY_CHECK_TIMEOUT);
+      const isHealthy = await waitForReady(result.agent, DEFAULT_READY_CHECK_TIMEOUT);
       if (!isHealthy) {
         throw new BootstrapError(
           'Agent health check failed',
