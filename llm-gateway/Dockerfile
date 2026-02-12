@@ -32,8 +32,8 @@ COPY --from=builder --chown=1000:1000 /build/dist ./dist
 COPY --from=builder --chown=1000:1000 /build/package.json ./package.json
 
 # Health check matching the orchestrator's container config
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget --spider -q http://localhost:8080/health || exit 1
+HEALTHCHECK --interval=5s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget -O- -q http://localhost:8080/health || exit 1
 
 USER 1000:1000
 

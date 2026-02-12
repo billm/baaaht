@@ -449,10 +449,10 @@ func (m *LLMGatewayManager) createGatewayContainer(ctx context.Context) (string,
 			CapAdd:         []string{"NET_BIND_SERVICE"},  // Add back only what's needed
 			// Health check configuration
 			HealthCheck: &types.HealthCheckConfig{
-				Test:        []string{"CMD", "wget", "--spider", "-q", "http://localhost:8080/health"},
-				Interval:    30 * time.Second,
-				Timeout:     5 * time.Second,
-				StartPeriod: 10 * time.Second,
+				Test:        []string{"CMD", "wget", "-O-", "-q", "http://localhost:8080/health"},
+				Interval:    5 * time.Second,
+				Timeout:     3 * time.Second,
+				StartPeriod: 5 * time.Second,
 				Retries:     3,
 			},
 		},
