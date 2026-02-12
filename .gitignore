@@ -1,3 +1,6 @@
+# VSCode settings
+.vscode/
+
 # Auto Claude data directory
 .auto-claude/
 
