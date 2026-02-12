@@ -752,7 +752,7 @@ func sanitizeOwnerID(ownerID string) string {
 	// Remove any path components that could lead to directory traversal
 	ownerID = filepath.Base(ownerID)
 	// filepath.Base("") returns ".", handle this case
-	if ownerID == "." || ownerID == "" {
+	if ownerID == "." {
 		return ""
 	}
 	// Remove any non-alphanumeric characters (except dash, underscore, dot)
