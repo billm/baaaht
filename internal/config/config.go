@@ -290,6 +290,8 @@ type SkillsRetention struct {
 	ErrorMaxAge      time.Duration `json:"error_max_age" yaml:"error_max_age"`         // Time in error state before cleanup
 	MinLoadCount     int           `json:"min_load_count" yaml:"min_load_count"`       // Minimum loads to keep
 	PreserveVerified bool          `json:"preserve_verified" yaml:"preserve_verified"` // Don't delete verified skills
+}
+
 // AuditConfig contains audit logging configuration
 type AuditConfig struct {
 	Enabled             bool   `json:"enabled" yaml:"enabled"`                          // Enable audit logging
@@ -1516,6 +1518,8 @@ func (c SkillsGitHubConfig) String() string {
 func (c SkillsRetention) String() string {
 	return fmt.Sprintf("SkillsRetention{Enabled: %v, MaxAge: %s, PreserveVerified: %v}",
 		c.Enabled, c.MaxAge, c.PreserveVerified)
+}
+
 func (c AuditConfig) String() string {
 	return fmt.Sprintf("AuditConfig{Enabled: %v, Output: %s, Format: %s, RotationEnabled: %v}",
 		c.Enabled, c.Output, c.Format, c.RotationEnabled)

@@ -516,8 +516,8 @@ func DefaultSkillsConfig() SkillsConfig {
 			ErrorMaxAge:      DefaultSkillsRetentionErrorMaxAge,
 			MinLoadCount:     DefaultSkillsRetentionMinLoadCount,
 			PreserveVerified: true,
-		}
-  }
+		},
+	}
 }
 // DefaultAuditConfig returns the default audit logging configuration
 func DefaultAuditConfig() AuditConfig {
