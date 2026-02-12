@@ -1846,9 +1846,6 @@ func TestCreateAppliesNetworkIsolationEnforcement(t *testing.T) {
 		SessionID: types.NewID("test-session-network-enforcement"),
 	})
 
-	require.Error(t, err)
-	var customErr *types.Error
-	require.ErrorAs(t, err, &customErr)
-	assert.NotEqual(t, types.ErrCodePermission, customErr.Code,
-		"config should be hardened by EnforceContainerConfig instead of failing policy validation")
+	// EnforceContainerConfig should harden the config so that creation succeeds.
+	require.NoError(t, err)
 }
