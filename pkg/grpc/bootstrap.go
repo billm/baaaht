@@ -12,6 +12,7 @@ import (
 	"github.com/billm/baaaht/orchestrator/pkg/events"
 	"github.com/billm/baaaht/orchestrator/pkg/ipc"
 	"github.com/billm/baaaht/orchestrator/pkg/session"
+	"github.com/billm/baaaht/orchestrator/pkg/skills"
 	"github.com/billm/baaaht/orchestrator/pkg/tools"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 	"github.com/billm/baaaht/orchestrator/proto"
@@ -50,6 +51,8 @@ type BootstrapConfig struct {
 	HealthCheckInterval time.Duration
 	// Optional interceptors to add to the gRPC server
 	Interceptors []grpc.ServerOption
+	// Optional skills loader for agent skill management
+	SkillsLoader *skills.Loader
 }
 
 // NewDefaultBootstrapConfig creates a default gRPC bootstrap configuration
@@ -176,7 +179,7 @@ func Bootstrap(ctx context.Context, cfg BootstrapConfig) (*BootstrapResult, erro
 	health.SetServingStatus("orchestrator", grpc_health.HealthCheckResponse_SERVING)
 
 	// Create and register AgentService
-	agentSvc := NewAgentService(deps, log)
+	agentSvc := NewAgentService(deps, log, cfg.SkillsLoader)
 	if err := server.RegisterService(&proto.AgentService_ServiceDesc, agentSvc); err != nil {
 		result.Error = types.WrapError(types.ErrCodeInternal, "failed to register agent service", err)
 		// Cleanup on failure
