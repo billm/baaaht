@@ -3,6 +3,7 @@ package grpc
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -38,7 +39,7 @@ type OrchestratorService struct {
 	streams map[interface{}]context.CancelFunc
 
 	// Track StreamMessages streams by session ID for message routing
-	sessionStreams map[types.ID]*sessionStreamState
+	sessionStreams map[types.ID]map[*sessionStreamState]struct{}
 }
 
 type sessionStreamState struct {
@@ -61,24 +62,60 @@ func NewOrchestratorService(deps ServiceDependencies, log *logger.Logger) *Orche
 		deps:           deps,
 		logger:         log.With("component", "orchestrator_service"),
 		streams:        make(map[interface{}]context.CancelFunc),
-		sessionStreams: make(map[types.ID]*sessionStreamState),
+		sessionStreams: make(map[types.ID]map[*sessionStreamState]struct{}),
 	}
 }
 
 func (s *OrchestratorService) sendToSessionStream(sessionID types.ID, resp *proto.StreamMessageResponse) error {
 	s.mu.RLock()
-	streamState, exists := s.sessionStreams[sessionID]
+	streamSet, exists := s.sessionStreams[sessionID]
 	s.mu.RUnlock()
 
-	if !exists || streamState == nil || streamState.stream == nil {
+	if !exists || len(streamSet) == 0 {
 		return types.NewError(types.ErrCodeNotFound, "no active stream for session")
 	}
 
-	streamState.mu.Lock()
-	defer streamState.mu.Unlock()
+	streamStates := make([]*sessionStreamState, 0, len(streamSet))
+	for streamState := range streamSet {
+		if streamState != nil && streamState.stream != nil {
+			streamStates = append(streamStates, streamState)
+		}
+	}
 
-	if err := streamState.stream.Send(resp); err != nil {
-		return types.WrapError(types.ErrCodeInternal, "failed to send response", err)
+	if len(streamStates) == 0 {
+		return types.NewError(types.ErrCodeNotFound, "no active stream for session")
+	}
+
+	failed := make([]*sessionStreamState, 0)
+	sent := 0
+	for _, streamState := range streamStates {
+		streamState.mu.Lock()
+		err := streamState.stream.Send(resp)
+		streamState.mu.Unlock()
+
+		if err != nil {
+			failed = append(failed, streamState)
+			continue
+		}
+
+		sent++
+	}
+
+	if len(failed) > 0 {
+		s.mu.Lock()
+		if activeSet, ok := s.sessionStreams[sessionID]; ok {
+			for _, streamState := range failed {
+				delete(activeSet, streamState)
+			}
+			if len(activeSet) == 0 {
+				delete(s.sessionStreams, sessionID)
+			}
+		}
+		s.mu.Unlock()
+	}
+
+	if sent == 0 {
+		return types.NewError(types.ErrCodeUnavailable, "failed to send response to any active stream")
 	}
 
 	return nil
@@ -90,7 +127,7 @@ func streamErrorResponse(message string) *proto.StreamMessageResponse {
 		Payload: &proto.StreamMessageResponse_Event{
 			Event: &proto.Event{
 				Id:        string(types.GenerateID()),
-				Type:      proto.EventType_EVENT_TYPE_CONTAINER_ERROR,
+				Type:      proto.EventType_EVENT_TYPE_TASK_FAILED,
 				Source:    "orchestrator",
 				Timestamp: timestampToProto(&ts),
 				Data:      map[string]string{"error": message},
@@ -462,13 +499,19 @@ func (s *OrchestratorService) StreamMessages(stream proto.OrchestratorService_St
 			// Register this stream for the session
 			streamState := &sessionStreamState{stream: stream}
 			s.mu.Lock()
-			s.sessionStreams[sessionID] = streamState
+			if _, ok := s.sessionStreams[sessionID]; !ok {
+				s.sessionStreams[sessionID] = make(map[*sessionStreamState]struct{})
+			}
+			s.sessionStreams[sessionID][streamState] = struct{}{}
 			s.mu.Unlock()
 
 			defer func() {
 				s.mu.Lock()
-				if current, ok := s.sessionStreams[sessionID]; ok && current == streamState {
-					delete(s.sessionStreams, sessionID)
+				if currentSet, ok := s.sessionStreams[sessionID]; ok {
+					delete(currentSet, streamState)
+					if len(currentSet) == 0 {
+						delete(s.sessionStreams, sessionID)
+					}
 				}
 				s.mu.Unlock()
 			}()
@@ -488,20 +531,21 @@ func (s *OrchestratorService) StreamMessages(stream proto.OrchestratorService_St
 				message.Timestamp = types.NewTimestampFromTime(time.Now())
 			}
 
-			// Add message to session
-			if err := mgr.AddMessage(streamCtx, sessionID, message); err != nil {
-				s.logger.Error("Failed to add message in stream", "session_id", sessionID, "error", err)
-				_ = s.sendToSessionStream(sessionID, streamErrorResponse(err.Error()))
-				continue
-			}
-
 			// Route user messages to the assistant agent
 			if message.Role == types.MessageRoleUser {
 				s.logger.Debug("Routing user message to assistant", "session_id", sessionID, "message_id", message.ID)
 				if err := s.routeToAssistant(streamCtx, sessionID, message); err != nil {
 					s.logger.Error("Failed to route message to assistant", "session_id", sessionID, "error", err)
 					_ = s.sendToSessionStream(sessionID, streamErrorResponse(err.Error()))
+					continue
 				}
+			}
+
+			// Add message to session after routing checks
+			if err := mgr.AddMessage(streamCtx, sessionID, message); err != nil {
+				s.logger.Error("Failed to add message in stream", "session_id", sessionID, "error", err)
+				_ = s.sendToSessionStream(sessionID, streamErrorResponse(err.Error()))
+				continue
 			}
 		}
 	}
@@ -519,7 +563,7 @@ func (s *OrchestratorService) routeToAssistant(ctx context.Context, sessionID ty
 	registry := agentSvc.GetRegistry()
 	agents := registry.List()
 
-	var assistantID string
+	candidateIDs := make([]string, 0)
 	for _, agent := range agents {
 		if !agentSvc.HasAgentStream(agent.ID) {
 			continue
@@ -539,9 +583,15 @@ func (s *OrchestratorService) routeToAssistant(ctx context.Context, sessionID ty
 		}
 
 		if isAssistantName || isAssistantRole {
-			assistantID = agent.ID
-			break
+			candidateIDs = append(candidateIDs, agent.ID)
 		}
+	}
+
+	sort.Strings(candidateIDs)
+
+	var assistantID string
+	if len(candidateIDs) > 0 {
+		assistantID = candidateIDs[0]
 	}
 
 	if assistantID == "" {
