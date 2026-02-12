@@ -1,7 +1,7 @@
-// types.ts - Type definitions for LLM Gateway client
+// types.ts - Type definitions for assistant LLM client
 //
-// This file contains TypeScript types for the LLM Gateway HTTP client,
-// which communicates with the LLM Gateway service over HTTP.
+// This file contains TypeScript types for the assistant LLM client,
+// which communicates with orchestrator-mediated LLMService over gRPC.
 //
 // Copyright 2026 baaaht project
 
@@ -27,12 +27,12 @@ import type {
 // =============================================================================
 
 /**
- * Configuration for the LLM Gateway HTTP client
+ * Configuration for the assistant LLM client
  */
 export interface LLMGatewayClientConfig {
   /**
-   * Base URL of the LLM Gateway service
-   * Defaults to 'http://localhost:8080'
+   * Address of the orchestrator gRPC service
+   * Defaults to 'localhost:50051'
    */
   baseURL?: string;
 

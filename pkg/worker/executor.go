@@ -316,6 +316,9 @@ func (e *Executor) EnforceConfig(ctx context.Context, config types.ContainerConf
 	enforced, err := e.policyEnforcer.EnforceContainerConfig(ctx, e.sessionID, config)
 	if err != nil {
 		e.logger.Warn("Policy enforcement failed", "error", err)
+		if typedErr, ok := err.(*types.Error); ok {
+			return config, typedErr
+		}
 		return config, types.WrapError(types.ErrCodeInternal, "policy enforcement error", err)
 	}
 
@@ -400,24 +403,21 @@ func (e *Executor) ExecuteTask(ctx context.Context, cfg TaskConfig) *TaskResult 
 		containerConfig.Args = append(containerConfig.Args, cfg.Args...)
 	}
 
-	// Validate configuration against policy
-	validationResult, err := e.ValidateConfig(ctx, containerConfig)
+	// Enforce policy on configuration (includes validation)
+	enforcedConfig, err := e.EnforceConfig(ctx, containerConfig)
 	if err != nil {
-		result.Error = types.WrapError(types.ErrCodeInternal, "policy validation failed", err)
+		if typedErr, ok := err.(*types.Error); ok {
+			result.Error = typedErr
+		} else {
+			result.Error = types.WrapError(types.ErrCodeInternal, "policy enforcement failed", err)
+		}
 		result.CompletedAt = time.Now()
 		result.Duration = result.CompletedAt.Sub(startTime)
-		e.logger.Warn("Policy validation error", "error", err)
+		e.logger.Warn("Policy enforcement error", "error", err)
 		return result
 	}
 
-	// Check if validation rejected the config
-	if !validationResult.Allowed {
-		result.Error = types.NewError(types.ErrCodePermission, "task rejected by policy enforcement")
-		result.CompletedAt = time.Now()
-		result.Duration = result.CompletedAt.Sub(startTime)
-		e.logger.Warn("Task rejected by policy", "tool_type", cfg.ToolType)
-		return result
-	}
+	containerConfig = enforcedConfig
 
 	// Generate container name if not provided
 	containerName := cfg.ContainerName

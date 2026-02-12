@@ -70,7 +70,6 @@ const DEFAULT_AGENT_CONFIG: Required<Omit<AgentConfig, 'labels' | 'debug' | 'ena
   name: 'assistant',
   description: 'Primary conversational agent with tool delegation',
   orchestratorUrl: 'localhost:50051',
-  llmGatewayUrl: 'http://localhost:8080',
   defaultModel: 'anthropic/claude-sonnet-4-20250514',
   maxConcurrentMessages: 5,
   messageTimeout: 120000, // 2 minutes
@@ -209,7 +208,7 @@ export class Agent extends EventEmitter {
 
     // Create LLM Gateway client
     this.llmClient = new LLMGatewayClient({
-      baseURL: this.config.llmGatewayUrl,
+      baseURL: this.config.orchestratorUrl,
       agentId: '', // Will be set after registration
     });
 
@@ -297,7 +296,7 @@ export class Agent extends EventEmitter {
     try {
       this.agentId = agentId;
       this.llmClient = new LLMGatewayClient({
-        baseURL: this.config.llmGatewayUrl,
+        baseURL: this.config.orchestratorUrl,
         agentId: this.agentId,
       });
 

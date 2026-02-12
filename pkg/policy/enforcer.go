@@ -578,10 +578,10 @@ func (e *Enforcer) validateNetwork(policy *Policy, config types.ContainerConfig,
 		violation := Violation{
 			Rule:      "network.configured",
 			Message:   "network access is disabled but networks are configured",
-			Severity:  string(SeverityWarning),
+			Severity:  string(SeverityError),
 			Component: "network",
 		}
-		result.Warnings = append(result.Warnings, violation)
+		result.Violations = append(result.Violations, violation)
 	}
 
 	// Check port bindings - if network is disabled, ports shouldn't be exposed
@@ -589,10 +589,10 @@ func (e *Enforcer) validateNetwork(policy *Policy, config types.ContainerConfig,
 		violation := Violation{
 			Rule:      "network.ports.disabled",
 			Message:   "network access is disabled but ports are exposed",
-			Severity:  string(SeverityWarning),
+			Severity:  string(SeverityError),
 			Component: "network",
 		}
-		result.Warnings = append(result.Warnings, violation)
+		result.Violations = append(result.Violations, violation)
 	}
 }
 
@@ -733,18 +733,42 @@ func (e *Enforcer) EnforceContainerConfig(ctx context.Context, sessionID types.I
 		return config, nil
 	}
 
-	// Validate first
-	result, err := e.ValidateContainerConfig(ctx, sessionID, config)
+	// Start with original config and apply network hardening first so strict mode
+	// can enforce non-egress defaults when networking is disallowed.
+	enforced := config
+	if !policy.Network.AllowNetwork {
+		enforced.NetworkMode = "none"
+		enforced.Networks = nil
+		enforced.Ports = nil
+	}
+
+	// Validate after applying hard constraints.
+	result, err := e.ValidateContainerConfig(ctx, sessionID, enforced)
 	if err != nil {
 		return config, err
 	}
 
 	if !result.Allowed {
-		return config, types.NewError(types.ErrCodePermission, "container configuration violates policy")
+		const maxViolationsInError = 3
+		parts := make([]string, 0, maxViolationsInError)
+		for i, v := range result.Violations {
+			if i >= maxViolationsInError {
+				break
+			}
+			parts = append(parts, fmt.Sprintf("%s (%s): %s", v.Rule, v.Component, v.Message))
+		}
+		message := "container configuration violates policy"
+		if len(parts) > 0 {
+			detail := strings.Join(parts, "; ")
+			if len(result.Violations) > maxViolationsInError {
+				detail = detail + fmt.Sprintf(" (and %d more violation(s))", len(result.Violations)-maxViolationsInError)
+			}
+			message = message + ": " + detail
+		}
+		return config, types.NewError(types.ErrCodePermission, message)
 	}
 
-	// Apply policy defaults and constraints
-	enforced := config
+	// Apply remaining policy defaults and constraints
 
 	// Apply default quotas if not set
 	if enforced.Resources.NanoCPUs == 0 && policy.Quotas.MaxCPUs != nil {

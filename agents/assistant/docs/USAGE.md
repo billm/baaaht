@@ -20,8 +20,7 @@ npm run build
 npm start
 
 # With custom configuration
-ORCHESTRATOR_ADDRESS=unix:///tmp/baaaht.sock \
-LLM_GATEWAY_URL=http://localhost:8080 \
+ORCHESTRATOR_URL=unix:///tmp/baaaht.sock \
 npm start
 ```
 
@@ -84,7 +83,6 @@ interface AgentConfig {
 
   // Communication
   orchestratorUrl?: string;   // Default: 'localhost:50051'
-  llmGatewayUrl?: string;     // Default: 'http://localhost:8080'
 
   // LLM Settings
   defaultModel?: string;      // Default: 'anthropic/claude-sonnet-4-20250514'
@@ -109,8 +107,7 @@ interface AgentConfig {
 
 | Variable | Type | Default | Description |
 |---|---|---|---|
-| `ORCHESTRATOR_ADDRESS` | string | `unix:///tmp/orchestrator.sock` | gRPC server address |
-| `LLM_GATEWAY_URL` | string | `http://localhost:8080` | LLM Gateway base URL |
+| `ORCHESTRATOR_URL` | string | `unix:///tmp/baaaht-grpc.sock` | gRPC server address |
 | `AGENT_NAME` | string | `assistant` | Agent identifier |
 | `LOG_LEVEL` | string | `info` | Logging level (debug, info, warn, error) |
 | `DEFAULT_MODEL` | string | `anthropic/claude-sonnet-4-20250514` | Default LLM model |
@@ -559,7 +556,7 @@ With debug mode enabled, the agent logs:
 | Issue | Cause | Solution |
 |---|---|---|
 | Agent not ready | `register()` not called | Call `await agent.register(agentId)` before sending messages |
-| LLM timeout | Gateway unreachable | Check `LLM_GATEWAY_URL` and Gateway health |
+| LLM timeout | Orchestrator/LLM service unavailable | Check `ORCHESTRATOR_URL` and orchestrator health |
 | Delegation fails | Worker agent not available | Check Orchestrator logs for container spawn errors |
 | Session not found | Invalid session ID | Ensure session exists before sending messages |
 
@@ -852,13 +849,12 @@ agent.once(AgentEventType.READY, () => {
 
 **Agent fails to register:**
 - Check Orchestrator is running
-- Verify `ORCHESTRATOR_ADDRESS` is correct
+- Verify `ORCHESTRATOR_URL` is correct
 - Check gRPC connection logs
 
 **Messages time out:**
 - Increase `messageTimeout` configuration
-- Check LLM Gateway health
-- Verify network connectivity
+- Check orchestrator health and LLM service status
 
 **Delegations fail:**
 - Ensure specialized agents are available

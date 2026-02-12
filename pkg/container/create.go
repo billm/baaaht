@@ -107,6 +107,17 @@ func (c *Creator) Create(ctx context.Context, cfg CreateConfig) (*CreateResult, 
 
 	// Validate against policy if enforcer is set
 	if c.enforcer != nil {
+		enforcedConfig, err := c.enforcer.EnforceContainerConfig(ctx, cfg.SessionID, cfg.Config)
+		if err != nil {
+			c.logger.Warn("Policy enforcement failed", "error", err)
+			if typedErr, ok := err.(*types.Error); ok {
+				return nil, typedErr
+			}
+			return nil, types.WrapError(types.ErrCodeInternal, "policy enforcement error", err)
+		}
+
+		cfg.Config = enforcedConfig
+
 		result, err := c.enforcer.ValidateContainerConfig(ctx, cfg.SessionID, cfg.Config)
 		if err != nil {
 			c.logger.Warn("Policy validation failed", "error", err)

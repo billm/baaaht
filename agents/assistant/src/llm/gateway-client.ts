@@ -1,10 +1,21 @@
-// gateway-client.ts - HTTP client for LLM Gateway communication
+// gateway-client.ts - gRPC client for LLM service communication
 //
-// This file provides a TypeScript HTTP client for communicating with the
-// LLM Gateway service over HTTP with streaming support.
+// This file provides a TypeScript gRPC client for communicating with the
+// orchestrator-mediated LLMService with streaming support.
 //
 // Copyright 2026 baaaht project
 
+import {
+  credentials,
+  loadPackageDefinition,
+  type ChannelCredentials,
+  type Client,
+  type ClientDuplexStream,
+} from '@grpc/grpc-js';
+import { loadSync } from '@grpc/proto-loader';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 import type {
   LLMRequest,
   LLMResponse,
@@ -28,30 +39,49 @@ import type {
 import { LLMGatewayErrorCode, LLMGatewayError } from './types.js';
 
 // Default configuration values
-const DEFAULT_BASE_URL = 'http://localhost:8080';
+const DEFAULT_BASE_URL = 'localhost:50051';
 const DEFAULT_TIMEOUT = 120000; // 120 seconds
 const DEFAULT_STREAM_TIMEOUT = 300000; // 5 minutes for streaming
 
-// Gateway endpoints
-const ENDPOINTS = {
-  COMPLETE: '/v1/llm/complete',
-  STREAM: '/v1/llm/stream',
-  HEALTH: '/v1/llm/health',
-  STATUS: '/v1/llm/status',
-  MODELS: '/v1/llm/models',
-  CAPABILITIES: '/v1/llm/capabilities',
-} as const;
+type LLMServiceClient = Client & {
+  completeLLM?: (
+    request: CompleteLLMRequest,
+    options: { deadline: Date },
+    callback: (err: Error | null, response: CompleteLLMResponse) => void
+  ) => void;
+  streamLLM?: () => ClientDuplexStream<StreamLLMRequest, StreamLLMResponse>;
+  listModels?: (
+    request: { provider?: string },
+    options: { deadline: Date },
+    callback: (err: Error | null, response: { models?: Array<{ id?: string; name?: string; provider?: string; capabilities?: ModelCapabilities; metadata?: Record<string, string> }> }) => void
+  ) => void;
+  getCapabilities?: (
+    request: { provider?: string },
+    options: { deadline: Date },
+    callback: (err: Error | null, response: { providers?: Array<{ name?: string; available?: boolean; models?: Array<{ id?: string; name?: string; provider?: string; capabilities?: ModelCapabilities; metadata?: Record<string, string> }>; metadata?: Record<string, string> }> }) => void
+  ) => void;
+  healthCheck?: (
+    request: Record<string, never>,
+    options: { deadline: Date },
+    callback: (err: Error | null, response: { health?: string | number; version?: string; availableProviders?: string[]; unavailableProviders?: string[]; timestamp?: Date }) => void
+  ) => void;
+  getStatus?: (
+    request: Record<string, never>,
+    options: { deadline: Date },
+    callback: (err: Error | null, response: { status?: string | number; startedAt?: Date; uptime?: { seconds: string | bigint; nanos: number }; activeRequests?: number; totalRequests?: string | bigint; totalTokensUsed?: string | bigint; providers?: Record<string, ProviderStatus> }) => void
+  ) => void;
+};
 
 /**
- * LLM Gateway HTTP Client
+ * Assistant LLM gRPC Client
  *
- * Provides HTTP client for communicating with the LLM Gateway service.
+ * Provides a gRPC client for communicating with orchestrator LLMService.
  * Supports both streaming and non-streaming completions.
  *
  * Usage:
  * ```typescript
  * const client = new LLMGatewayClient({
- *   baseURL: 'http://localhost:8080',
+ *   baseURL: 'localhost:50051',
  *   agentId: 'assistant-1',
  * });
  *
@@ -75,6 +105,10 @@ export class LLMGatewayClient {
     labels: Record<string, string>;
     fallbackProviders: string[];
   };
+  private credentials: ChannelCredentials;
+  private client: LLMServiceClient | null = null;
+  private connected: boolean = false;
+  private connectPromise: Promise<void> | null = null;
 
   /**
    * Creates a new LLM Gateway client
@@ -89,6 +123,8 @@ export class LLMGatewayClient {
       defaultProvider: config.defaultProvider ?? '',
       fallbackProviders: config.fallbackProviders ?? [],
     };
+
+    this.credentials = credentials.createInsecure();
   }
 
   /**
@@ -103,6 +139,8 @@ export class LLMGatewayClient {
     params: CompletionParams,
     options: { timeout?: number; signal?: AbortSignal } = {}
   ): Promise<CompletionResult> {
+    await this.connect();
+
     const requestId = this.generateRequestId();
     const request = this.buildRequest(requestId, params);
 
@@ -111,16 +149,7 @@ export class LLMGatewayClient {
     const timeout = options.timeout ?? this.config.timeout;
 
     try {
-      const response = await this.fetch<CompleteLLMResponse>(
-        ENDPOINTS.COMPLETE,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-          signal: options.signal,
-        },
-        timeout
-      );
+      const response = await this.callComplete(body, timeout, options.signal);
 
       if (!response.response) {
         throw this.createError('No response data received', 'UNKNOWN');
@@ -148,18 +177,20 @@ export class LLMGatewayClient {
     const request = this.buildRequest(requestId, params);
     const timeout = options.timeout ?? DEFAULT_STREAM_TIMEOUT;
 
-    let controller: AbortController | null = null;
-    if (!options.signal) {
-      controller = new AbortController();
-      options.signal = controller.signal;
-    }
+    const controller = new AbortController();
+    const signal = options.signal
+      ? AbortSignal.any([options.signal, controller.signal])
+      : controller.signal;
 
-    const streamIterator = this.createStreamIterator(requestId, request, options.signal);
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+    const streamIterator = this.createStreamIterator(requestId, request, signal, timeoutId);
 
     return {
       [Symbol.asyncIterator]: () => streamIterator,
       abort: () => {
-        controller?.abort();
+        clearTimeout(timeoutId);
+        controller.abort();
       },
     };
   }
@@ -171,19 +202,17 @@ export class LLMGatewayClient {
    * @throws LLMGatewayError on failure
    */
   async healthCheck(): Promise<HealthCheckResult> {
+    await this.connect();
+
     try {
-      const response = await this.fetch<{ health?: string; version?: string; availableProviders?: string[]; unavailableProviders?: string[]; timestamp?: string }>(
-        ENDPOINTS.HEALTH,
-        { method: 'GET' },
-        this.config.timeout
-      );
+      const response = await this.callHealthCheck(this.config.timeout);
 
       return {
-        health: response.health ?? 'UNKNOWN',
+        health: String(response.health ?? 'UNKNOWN'),
         version: response.version,
         availableProviders: response.availableProviders ?? [],
         unavailableProviders: response.unavailableProviders ?? [],
-        timestamp: response.timestamp ? new Date(response.timestamp) : new Date(),
+        timestamp: response.timestamp ?? new Date(),
       };
     } catch (err) {
       throw this.handleError(err);
@@ -197,20 +226,18 @@ export class LLMGatewayClient {
    * @throws LLMGatewayError on failure
    */
   async getStatus(): Promise<GatewayStatus> {
+    await this.connect();
+
     try {
-      const response = await this.fetch<any>(
-        ENDPOINTS.STATUS,
-        { method: 'GET' },
-        this.config.timeout
-      );
+      const response = await this.callGetStatus(this.config.timeout);
 
       return {
-        status: response.status ?? 'UNKNOWN',
-        startedAt: response.startedAt ? new Date(response.startedAt) : undefined,
+        status: String(response.status ?? 'UNKNOWN'),
+        startedAt: response.startedAt,
         uptime: response.uptime,
         activeRequests: response.activeRequests,
-        totalRequests: response.totalRequests ? BigInt(response.totalRequests) : undefined,
-        totalTokensUsed: response.totalTokensUsed ? BigInt(response.totalTokensUsed) : undefined,
+        totalRequests: response.totalRequests !== undefined ? BigInt(response.totalRequests) : undefined,
+        totalTokensUsed: response.totalTokensUsed !== undefined ? BigInt(response.totalTokensUsed) : undefined,
         providers: response.providers as Record<string, ProviderStatus> | undefined,
       };
     } catch (err) {
@@ -226,20 +253,17 @@ export class LLMGatewayClient {
    * @throws LLMGatewayError on failure
    */
   async listModels(provider?: string): Promise<ModelInfo[]> {
-    try {
-      const url = provider ? `${ENDPOINTS.MODELS}?provider=${encodeURIComponent(provider)}` : ENDPOINTS.MODELS;
-      const response = await this.fetch<{ models?: any[] }>(
-        url,
-        { method: 'GET' },
-        this.config.timeout
-      );
+    await this.connect();
 
-      return (response.models ?? []).map((m: any) => ({
+    try {
+      const response = await this.callListModels(provider, this.config.timeout);
+
+      return (response.models ?? []).map((m) => ({
         id: m.id ?? '',
         name: m.name ?? m.id ?? '',
         provider: m.provider ?? '',
-        capabilities: m.capabilities as ModelCapabilities ?? { streaming: true },
-        metadata: m.metadata as Record<string, string> | undefined,
+        capabilities: m.capabilities ?? { streaming: true },
+        metadata: m.metadata,
       }));
     } catch (err) {
       throw this.handleError(err);
@@ -254,27 +278,22 @@ export class LLMGatewayClient {
    * @throws LLMGatewayError on failure
    */
   async getCapabilities(provider?: string): Promise<{ name: string; available: boolean; models?: ModelInfo[]; metadata?: Record<string, string> }[]> {
-    try {
-      const url = provider
-        ? `${ENDPOINTS.CAPABILITIES}?provider=${encodeURIComponent(provider)}`
-        : ENDPOINTS.CAPABILITIES;
-      const response = await this.fetch<{ providers?: any[] }>(
-        url,
-        { method: 'GET' },
-        this.config.timeout
-      );
+    await this.connect();
 
-      return (response.providers ?? []).map((p: any) => ({
+    try {
+      const response = await this.callGetCapabilities(provider, this.config.timeout);
+
+      return (response.providers ?? []).map((p) => ({
         name: p.name ?? '',
         available: p.available ?? false,
-        models: p.models?.map((m: any) => ({
+        models: p.models?.map((m) => ({
           id: m.id ?? '',
           name: m.name ?? m.id ?? '',
           provider: p.name ?? '',
-          capabilities: m.capabilities as ModelCapabilities ?? {},
-          metadata: m.metadata as Record<string, string> | undefined,
+          capabilities: m.capabilities ?? {},
+          metadata: m.metadata,
         })),
-        metadata: p.metadata as Record<string, string> | undefined,
+        metadata: p.metadata,
       }));
     } catch (err) {
       throw this.handleError(err);
@@ -291,77 +310,96 @@ export class LLMGatewayClient {
   private async *createStreamIterator(
     requestId: string,
     request: LLMRequest,
-    signal: AbortSignal
+    signal: AbortSignal,
+    timeoutId: ReturnType<typeof setTimeout>
   ): AsyncIterator<StreamingChunk> {
     const body: StreamLLMRequest = { payload: { request } };
 
     try {
-      const response = await fetch(`${this.config.baseURL}${ENDPOINTS.STREAM}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-        signal,
-      });
+      await this.connect();
+      const grpcStream = this.callStreamLLM();
 
-      if (!response.ok) {
-        throw this.createError(
-          `HTTP ${response.status}: ${response.statusText}`,
-          this.mapHttpStatusToErrorCode(response.status)
-        );
-      }
+      const queue: StreamingChunk[] = [];
+      let finished = false;
+      let streamError: unknown;
+      let notify: (() => void) | null = null;
 
-      if (!response.body) {
-        throw this.createError('No response body', 'NETWORK_ERROR');
-      }
+      const wake = () => {
+        if (notify) {
+          notify();
+          notify = null;
+        }
+      };
 
-      // Parse SSE stream
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
+      const onData = (response: StreamLLMResponse) => {
+        const chunk = this.parseStreamChunk(requestId, response);
+        if (!chunk) {
+          return;
+        }
+
+        queue.push(chunk);
+        if (chunk.type === 'complete') {
+          finished = true;
+        }
+        wake();
+      };
+
+      const onError = (err: unknown) => {
+        streamError = err;
+        finished = true;
+        wake();
+      };
+
+      const onEnd = () => {
+        finished = true;
+        wake();
+      };
+
+      const onAbort = () => {
+        grpcStream.cancel();
+        finished = true;
+        wake();
+      };
+
+      grpcStream.on('data', onData);
+      grpcStream.on('error', onError);
+      grpcStream.on('end', onEnd);
+
+      signal.addEventListener('abort', onAbort, { once: true });
+      grpcStream.write(body);
 
       try {
-        while (true) {
-          // Check for abort
+        while (!finished || queue.length > 0) {
           if (signal.aborted) {
-            reader.cancel();
             return;
           }
 
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() ?? '';
-
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6).trim();
-              if (data === '[DONE]') {
-                return;
-              }
-
-              try {
-                const json = JSON.parse(data) as StreamLLMResponse;
-                const chunk = this.parseStreamChunk(requestId, json);
-                if (chunk) {
-                  yield chunk;
-                }
-
-                // End of stream
-                if (chunk?.type === 'complete') {
-                  return;
-                }
-              } catch {
-                // Ignore invalid JSON
-              }
+          if (queue.length > 0) {
+            const next = queue.shift();
+            if (next) {
+              yield next;
             }
+            continue;
           }
+
+          await new Promise<void>((resolve) => {
+            notify = resolve;
+          });
+        }
+
+        if (streamError && !signal.aborted) {
+          throw streamError;
         }
       } finally {
-        reader.releaseLock();
+        clearTimeout(timeoutId);
+        signal.removeEventListener('abort', onAbort);
+        grpcStream.off('data', onData);
+        grpcStream.off('error', onError);
+        grpcStream.off('end', onEnd);
+        grpcStream.end();
       }
     } catch (err) {
+      clearTimeout(timeoutId);
       if (signal.aborted) {
         return;
       }
@@ -464,46 +502,245 @@ export class LLMGatewayClient {
   }
 
   /**
-   * Performs an HTTP fetch with timeout
+   * Connects to the LLM service
    */
-  private async fetch<T>(
-    endpoint: string,
-    init: RequestInit & { signal?: AbortSignal },
-    timeout: number
-  ): Promise<T> {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
+  private async connect(): Promise<void> {
+    if (this.connected) {
+      return;
+    }
 
-    // Chain the abort signals
-    const signal = init.signal
-      ? AbortSignal.any([init.signal, controller.signal])
-      : controller.signal;
+    if (this.connectPromise) {
+      await this.connectPromise;
+      return;
+    }
+
+    this.connectPromise = new Promise<void>((resolve, reject) => {
+      try {
+        const protoPath = this.resolveProtoPath();
+        const protoIncludeDir = path.dirname(protoPath);
+
+        const packageDefinition = loadSync(
+          protoPath,
+          {
+            keepCase: false,
+            longs: String,
+            enums: String,
+            defaults: false,
+            oneofs: true,
+            includeDirs: [protoIncludeDir],
+          }
+        );
+
+        const protoDescriptor = loadPackageDefinition(packageDefinition) as {
+          llm?: {
+            v1?: {
+              LLMService?: new (
+                address: string,
+                creds: ChannelCredentials,
+                options: Record<string, unknown>
+              ) => LLMServiceClient;
+            };
+          };
+        };
+
+        const llmService = protoDescriptor.llm?.v1?.LLMService;
+        if (!llmService) {
+          throw new Error('LLMService not found in loaded proto descriptor');
+        }
+
+        const address = this.resolveAddress(this.config.baseURL);
+        this.client = new llmService(
+          address,
+          this.credentials,
+          {
+            'grpc.max_receive_message_length': -1,
+            'grpc.max_send_message_length': -1,
+          }
+        );
+
+        const deadline = this.getDeadline(this.config.timeout);
+        this.client.waitForReady(deadline, (err) => {
+          if (err) {
+            this.client = null;
+            this.connected = false;
+            reject(new Error(`Failed to connect to LLM service: ${err.message}`));
+            return;
+          }
+
+          this.connected = true;
+          resolve();
+        });
+      } catch (err) {
+        const error = err as Error;
+        reject(new Error(`Failed to create LLM gRPC client: ${error.message}`));
+      }
+    });
 
     try {
-      const response = await fetch(`${this.config.baseURL}${endpoint}`, {
-        ...init,
-        signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        throw this.createError(
-          `HTTP ${response.status}: ${response.statusText}`,
-          this.mapHttpStatusToErrorCode(response.status)
-        );
-      }
-
-      const contentType = response.headers.get('content-type');
-      if (contentType?.includes('application/json')) {
-        return await response.json() as T;
-      }
-
-      return {} as T;
-    } catch (err) {
-      clearTimeout(timeoutId);
-      throw err;
+      await this.connectPromise;
+    } finally {
+      this.connectPromise = null;
     }
+  }
+
+  private callComplete(
+    request: CompleteLLMRequest,
+    timeout: number,
+    signal?: AbortSignal
+  ): Promise<CompleteLLMResponse> {
+    return new Promise((resolve, reject) => {
+      const client = this.requireClient();
+      const method = client.completeLLM;
+      if (!method) {
+        reject(new Error('completeLLM method unavailable on LLM gRPC client'));
+        return;
+      }
+
+      if (signal?.aborted) {
+        reject(this.createError('Request aborted', LLMGatewayErrorCode.TIMEOUT, true));
+        return;
+      }
+
+      const onAbort = () => {
+        reject(this.createError('Request aborted', LLMGatewayErrorCode.TIMEOUT, true));
+      };
+      signal?.addEventListener('abort', onAbort, { once: true });
+
+      method.call(client, request, { deadline: this.getDeadline(timeout) }, (err, response) => {
+        signal?.removeEventListener('abort', onAbort);
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve(response);
+      });
+    });
+  }
+
+  private callStreamLLM(): ClientDuplexStream<StreamLLMRequest, StreamLLMResponse> {
+    const client = this.requireClient();
+    const method = client.streamLLM;
+    if (!method) {
+      throw new Error('streamLLM method unavailable on LLM gRPC client');
+    }
+    return method.call(client);
+  }
+
+  private callHealthCheck(timeout: number): Promise<{ health?: string | number; version?: string; availableProviders?: string[]; unavailableProviders?: string[]; timestamp?: Date }> {
+    return new Promise((resolve, reject) => {
+      const client = this.requireClient();
+      const method = client.healthCheck;
+      if (!method) {
+        reject(new Error('healthCheck method unavailable on LLM gRPC client'));
+        return;
+      }
+
+      method.call(client, {}, { deadline: this.getDeadline(timeout) }, (err, response) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve(response);
+      });
+    });
+  }
+
+  private callGetStatus(timeout: number): Promise<{ status?: string | number; startedAt?: Date; uptime?: { seconds: string | bigint; nanos: number }; activeRequests?: number; totalRequests?: string | bigint; totalTokensUsed?: string | bigint; providers?: Record<string, ProviderStatus> }> {
+    return new Promise((resolve, reject) => {
+      const client = this.requireClient();
+      const method = client.getStatus;
+      if (!method) {
+        reject(new Error('getStatus method unavailable on LLM gRPC client'));
+        return;
+      }
+
+      method.call(client, {}, { deadline: this.getDeadline(timeout) }, (err, response) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve(response);
+      });
+    });
+  }
+
+  private callListModels(provider: string | undefined, timeout: number): Promise<{ models?: Array<{ id?: string; name?: string; provider?: string; capabilities?: ModelCapabilities; metadata?: Record<string, string> }> }> {
+    return new Promise((resolve, reject) => {
+      const client = this.requireClient();
+      const method = client.listModels;
+      if (!method) {
+        reject(new Error('listModels method unavailable on LLM gRPC client'));
+        return;
+      }
+
+      method.call(client, { provider }, { deadline: this.getDeadline(timeout) }, (err, response) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve(response);
+      });
+    });
+  }
+
+  private callGetCapabilities(provider: string | undefined, timeout: number): Promise<{ providers?: Array<{ name?: string; available?: boolean; models?: Array<{ id?: string; name?: string; provider?: string; capabilities?: ModelCapabilities; metadata?: Record<string, string> }>; metadata?: Record<string, string> }> }> {
+    return new Promise((resolve, reject) => {
+      const client = this.requireClient();
+      const method = client.getCapabilities;
+      if (!method) {
+        reject(new Error('getCapabilities method unavailable on LLM gRPC client'));
+        return;
+      }
+
+      method.call(client, { provider }, { deadline: this.getDeadline(timeout) }, (err, response) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve(response);
+      });
+    });
+  }
+
+  private requireClient(): LLMServiceClient {
+    if (!this.client || !this.connected) {
+      throw new Error('LLM gRPC client is not connected');
+    }
+    return this.client;
+  }
+
+  private resolveAddress(address: string): string {
+    if (address.startsWith('unix://')) {
+      return address;
+    }
+    if (address.startsWith('/')) {
+      return `unix://${address}`;
+    }
+    return address;
+  }
+
+  private getDeadline(timeout: number): Date {
+    const deadline = new Date();
+    deadline.setMilliseconds(deadline.getMilliseconds() + timeout);
+    return deadline;
+  }
+
+  private resolveProtoPath(): string {
+    const candidates = [
+      fileURLToPath(new URL('../../../../proto/llm.proto', import.meta.url)),
+      fileURLToPath(new URL('../../../proto/llm.proto', import.meta.url)),
+      path.resolve(process.cwd(), '../../proto/llm.proto'),
+      path.resolve(process.cwd(), '../proto/llm.proto'),
+      path.resolve(process.cwd(), 'proto/llm.proto'),
+    ];
+
+    for (const candidate of candidates) {
+      if (fs.existsSync(candidate)) {
+        return candidate;
+      }
+    }
+
+    throw new Error(`llm.proto not found. Checked: ${candidates.join(', ')}`);
   }
 
   /**
@@ -514,21 +751,19 @@ export class LLMGatewayClient {
   }
 
   /**
-   * Maps HTTP status code to error code
+   * Maps gRPC/transport errors to client error codes
    */
-  private mapHttpStatusToErrorCode(status: number): LLMGatewayErrorCode {
-    switch (status) {
-      case 400:
+  private mapGrpcCodeToErrorCode(code: number | undefined): LLMGatewayErrorCode {
+    switch (code) {
+      case 3:
         return LLMGatewayErrorCode.INVALID_REQUEST;
-      case 401:
+      case 7:
+      case 16:
         return LLMGatewayErrorCode.AUTHENTICATION_FAILED;
-      case 429:
-        return LLMGatewayErrorCode.RATE_LIMITED;
-      case 413:
-        return LLMGatewayErrorCode.CONTEXT_TOO_LONG;
-      case 502:
-      case 503:
-      case 504:
+      case 8:
+      case 4:
+        return LLMGatewayErrorCode.TIMEOUT;
+      case 14:
         return LLMGatewayErrorCode.PROVIDER_NOT_AVAILABLE;
       default:
         return LLMGatewayErrorCode.UPSTREAM_ERROR;
@@ -552,6 +787,22 @@ export class LLMGatewayClient {
   private handleError(err: unknown): LLMGatewayError {
     if (this.isLLMGatewayError(err)) {
       return err;
+    }
+
+    if (typeof err === 'object' && err !== null && 'code' in err) {
+      const code = typeof (err as { code?: unknown }).code === 'number'
+        ? (err as { code: number }).code
+        : undefined;
+
+      const message = 'message' in err && typeof (err as { message?: unknown }).message === 'string'
+        ? (err as { message: string }).message
+        : 'gRPC request failed';
+
+      const error = new Error(message) as LLMGatewayError;
+      error.code = this.mapGrpcCodeToErrorCode(code);
+      error.name = 'LLMGatewayError';
+      error.retryable = code === 4 || code === 8 || code === 14;
+      return error;
     }
 
     if (err instanceof Error) {
