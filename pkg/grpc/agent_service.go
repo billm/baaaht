@@ -287,27 +287,34 @@ func (s *AgentService) ActivateSkillsForAgent(ctx context.Context, agentID strin
 	// Activate skills for the agent type
 	// The scope is typically "user" for individual agents
 	skillsScope := types.SkillScopeUser
-	err := s.skillsLoader.ActivateByOwner(ctx, skillsScope, agentID)
+	count, err := s.skillsLoader.ActivateByOwner(ctx, skillsScope, agentID)
 	if err != nil {
 		s.logger.Error("Failed to activate skills for agent", "agent_id", agentID, "error", err)
 		return err
 	}
 
 	// Get active skills for the agent
-	activeSkills := s.skillsLoader.GetActiveSkills(skillsScope, agentID)
-	s.logger.Info("Skills activated for agent", "agent_id", agentID, "skill_count", len(activeSkills))
+	activeSkills, err := s.skillsLoader.GetActiveSkills(ctx, skillsScope, agentID)
+	if err != nil {
+		s.logger.Error("Failed to get active skills for agent", "agent_id", agentID, "error", err)
+		return err
+	}
+	s.logger.Info("Skills activated for agent", "agent_id", agentID, "agent_type", agentType, "activated_count", count, "skill_count", len(activeSkills))
 
 	return nil
 }
 
 // GetActiveSkillsForAgent returns the active skills for a specific agent
-func (s *AgentService) GetActiveSkillsForAgent(agentID string) ([]types.Skill, error) {
+func (s *AgentService) GetActiveSkillsForAgent(ctx context.Context, agentID string) ([]*types.Skill, error) {
 	if s.skillsLoader == nil {
-		return []types.Skill{}, nil
+		return []*types.Skill{}, nil
 	}
 
 	scope := types.SkillScopeUser
-	activeSkills := s.skillsLoader.GetActiveSkills(scope, agentID)
+	activeSkills, err := s.skillsLoader.GetActiveSkills(ctx, scope, agentID)
+	if err != nil {
+		return nil, err
+	}
 	return activeSkills, nil
 }
 
