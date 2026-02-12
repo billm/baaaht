@@ -3,6 +3,7 @@ package grpc
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -37,7 +38,12 @@ type OrchestratorService struct {
 	streams map[interface{}]context.CancelFunc
 
 	// Track StreamMessages streams by session ID for message routing
-	sessionStreams map[types.ID]proto.OrchestratorService_StreamMessagesServer
+	sessionStreams map[types.ID]*sessionStreamState
+}
+
+type sessionStreamState struct {
+	stream proto.OrchestratorService_StreamMessagesServer
+	mu     sync.Mutex
 }
 
 // NewOrchestratorService creates a new orchestrator service
@@ -55,7 +61,41 @@ func NewOrchestratorService(deps ServiceDependencies, log *logger.Logger) *Orche
 		deps:           deps,
 		logger:         log.With("component", "orchestrator_service"),
 		streams:        make(map[interface{}]context.CancelFunc),
-		sessionStreams: make(map[types.ID]proto.OrchestratorService_StreamMessagesServer),
+		sessionStreams: make(map[types.ID]*sessionStreamState),
+	}
+}
+
+func (s *OrchestratorService) sendToSessionStream(sessionID types.ID, resp *proto.StreamMessageResponse) error {
+	s.mu.RLock()
+	streamState, exists := s.sessionStreams[sessionID]
+	s.mu.RUnlock()
+
+	if !exists || streamState == nil || streamState.stream == nil {
+		return types.NewError(types.ErrCodeNotFound, "no active stream for session")
+	}
+
+	streamState.mu.Lock()
+	defer streamState.mu.Unlock()
+
+	if err := streamState.stream.Send(resp); err != nil {
+		return types.WrapError(types.ErrCodeInternal, "failed to send response", err)
+	}
+
+	return nil
+}
+
+func streamErrorResponse(message string) *proto.StreamMessageResponse {
+	ts := types.NewTimestamp()
+	return &proto.StreamMessageResponse{
+		Payload: &proto.StreamMessageResponse_Event{
+			Event: &proto.Event{
+				Id:        string(types.GenerateID()),
+				Type:      proto.EventType_EVENT_TYPE_CONTAINER_ERROR,
+				Source:    "orchestrator",
+				Timestamp: timestampToProto(&ts),
+				Data:      map[string]string{"error": message},
+			},
+		},
 	}
 }
 
@@ -411,7 +451,7 @@ func (s *OrchestratorService) StreamMessages(stream proto.OrchestratorService_St
 
 			// Register this stream for the session
 			s.mu.Lock()
-			s.sessionStreams[sessionID] = stream
+			s.sessionStreams[sessionID] = &sessionStreamState{stream: stream}
 			s.mu.Unlock()
 
 			defer func() {
@@ -438,20 +478,7 @@ func (s *OrchestratorService) StreamMessages(stream proto.OrchestratorService_St
 			// Add message to session
 			if err := mgr.AddMessage(streamCtx, sessionID, message); err != nil {
 				s.logger.Error("Failed to add message in stream", "session_id", sessionID, "error", err)
-				// Send error response
-				ts := types.NewTimestamp()
-				resp := &proto.StreamMessageResponse{
-					Payload: &proto.StreamMessageResponse_Event{
-						Event: &proto.Event{
-							Id:        string(types.GenerateID()),
-							Type:      proto.EventType_EVENT_TYPE_CONTAINER_ERROR,
-							Source:    "orchestrator",
-							Timestamp: timestampToProto(&ts),
-							Data:      map[string]string{"error": err.Error()},
-						},
-					},
-				}
-				_ = stream.Send(resp)
+				_ = s.sendToSessionStream(sessionID, streamErrorResponse(err.Error()))
 				continue
 			}
 
@@ -460,20 +487,7 @@ func (s *OrchestratorService) StreamMessages(stream proto.OrchestratorService_St
 				s.logger.Debug("Routing user message to assistant", "session_id", sessionID, "message_id", message.ID)
 				if err := s.routeToAssistant(streamCtx, sessionID, message); err != nil {
 					s.logger.Error("Failed to route message to assistant", "session_id", sessionID, "error", err)
-					// Send error response
-					ts := types.NewTimestamp()
-					resp := &proto.StreamMessageResponse{
-						Payload: &proto.StreamMessageResponse_Event{
-							Event: &proto.Event{
-								Id:        string(types.GenerateID()),
-								Type:      proto.EventType_EVENT_TYPE_CONTAINER_ERROR,
-								Source:    "orchestrator",
-								Timestamp: timestampToProto(&ts),
-								Data:      map[string]string{"error": err.Error()},
-							},
-						},
-					}
-					_ = stream.Send(resp)
+					_ = s.sendToSessionStream(sessionID, streamErrorResponse(err.Error()))
 				}
 			}
 		}
@@ -494,8 +508,24 @@ func (s *OrchestratorService) routeToAssistant(ctx context.Context, sessionID ty
 
 	var assistantID string
 	for _, agent := range agents {
-		// Look for an agent with name "assistant" or type "assistant"
-		if agent.Name == "assistant" || agent.Type == "assistant" {
+		if !agentSvc.HasAgentStream(agent.ID) {
+			continue
+		}
+
+		isAssistantName := strings.EqualFold(agent.Name, "assistant")
+		isAssistantRole := false
+		if labelsAny, ok := agent.Metadata["labels"]; ok {
+			switch labels := labelsAny.(type) {
+			case map[string]string:
+				isAssistantRole = strings.EqualFold(labels["role"], "assistant")
+			case map[string]interface{}:
+				if role, ok := labels["role"].(string); ok {
+					isAssistantRole = strings.EqualFold(role, "assistant")
+				}
+			}
+		}
+
+		if isAssistantName || isAssistantRole {
 			assistantID = agent.ID
 			break
 		}
@@ -518,25 +548,15 @@ func (s *OrchestratorService) routeToAssistant(ctx context.Context, sessionID ty
 
 // SendResponseToSession sends an assistant response back to the TUI stream for a session
 func (s *OrchestratorService) SendResponseToSession(sessionID types.ID, message types.Message) error {
-	s.mu.RLock()
-	stream, exists := s.sessionStreams[sessionID]
-	s.mu.RUnlock()
-
-	if !exists {
-		s.logger.Warn("No active stream for session", "session_id", sessionID)
-		return types.NewError(types.ErrCodeNotFound, "no active stream for session")
-	}
-
-	// Send assistant response to TUI
 	resp := &proto.StreamMessageResponse{
 		Payload: &proto.StreamMessageResponse_Message{
 			Message: messageToProto(message),
 		},
 	}
 
-	if err := stream.Send(resp); err != nil {
+	if err := s.sendToSessionStream(sessionID, resp); err != nil {
 		s.logger.Error("Failed to send response to TUI", "session_id", sessionID, "error", err)
-		return types.WrapError(types.ErrCodeInternal, "failed to send response", err)
+		return err
 	}
 
 	s.logger.Debug("Sent assistant response to TUI", "session_id", sessionID, "message_id", message.ID)
@@ -703,8 +723,8 @@ func (s *OrchestratorService) HealthCheck(ctx context.Context, req *emptypb.Empt
 	}
 
 	return &proto.HealthCheckResponse{
-		Health:    health,
-		Version:   version,
+		Health:     health,
+		Version:    version,
 		Subsystems: subsystems,
 	}, nil
 }

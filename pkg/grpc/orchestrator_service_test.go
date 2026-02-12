@@ -24,6 +24,7 @@ type mockServer struct {
 	sessionMgr *session.Manager
 	eventBus   *events.Bus
 	ipcBroker  *ipc.Broker
+	agentSvc   *AgentService
 }
 
 func (m *mockServer) SessionManager() *session.Manager {
@@ -36,6 +37,10 @@ func (m *mockServer) EventBus() *events.Bus {
 
 func (m *mockServer) IPCBroker() *ipc.Broker {
 	return m.ipcBroker // Can be nil for tests
+}
+
+func (m *mockServer) AgentService() *AgentService {
+	return m.agentSvc
 }
 
 // setupTestServer creates a test server with initialized dependencies

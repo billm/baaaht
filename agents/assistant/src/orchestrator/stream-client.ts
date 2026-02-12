@@ -77,7 +77,7 @@ export enum StreamEventType {
   /** Task completed */
   COMPLETE = 'complete',
   /** Task error received */
-  TASK_ERROR = 'error',
+  TASK_ERROR = 'task_error',
   /** Heartbeat ack received */
   HEARTBEAT = 'heartbeat',
 }
@@ -146,7 +146,8 @@ export class StreamAgentClient extends EventEmitter {
 
     try {
       // Create the stream using the gRPC client
-      this.stream = this.client.streamTask({});
+      const grpcClient = this.client as any;
+      this.stream = grpcClient.streamAgent();
 
       // Set up event handlers for the stream
       this.stream.on('data', (response: StreamAgentResponse) => {
@@ -396,7 +397,8 @@ export class StreamTaskClient extends EventEmitter {
 
     try {
       // Create the stream using the gRPC client
-      this.stream = this.client.streamAgent({});
+      const grpcClient = this.client as any;
+      this.stream = grpcClient.streamTask();
 
       // Set up event handlers for the stream
       this.stream.on('data', (response: StreamTaskResponse) => {

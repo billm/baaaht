@@ -11,6 +11,7 @@ import (
 
 	"github.com/billm/baaaht/orchestrator/internal/logger"
 	"github.com/billm/baaaht/orchestrator/pkg/events"
+	"github.com/billm/baaaht/orchestrator/pkg/session"
 	"github.com/billm/baaaht/orchestrator/proto"
 )
 
@@ -19,6 +20,10 @@ type mockAgentServiceDeps struct{}
 
 func (m *mockAgentServiceDeps) EventBus() *events.Bus {
 	return nil // Event bus is optional for tests
+}
+
+func (m *mockAgentServiceDeps) SessionManager() *session.Manager {
+	return nil
 }
 
 // Test helper to create a test service
@@ -214,10 +219,10 @@ func TestAgentService_ExecuteTask(t *testing.T) {
 			Type:      proto.TaskType_TASK_TYPE_CODE_EXECUTION,
 			Priority:  proto.TaskPriority_TASK_PRIORITY_NORMAL,
 			Config: &proto.TaskConfig{
-				Command:         "echo hello",
-				Arguments:       []string{"world"},
+				Command:          "echo hello",
+				Arguments:        []string{"world"},
 				WorkingDirectory: "/tmp",
-				TimeoutNs:       30000000000, // 30 seconds
+				TimeoutNs:        30000000000, // 30 seconds
 			},
 		}
 
@@ -510,7 +515,7 @@ func TestAgentService_SendMessage(t *testing.T) {
 		req := &proto.AgentSendMessageRequest{
 			AgentId: regResp.AgentId,
 			Message: &proto.AgentMessage{
-				Type:   proto.MessageType_MESSAGE_TYPE_DATA,
+				Type:     proto.MessageType_MESSAGE_TYPE_DATA,
 				SourceId: "orchestrator",
 				TargetId: regResp.AgentId,
 				Payload: &proto.AgentMessage_DataMessage{

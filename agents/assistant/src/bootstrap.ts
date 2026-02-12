@@ -200,6 +200,11 @@ function createDefaultBootstrapConfig(): Required<
     registrationInfo: {
       name: 'assistant',
       type: AgentType.AGENT_TYPE_WORKER,
+      metadata: {
+        labels: {
+          role: 'assistant',
+        },
+      },
     },
     version: process.env.npm_package_version ?? DEFAULT_VERSION,
     shutdownTimeout: DEFAULT_SHUTDOWN_TIMEOUT,
