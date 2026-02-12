@@ -10,6 +10,8 @@ package common.v1;
 
 option go_package = "github.com/billm/baaaht/orchestrator/proto";
 
+import "google/protobuf/timestamp.proto";
+
 // =============================================================================
 // Common Types
 // =============================================================================
@@ -97,4 +99,131 @@ message TokenUsage {
   int32 input_tokens = 1;      // Tokens sent in the request
   int32 output_tokens = 2;     // Tokens received in the response
   int32 total_tokens = 3;      // Sum of input and output tokens
+}
+
+// =============================================================================
+// Tool Types
+// =============================================================================
+
+// ToolType represents the category of tool
+enum ToolType {
+  TOOL_TYPE_UNSPECIFIED = 0;
+  TOOL_TYPE_FILE = 1;       // File operations (read, write, edit, list, grep, find)
+  TOOL_TYPE_SHELL = 2;      // Shell command execution
+  TOOL_TYPE_WEB = 3;        // Web operations (search, fetch)
+  TOOL_TYPE_MESSAGE = 4;    // Messaging operations
+  TOOL_TYPE_CUSTOM = 5;     // Custom user-defined tools
+}
+
+// ToolState represents the lifecycle state of a tool
+enum ToolState {
+  TOOL_STATE_UNSPECIFIED = 0;
+  TOOL_STATE_REGISTERED = 1;
+  TOOL_STATE_AVAILABLE = 2;
+  TOOL_STATE_BUSY = 3;
+  TOOL_STATE_DISABLED = 4;
+  TOOL_STATE_ERROR = 5;
+}
+
+// ToolExecutionStatus represents the status of a tool execution
+enum ToolExecutionStatus {
+  TOOL_EXECUTION_STATUS_UNSPECIFIED = 0;
+  TOOL_EXECUTION_STATUS_PENDING = 1;
+  TOOL_EXECUTION_STATUS_RUNNING = 2;
+  TOOL_EXECUTION_STATUS_COMPLETED = 3;
+  TOOL_EXECUTION_STATUS_FAILED = 4;
+  TOOL_EXECUTION_STATUS_TIMEOUT = 5;
+  TOOL_EXECUTION_STATUS_CANCELLED = 6;
+}
+
+// ToolDefinition defines a tool's interface and configuration
+message ToolDefinition {
+  string name = 1;
+  string display_name = 2;           // Human-readable name
+  ToolType type = 3;
+  string description = 4;            // Description of what the tool does
+  repeated ToolParameter parameters = 5;  // Parameters the tool accepts
+  ToolSecurityPolicy security_policy = 6;  // Security constraints
+  ResourceLimits resource_limits = 7;      // Resource constraints
+  int64 timeout_ns = 8;              // Default timeout in nanoseconds
+  string container_image = 9;        // Container image for execution
+  repeated string command = 10;      // Command to run in container
+  map<string, string> metadata = 11; // Additional metadata
+  string version = 12;               // Tool version
+  bool enabled = 13;                 // Whether tool is enabled
+}
+
+// ToolParameter defines a parameter for a tool
+message ToolParameter {
+  string name = 1;
+  string description = 2;
+  ParameterType type = 3;
+  bool required = 4;
+  string default_value = 5;          // Optional default value
+  repeated string allowed_values = 6; // Optional enum of allowed values
+  map<string, string> constraints = 7; // Additional constraints (min, max, pattern, etc.)
+}
+
+// ParameterType represents the type of a tool parameter
+enum ParameterType {
+  PARAMETER_TYPE_UNSPECIFIED = 0;
+  PARAMETER_TYPE_STRING = 1;
+  PARAMETER_TYPE_INTEGER = 2;
+  PARAMETER_TYPE_FLOAT = 3;
+  PARAMETER_TYPE_BOOLEAN = 4;
+  PARAMETER_TYPE_ARRAY = 5;
+  PARAMETER_TYPE_OBJECT = 6;
+  PARAMETER_TYPE_FILE_PATH = 7;      // Special type for file paths
+  PARAMETER_TYPE_DIRECTORY_PATH = 8; // Special type for directory paths
+}
+
+// ToolSecurityPolicy defines security constraints for tool execution
+message ToolSecurityPolicy {
+  bool allow_network = 1;            // Whether network access is allowed
+  repeated string allowed_hosts = 2; // Allowlist for network access
+  repeated string blocked_hosts = 3; // Blocklist for network access
+  bool allow_filesystem = 4;         // Whether filesystem access is allowed
+  repeated string allowed_paths = 5; // Allowlist for filesystem access (scoped mounts)
+  bool read_only_filesystem = 6;     // Whether filesystem access is read-only
+  bool allow_ipc = 7;                // Whether IPC communication is allowed
+  int32 max_concurrent = 8;          // Maximum concurrent executions
+  repeated string allowed_users = 9; // Users allowed to execute tool
+  repeated string blocked_commands = 10; // Blocked shell commands
+}
+
+// ToolExecutionRequest represents a request to execute a tool
+message ToolExecutionRequest {
+  string tool_name = 1;
+  string session_id = 2;
+  string execution_id = 3;           // Unique ID for this execution
+  map<string, string> parameters = 4; // Tool parameters
+  int64 timeout_ns = 5;              // Optional override timeout
+  string correlation_id = 6;         // For tracking
+  google.protobuf.Timestamp created_at = 7;
+}
+
+// ToolExecutionResult represents the result of a tool execution
+message ToolExecutionResult {
+  string execution_id = 1;
+  string tool_name = 2;
+  ToolExecutionStatus status = 3;
+  int32 exit_code = 4;               // Exit code from container
+  bytes output_data = 5;             // Raw output data
+  string output_text = 6;            // Text output (if applicable)
+  bytes error_data = 7;              // Raw error data
+  string error_text = 8;             // Error message (if failed)
+  map<string, string> metadata = 9;  // Additional result metadata
+  int64 duration_ns = 10;            // Execution duration in nanoseconds
+  google.protobuf.Timestamp completed_at = 11;
+  string container_id = 12;          // Container that executed the tool
+}
+
+// ToolConfig represents runtime configuration for tool execution
+message ToolConfig {
+  repeated ToolDefinition tools = 1; // Available tools
+  string default_registry = 2;       // Default container registry
+  map<string, string> default_env = 3; // Default environment variables
+  ResourceLimits default_resource_limits = 4; // Default resource limits
+  int64 default_timeout_ns = 5;      // Default timeout for all tools
+  bool telemetry_enabled = 6;        // Whether telemetry is enabled
 }
