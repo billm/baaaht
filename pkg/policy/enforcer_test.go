@@ -508,6 +508,83 @@ func TestEnforceContainerConfig(t *testing.T) {
 	}
 }
 
+func TestEnforceContainerConfigNetworkIsolation(t *testing.T) {
+	enforcer := createTestEnforcer(t)
+	defer enforcer.Close()
+
+	ctx := context.Background()
+	sessionID := types.GenerateID()
+
+	networkIsolatedPolicy := DefaultPolicy()
+	networkIsolatedPolicy.Mode = EnforcementModeStrict
+	networkIsolatedPolicy.Network.AllowNetwork = false
+	networkIsolatedPolicy.Network.AllowHostNetwork = false
+
+	err := enforcer.SetPolicy(ctx, networkIsolatedPolicy)
+	require.NoError(t, err)
+
+	original := types.ContainerConfig{
+		Image:       "nginx:1.21",
+		NetworkMode: "",
+		Networks:    []string{"bridge"},
+		Ports: []types.PortBinding{
+			{ContainerPort: 80, HostPort: 8080, Protocol: "tcp"},
+		},
+	}
+
+	validatedOriginal, err := enforcer.ValidateContainerConfig(ctx, sessionID, original)
+	require.NoError(t, err)
+	assert.False(t, validatedOriginal.Allowed)
+
+	rules := map[string]bool{}
+	for _, v := range validatedOriginal.Violations {
+		rules[v.Rule] = true
+	}
+	assert.True(t, rules["network.disabled"])
+	assert.True(t, rules["network.configured"])
+	assert.True(t, rules["network.ports.disabled"])
+
+	enforced, err := enforcer.EnforceContainerConfig(ctx, sessionID, original)
+	require.NoError(t, err)
+	assert.Equal(t, "none", enforced.NetworkMode)
+	assert.Empty(t, enforced.Networks)
+	assert.Empty(t, enforced.Ports)
+}
+
+func TestValidateContainerConfigHostNetworkBlocked(t *testing.T) {
+	enforcer := createTestEnforcer(t)
+	defer enforcer.Close()
+
+	ctx := context.Background()
+	sessionID := types.GenerateID()
+
+	p := DefaultPolicy()
+	p.Mode = EnforcementModeStrict
+	p.Network.AllowNetwork = true
+	p.Network.AllowHostNetwork = false
+
+	err := enforcer.SetPolicy(ctx, p)
+	require.NoError(t, err)
+
+	config := types.ContainerConfig{
+		Image:       "nginx:1.21",
+		NetworkMode: "host",
+	}
+
+	result, err := enforcer.ValidateContainerConfig(ctx, sessionID, config)
+	require.NoError(t, err)
+	assert.False(t, result.Allowed)
+
+	found := false
+	for _, v := range result.Violations {
+		if v.Rule == "network.host.disabled" {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found)
+}
+
 // TestEnforcementModePermissive tests permissive enforcement mode
 func TestEnforcementModePermissive(t *testing.T) {
 	enforcer := createTestEnforcer(t)

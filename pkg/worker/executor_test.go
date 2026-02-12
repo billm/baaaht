@@ -2,11 +2,15 @@ package worker
 
 import (
 	"context"
+	"io"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/billm/baaaht/orchestrator/internal/logger"
+	"github.com/billm/baaaht/orchestrator/pkg/container"
 	"github.com/billm/baaaht/orchestrator/pkg/policy"
+	"github.com/billm/baaaht/orchestrator/pkg/types"
 )
 
 // TestExecuteTask verifies that ExecuteTask properly creates a container,
@@ -926,4 +930,121 @@ func TestTaskCancellationWithStoppedContainer(t *testing.T) {
 	}
 
 	t.Log("Task cancellation with stopped container test passed!")
+}
+
+type mockExecutorRuntime struct {
+	lastCreate container.CreateConfig
+}
+
+func (m *mockExecutorRuntime) Create(ctx context.Context, cfg container.CreateConfig) (*container.CreateResult, error) {
+	m.lastCreate = cfg
+	return &container.CreateResult{ContainerID: "mock-container-id"}, nil
+}
+
+func (m *mockExecutorRuntime) Start(ctx context.Context, cfg container.StartConfig) error { return nil }
+func (m *mockExecutorRuntime) Stop(ctx context.Context, cfg container.StopConfig) error { return nil }
+func (m *mockExecutorRuntime) Restart(ctx context.Context, cfg container.RestartConfig) error { return nil }
+func (m *mockExecutorRuntime) Destroy(ctx context.Context, cfg container.DestroyConfig) error { return nil }
+func (m *mockExecutorRuntime) Pause(ctx context.Context, containerID string) error { return nil }
+func (m *mockExecutorRuntime) Unpause(ctx context.Context, containerID string) error { return nil }
+func (m *mockExecutorRuntime) Kill(ctx context.Context, cfg container.KillConfig) error { return nil }
+func (m *mockExecutorRuntime) Wait(ctx context.Context, containerID string) (int, error) { return 0, nil }
+func (m *mockExecutorRuntime) Status(ctx context.Context, containerID string) (types.ContainerState, error) {
+	return types.ContainerStateExited, nil
+}
+func (m *mockExecutorRuntime) IsRunning(ctx context.Context, containerID string) (bool, error) {
+	return false, nil
+}
+func (m *mockExecutorRuntime) HealthCheck(ctx context.Context, containerID string) (*container.HealthCheckResult, error) {
+	return nil, nil
+}
+func (m *mockExecutorRuntime) HealthCheckWithRetry(ctx context.Context, containerID string, maxAttempts int, interval time.Duration) (*container.HealthCheckResult, error) {
+	return nil, nil
+}
+func (m *mockExecutorRuntime) Stats(ctx context.Context, containerID string) (*types.ContainerStats, error) {
+	return nil, nil
+}
+func (m *mockExecutorRuntime) StatsStream(ctx context.Context, containerID string, interval time.Duration) (<-chan *types.ContainerStats, <-chan error) {
+	statsCh := make(chan *types.ContainerStats)
+	errCh := make(chan error)
+	close(statsCh)
+	close(errCh)
+	return statsCh, errCh
+}
+func (m *mockExecutorRuntime) Logs(ctx context.Context, cfg container.LogsConfig) (io.ReadCloser, error) {
+	return io.NopCloser(strings.NewReader("")), nil
+}
+func (m *mockExecutorRuntime) LogsLines(ctx context.Context, cfg container.LogsConfig) ([]types.ContainerLog, error) {
+	return nil, nil
+}
+func (m *mockExecutorRuntime) EventsStream(ctx context.Context, containerID string) (<-chan container.EventsMessage, <-chan error) {
+	eventsCh := make(chan container.EventsMessage)
+	errCh := make(chan error)
+	close(eventsCh)
+	close(errCh)
+	return eventsCh, errCh
+}
+func (m *mockExecutorRuntime) PullImage(ctx context.Context, image string, timeout time.Duration) error {
+	return nil
+}
+func (m *mockExecutorRuntime) ImageExists(ctx context.Context, image string) (bool, error) { return true, nil }
+func (m *mockExecutorRuntime) Client() interface{} { return nil }
+func (m *mockExecutorRuntime) Type() string { return "mock" }
+func (m *mockExecutorRuntime) Info(ctx context.Context) (*container.RuntimeInfo, error) {
+	return &container.RuntimeInfo{Type: "mock"}, nil
+}
+func (m *mockExecutorRuntime) Close() error { return nil }
+
+func TestExecuteTaskAppliesPolicyEnforcementBeforeCreate(t *testing.T) {
+	log, err := logger.NewDefault()
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
+
+	enforcer, err := policy.NewDefault(log)
+	if err != nil {
+		t.Fatalf("failed to create policy enforcer: %v", err)
+	}
+	defer enforcer.Close()
+
+	ctx := context.Background()
+	p := policy.DefaultPolicy()
+	p.Mode = policy.EnforcementModeStrict
+	p.Network.AllowNetwork = false
+	p.Network.AllowHostNetwork = false
+
+	if err := enforcer.SetPolicy(ctx, p); err != nil {
+		t.Fatalf("failed to set policy: %v", err)
+	}
+
+	mockRuntime := &mockExecutorRuntime{}
+	exec, err := NewExecutor(ExecutorConfig{
+		Runtime:        mockRuntime,
+		PolicyEnforcer: enforcer,
+		Logger:         log,
+	})
+	if err != nil {
+		t.Fatalf("failed to create executor: %v", err)
+	}
+	defer exec.Close()
+
+	result := exec.ExecuteTask(ctx, TaskConfig{
+		ToolType: ToolTypeWebSearch,
+		Args:     []string{"https://example.com"},
+		Timeout:  2 * time.Second,
+	})
+
+	if result.Error != nil {
+		t.Fatalf("ExecuteTask failed: %v", result.Error)
+	}
+
+	if mockRuntime.lastCreate.Config.NetworkMode != "none" {
+		t.Fatalf("expected enforced network mode 'none', got %q", mockRuntime.lastCreate.Config.NetworkMode)
+	}
+	if len(mockRuntime.lastCreate.Config.Networks) != 0 {
+		t.Fatalf("expected enforced networks to be empty, got %v", mockRuntime.lastCreate.Config.Networks)
+	}
+	if len(mockRuntime.lastCreate.Config.Ports) != 0 {
+		t.Fatalf("expected enforced ports to be empty, got %v", mockRuntime.lastCreate.Config.Ports)
+	}
 }

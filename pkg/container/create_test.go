@@ -1811,3 +1811,44 @@ func TestMountAllowlistE2E(t *testing.T) {
 			"audit event should contain the blocked path")
 	})
 }
+
+func TestCreateAppliesNetworkIsolationEnforcement(t *testing.T) {
+	log, err := logger.NewDefault()
+	require.NoError(t, err)
+
+	client := &Client{}
+	creator, err := NewCreator(client, log)
+	require.NoError(t, err)
+
+	enforcer, err := policy.New(config.DefaultPolicyConfig(), log)
+	require.NoError(t, err)
+
+	strictNoNetworkPolicy := policy.DefaultPolicy()
+	strictNoNetworkPolicy.Mode = policy.EnforcementModeStrict
+	strictNoNetworkPolicy.Network.AllowNetwork = false
+	strictNoNetworkPolicy.Network.AllowHostNetwork = false
+
+	err = enforcer.SetPolicy(context.Background(), strictNoNetworkPolicy)
+	require.NoError(t, err)
+
+	creator.SetEnforcer(enforcer)
+
+	_, err = creator.Create(context.Background(), CreateConfig{
+		Config: types.ContainerConfig{
+			Image:       "alpine:3.18",
+			NetworkMode: "",
+			Networks:    []string{"bridge"},
+			Ports: []types.PortBinding{
+				{ContainerPort: 80, HostPort: 8080, Protocol: "tcp"},
+			},
+		},
+		Name:      "test-network-enforcement",
+		SessionID: types.NewID("test-session-network-enforcement"),
+	})
+
+	require.Error(t, err)
+	var customErr *types.Error
+	require.ErrorAs(t, err, &customErr)
+	assert.NotEqual(t, types.ErrCodePermission, customErr.Code,
+		"config should be hardened by EnforceContainerConfig instead of failing policy validation")
+}
