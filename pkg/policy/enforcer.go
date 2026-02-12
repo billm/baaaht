@@ -315,7 +315,11 @@ func (e *Enforcer) validateMounts(ctx context.Context, policy *Policy, config ty
 				// Log to audit
 				if e.auditLogger != nil {
 					username := getUsernameFromConfig(config)
-					_ = e.auditLogger.LogMountViolation(username, "", mount.Source, MountAccessModeReadWrite,
+					requestedMode := MountAccessModeReadWrite
+					if mount.ReadOnly {
+						requestedMode = MountAccessModeReadOnly
+					}
+					_ = e.auditLogger.LogMountViolation(username, "", mount.Source, requestedMode,
 						"bind mounts are disabled by policy", map[string]string{
 							"target": mount.Target,
 							"rule":   "mount.bind.disabled",
@@ -368,9 +372,11 @@ func (e *Enforcer) validateMounts(ctx context.Context, policy *Policy, config ty
 						continue
 					}
 
-					// Note: read-only enforcement is handled in EnforceContainerConfig
-					// We don't create a violation here, as the mount will be modified
-					// to be read-only during enforcement
+					// Enforce read-only mounts immediately during validation so that
+					// callers cannot bypass enforcement by skipping EnforceContainerConfig.
+					if accessMode == MountAccessModeReadOnly && !mount.ReadOnly {
+						mount.ReadOnly = true
+					}
 				}
 			}
 
@@ -388,7 +394,11 @@ func (e *Enforcer) validateMounts(ctx context.Context, policy *Policy, config ty
 					// Log to audit
 					if e.auditLogger != nil {
 						username := getUsernameFromConfig(config)
-						_ = e.auditLogger.LogMountViolation(username, "", mount.Source, MountAccessModeReadWrite,
+						requestedMode := MountAccessModeReadWrite
+						if mount.ReadOnly {
+							requestedMode = MountAccessModeReadOnly
+						}
+						_ = e.auditLogger.LogMountViolation(username, "", mount.Source, requestedMode,
 							"bind mount source not in legacy allowlist", map[string]string{
 								"target": mount.Target,
 								"rule":   "mount.bind.source_not_allowed",
@@ -410,7 +420,11 @@ func (e *Enforcer) validateMounts(ctx context.Context, policy *Policy, config ty
 				// Log to audit
 				if e.auditLogger != nil {
 					username := getUsernameFromConfig(config)
-					_ = e.auditLogger.LogMountViolation(username, "", mount.Source, MountAccessModeReadWrite,
+					requestedMode := MountAccessModeReadWrite
+					if mount.ReadOnly {
+						requestedMode = MountAccessModeReadOnly
+					}
+					_ = e.auditLogger.LogMountViolation(username, "", mount.Source, requestedMode,
 						"volume mounts are disabled by policy", map[string]string{
 							"target": mount.Target,
 							"rule":   "mount.volume.disabled",
@@ -432,7 +446,11 @@ func (e *Enforcer) validateMounts(ctx context.Context, policy *Policy, config ty
 				// Log to audit
 				if e.auditLogger != nil {
 					username := getUsernameFromConfig(config)
-					_ = e.auditLogger.LogMountViolation(username, "", mount.Source, MountAccessModeReadWrite,
+					requestedMode := MountAccessModeReadWrite
+					if mount.ReadOnly {
+						requestedMode = MountAccessModeReadOnly
+					}
+					_ = e.auditLogger.LogMountViolation(username, "", mount.Source, requestedMode,
 						"volume not in allowlist", map[string]string{
 							"target": mount.Target,
 							"rule":   "mount.volume.not_allowed",
@@ -773,6 +791,13 @@ func (e *Enforcer) Close() error {
 	if e.auditLogger != nil {
 		if err := e.auditLogger.Close(); err != nil {
 			e.logger.Warn("Failed to close audit logger", "error", err)
+		}
+	}
+
+	// Close mount allowlist resolver
+	if e.mountAllowlistResolver != nil {
+		if err := e.mountAllowlistResolver.Close(); err != nil {
+			e.logger.Warn("Failed to close mount allowlist resolver", "error", err)
 		}
 	}
 

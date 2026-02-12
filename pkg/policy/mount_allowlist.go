@@ -71,6 +71,10 @@ func (r *MountAllowlistResolver) SetPolicy(ctx context.Context, policy *Policy) 
 		return types.NewError(types.ErrCodeUnavailable, "resolver is closed")
 	}
 
+	if policy == nil {
+		return types.NewError(types.ErrCodeInvalidArgument, "policy cannot be nil")
+	}
+
 	// Validate policy
 	if err := policy.Validate(); err != nil {
 		return types.WrapError(types.ErrCodeInvalidArgument, "invalid policy", err)
@@ -144,9 +148,14 @@ func (r *MountAllowlistResolver) ResolveMountAccess(ctx context.Context, path, u
 	var bestMatch *MountAllowlistEntry
 	var bestMatchPriority int // 3 = user-specific, 2 = group-specific, 1 = default
 
-	for _, entry := range r.policy.Mounts.MountAllowlist {
-		// Check if path matches
-		if !matchPattern(cleanPath, entry.Path) && !matchPattern(path, entry.Path) {
+	for i := range r.policy.Mounts.MountAllowlist {
+		entry := &r.policy.Mounts.MountAllowlist[i]
+		
+		// Clean the entry path for consistent comparison
+		cleanEntryPath := filepath.Clean(entry.Path)
+		
+		// Check if path matches using only cleaned paths
+		if !matchPattern(cleanPath, cleanEntryPath) {
 			continue
 		}
 
@@ -167,7 +176,7 @@ func (r *MountAllowlistResolver) ResolveMountAccess(ctx context.Context, path, u
 			continue
 		}
 
-		bestMatch = &entry
+		bestMatch = entry
 		bestMatchPriority = priority
 	}
 

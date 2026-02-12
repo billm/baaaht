@@ -126,8 +126,8 @@ func (al *AuditLogger) initAuditFileLocked() error {
 
 // LogEvent logs an audit event
 func (al *AuditLogger) LogEvent(event AuditEvent) error {
-	al.mu.RLock()
-	defer al.mu.RUnlock()
+	al.mu.Lock()
+	defer al.mu.Unlock()
 
 	if al.closed {
 		return fmt.Errorf("audit logger is closed")
