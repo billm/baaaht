@@ -17,7 +17,7 @@ The Assistant has no direct tool access—its only tool is `delegate` for dispat
 ### Communication
 
 - **Orchestrator**: gRPC over Unix Domain Sockets for registration, heartbeat, and message streaming
-- **LLM Gateway**: HTTP/HTTPS for LLM API communication with streaming support
+- **LLM Requests**: Routed through Orchestrator `LLMService` over gRPC
 - **Specialized Agents**: Delegation via Orchestrator's agent-to-agent messaging
 
 ### Session Management
@@ -121,8 +121,7 @@ agents/assistant/
 
 The Assistant Agent is configured via environment variables:
 
-- `ORCHESTRATOR_ADDRESS`: Orchestrator gRPC address (default: `unix:///tmp/orchestrator.sock`)
-- `LLM_GATEWAY_URL`: LLM Gateway URL (default: `http://localhost:8080`)
+- `ORCHESTRATOR_URL`: Orchestrator gRPC address (default: `unix:///tmp/baaaht-grpc.sock`)
 - `AGENT_NAME`: Agent name (default: `assistant`)
 - `LOG_LEVEL`: Logging level (default: `info`)
 

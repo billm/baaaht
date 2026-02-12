@@ -73,15 +73,15 @@ type LLMServiceClient = Client & {
 };
 
 /**
- * LLM Gateway HTTP Client
+ * Assistant LLM gRPC Client
  *
- * Provides HTTP client for communicating with the LLM Gateway service.
+ * Provides a gRPC client for communicating with orchestrator LLMService.
  * Supports both streaming and non-streaming completions.
  *
  * Usage:
  * ```typescript
  * const client = new LLMGatewayClient({
- *   baseURL: 'http://localhost:8080',
+ *   baseURL: 'localhost:50051',
  *   agentId: 'assistant-1',
  * });
  *

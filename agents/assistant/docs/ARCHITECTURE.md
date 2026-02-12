@@ -434,15 +434,15 @@ interface AgentMessage {
 }
 ```
 
-### 5.2 LLM Gateway HTTP Protocol
+### 5.2 Orchestrator-Mediated LLM gRPC Protocol
 
-**Base URL:** Configured via `LLM_GATEWAY_URL` (default: `http://localhost:8080`)
+**Endpoint:** Uses orchestrator gRPC address via `ORCHESTRATOR_URL` (default: `unix:///tmp/baaaht-grpc.sock`)
 
-**Endpoints:**
-- `POST /v1/completions` - Non-streaming completions
-- `POST /v1/completions/stream` - Streaming completions (SSE)
-- `GET /v1/models` - List available models
-- `GET /health` - Health check
+**RPCs:**
+- `CompleteLLM` - Non-streaming completions
+- `StreamLLM` - Streaming completions (bidirectional stream)
+- `ListModels` - List available models
+- `HealthCheck` - LLM service health check
 
 **Completion Request:**
 ```typescript
@@ -529,8 +529,7 @@ interface AgentEvent {
 
 | Variable | Default | Description |
 |---|---|---|
-| `ORCHESTRATOR_ADDRESS` | `unix:///tmp/orchestrator.sock` | gRPC server address |
-| `LLM_GATEWAY_URL` | `http://localhost:8080` | LLM Gateway base URL |
+| `ORCHESTRATOR_URL` | `unix:///tmp/baaaht-grpc.sock` | Orchestrator gRPC address |
 | `AGENT_NAME` | `assistant` | Agent identifier |
 | `LOG_LEVEL` | `info` | Logging verbosity |
 | `DEFAULT_MODEL` | `anthropic/claude-sonnet-4-20250514` | Default LLM model |
@@ -542,7 +541,6 @@ interface AgentConfig {
   name?: string;
   description?: string;
   orchestratorUrl?: string;
-  llmGatewayUrl?: string;
   defaultModel?: string;
   maxConcurrentMessages?: number;
   messageTimeout?: number;
