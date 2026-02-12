@@ -24,6 +24,7 @@ type mockServer struct {
 	sessionMgr *session.Manager
 	eventBus   *events.Bus
 	ipcBroker  *ipc.Broker
+	agentSvc   *AgentService
 }
 
 func (m *mockServer) SessionManager() *session.Manager {
@@ -36,6 +37,10 @@ func (m *mockServer) EventBus() *events.Bus {
 
 func (m *mockServer) IPCBroker() *ipc.Broker {
 	return m.ipcBroker // Can be nil for tests
+}
+
+func (m *mockServer) AgentService() *AgentService {
+	return m.agentSvc
 }
 
 // setupTestServer creates a test server with initialized dependencies
@@ -619,6 +624,104 @@ func TestOrchestratorService_StreamMessages(t *testing.T) {
 	// Check that we received responses
 	if len(stream.responses) == 0 {
 		t.Error("StreamMessages() did not send any responses")
+	}
+
+	for _, resp := range stream.responses {
+		if resp.GetMessage() != nil {
+			t.Error("StreamMessages() should not echo input message payloads")
+		}
+	}
+}
+
+func TestOrchestratorService_StreamMessages_RoutingFailureDoesNotPersistUserMessage(t *testing.T) {
+	srv := setupTestServer(t)
+	defer teardownTestServer(t, srv)
+
+	service := NewOrchestratorService(srv, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	createResp, err := service.CreateSession(ctx, &proto.CreateSessionRequest{
+		Metadata: &proto.SessionMetadata{Name: "test-session", OwnerId: "test-user"},
+	})
+	if err != nil {
+		t.Fatalf("Failed to create session: %v", err)
+	}
+
+	stream := &mockMessageStream{
+		ctx:       ctx,
+		sessionID: createResp.SessionId,
+		messages: []*proto.StreamMessageRequest{
+			{
+				SessionId: createResp.SessionId,
+				Payload: &proto.StreamMessageRequest_Message{Message: &proto.Message{
+					Id:      string(types.GenerateID()),
+					Role:    proto.MessageRole_MESSAGE_ROLE_USER,
+					Content: "route me",
+				}},
+			},
+		},
+	}
+
+	err = service.StreamMessages(stream)
+	if err != nil && err != context.DeadlineExceeded {
+		t.Fatalf("StreamMessages() error = %v", err)
+	}
+
+	getResp, err := service.GetSession(ctx, &proto.GetSessionRequest{SessionId: createResp.SessionId})
+	if err != nil {
+		t.Fatalf("GetSession() error = %v", err)
+	}
+
+	if len(getResp.GetSession().GetContext().GetMessages()) != 0 {
+		t.Fatalf("Expected no persisted user messages on routing failure, got %d", len(getResp.GetSession().GetContext().GetMessages()))
+	}
+
+	foundTaskFailed := false
+	for _, resp := range stream.responses {
+		event := resp.GetEvent()
+		if event != nil && event.Type == proto.EventType_EVENT_TYPE_TASK_FAILED {
+			foundTaskFailed = true
+			break
+		}
+	}
+
+	if !foundTaskFailed {
+		t.Fatal("Expected TASK_FAILED event response for routing failure")
+	}
+}
+
+func TestOrchestratorService_SendResponseToSession_BroadcastsToAllStreams(t *testing.T) {
+	srv := setupTestServer(t)
+	defer teardownTestServer(t, srv)
+
+	service := NewOrchestratorService(srv, nil)
+	sessionID := types.ID("session-broadcast")
+
+	streamA := &mockMessageStream{ctx: context.Background()}
+	streamB := &mockMessageStream{ctx: context.Background()}
+
+	service.mu.Lock()
+	service.sessionStreams[sessionID] = map[*sessionStreamState]struct{}{
+		&sessionStreamState{stream: streamA}: {},
+		&sessionStreamState{stream: streamB}: {},
+	}
+	service.mu.Unlock()
+
+	err := service.SendResponseToSession(sessionID, types.Message{
+		ID:      types.GenerateID(),
+		Role:    types.MessageRoleAssistant,
+		Content: "broadcast",
+	})
+	if err != nil {
+		t.Fatalf("SendResponseToSession() error = %v", err)
+	}
+
+	if len(streamA.responses) != 1 {
+		t.Fatalf("Expected stream A to receive 1 response, got %d", len(streamA.responses))
+	}
+	if len(streamB.responses) != 1 {
+		t.Fatalf("Expected stream B to receive 1 response, got %d", len(streamB.responses))
 	}
 }
 
