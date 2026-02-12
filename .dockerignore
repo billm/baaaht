@@ -30,6 +30,12 @@ vendor/
 # Build artifacts
 dist/
 build/
+node_modules/
+**/node_modules/
+
+# Non-orchestrator application sources (not needed for root Go image)
+agents/
+llm-gateway/
 
 # Test files
 *_test.go

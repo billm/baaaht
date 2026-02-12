@@ -22,6 +22,25 @@ import {
   StreamEvent,
 } from "./types";
 
+function traceValue(value?: string): string {
+  return value && value.trim() ? value : "-";
+}
+
+function traceFlow(
+  stage: string,
+  correlationId?: string,
+  sessionId?: string,
+  requestId?: string,
+  details?: Record<string, unknown>
+): void {
+  const line = `TRACE_FLOW stage=${stage} cid=${traceValue(correlationId)} sid=${traceValue(sessionId)} rid=${traceValue(requestId)}`;
+  if (details && Object.keys(details).length > 0) {
+    log("info", line, details);
+    return;
+  }
+  log("info", line);
+}
+
 export class Gateway {
   private config: GatewayConfig;
   private providers: Map<string, Provider> = new Map();
@@ -55,8 +74,25 @@ export class Gateway {
           log("info", "Initialized OpenAI provider");
           break;
         }
-        default:
-          log("warn", `Unknown provider: ${pcfg.name}`);
+        default: {
+          // Treat unknown providers as OpenAI-compatible (covers lmstudio, ollama, etc.)
+          // These providers expose an OpenAI-compatible API at a custom base URL.
+          log("info", `Initializing OpenAI-compatible provider: ${pcfg.name}`, {
+            baseUrl: pcfg.baseUrl,
+          });
+          const provider = new OpenAIProvider(pcfg);
+          // Override the name property for resolution
+          const namedProvider: Provider = {
+            name: pcfg.name,
+            isAvailable: () => provider.isAvailable(),
+            listModels: () => provider.listModels(),
+            complete: (req) => provider.complete(req),
+            stream: (req, cb) => provider.stream(req, cb),
+          };
+          this.providers.set(pcfg.name, namedProvider);
+          this.stats.set(pcfg.name, newProviderStats());
+          break;
+        }
       }
     }
 
@@ -144,6 +180,20 @@ export class Gateway {
   ): Promise<void> {
     const url = req.url || "/";
     const method = req.method || "GET";
+
+    if (method === "POST" && (url === "/v1/completions" || url === "/v1/stream")) {
+      log("info", "Gateway received LLM HTTP request", {
+        method,
+        path: url,
+        remote: req.socket.remoteAddress,
+        user_agent: req.headers["user-agent"] || "",
+        content_length: req.headers["content-length"] || "",
+      });
+      traceFlow("gateway.http.ingress", undefined, undefined, undefined, {
+        path: url,
+        method,
+      });
+    }
 
     // Route
     if (method === "GET" && url === "/health") {
@@ -280,12 +330,47 @@ export class Gateway {
     try {
       llmReq = JSON.parse(body) as LLMRequest;
     } catch {
+      log("error", "Completion request rejected: invalid JSON", {
+        body_length: body.length,
+      });
       res.writeHead(400, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "invalid JSON body" }));
       return;
     }
 
+    log("info", "Completion request parsed", {
+      request_id: llmReq.request_id,
+      session_id: llmReq.session_id,
+      model: llmReq.model,
+      provider_hint: llmReq.provider,
+      message_count: llmReq.messages?.length ?? 0,
+    });
+
+    if (!llmReq.model) {
+      llmReq.model = this.config.defaultModel;
+      log("info", "Completion request model defaulted from gateway config", {
+        request_id: llmReq.request_id,
+        default_model: this.config.defaultModel,
+      });
+    }
+    traceFlow(
+      "gateway.complete.recv_request",
+      llmReq.metadata?.correlation_id,
+      llmReq.session_id,
+      llmReq.request_id,
+      {
+        model: llmReq.model,
+        provider_hint: llmReq.provider,
+        message_count: llmReq.messages?.length ?? 0,
+      }
+    );
+
     if (!llmReq.request_id || !llmReq.model || !llmReq.messages?.length) {
+      log("warn", "Completion request rejected: missing required fields", {
+        request_id: llmReq.request_id,
+        model: llmReq.model,
+        message_count: llmReq.messages?.length ?? 0,
+      });
       res.writeHead(400, { "Content-Type": "application/json" });
       res.end(
         JSON.stringify({
@@ -297,6 +382,11 @@ export class Gateway {
 
     const provider = this.resolveProvider(llmReq);
     if (!provider) {
+      log("warn", "Completion request rejected: no available provider", {
+        request_id: llmReq.request_id,
+        model: llmReq.model,
+        provider_hint: llmReq.provider,
+      });
       res.writeHead(503, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "no available provider for request" }));
       return;
@@ -304,6 +394,11 @@ export class Gateway {
 
     // Concurrency gate
     if (this.activeRequests >= this.config.maxConcurrentRequests) {
+      log("warn", "Completion request rejected: concurrency limit", {
+        request_id: llmReq.request_id,
+        active_requests: this.activeRequests,
+        max_concurrent: this.config.maxConcurrentRequests,
+      });
       res.writeHead(429, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "too many concurrent requests" }));
       return;
@@ -318,6 +413,16 @@ export class Gateway {
         model: llmReq.model,
         provider: provider.name,
       });
+      traceFlow(
+        "gateway.complete.provider_dispatch",
+        llmReq.metadata?.correlation_id,
+        llmReq.session_id,
+        llmReq.request_id,
+        {
+          provider: provider.name,
+          model: llmReq.model,
+        }
+      );
 
       const response: LLMResponse = await provider.complete(llmReq);
 
@@ -334,6 +439,17 @@ export class Gateway {
         tokens: response.usage.total_tokens,
         elapsed_ms: elapsed,
       });
+      traceFlow(
+        "gateway.complete.provider_done",
+        llmReq.metadata?.correlation_id,
+        llmReq.session_id,
+        llmReq.request_id,
+        {
+          provider: provider.name,
+          tokens: response.usage.total_tokens,
+          elapsed_ms: elapsed,
+        }
+      );
 
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ response }));
@@ -343,6 +459,15 @@ export class Gateway {
         request_id: llmReq.request_id,
         error: errMsg,
       });
+      traceFlow(
+        "gateway.complete.failed",
+        llmReq.metadata?.correlation_id,
+        llmReq.session_id,
+        llmReq.request_id,
+        {
+          error: errMsg,
+        }
+      );
       const stats = this.stats.get(provider.name);
       if (stats) recordError(stats, errMsg);
 
@@ -367,12 +492,47 @@ export class Gateway {
     try {
       llmReq = JSON.parse(body) as LLMRequest;
     } catch {
+      log("error", "Stream request rejected: invalid JSON", {
+        body_length: body.length,
+      });
       res.writeHead(400, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "invalid JSON body" }));
       return;
     }
 
+    log("info", "Stream request parsed", {
+      request_id: llmReq.request_id,
+      session_id: llmReq.session_id,
+      model: llmReq.model,
+      provider_hint: llmReq.provider,
+      message_count: llmReq.messages?.length ?? 0,
+    });
+
+    if (!llmReq.model) {
+      llmReq.model = this.config.defaultModel;
+      log("info", "Stream request model defaulted from gateway config", {
+        request_id: llmReq.request_id,
+        default_model: this.config.defaultModel,
+      });
+    }
+    traceFlow(
+      "gateway.stream.recv_request",
+      llmReq.metadata?.correlation_id,
+      llmReq.session_id,
+      llmReq.request_id,
+      {
+        model: llmReq.model,
+        provider_hint: llmReq.provider,
+        message_count: llmReq.messages?.length ?? 0,
+      }
+    );
+
     if (!llmReq.request_id || !llmReq.model || !llmReq.messages?.length) {
+      log("warn", "Stream request rejected: missing required fields", {
+        request_id: llmReq.request_id,
+        model: llmReq.model,
+        message_count: llmReq.messages?.length ?? 0,
+      });
       res.writeHead(400, { "Content-Type": "application/json" });
       res.end(
         JSON.stringify({
@@ -384,12 +544,22 @@ export class Gateway {
 
     const provider = this.resolveProvider(llmReq);
     if (!provider) {
+      log("warn", "Stream request rejected: no available provider", {
+        request_id: llmReq.request_id,
+        model: llmReq.model,
+        provider_hint: llmReq.provider,
+      });
       res.writeHead(503, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "no available provider for request" }));
       return;
     }
 
     if (this.activeRequests >= this.config.maxConcurrentRequests) {
+      log("warn", "Stream request rejected: concurrency limit", {
+        request_id: llmReq.request_id,
+        active_requests: this.activeRequests,
+        max_concurrent: this.config.maxConcurrentRequests,
+      });
       res.writeHead(429, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "too many concurrent requests" }));
       return;
@@ -411,6 +581,16 @@ export class Gateway {
         model: llmReq.model,
         provider: provider.name,
       });
+      traceFlow(
+        "gateway.stream.provider_dispatch",
+        llmReq.metadata?.correlation_id,
+        llmReq.session_id,
+        llmReq.request_id,
+        {
+          provider: provider.name,
+          model: llmReq.model,
+        }
+      );
 
       await provider.stream(llmReq, (event: StreamEvent) => {
         res.write(`data: ${JSON.stringify(event)}\n\n`);
@@ -429,6 +609,17 @@ export class Gateway {
             tokens: event.response.usage.total_tokens,
             elapsed_ms: elapsed,
           });
+          traceFlow(
+            "gateway.stream.provider_done",
+            llmReq.metadata?.correlation_id,
+            llmReq.session_id,
+            llmReq.request_id,
+            {
+              provider: provider.name,
+              tokens: event.response.usage.total_tokens,
+              elapsed_ms: elapsed,
+            }
+          );
         }
       });
 
@@ -440,6 +631,15 @@ export class Gateway {
         request_id: llmReq.request_id,
         error: errMsg,
       });
+      traceFlow(
+        "gateway.stream.failed",
+        llmReq.metadata?.correlation_id,
+        llmReq.session_id,
+        llmReq.request_id,
+        {
+          error: errMsg,
+        }
+      );
       const stats = this.stats.get(provider.name);
       if (stats) recordError(stats, errMsg);
 

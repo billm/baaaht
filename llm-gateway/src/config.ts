@@ -34,7 +34,7 @@ function parseGoDuration(duration: string): number {
 export function loadConfig(): GatewayConfig {
   const providers: ProviderConfig[] = [];
 
-  // Collect provider credentials from environment
+  // Collect provider credentials from environment — well-known providers
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
   if (anthropicKey) {
     providers.push({
@@ -68,6 +68,31 @@ export function loadConfig(): GatewayConfig {
       name: "google",
       apiKey: googleKey,
       baseUrl: process.env.GOOGLE_BASE_URL,
+    });
+  }
+
+  // Discover custom/local providers from LLM_PROVIDER_<NAME>_ENABLED env vars
+  // These are set by the orchestrator for providers not in the hardcoded list
+  // (e.g., lmstudio, ollama, or any OpenAI-compatible endpoint).
+  const providerPattern = /^LLM_PROVIDER_([A-Z0-9_]+)_ENABLED$/;
+  for (const [key, value] of Object.entries(process.env)) {
+    if (!value) continue;
+    const match = key.match(providerPattern);
+    if (!match) continue;
+
+    const upperName = match[1];
+    const providerName = upperName.toLowerCase();
+
+    // Skip if already added via well-known provider env vars
+    if (providers.some((p) => p.name === providerName)) continue;
+
+    const apiKey = process.env[`LLM_PROVIDER_${upperName}_API_KEY`] || "";
+    const baseUrl = process.env[`LLM_PROVIDER_${upperName}_BASE_URL`];
+
+    providers.push({
+      name: providerName,
+      apiKey,
+      baseUrl,
     });
   }
 

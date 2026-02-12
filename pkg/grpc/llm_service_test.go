@@ -2,6 +2,10 @@ package grpc
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
@@ -16,6 +20,8 @@ import (
 
 // TestLLMService_CompleteLLM tests the CompleteLLM RPC
 func TestLLMService_CompleteLLM(t *testing.T) {
+	setupMockGatewayForLLMServiceTests(t)
+
 	srv := setupTestServer(t)
 	defer teardownTestServer(t, srv)
 
@@ -186,6 +192,8 @@ func TestLLMService_CompleteLLM_ErrorHandling(t *testing.T) {
 
 // TestLLMService_StreamLLM tests the StreamLLM bidirectional streaming RPC
 func TestLLMService_StreamLLM(t *testing.T) {
+	setupMockGatewayForLLMServiceTests(t)
+
 	srv := setupTestServer(t)
 	defer teardownTestServer(t, srv)
 
@@ -423,10 +431,10 @@ func TestLLMService_GetCapabilities(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		name         string
-		req          *proto.GetCapabilitiesRequest
-		wantMin      int
-		wantErr      bool
+		name          string
+		req           *proto.GetCapabilitiesRequest
+		wantMin       int
+		wantErr       bool
 		checkProvider string // Optional: check if specific provider exists
 	}{
 		{
@@ -440,8 +448,8 @@ func TestLLMService_GetCapabilities(t *testing.T) {
 			req: &proto.GetCapabilitiesRequest{
 				Provider: "anthropic",
 			},
-			wantMin:      1,
-			wantErr:      false,
+			wantMin:       1,
+			wantErr:       false,
 			checkProvider: "anthropic",
 		},
 		{
@@ -449,8 +457,8 @@ func TestLLMService_GetCapabilities(t *testing.T) {
 			req: &proto.GetCapabilitiesRequest{
 				Provider: "openai",
 			},
-			wantMin:      1,
-			wantErr:      false,
+			wantMin:       1,
+			wantErr:       false,
 			checkProvider: "openai",
 		},
 	}
@@ -587,6 +595,8 @@ func TestLLMService_GetStatus(t *testing.T) {
 
 // TestLLMService_GetStatus_AfterRequests tests GetStatus after processing requests
 func TestLLMService_GetStatus_AfterRequests(t *testing.T) {
+	setupMockGatewayForLLMServiceTests(t)
+
 	srv := setupTestServer(t)
 	defer teardownTestServer(t, srv)
 
@@ -761,6 +771,8 @@ func TestLLMRegistry(t *testing.T) {
 
 // TestLLMService_ConcurrentRequests tests concurrent LLM requests
 func TestLLMService_ConcurrentRequests(t *testing.T) {
+	setupMockGatewayForLLMServiceTests(t)
+
 	srv := setupTestServer(t)
 	defer teardownTestServer(t, srv)
 
@@ -816,11 +828,11 @@ func TestLLMService_ConcurrentRequests(t *testing.T) {
 // mockLLMStream implements the LLMService_StreamLLMServer interface for testing
 type mockLLMStream struct {
 	proto.LLMService_StreamLLMServer
-	ctx        context.Context
-	requests   []*proto.StreamLLMRequest
-	sentCount  int
-	responses  []*proto.StreamLLMResponse
-	mu         sync.Mutex
+	ctx       context.Context
+	requests  []*proto.StreamLLMRequest
+	sentCount int
+	responses []*proto.StreamLLMResponse
+	mu        sync.Mutex
 }
 
 func (m *mockLLMStream) Context() context.Context {
@@ -852,4 +864,44 @@ func (m *mockLLMStream) SendHeader(metadata.MD) error {
 }
 
 func (m *mockLLMStream) SetTrailer(metadata.MD) {
+}
+
+func setupMockGatewayForLLMServiceTests(t *testing.T) {
+	t.Helper()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/v1/completions":
+			var req struct {
+				RequestID string `json:"request_id"`
+				Model     string `json:"model"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&req)
+
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = fmt.Fprintf(w, `{"response":{"request_id":%q,"content":"mock completion","tool_calls":[],"usage":{"input_tokens":10,"output_tokens":5,"total_tokens":15},"finish_reason":"stop","provider":"lmstudio","model":%q,"completed_at":%q}}`,
+				req.RequestID,
+				req.Model,
+				time.Now().UTC().Format(time.RFC3339Nano),
+			)
+		case r.Method == http.MethodPost && r.URL.Path == "/v1/stream":
+			var req struct {
+				RequestID string `json:"request_id"`
+				Model     string `json:"model"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&req)
+
+			w.Header().Set("Content-Type", "text/event-stream")
+			_, _ = fmt.Fprintf(w, "data: {\"type\":\"chunk\",\"request_id\":%q,\"content\":\"hello \",\"index\":0,\"is_last\":false}\n\n", req.RequestID)
+			_, _ = fmt.Fprintf(w, "data: {\"type\":\"chunk\",\"request_id\":%q,\"content\":\"world\",\"index\":1,\"is_last\":true}\n\n", req.RequestID)
+			_, _ = fmt.Fprintf(w, "data: {\"type\":\"usage\",\"request_id\":%q,\"usage\":{\"input_tokens\":10,\"output_tokens\":5,\"total_tokens\":15}}\n\n", req.RequestID)
+			_, _ = fmt.Fprintf(w, "data: {\"type\":\"complete\",\"request_id\":%q,\"response\":{\"request_id\":%q,\"content\":\"hello world\",\"tool_calls\":[],\"usage\":{\"input_tokens\":10,\"output_tokens\":5,\"total_tokens\":15},\"finish_reason\":\"stop\",\"provider\":\"lmstudio\",\"model\":%q,\"completed_at\":%q}}\n\n", req.RequestID, req.RequestID, req.Model, time.Now().UTC().Format(time.RFC3339Nano))
+			_, _ = w.Write([]byte("data: [DONE]\n\n"))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+
+	t.Cleanup(server.Close)
+	t.Setenv("BAAAHT_LLM_GATEWAY_URL", server.URL)
 }

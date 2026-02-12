@@ -143,7 +143,11 @@ func startAssistantProcess(log *logger.Logger, cfg *config.Config, image string,
 			Args:       args,
 			WorkingDir: "/app",
 			Env: map[string]string{
-				"ORCHESTRATOR_URL": orchestratorAddr,
+				"ORCHESTRATOR_URL":         orchestratorAddr,
+				"LLM_DEFAULT_PROVIDER":     cfg.LLM.DefaultProvider,
+				"LLM_DEFAULT_MODEL":        cfg.LLM.DefaultModel,
+				"ASSISTANT_DEFAULT_PROVIDER": cfg.LLM.DefaultProvider,
+				"ASSISTANT_DEFAULT_MODEL":    cfg.LLM.DefaultModel,
 			},
 			Labels: map[string]string{
 				"baaaht.managed":   "true",
@@ -196,7 +200,9 @@ func startAssistantProcess(log *logger.Logger, cfg *config.Config, image string,
 		"args", args,
 		"host_working_dir", resolvedWorkDir,
 		"host_proto_dir", protoDir,
-		"orchestrator_url", orchestratorAddr)
+		"orchestrator_url", orchestratorAddr,
+		"llm_default_provider", cfg.LLM.DefaultProvider,
+		"llm_default_model", cfg.LLM.DefaultModel)
 
 	return proc, nil
 }

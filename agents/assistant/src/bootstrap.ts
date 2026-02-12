@@ -27,6 +27,19 @@ const DEFAULT_SHUTDOWN_TIMEOUT = 30000; // 30 seconds
 const DEFAULT_READY_CHECK_TIMEOUT = 10000; // 10 seconds
 const DEFAULT_READY_CHECK_INTERVAL = 100; // 100ms
 
+function resolveDefaultModel(provider: string): string {
+  const explicitModel = process.env.ASSISTANT_DEFAULT_MODEL?.trim() || process.env.LLM_DEFAULT_MODEL?.trim();
+  if (explicitModel) {
+    return explicitModel;
+  }
+
+  if (provider === 'openai') {
+    return 'openai/gpt-4o';
+  }
+
+  return 'anthropic/claude-sonnet-4-20250514';
+}
+
 // =============================================================================
 // Bootstrap Configuration
 // =============================================================================
@@ -200,10 +213,18 @@ function createDefaultBootstrapConfig(): Required<
     }
   }
 
+  const defaultProvider = process.env.ASSISTANT_DEFAULT_PROVIDER?.trim() || process.env.LLM_DEFAULT_PROVIDER?.trim() || '';
+  const defaultModel = resolveDefaultModel(defaultProvider);
+
   return {
     agentConfig: {
       name: 'assistant',
       description: 'Primary conversational agent with tool delegation',
+      orchestratorUrl: useUnixSocket
+        ? `unix://${orchestratorAddress}`
+        : orchestratorAddress,
+      defaultProvider,
+      defaultModel,
     },
     orchestratorConfig: {
       address: orchestratorAddress,

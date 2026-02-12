@@ -23,8 +23,8 @@ import type {
   Session,
   SessionMetadata,
   Message as SessionMessage,
-  MessageRole,
 } from './session/types.js';
+import { MessageRole } from './session/types.js';
 import type {
   CompletionParams,
   CompletionResult,
@@ -41,7 +41,6 @@ import type {
   ProcessMessage,
   AgentResponse,
   AgentError,
-  AgentErrorCode,
   ToolCallInfo,
   MessageProcessResult,
   AgentDependencies,
@@ -49,7 +48,7 @@ import type {
   ToolExecutionResult,
   MessageMetadata,
 } from './agent/types.js';
-import { AgentEventType } from './agent/types.js';
+import { AgentEventType, AgentErrorCode } from './agent/types.js';
 import { LLMGatewayClient } from './llm/gateway-client.js';
 import { SessionManager } from './session/manager.js';
 import { createDelegateToolDefinition } from './tools/delegate.js';
@@ -71,8 +70,9 @@ const DEFAULT_AGENT_CONFIG: Required<Omit<AgentConfig, 'labels' | 'debug' | 'ena
   description: 'Primary conversational agent with tool delegation',
   orchestratorUrl: 'localhost:50051',
   defaultModel: 'anthropic/claude-sonnet-4-20250514',
+  defaultProvider: '',
   maxConcurrentMessages: 5,
-  messageTimeout: 120000, // 2 minutes
+  messageTimeout: 30000, // 30 seconds
   heartbeatInterval: 30000, // 30 seconds
   maxRetries: 3,
   sessionTimeout: 3600000, // 1 hour
@@ -99,6 +99,24 @@ function generateMessageId(): string {
  */
 function generateResponseId(): string {
   return `resp_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+}
+
+function traceFlow(
+  stage: string,
+  correlationId?: string,
+  sessionId?: string,
+  requestId?: string,
+  details?: Record<string, unknown>
+): void {
+  const cid = correlationId || '-';
+  const sid = sessionId || '-';
+  const rid = requestId || '-';
+  const line = `TRACE_FLOW stage=${stage} cid=${cid} sid=${sid} rid=${rid}`;
+  if (details && Object.keys(details).length > 0) {
+    console.log(line, details);
+    return;
+  }
+  console.log(line);
 }
 
 /**
@@ -132,12 +150,32 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function extractDataMessage(message: AgentMessage): { data?: Uint8Array } | undefined {
   const payload = (message as unknown as { payload?: unknown }).payload;
 
+  // Handle nested object shape: { payload: { dataMessage: {...} } }
   if (isRecord(payload) && 'dataMessage' in payload && isRecord(payload.dataMessage)) {
     return payload.dataMessage as { data?: Uint8Array };
   }
 
-  if (payload === 'dataMessage' && 'dataMessage' in (message as unknown as Record<string, unknown>)) {
+  // Handle proto-loader oneof discriminator shape.
+  // With keepCase: false, the property is 'dataMessage' but the discriminator
+  // may be either 'dataMessage' (camelCase) or 'data_message' (original proto name)
+  // depending on the proto-loader / protobuf.js version.
+  const msgRecord = message as unknown as Record<string, unknown>;
+  if (
+    (payload === 'dataMessage' || payload === 'data_message') &&
+    'dataMessage' in msgRecord
+  ) {
     const flattened = (message as unknown as { dataMessage?: unknown }).dataMessage;
+    if (isRecord(flattened)) {
+      return flattened as { data?: Uint8Array };
+    }
+  }
+
+  // Also handle the case where data_message is the property name (keepCase: true)
+  if (
+    (payload === 'data_message' || payload === 'dataMessage') &&
+    'data_message' in msgRecord
+  ) {
+    const flattened = msgRecord['data_message'];
     if (isRecord(flattened)) {
       return flattened as { data?: Uint8Array };
     }
@@ -210,6 +248,7 @@ export class Agent extends EventEmitter {
     this.llmClient = new LLMGatewayClient({
       baseURL: this.config.orchestratorUrl,
       agentId: '', // Will be set after registration
+      defaultProvider: this.config.defaultProvider,
     });
 
     // Create session manager
@@ -298,11 +337,16 @@ export class Agent extends EventEmitter {
       this.llmClient = new LLMGatewayClient({
         baseURL: this.config.orchestratorUrl,
         agentId: this.agentId,
+        defaultProvider: this.config.defaultProvider,
       });
 
       this.streamClient = new StreamAgentClient(this.dependencies.grpcClient, this.agentId);
       this.streamClient.on(StreamEventType.MESSAGE, (event: { data?: unknown }) => {
-        void this.handleOrchestratorStreamMessage(event.data as AgentMessage);
+        void this.handleOrchestratorStreamMessage(event.data as AgentMessage).catch((error) => {
+          console.error('[Agent] handleOrchestratorStreamMessage: unhandled error', {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
       });
       this.streamClient.on(StreamEventType.ERROR, (event: { error?: Error }) => {
         if (event.error) {
@@ -492,6 +536,17 @@ export class Agent extends EventEmitter {
 
     // Add to queue
     this.messageQueue.push(processMessage);
+    console.log('[Agent] receiveMessage: queued message', {
+      messageId: processMessage.id,
+      sessionId,
+      correlationId,
+      queueLength: this.messageQueue.length,
+      activeMessageCount: this.activeMessageCount,
+    });
+    traceFlow('assistant.queue.enqueue', correlationId, sessionId, processMessage.id, {
+      queueLength: this.messageQueue.length,
+      activeMessageCount: this.activeMessageCount,
+    });
 
     this.emit(AgentEventType.MESSAGE_RECEIVED, {
       type: AgentEventType.MESSAGE_RECEIVED,
@@ -510,22 +565,48 @@ export class Agent extends EventEmitter {
 
   private async handleOrchestratorStreamMessage(message: AgentMessage): Promise<void> {
     if (!message) {
+      console.error('[Agent] handleOrchestratorStreamMessage: received null/undefined message');
       return;
     }
 
+    console.log('[Agent] handleOrchestratorStreamMessage: received message', {
+      id: message.id,
+      type: message.type,
+      sourceId: message.sourceId,
+      targetId: message.targetId,
+      payload: (message as unknown as { payload?: unknown }).payload,
+      hasMetadata: !!message.metadata,
+      sessionId: message.metadata?.sessionId,
+    });
+
     if (!extractDataMessage(message)) {
+      console.error('[Agent] handleOrchestratorStreamMessage: extractDataMessage returned undefined, dropping message', {
+        messageId: message.id,
+        payloadValue: (message as unknown as { payload?: unknown }).payload,
+        messageKeys: Object.keys(message as unknown as Record<string, unknown>),
+      });
       return;
     }
 
     if (message.sourceId === this.agentId) {
+      console.log('[Agent] handleOrchestratorStreamMessage: dropping self-originated message', message.id);
       return;
     }
 
     if (message.sourceId && message.sourceId !== 'orchestrator') {
+      console.log('[Agent] handleOrchestratorStreamMessage: dropping non-orchestrator message', {
+        messageId: message.id,
+        sourceId: message.sourceId,
+      });
       return;
     }
 
     if (message.targetId && message.targetId !== this.agentId) {
+      console.log('[Agent] handleOrchestratorStreamMessage: dropping message for different agent', {
+        messageId: message.id,
+        targetId: message.targetId,
+        myId: this.agentId,
+      });
       return;
     }
 
@@ -558,29 +639,47 @@ export class Agent extends EventEmitter {
       ? response.error.message
       : (response.content ?? '');
 
-    const responseMessage: AgentMessage = {
+    const dataMessage = {
+      contentType: response.error ? 'application/vnd.baaaht.conversation.error+text' : 'text/plain',
+      data: new TextEncoder().encode(responseContent),
+      headers: {
+        session_id: sessionId,
+        correlation_id: correlationId,
+      },
+    };
+
+    const responseMessage = {
       id: generateMessageId(),
       type: response.error ? MessageType.MESSAGE_TYPE_ERROR : MessageType.MESSAGE_TYPE_DATA,
       timestamp: new Date(),
       sourceId: this.agentId,
       targetId: 'orchestrator',
+      dataMessage,
       payload: {
-        dataMessage: {
-          contentType: response.error ? 'application/vnd.baaaht.conversation.error+text' : 'text/plain',
-          data: new TextEncoder().encode(responseContent),
-          headers: {
-            session_id: sessionId,
-            correlation_id: correlationId,
-          },
-        },
+        dataMessage,
       },
       metadata: {
         sessionId,
         correlationId,
       },
-    };
+    } as unknown as AgentMessage;
 
+    console.log('[Agent] sendResponseViaStream: sending response', {
+      sessionId,
+      correlationId,
+      isError: !!response.error,
+      contentLength: responseContent.length,
+    });
+    traceFlow('assistant.response.send.start', correlationId, sessionId, responseMessage.id, {
+      isError: !!response.error,
+      contentLength: responseContent.length,
+    });
     await this.streamClient.sendMessage(responseMessage);
+    console.log('[Agent] sendResponseViaStream: sent response', {
+      sessionId,
+      correlationId,
+    });
+    traceFlow('assistant.response.send.done', correlationId, sessionId, responseMessage.id);
   }
 
   /**
@@ -605,6 +704,13 @@ export class Agent extends EventEmitter {
         if (!processMessage) {
           continue;
         }
+
+        console.log('[Agent] processMessagesLoop: dequeued message', {
+          messageId: processMessage.id,
+          sessionId: processMessage.sessionId,
+          queueLengthAfterDequeue: this.messageQueue.length,
+          activeMessageCount: this.activeMessageCount,
+        });
 
         // Process the message
         this.processMessage(processMessage).catch((error) => {
@@ -637,6 +743,13 @@ export class Agent extends EventEmitter {
 
     this.activeMessageCount++;
     this.processingMessages.set(id, processMessage);
+    console.log('[Agent] processMessage: start', {
+      messageId: id,
+      sessionId,
+      correlationId: metadata?.correlationId,
+      activeMessageCount: this.activeMessageCount,
+      queueLength: this.messageQueue.length,
+    });
 
     this.emit(AgentEventType.MESSAGE_PROCESSING, {
       type: AgentEventType.MESSAGE_PROCESSING,
@@ -672,12 +785,38 @@ export class Agent extends EventEmitter {
         messages: llmMessages,
         maxTokens: 4096,
         temperature: 0.7,
+        provider: this.config.defaultProvider || undefined,
         sessionId,
         tools: [createDelegateToolDefinition()],
       };
 
+      console.log('[Agent] processMessage: calling processWithLLM', {
+        messageId: id,
+        sessionId,
+        model: completionParams.model,
+        messageCount: completionParams.messages.length,
+        enableStreaming: this.config.enableStreaming,
+      });
+      traceFlow('assistant.llm.request.start', metadata?.correlationId, sessionId, id, {
+        model: completionParams.model,
+        messageCount: completionParams.messages.length,
+        enableStreaming: this.config.enableStreaming,
+      });
+
       // Process with LLM
       const result = await this.processWithLLM(id, sessionId, completionParams);
+      console.log('[Agent] processMessage: processWithLLM returned', {
+        messageId: id,
+        sessionId,
+        streamed: result.streamed,
+        contentLength: result.content?.length ?? 0,
+        finishReason: result.finishReason,
+      });
+      traceFlow('assistant.llm.request.done', metadata?.correlationId, sessionId, id, {
+        streamed: result.streamed,
+        contentLength: result.content?.length ?? 0,
+        finishReason: result.finishReason,
+      });
 
       // Add assistant response to session
       if (result.content) {
@@ -717,6 +856,10 @@ export class Agent extends EventEmitter {
 
       // Send response
       await respond(response);
+      console.log('[Agent] processMessage: response callback completed', {
+        messageId: id,
+        sessionId,
+      });
 
       this.totalMessagesProcessed++;
       this.emit(AgentEventType.MESSAGE_PROCESSED, {
@@ -737,6 +880,14 @@ export class Agent extends EventEmitter {
       }
     } catch (err) {
       const error = err as Error;
+      console.error('[Agent] processMessage: failed', {
+        messageId: id,
+        sessionId,
+        error: error.message,
+      });
+      traceFlow('assistant.message.failed', metadata?.correlationId, sessionId, id, {
+        error: error.message,
+      });
       const agentError =
         error instanceof Error && 'code' in error
           ? (error as AgentError)
@@ -771,6 +922,12 @@ export class Agent extends EventEmitter {
     } finally {
       this.activeMessageCount--;
       this.processingMessages.delete(id);
+      console.log('[Agent] processMessage: end', {
+        messageId: id,
+        sessionId,
+        activeMessageCount: this.activeMessageCount,
+        queueLength: this.messageQueue.length,
+      });
     }
   }
 
@@ -785,6 +942,18 @@ export class Agent extends EventEmitter {
     params: CompletionParams
   ): Promise<MessageProcessResult> {
     const startTime = Date.now();
+    console.log('[Agent] processWithLLM: start', {
+      messageId,
+      sessionId,
+      model: params.model,
+      messageCount: params.messages.length,
+      enableStreaming: this.config.enableStreaming,
+    });
+    traceFlow('assistant.llm.process.enter', undefined, sessionId, messageId, {
+      model: params.model,
+      messageCount: params.messages.length,
+      enableStreaming: this.config.enableStreaming,
+    });
 
     try {
       this.emit(AgentEventType.LLM_REQUEST_START, {
@@ -802,6 +971,10 @@ export class Agent extends EventEmitter {
       if (this.config.enableStreaming) {
         // Streaming completion
         const stream = this.llmClient.stream(params);
+        console.log('[Agent] processWithLLM: stream created', {
+          messageId,
+          sessionId,
+        });
 
         this.emit(AgentEventType.LLM_STREAM_START, {
           type: AgentEventType.LLM_STREAM_START,
@@ -839,6 +1012,11 @@ export class Agent extends EventEmitter {
             usage = chunk.data;
           } else if (chunk.type === 'complete') {
             finishReason = chunk.data.finishReason;
+            console.log('[Agent] processWithLLM: stream complete chunk received', {
+              messageId,
+              sessionId,
+              finishReason,
+            });
           } else if (chunk.type === 'error') {
             throw createAgentError(
               chunk.data.message ?? 'LLM stream error',
@@ -883,6 +1061,13 @@ export class Agent extends EventEmitter {
       }
 
       const durationMs = Date.now() - startTime;
+      console.log('[Agent] processWithLLM: success', {
+        messageId,
+        sessionId,
+        streamed,
+        durationMs,
+        finishReason,
+      });
 
       return {
         content,
@@ -895,6 +1080,12 @@ export class Agent extends EventEmitter {
       };
     } catch (err) {
       const error = err as Error;
+      console.error('[Agent] processWithLLM: failed', {
+        messageId,
+        sessionId,
+        durationMs: Date.now() - startTime,
+        error: error.message,
+      });
       this.emit(AgentEventType.LLM_ERROR, {
         type: AgentEventType.LLM_ERROR,
         timestamp: new Date(),
@@ -1111,7 +1302,7 @@ export class Agent extends EventEmitter {
 
       await this.sessionManager.create(metadata, {
         maxDuration: this.config.sessionTimeout,
-      });
+      }, sessionId);
 
       this.emit(AgentEventType.SESSION_CREATED, {
         type: AgentEventType.SESSION_CREATED,

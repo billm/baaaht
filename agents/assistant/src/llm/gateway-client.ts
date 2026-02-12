@@ -40,8 +40,8 @@ import { LLMGatewayErrorCode, LLMGatewayError } from './types.js';
 
 // Default configuration values
 const DEFAULT_BASE_URL = 'localhost:50051';
-const DEFAULT_TIMEOUT = 120000; // 120 seconds
-const DEFAULT_STREAM_TIMEOUT = 300000; // 5 minutes for streaming
+const DEFAULT_TIMEOUT = 30000; // 30 seconds
+const DEFAULT_STREAM_TIMEOUT = 30000; // 30 seconds for streaming
 
 type LLMServiceClient = Client & {
   completeLLM?: (
@@ -71,6 +71,12 @@ type LLMServiceClient = Client & {
     callback: (err: Error | null, response: { status?: string | number; startedAt?: Date; uptime?: { seconds: string | bigint; nanos: number }; activeRequests?: number; totalRequests?: string | bigint; totalTokensUsed?: string | bigint; providers?: Record<string, ProviderStatus> }) => void
   ) => void;
 };
+
+type UnaryMethod<TReq, TResp> = (
+  request: TReq,
+  options: { deadline: Date },
+  callback: (err: Error | null, response: TResp) => void
+) => void;
 
 /**
  * Assistant LLM gRPC Client
@@ -148,6 +154,16 @@ export class LLMGatewayClient {
 
     const timeout = options.timeout ?? this.config.timeout;
 
+    console.log('[LLMClient] complete: dispatching request', {
+      requestId,
+      sessionId: params.sessionId,
+      model: params.model,
+      provider: params.provider ?? this.config.defaultProvider,
+      baseURL: this.config.baseURL,
+      timeout,
+      messageCount: params.messages.length,
+    });
+
     try {
       const response = await this.callComplete(body, timeout, options.signal);
 
@@ -155,8 +171,21 @@ export class LLMGatewayClient {
         throw this.createError('No response data received', 'UNKNOWN');
       }
 
-      return this.toCompletionResult(requestId, response.response);
+      const result = this.toCompletionResult(requestId, response.response);
+      console.log('[LLMClient] complete: received response', {
+        requestId,
+        provider: result.provider,
+        model: result.model,
+        totalTokens: result.usage?.totalTokens,
+      });
+
+      return result;
     } catch (err) {
+      console.error('[LLMClient] complete: request failed', {
+        requestId,
+        baseURL: this.config.baseURL,
+        error: err instanceof Error ? err.message : String(err),
+      });
       throw this.handleError(err);
     }
   }
@@ -313,7 +342,22 @@ export class LLMGatewayClient {
     signal: AbortSignal,
     timeoutId: ReturnType<typeof setTimeout>
   ): AsyncIterator<StreamingChunk> {
-    const body: StreamLLMRequest = { payload: { request } };
+    // gRPC oneof wire shape expects top-level `request` / `heartbeat` fields.
+    // Keep `payload` mirror for compatibility with local TS interfaces.
+    const body = {
+      request,
+      payload: { request },
+    } as unknown as StreamLLMRequest;
+
+    console.log('[LLMClient] stream: preparing request', {
+      requestId,
+      sessionId: request.sessionId,
+      model: request.model,
+      provider: request.provider,
+      baseURL: this.config.baseURL,
+      timeoutMs: DEFAULT_STREAM_TIMEOUT,
+      messageCount: request.messages?.length ?? 0,
+    });
 
     try {
       await this.connect();
@@ -338,13 +382,25 @@ export class LLMGatewayClient {
         }
 
         queue.push(chunk);
+        if (chunk.type === 'error') {
+          console.error('[LLMClient] stream: received error event', {
+            requestId,
+            message: chunk.data.message,
+            code: chunk.data.code,
+          });
+        }
         if (chunk.type === 'complete') {
           finished = true;
+          console.log('[LLMClient] stream: received complete event', { requestId });
         }
         wake();
       };
 
       const onError = (err: unknown) => {
+        console.error('[LLMClient] stream: grpc stream error', {
+          requestId,
+          error: err instanceof Error ? err.message : String(err),
+        });
         streamError = err;
         finished = true;
         wake();
@@ -366,6 +422,7 @@ export class LLMGatewayClient {
       grpcStream.on('end', onEnd);
 
       signal.addEventListener('abort', onAbort, { once: true });
+  console.log('[LLMClient] stream: opening grpc StreamLLM', { requestId });
       grpcStream.write(body);
 
       try {
@@ -397,12 +454,18 @@ export class LLMGatewayClient {
         grpcStream.off('error', onError);
         grpcStream.off('end', onEnd);
         grpcStream.end();
+        console.log('[LLMClient] stream: closed grpc StreamLLM', { requestId });
       }
     } catch (err) {
       clearTimeout(timeoutId);
       if (signal.aborted) {
         return;
       }
+      console.error('[LLMClient] stream: request failed before completion', {
+        requestId,
+        baseURL: this.config.baseURL,
+        error: err instanceof Error ? err.message : String(err),
+      });
       throw this.handleError(err);
     }
   }
@@ -411,33 +474,55 @@ export class LLMGatewayClient {
    * Parses a stream chunk from the response
    */
   private parseStreamChunk(requestId: string, response: StreamLLMResponse): StreamingChunk | null {
-    const payload = response.payload;
-    if (!payload) return null;
+    const responseRecord = response as unknown as Record<string, unknown>;
+    const payload = responseRecord.payload;
 
-    if ('chunk' in payload && payload.chunk) {
-      return { type: 'content', data: payload.chunk };
+    const payloadRecord =
+      typeof payload === 'object' && payload !== null
+        ? (payload as Record<string, unknown>)
+        : undefined;
+
+    const payloadDiscriminator = typeof payload === 'string' ? payload : undefined;
+
+    const chunk = (payloadRecord?.chunk ?? responseRecord.chunk) as StreamingChunk['data'] | undefined;
+    if (chunk && (payloadDiscriminator === undefined || payloadDiscriminator === 'chunk')) {
+      return { type: 'content', data: chunk };
     }
-    if ('toolCall' in payload && payload.toolCall) {
-      return { type: 'toolCall', data: payload.toolCall };
+
+    const toolCall = (payloadRecord?.toolCall ?? responseRecord.toolCall) as StreamingChunk['data'] | undefined;
+    if (toolCall && (payloadDiscriminator === undefined || payloadDiscriminator === 'toolCall' || payloadDiscriminator === 'tool_call')) {
+      return { type: 'toolCall', data: toolCall };
     }
-    if ('usage' in payload && payload.usage) {
-      return { type: 'usage', data: payload.usage };
+
+    const usage = (payloadRecord?.usage ?? responseRecord.usage) as StreamingChunk['data'] | undefined;
+    if (usage && (payloadDiscriminator === undefined || payloadDiscriminator === 'usage')) {
+      return { type: 'usage', data: usage };
     }
-    if ('error' in payload && payload.error) {
-      const error = payload.error;
-      return {
-        type: 'error',
-        data: error,
-      };
+
+    const error = (payloadRecord?.error ?? responseRecord.error) as StreamingChunk['data'] | undefined;
+    if (error && (payloadDiscriminator === undefined || payloadDiscriminator === 'error')) {
+      return { type: 'error', data: error };
     }
-    if ('complete' in payload && payload.complete) {
-      return { type: 'complete', data: payload.complete };
+
+    const complete = (payloadRecord?.complete ?? responseRecord.complete) as StreamingChunk['data'] | undefined;
+    if (complete && (payloadDiscriminator === undefined || payloadDiscriminator === 'complete')) {
+      return { type: 'complete', data: complete };
     }
-    if ('heartbeat' in payload) {
-      // Skip heartbeats
+
+    const hasHeartbeat =
+      payloadDiscriminator === 'heartbeat' ||
+      (payloadRecord !== undefined && 'heartbeat' in payloadRecord) ||
+      'heartbeat' in responseRecord;
+
+    if (hasHeartbeat) {
       return null;
     }
 
+    console.warn('[LLMClient] stream: unrecognized stream response payload', {
+      requestId,
+      payload,
+      keys: Object.keys(responseRecord),
+    });
     return null;
   }
 
@@ -549,6 +634,12 @@ export class LLMGatewayClient {
         }
 
         const address = this.resolveAddress(this.config.baseURL);
+        console.log('[LLMClient] connect: creating gRPC client', {
+          baseURL: this.config.baseURL,
+          resolvedAddress: address,
+          timeoutMs: this.config.timeout,
+          protoPath,
+        });
         this.client = new llmService(
           address,
           this.credentials,
@@ -563,15 +654,28 @@ export class LLMGatewayClient {
           if (err) {
             this.client = null;
             this.connected = false;
+            console.error('[LLMClient] connect: waitForReady failed', {
+              baseURL: this.config.baseURL,
+              resolvedAddress: address,
+              error: err.message,
+            });
             reject(new Error(`Failed to connect to LLM service: ${err.message}`));
             return;
           }
 
           this.connected = true;
+          console.log('[LLMClient] connect: ready', {
+            baseURL: this.config.baseURL,
+            resolvedAddress: address,
+          });
           resolve();
         });
       } catch (err) {
         const error = err as Error;
+        console.error('[LLMClient] connect: failed to create client', {
+          baseURL: this.config.baseURL,
+          error: error.message,
+        });
         reject(new Error(`Failed to create LLM gRPC client: ${error.message}`));
       }
     });
@@ -590,7 +694,10 @@ export class LLMGatewayClient {
   ): Promise<CompleteLLMResponse> {
     return new Promise((resolve, reject) => {
       const client = this.requireClient();
-      const method = client.completeLLM;
+      const method = this.resolveUnaryMethod<CompleteLLMRequest, CompleteLLMResponse>(
+        client,
+        ['completeLLM', 'CompleteLLM', 'completeLlm']
+      );
       if (!method) {
         reject(new Error('completeLLM method unavailable on LLM gRPC client'));
         return;
@@ -619,7 +726,7 @@ export class LLMGatewayClient {
 
   private callStreamLLM(): ClientDuplexStream<StreamLLMRequest, StreamLLMResponse> {
     const client = this.requireClient();
-    const method = client.streamLLM;
+    const method = this.resolveStreamMethod(client, ['streamLLM', 'StreamLLM', 'streamLlm']);
     if (!method) {
       throw new Error('streamLLM method unavailable on LLM gRPC client');
     }
@@ -629,7 +736,10 @@ export class LLMGatewayClient {
   private callHealthCheck(timeout: number): Promise<{ health?: string | number; version?: string; availableProviders?: string[]; unavailableProviders?: string[]; timestamp?: Date }> {
     return new Promise((resolve, reject) => {
       const client = this.requireClient();
-      const method = client.healthCheck;
+      const method = this.resolveUnaryMethod<Record<string, never>, { health?: string | number; version?: string; availableProviders?: string[]; unavailableProviders?: string[]; timestamp?: Date }>(
+        client,
+        ['healthCheck', 'HealthCheck', 'healthcheck']
+      );
       if (!method) {
         reject(new Error('healthCheck method unavailable on LLM gRPC client'));
         return;
@@ -648,7 +758,10 @@ export class LLMGatewayClient {
   private callGetStatus(timeout: number): Promise<{ status?: string | number; startedAt?: Date; uptime?: { seconds: string | bigint; nanos: number }; activeRequests?: number; totalRequests?: string | bigint; totalTokensUsed?: string | bigint; providers?: Record<string, ProviderStatus> }> {
     return new Promise((resolve, reject) => {
       const client = this.requireClient();
-      const method = client.getStatus;
+      const method = this.resolveUnaryMethod<Record<string, never>, { status?: string | number; startedAt?: Date; uptime?: { seconds: string | bigint; nanos: number }; activeRequests?: number; totalRequests?: string | bigint; totalTokensUsed?: string | bigint; providers?: Record<string, ProviderStatus> }>(
+        client,
+        ['getStatus', 'GetStatus', 'getstatus']
+      );
       if (!method) {
         reject(new Error('getStatus method unavailable on LLM gRPC client'));
         return;
@@ -667,7 +780,10 @@ export class LLMGatewayClient {
   private callListModels(provider: string | undefined, timeout: number): Promise<{ models?: Array<{ id?: string; name?: string; provider?: string; capabilities?: ModelCapabilities; metadata?: Record<string, string> }> }> {
     return new Promise((resolve, reject) => {
       const client = this.requireClient();
-      const method = client.listModels;
+      const method = this.resolveUnaryMethod<{ provider?: string }, { models?: Array<{ id?: string; name?: string; provider?: string; capabilities?: ModelCapabilities; metadata?: Record<string, string> }> }>(
+        client,
+        ['listModels', 'ListModels', 'listmodels']
+      );
       if (!method) {
         reject(new Error('listModels method unavailable on LLM gRPC client'));
         return;
@@ -686,7 +802,10 @@ export class LLMGatewayClient {
   private callGetCapabilities(provider: string | undefined, timeout: number): Promise<{ providers?: Array<{ name?: string; available?: boolean; models?: Array<{ id?: string; name?: string; provider?: string; capabilities?: ModelCapabilities; metadata?: Record<string, string> }>; metadata?: Record<string, string> }> }> {
     return new Promise((resolve, reject) => {
       const client = this.requireClient();
-      const method = client.getCapabilities;
+      const method = this.resolveUnaryMethod<{ provider?: string }, { providers?: Array<{ name?: string; available?: boolean; models?: Array<{ id?: string; name?: string; provider?: string; capabilities?: ModelCapabilities; metadata?: Record<string, string> }>; metadata?: Record<string, string> }> }>(
+        client,
+        ['getCapabilities', 'GetCapabilities', 'getcapabilities']
+      );
       if (!method) {
         reject(new Error('getCapabilities method unavailable on LLM gRPC client'));
         return;
@@ -707,6 +826,52 @@ export class LLMGatewayClient {
       throw new Error('LLM gRPC client is not connected');
     }
     return this.client;
+  }
+
+  private resolveUnaryMethod<TReq, TResp>(
+    client: LLMServiceClient,
+    candidates: string[]
+  ): UnaryMethod<TReq, TResp> | undefined {
+    for (const name of candidates) {
+      const fn = (client as unknown as Record<string, unknown>)[name];
+      if (typeof fn === 'function') {
+        return fn as UnaryMethod<TReq, TResp>;
+      }
+    }
+
+    this.logAvailableClientMethods(client, candidates[0] ?? 'unknown');
+    return undefined;
+  }
+
+  private resolveStreamMethod(
+    client: LLMServiceClient,
+    candidates: string[]
+  ): (() => ClientDuplexStream<StreamLLMRequest, StreamLLMResponse>) | undefined {
+    for (const name of candidates) {
+      const fn = (client as unknown as Record<string, unknown>)[name];
+      if (typeof fn === 'function') {
+        return fn as () => ClientDuplexStream<StreamLLMRequest, StreamLLMResponse>;
+      }
+    }
+
+    this.logAvailableClientMethods(client, candidates[0] ?? 'unknown');
+    return undefined;
+  }
+
+  private logAvailableClientMethods(client: LLMServiceClient, expected: string): void {
+    const proto = Object.getPrototypeOf(client) as Record<string, unknown> | null;
+    const methodNames = proto
+      ? Object.getOwnPropertyNames(proto).filter((name) => {
+          const value = proto[name];
+          return typeof value === 'function';
+        })
+      : [];
+
+    console.error('[LLMClient] method lookup failed', {
+      expected,
+      availableMethods: methodNames,
+      baseURL: this.config.baseURL,
+    });
   }
 
   private resolveAddress(address: string): string {

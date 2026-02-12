@@ -62,6 +62,11 @@ export interface AgentConfig {
   defaultModel?: string;
 
   /**
+   * Default LLM provider to use
+   */
+  defaultProvider?: string;
+
+  /**
    * Maximum concurrent message processing
    */
   maxConcurrentMessages?: number;

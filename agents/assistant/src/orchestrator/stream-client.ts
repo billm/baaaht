@@ -207,10 +207,11 @@ export class StreamAgentClient extends EventEmitter {
       throw new Error('Stream not connected');
     }
 
-    const request: StreamAgentRequest = {
+    const request = {
       agentId: this.agentId,
+      message,
       payload: { message } as StreamAgentRequestPayload,
-    };
+    } as unknown as StreamAgentRequest;
 
     await this.write(request);
   }
@@ -225,10 +226,11 @@ export class StreamAgentClient extends EventEmitter {
       throw new Error('Stream not connected');
     }
 
-    const request: StreamAgentRequest = {
+    const request = {
       agentId: this.agentId,
+      heartbeat: {},
       payload: { heartbeat: null } as StreamAgentRequestPayload,
-    };
+    } as unknown as StreamAgentRequest;
 
     await this.write(request);
   }
@@ -273,6 +275,13 @@ export class StreamAgentClient extends EventEmitter {
     const payload = (response as unknown as { payload?: unknown }).payload;
     const wireMessage = (response as unknown as { message?: AgentMessage }).message;
 
+    console.log('[StreamClient] handleResponse: received response', {
+      payloadType: typeof payload,
+      payloadValue: typeof payload === 'string' ? payload : '(object)',
+      hasWireMessage: !!wireMessage,
+      responseKeys: Object.keys(response as unknown as Record<string, unknown>),
+    });
+
     // Handle nested object payload shape: { payload: { message | heartbeat } }
     if (isRecord(payload)) {
       if ('heartbeat' in payload) {
@@ -283,6 +292,7 @@ export class StreamAgentClient extends EventEmitter {
       }
 
       if ('message' in payload && isRecord(payload.message)) {
+        console.log('[StreamClient] handleResponse: emitting MESSAGE event (nested object shape)');
         this.emit(StreamEventType.MESSAGE, {
           type: StreamEventType.MESSAGE,
           data: payload.message as AgentMessage,
@@ -300,6 +310,7 @@ export class StreamAgentClient extends EventEmitter {
     }
 
     if (payload === 'message' && wireMessage) {
+      console.log('[StreamClient] handleResponse: emitting MESSAGE event (oneof discriminator shape)');
       this.emit(StreamEventType.MESSAGE, {
         type: StreamEventType.MESSAGE,
         data: wireMessage,
@@ -309,11 +320,19 @@ export class StreamAgentClient extends EventEmitter {
 
     // Fallback shape where fields are flattened without discriminator.
     if (wireMessage) {
+      console.log('[StreamClient] handleResponse: emitting MESSAGE event (fallback shape)');
       this.emit(StreamEventType.MESSAGE, {
         type: StreamEventType.MESSAGE,
         data: wireMessage,
       });
+      return;
     }
+
+    console.warn('[StreamClient] handleResponse: unhandled response shape, message not emitted', {
+      payloadType: typeof payload,
+      payloadValue: payload,
+      responseKeys: Object.keys(response as unknown as Record<string, unknown>),
+    });
   }
 
   /**

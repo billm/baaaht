@@ -3,6 +3,7 @@ package orchestrator
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -439,8 +440,16 @@ func (m *LLMGatewayManager) createGatewayContainer(ctx context.Context) (string,
 			Env:       env,
 			Labels:    m.buildLabels(),
 			Resources: m.buildResourceLimits(),
-			Mounts:    []types.Mount{},    // Stateless - no volume mounts
-			Networks:  []string{"bridge"}, // Use bridge network for egress-only access
+			Mounts:    []types.Mount{}, // Stateless - no volume mounts
+			Ports: []types.PortBinding{
+				{
+					ContainerPort: 8080,
+					HostPort:      8080,
+					Protocol:      "tcp",
+					HostIP:        "127.0.0.1",
+				},
+			},
+			Networks: []string{"bridge"}, // Use bridge network for egress-only access
 			// Security constraints
 			User:           "1000:1000",                   // Non-root user
 			ReadOnlyRootfs: true,                          // Read-only root filesystem
@@ -474,29 +483,61 @@ func (m *LLMGatewayManager) createGatewayContainer(ctx context.Context) (string,
 }
 
 // buildEnvironmentVariables builds the environment variables for the LLM Gateway container.
-// This includes API keys for configured providers.
+// This includes API keys and base URLs for configured providers.
 func (m *LLMGatewayManager) buildEnvironmentVariables() map[string]string {
 	env := make(map[string]string)
 
-	// Add provider API keys
+	// Add provider API keys and base URLs
 	for name, provider := range m.config.Providers {
-		if !provider.Enabled || provider.APIKey == "" {
+		if !provider.Enabled {
 			continue
 		}
 
 		// Map provider names to their environment variable names
 		switch name {
 		case "anthropic":
-			env["ANTHROPIC_API_KEY"] = provider.APIKey
+			if provider.APIKey != "" {
+				env["ANTHROPIC_API_KEY"] = provider.APIKey
+			}
+			if provider.BaseURL != "" {
+				env["ANTHROPIC_BASE_URL"] = provider.BaseURL
+			}
 		case "openai":
-			env["OPENAI_API_KEY"] = provider.APIKey
+			if provider.APIKey != "" {
+				env["OPENAI_API_KEY"] = provider.APIKey
+			}
+			if provider.BaseURL != "" {
+				env["OPENAI_BASE_URL"] = provider.BaseURL
+			}
 		case "azure":
-			env["AZURE_API_KEY"] = provider.APIKey
+			if provider.APIKey != "" {
+				env["AZURE_API_KEY"] = provider.APIKey
+			}
+			if provider.BaseURL != "" {
+				env["AZURE_BASE_URL"] = provider.BaseURL
+			}
 		case "google":
-			env["GOOGLE_API_KEY"] = provider.APIKey
+			if provider.APIKey != "" {
+				env["GOOGLE_API_KEY"] = provider.APIKey
+			}
+			if provider.BaseURL != "" {
+				env["GOOGLE_BASE_URL"] = provider.BaseURL
+			}
+		default:
+			// For custom/local providers (e.g., lmstudio, ollama) that use
+			// OpenAI-compatible APIs, pass config via generic env vars.
+			// The gateway will pick these up via LLM_PROVIDER_<NAME>_* pattern.
+			upperName := strings.ToUpper(name)
+			if provider.APIKey != "" {
+				env[fmt.Sprintf("LLM_PROVIDER_%s_API_KEY", upperName)] = provider.APIKey
+			}
+			if provider.BaseURL != "" {
+				env[fmt.Sprintf("LLM_PROVIDER_%s_BASE_URL", upperName)] = provider.BaseURL
+			}
+			env[fmt.Sprintf("LLM_PROVIDER_%s_ENABLED", upperName)] = "true"
 		}
 
-		m.logger.Debug("Added API key for provider", "provider", name)
+		m.logger.Debug("Added config for provider", "provider", name)
 	}
 
 	// Add configuration environment variables

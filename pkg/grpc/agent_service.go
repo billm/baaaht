@@ -250,9 +250,10 @@ type AgentService struct {
 type pendingResponseRoute struct {
 	sessionID types.ID
 	handler   MessageResponseHandler
+	createdAt time.Time
 }
 
-const pendingResponseTimeout = 60 * time.Second
+const pendingResponseTimeout = 30 * time.Second
 const pendingResponsePersistTimeout = 5 * time.Second
 
 // MessageResponseHandler handles responses from agents
@@ -293,6 +294,28 @@ func pendingResponseKey(agentID, correlationID string) string {
 	return fmt.Sprintf("%s:%s", agentID, correlationID)
 }
 
+func responseRoutingKeys(msg *proto.AgentMessage) (correlationID string, sessionID string) {
+	if msg == nil {
+		return "", ""
+	}
+
+	if msg.Metadata != nil {
+		correlationID = strings.TrimSpace(msg.Metadata.CorrelationId)
+		sessionID = strings.TrimSpace(msg.Metadata.SessionId)
+	}
+
+	if data := msg.GetDataMessage(); data != nil {
+		if correlationID == "" && data.Headers != nil {
+			correlationID = strings.TrimSpace(data.Headers["correlation_id"])
+		}
+		if sessionID == "" && data.Headers != nil {
+			sessionID = strings.TrimSpace(data.Headers["session_id"])
+		}
+	}
+
+	return correlationID, sessionID
+}
+
 func (s *AgentService) clearPendingResponseLocked(pendingKey string) {
 	delete(s.pendingResponses, pendingKey)
 	if timer, ok := s.pendingTimers[pendingKey]; ok {
@@ -302,11 +325,22 @@ func (s *AgentService) clearPendingResponseLocked(pendingKey string) {
 }
 
 func (s *AgentService) processAgentResponse(ctx context.Context, agentID string, msg *proto.AgentMessage) {
-	if msg == nil || msg.Metadata == nil || msg.Metadata.CorrelationId == "" {
+	if msg == nil {
 		return
 	}
 
-	pendingKey := pendingResponseKey(agentID, msg.Metadata.CorrelationId)
+	correlationID, sessionIDFromMsg := responseRoutingKeys(msg)
+	if correlationID == "" {
+		s.logger.Warn("Discarding agent response without correlation_id",
+			"agent_id", agentID,
+			"message_id", msg.Id,
+			"has_metadata", msg.Metadata != nil,
+			"has_data_message", msg.GetDataMessage() != nil)
+		return
+	}
+
+	pendingKey := pendingResponseKey(agentID, correlationID)
+	receivedAt := time.Now()
 
 	s.mu.Lock()
 	pendingRoute, exists := s.pendingResponses[pendingKey]
@@ -318,19 +352,38 @@ func (s *AgentService) processAgentResponse(ctx context.Context, agentID string,
 	if !exists {
 		s.logger.Warn("Discarding unsolicited agent response",
 			"agent_id", agentID,
-			"correlation_id", msg.Metadata.CorrelationId)
+			"session_id", sessionIDFromMsg,
+			"correlation_id", correlationID,
+			"pending_key", pendingKey)
 		return
 	}
 
-	sessionID := types.ID(msg.Metadata.SessionId)
+	sessionID := types.ID(sessionIDFromMsg)
+	if sessionID.IsEmpty() {
+		sessionID = pendingRoute.sessionID
+	}
 	if sessionID != pendingRoute.sessionID {
 		s.logger.Warn("Discarding agent response with mismatched session",
 			"agent_id", agentID,
 			"expected_session", pendingRoute.sessionID,
 			"actual_session", sessionID,
-			"correlation_id", msg.Metadata.CorrelationId)
+			"correlation_id", correlationID,
+			"pending_key", pendingKey)
 		return
 	}
+
+	s.logger.Debug("Matched agent response to pending route",
+		"agent_id", agentID,
+		"session_id", sessionID,
+		"correlation_id", correlationID,
+		"pending_key", pendingKey,
+		"elapsed_ms", receivedAt.Sub(pendingRoute.createdAt).Milliseconds())
+	s.logger.Info("TRACE_FLOW stage=orchestrator.agent.response.matched",
+		"cid", correlationID,
+		"sid", sessionID,
+		"rid", msg.Id,
+		"pending_key", pendingKey,
+		"elapsed_ms", receivedAt.Sub(pendingRoute.createdAt).Milliseconds())
 
 	dataMsg := msg.GetDataMessage()
 	if dataMsg == nil {
@@ -351,8 +404,22 @@ func (s *AgentService) processAgentResponse(ctx context.Context, agentID string,
 	}
 
 	if pendingRoute.handler != nil {
+		s.logger.Info("TRACE_FLOW stage=orchestrator.agent.response.forward_tui.start",
+			"cid", correlationID,
+			"sid", sessionID,
+			"rid", msg.Id)
 		if err := pendingRoute.handler.SendResponseToSession(sessionID, responseMsg); err != nil {
 			s.logger.Error("Failed to send response to TUI", "session_id", sessionID, "error", err)
+			s.logger.Info("TRACE_FLOW stage=orchestrator.agent.response.forward_tui.failed",
+				"cid", correlationID,
+				"sid", sessionID,
+				"rid", msg.Id,
+				"error", err)
+		} else {
+			s.logger.Info("TRACE_FLOW stage=orchestrator.agent.response.forward_tui.done",
+				"cid", correlationID,
+				"sid", sessionID,
+				"rid", msg.Id)
 		}
 	}
 }
@@ -397,6 +464,8 @@ func (s *AgentService) expirePendingResponse(agentID, pendingKey string) {
 	s.logger.Warn("Pending agent response expired",
 		"agent_id", agentID,
 		"session_id", pendingRoute.sessionID,
+		"elapsed_ms", time.Since(pendingRoute.createdAt).Milliseconds(),
+		"timeout_ms", pendingResponseTimeout.Milliseconds(),
 		"pending_key", pendingKey)
 }
 
@@ -1052,11 +1121,19 @@ func (s *AgentService) RouteMessageToAgent(ctx context.Context, agentID string, 
 	s.pendingResponses[pendingKey] = pendingResponseRoute{
 		sessionID: sessionID,
 		handler:   handler,
+		createdAt: time.Now(),
 	}
 	s.pendingTimers[pendingKey] = time.AfterFunc(pendingResponseTimeout, func() {
 		s.expirePendingResponse(agentID, pendingKey)
 	})
 	s.mu.Unlock()
+
+	s.logger.Debug("Registered pending agent response route",
+		"agent_id", agentID,
+		"session_id", sessionID,
+		"correlation_id", correlationID,
+		"pending_key", pendingKey,
+		"timeout_ms", pendingResponseTimeout.Milliseconds())
 
 	// Create AgentMessage with DataMessage payload containing the user message
 	agentMsg := &proto.AgentMessage{
@@ -1092,7 +1169,12 @@ func (s *AgentService) RouteMessageToAgent(ctx context.Context, agentID string, 
 		return err
 	}
 
-	s.logger.Debug("Sent message to agent", "agent_id", agentID, "session_id", sessionID)
+	s.logger.Debug("Sent message to agent",
+		"agent_id", agentID,
+		"session_id", sessionID,
+		"message_id", message.ID,
+		"correlation_id", correlationID,
+		"pending_key", pendingKey)
 	return nil
 }
 

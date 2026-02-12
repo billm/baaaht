@@ -6,10 +6,17 @@
 // Copyright 2026 baaaht project
 
 import { EventEmitter } from 'events';
-import type {
-  Session,
+import {
   SessionState,
   SessionStatus,
+  SessionError,
+  SessionErrorCode,
+  isValidStateTransition,
+  TERMINAL_STATES,
+  ACTIVE_STATES,
+} from './types.js';
+import type {
+  Session,
   SessionMetadata,
   SessionConfig,
   SessionContext,
@@ -17,12 +24,7 @@ import type {
   SessionFilter,
   SessionStats,
   SessionManagerConfig,
-  SessionError,
-  SessionErrorCode,
   SessionUpdateOptions,
-  isValidStateTransition,
-  TERMINAL_STATES,
-  ACTIVE_STATES,
 } from './types.js';
 
 // =============================================================================
@@ -221,7 +223,8 @@ export class SessionManager extends EventEmitter {
    */
   async create(
     metadata: SessionMetadata,
-    sessionConfig: SessionConfig = {}
+    sessionConfig: SessionConfig = {},
+    explicitSessionID?: string
   ): Promise<string> {
     if (this.closed) {
       throw new SessionError(
@@ -238,8 +241,15 @@ export class SessionManager extends EventEmitter {
       );
     }
 
-    // Generate session ID
-    const sessionId = generateSessionId();
+    // Generate or use explicit session ID
+    const sessionId = explicitSessionID?.trim() || generateSessionId();
+
+    if (this.sessions.has(sessionId)) {
+      throw new SessionError(
+        `Session already exists: ${sessionId}`,
+        SessionErrorCode.ALREADY_EXISTS
+      );
+    }
 
     // Calculate expiration
     const now = new Date();
