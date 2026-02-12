@@ -71,6 +71,10 @@ func (r *MountAllowlistResolver) SetPolicy(ctx context.Context, policy *Policy) 
 		return types.NewError(types.ErrCodeUnavailable, "resolver is closed")
 	}
 
+	if policy == nil {
+		return types.NewError(types.ErrCodeInvalidArgument, "policy cannot be nil")
+	}
+
 	// Validate policy
 	if err := policy.Validate(); err != nil {
 		return types.WrapError(types.ErrCodeInvalidArgument, "invalid policy", err)
@@ -144,9 +148,18 @@ func (r *MountAllowlistResolver) ResolveMountAccess(ctx context.Context, path, u
 	var bestMatch *MountAllowlistEntry
 	var bestMatchPriority int // 3 = user-specific, 2 = group-specific, 1 = default
 
-	for _, entry := range r.policy.Mounts.MountAllowlist {
-		// Check if path matches
-		if !matchPattern(cleanPath, entry.Path) && !matchPattern(path, entry.Path) {
+	for i := range r.policy.Mounts.MountAllowlist {
+		// Take address of slice element directly to avoid loop variable capture issues.
+		// Using &entry in a range loop would capture the address of the loop variable,
+		// causing all pointers to point to the last element after the loop completes.
+		// See https://go.dev/wiki/CommonMistakes#using-reference-to-loop-iterator-variable
+		entry := &r.policy.Mounts.MountAllowlist[i]
+		
+		// Clean the entry path for consistent comparison
+		cleanEntryPath := filepath.Clean(entry.Path)
+		
+		// Check if path matches using only cleaned paths
+		if !matchPattern(cleanPath, cleanEntryPath) {
 			continue
 		}
 
@@ -167,7 +180,7 @@ func (r *MountAllowlistResolver) ResolveMountAccess(ctx context.Context, path, u
 			continue
 		}
 
-		bestMatch = &entry
+		bestMatch = entry
 		bestMatchPriority = priority
 	}
 

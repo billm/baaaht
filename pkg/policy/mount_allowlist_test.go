@@ -769,3 +769,187 @@ func TestGroupMountSharing(t *testing.T) {
 		}
 	})
 }
+
+func TestMountAllowlistWildcardPathMatching(t *testing.T) {
+	log, err := logger.NewDefault()
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
+
+	policy := &Policy{
+		ID:   "wildcard-test-policy",
+		Name: "Wildcard Test Policy",
+		Mode: EnforcementModeStrict,
+		Mounts: MountPolicy{
+			MountAllowlist: []MountAllowlistEntry{
+				{
+					Path: "/home/*/.ssh",
+					Mode: MountAccessModeDenied,
+				},
+				{
+					Path: "/home/*/projects",
+					User: "alice",
+					Mode: MountAccessModeReadWrite,
+				},
+				{
+					Path: "/data/*/shared",
+					Group: "engineering",
+					Mode: MountAccessModeReadOnly,
+				},
+				{
+					Path: "/tmp/*",
+					Mode: MountAccessModeReadWrite,
+				},
+			},
+		},
+	}
+
+	resolver, err := NewMountAllowlistResolver(policy, log)
+	if err != nil {
+		t.Fatalf("failed to create resolver: %v", err)
+	}
+	defer resolver.Close()
+
+	// Set up group provider
+	groupProvider := &mockGroupProvider{
+		groups: map[string][]string{
+			"alice": {"engineering", "developers"},
+			"bob":   {"engineering"},
+		},
+	}
+	if err := resolver.SetGroupProvider(groupProvider); err != nil {
+		t.Fatalf("failed to set group provider: %v", err)
+	}
+
+	ctx := context.Background()
+
+	t.Run("Wildcard denies SSH directories for all users", func(t *testing.T) {
+		// Test alice's SSH directory
+		mode, err := resolver.ResolveMountAccess(ctx, "/home/alice/.ssh", "alice")
+		if err != nil {
+			t.Fatalf("failed to resolve mount access: %v", err)
+		}
+		if mode != MountAccessModeDenied {
+			t.Errorf("expected denied for /home/alice/.ssh, got %v", mode)
+		}
+
+		// Test bob's SSH directory
+		mode, err = resolver.ResolveMountAccess(ctx, "/home/bob/.ssh", "bob")
+		if err != nil {
+			t.Fatalf("failed to resolve mount access: %v", err)
+		}
+		if mode != MountAccessModeDenied {
+			t.Errorf("expected denied for /home/bob/.ssh, got %v", mode)
+		}
+
+		// Test any other user's SSH directory
+		mode, err = resolver.ResolveMountAccess(ctx, "/home/charlie/.ssh", "charlie")
+		if err != nil {
+			t.Fatalf("failed to resolve mount access: %v", err)
+		}
+		if mode != MountAccessModeDenied {
+			t.Errorf("expected denied for /home/charlie/.ssh, got %v", mode)
+		}
+	})
+
+	t.Run("Wildcard matches user-specific projects directory", func(t *testing.T) {
+		// Alice should have read-write access to her projects
+		mode, err := resolver.ResolveMountAccess(ctx, "/home/alice/projects", "alice")
+		if err != nil {
+			t.Fatalf("failed to resolve mount access: %v", err)
+		}
+		if mode != MountAccessModeReadWrite {
+			t.Errorf("expected readwrite for alice's /home/alice/projects, got %v", mode)
+		}
+
+		// Bob should not have access to his projects (no allowlist entry for bob)
+		mode, err = resolver.ResolveMountAccess(ctx, "/home/bob/projects", "bob")
+		if err != nil {
+			t.Fatalf("failed to resolve mount access: %v", err)
+		}
+		if mode != MountAccessModeDenied {
+			t.Errorf("expected denied for bob's /home/bob/projects, got %v", mode)
+		}
+	})
+
+	t.Run("Wildcard matches group-specific shared directories", func(t *testing.T) {
+		// Alice (member of engineering) should have read-only access to shared dirs
+		mode, err := resolver.ResolveMountAccess(ctx, "/data/project1/shared", "alice")
+		if err != nil {
+			t.Fatalf("failed to resolve mount access: %v", err)
+		}
+		if mode != MountAccessModeReadOnly {
+			t.Errorf("expected readonly for alice's /data/project1/shared, got %v", mode)
+		}
+
+		// Bob (also member of engineering) should have read-only access
+		mode, err = resolver.ResolveMountAccess(ctx, "/data/project2/shared", "bob")
+		if err != nil {
+			t.Fatalf("failed to resolve mount access: %v", err)
+		}
+		if mode != MountAccessModeReadOnly {
+			t.Errorf("expected readonly for bob's /data/project2/shared, got %v", mode)
+		}
+
+		// Charlie (not in engineering) should not have access
+		mode, err = resolver.ResolveMountAccess(ctx, "/data/project1/shared", "charlie")
+		if err != nil {
+			t.Fatalf("failed to resolve mount access: %v", err)
+		}
+		if mode != MountAccessModeDenied {
+			t.Errorf("expected denied for charlie's /data/project1/shared, got %v", mode)
+		}
+	})
+
+	t.Run("Wildcard matches default tmp directories", func(t *testing.T) {
+		// Any user should have read-write access to tmp directories
+		mode, err := resolver.ResolveMountAccess(ctx, "/tmp/workdir", "alice")
+		if err != nil {
+			t.Fatalf("failed to resolve mount access: %v", err)
+		}
+		if mode != MountAccessModeReadWrite {
+			t.Errorf("expected readwrite for /tmp/workdir, got %v", mode)
+		}
+
+		mode, err = resolver.ResolveMountAccess(ctx, "/tmp/scratch", "bob")
+		if err != nil {
+			t.Fatalf("failed to resolve mount access: %v", err)
+		}
+		if mode != MountAccessModeReadWrite {
+			t.Errorf("expected readwrite for /tmp/scratch, got %v", mode)
+		}
+	})
+
+	t.Run("Wildcard does not match partial paths", func(t *testing.T) {
+		// /home/.ssh should not match /home/*/.ssh
+		mode, err := resolver.ResolveMountAccess(ctx, "/home/.ssh", "alice")
+		if err != nil {
+			t.Fatalf("failed to resolve mount access: %v", err)
+		}
+		if mode != MountAccessModeDenied {
+			t.Errorf("expected denied for /home/.ssh (no wildcard match), got %v", mode)
+		}
+
+		// /home/alice/projects/subfolder should not match /home/*/projects
+		mode, err = resolver.ResolveMountAccess(ctx, "/home/alice/projects/subfolder", "alice")
+		if err != nil {
+			t.Fatalf("failed to resolve mount access: %v", err)
+		}
+		if mode != MountAccessModeDenied {
+			t.Errorf("expected denied for /home/alice/projects/subfolder, got %v", mode)
+		}
+	})
+
+	t.Run("Path cleaning works correctly with wildcards", func(t *testing.T) {
+		// Test that path traversal doesn't bypass wildcard matching
+		mode, err := resolver.ResolveMountAccess(ctx, "/home/alice/../bob/.ssh", "bob")
+		if err != nil {
+			t.Fatalf("failed to resolve mount access: %v", err)
+		}
+		// After cleaning, this becomes /home/bob/.ssh, which should be denied
+		if mode != MountAccessModeDenied {
+			t.Errorf("expected denied for cleaned path /home/bob/.ssh, got %v", mode)
+		}
+	})
+}
+

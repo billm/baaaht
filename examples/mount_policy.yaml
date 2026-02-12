@@ -7,7 +7,7 @@
 # - Per-user allowlists: Grant specific users access to specific paths
 # - Per-group allowlists: Grant members of a group shared access to paths
 # - Access modes: readonly, readwrite, denied (for explicit blocking)
-# - Path matching: Exact paths only (no wildcards in mount allowlist)
+# - Path matching: Supports exact paths and shell-style wildcards (*) as shown below
 #
 # Default configuration locations:
 # - Unix: ~/.config/baaaht/mount_policy.yaml
