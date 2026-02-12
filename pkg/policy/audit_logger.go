@@ -169,9 +169,13 @@ func (al *AuditLogger) LogEvent(event AuditEvent) error {
 			al.logger.Error("Failed to write audit event to file", "error", err)
 			return fmt.Errorf("failed to write audit event to file: %w", err)
 		}
-		// Sync to ensure data is written
-		if err := al.auditFile.Sync(); err != nil {
-			al.logger.Error("Failed to sync audit file", "error", err)
+		// Optionally sync to ensure data is written. By default, we sync every event
+		// to preserve durability guarantees. Set AUDIT_FSYNC_DISABLED=true to rely
+		// on OS buffering for better performance at the cost of potential data loss on crash.
+		if os.Getenv("AUDIT_FSYNC_DISABLED") != "true" {
+			if err := al.auditFile.Sync(); err != nil {
+				al.logger.Error("Failed to sync audit file", "error", err)
+			}
 		}
 	}
 
