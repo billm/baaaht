@@ -253,6 +253,7 @@ type pendingResponseRoute struct {
 }
 
 const pendingResponseTimeout = 60 * time.Second
+const pendingResponsePersistTimeout = 5 * time.Second
 
 // MessageResponseHandler handles responses from agents
 type MessageResponseHandler interface {
@@ -379,7 +380,10 @@ func (s *AgentService) expirePendingResponse(agentID, pendingKey string) {
 	}
 
 	if mgr := s.deps.SessionManager(); mgr != nil {
-		if err := mgr.AddMessage(context.Background(), pendingRoute.sessionID, timeoutMsg); err != nil {
+		timeoutCtx, cancel := context.WithTimeout(context.Background(), pendingResponsePersistTimeout)
+		defer cancel()
+
+		if err := mgr.AddMessage(timeoutCtx, pendingRoute.sessionID, timeoutMsg); err != nil {
 			s.logger.Error("Failed to add timeout response to session", "session_id", pendingRoute.sessionID, "error", err)
 		}
 	}
@@ -408,6 +412,15 @@ func (s *AgentService) sendToAgentStream(agentID string, resp *proto.StreamAgent
 
 	sendLock.Lock()
 	defer sendLock.Unlock()
+
+	s.mu.RLock()
+	currentStream, currentExists := s.agentStreams[agentID]
+	currentSendLock := s.agentSendLocks[agentID]
+	s.mu.RUnlock()
+
+	if !currentExists || currentStream == nil || currentSendLock == nil || currentStream != stream || currentSendLock != sendLock {
+		return types.NewError(types.ErrCodeUnavailable, "agent stream not available")
+	}
 
 	if err := stream.Send(resp); err != nil {
 		return types.WrapError(types.ErrCodeInternal, "failed to send message to agent", err)
@@ -1026,7 +1039,8 @@ func (s *AgentService) RouteMessageToAgent(ctx context.Context, agentID string, 
 		message.Timestamp = types.NewTimestampFromTime(time.Now())
 	}
 
-	correlationID := string(message.ID)
+	requestID := string(types.GenerateID())
+	correlationID := string(types.GenerateID())
 
 	// Store the pending response route for this agent+correlation combination
 	pendingKey := pendingResponseKey(agentID, correlationID)
@@ -1046,7 +1060,7 @@ func (s *AgentService) RouteMessageToAgent(ctx context.Context, agentID string, 
 
 	// Create AgentMessage with DataMessage payload containing the user message
 	agentMsg := &proto.AgentMessage{
-		Id:        string(message.ID),
+		Id:        requestID,
 		Type:      proto.MessageType_MESSAGE_TYPE_DATA,
 		Timestamp: timestamppb.New(message.Timestamp.Time),
 		SourceId:  "orchestrator",

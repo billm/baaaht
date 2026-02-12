@@ -684,14 +684,19 @@ func TestAgentService_RouteMessageAndProcessResponse(t *testing.T) {
 		t.Fatal("Expected routed message metadata")
 	}
 
-	if routed.Metadata.CorrelationId != "corr-123" {
-		t.Fatalf("Expected correlation corr-123, got %q", routed.Metadata.CorrelationId)
+	if routed.Metadata.CorrelationId == "" {
+		t.Fatal("Expected non-empty correlation ID")
 	}
+	if routed.Metadata.CorrelationId == "corr-123" {
+		t.Fatalf("Expected generated correlation ID distinct from message ID, got %q", routed.Metadata.CorrelationId)
+	}
+
+	routedCorrelationID := routed.Metadata.CorrelationId
 
 	service.processAgentResponse(context.Background(), agentID, &proto.AgentMessage{
 		Metadata: &proto.AgentMessageMetadata{
 			SessionId:     string(sessionID),
-			CorrelationId: "corr-123",
+			CorrelationId: routedCorrelationID,
 		},
 		Payload: &proto.AgentMessage_DataMessage{DataMessage: &proto.DataMessage{Data: []byte("response")}},
 	})
@@ -709,8 +714,8 @@ func TestAgentService_RouteMessageAndProcessResponse(t *testing.T) {
 	}
 
 	service.mu.RLock()
-	_, pendingExists := service.pendingResponses[pendingResponseKey(agentID, "corr-123")]
-	_, timerExists := service.pendingTimers[pendingResponseKey(agentID, "corr-123")]
+	_, pendingExists := service.pendingResponses[pendingResponseKey(agentID, routedCorrelationID)]
+	_, timerExists := service.pendingTimers[pendingResponseKey(agentID, routedCorrelationID)]
 	service.mu.RUnlock()
 	if pendingExists || timerExists {
 		t.Fatal("Expected pending response and timer to be cleared")
@@ -745,10 +750,12 @@ func TestAgentService_DiscardMismatchedResponse(t *testing.T) {
 		t.Fatalf("RouteMessageToAgent failed: %v", err)
 	}
 
+	routedCorrelationID := stream.sent[0].GetMessage().GetMetadata().GetCorrelationId()
+
 	service.processAgentResponse(context.Background(), agentID, &proto.AgentMessage{
 		Metadata: &proto.AgentMessageMetadata{
 			SessionId:     "session-b",
-			CorrelationId: "corr-mismatch",
+			CorrelationId: routedCorrelationID,
 		},
 		Payload: &proto.AgentMessage_DataMessage{DataMessage: &proto.DataMessage{Data: []byte("response")}},
 	})
@@ -758,8 +765,8 @@ func TestAgentService_DiscardMismatchedResponse(t *testing.T) {
 	}
 
 	service.mu.RLock()
-	_, pendingExists := service.pendingResponses[pendingResponseKey(agentID, "corr-mismatch")]
-	_, timerExists := service.pendingTimers[pendingResponseKey(agentID, "corr-mismatch")]
+	_, pendingExists := service.pendingResponses[pendingResponseKey(agentID, routedCorrelationID)]
+	_, timerExists := service.pendingTimers[pendingResponseKey(agentID, routedCorrelationID)]
 	service.mu.RUnlock()
 	if pendingExists || timerExists {
 		t.Fatal("Expected mismatched response to clear pending route and timer")
