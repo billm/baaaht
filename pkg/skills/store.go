@@ -126,7 +126,16 @@ func (s *Store) Store(ctx context.Context, skill *types.Skill) error {
 
 		if skill.Capabilities != nil {
 			existing.Capabilities = make([]types.SkillCapability, len(skill.Capabilities))
-			copy(existing.Capabilities, skill.Capabilities)
+			for i, cap := range skill.Capabilities {
+				existing.Capabilities[i] = cap
+				// Deep copy the Config map
+				if cap.Config != nil {
+					existing.Capabilities[i].Config = make(map[string]interface{}, len(cap.Config))
+					for k, v := range cap.Config {
+						existing.Capabilities[i].Config[k] = v
+					}
+				}
+			}
 		} else {
 			existing.Capabilities = nil
 		}
@@ -202,11 +211,8 @@ func (s *Store) Store(ctx context.Context, skill *types.Skill) error {
 		s.logger.Info("Skill stored", "id", skill.ID, "name", skill.Name, "scope", skill.Scope)
 	}
 
-	// Persist to disk using the canonical in-memory object
-	skillToPersist := skill
-	if exists {
-		skillToPersist = existing
-	}
+	// Persist to disk using the canonical in-memory object (with correct timestamps)
+	skillToPersist := s.skills[skill.ID]
 	if err := s.saveToDisk(skillToPersist); err != nil {
 		s.logger.Error("Failed to persist skill to disk", "error", err)
 		return err
@@ -481,12 +487,12 @@ func (s *Store) saveToDisk(skill *types.Skill) error {
 		return types.WrapError(types.ErrCodeInternal, "failed to serialize skill", err)
 	}
 
-	// Enforce MaxSkillsPerOwner if configured
+	// Enforce MaxSkillsPerOwner if configured (only for new skills, not updates)
 	if s.cfg.MaxSkillsPerOwner > 0 {
-		// Count existing skills for this owner
+		// Count existing skills for this owner (excluding the current skill ID)
 		count := 0
-		for _, s := range s.skills {
-			if s.Scope == skill.Scope && s.OwnerID == skill.OwnerID {
+		for _, existingSkill := range s.skills {
+			if existingSkill.Scope == skill.Scope && existingSkill.OwnerID == skill.OwnerID && existingSkill.ID != skill.ID {
 				count++
 			}
 		}
@@ -675,7 +681,16 @@ func deepCopySkill(skill *types.Skill) *types.Skill {
 	// Deep copy the Capabilities slice
 	if skill.Capabilities != nil {
 		result.Capabilities = make([]types.SkillCapability, len(skill.Capabilities))
-		copy(result.Capabilities, skill.Capabilities)
+		for i, cap := range skill.Capabilities {
+			result.Capabilities[i] = cap
+			// Deep copy the Config map
+			if cap.Config != nil {
+				result.Capabilities[i].Config = make(map[string]interface{}, len(cap.Config))
+				for k, v := range cap.Config {
+					result.Capabilities[i].Config[k] = v
+				}
+			}
+		}
 	}
 
 	return &result
@@ -693,8 +708,16 @@ func (s *Store) deserializeFromMarkdown(data []byte, scope types.SkillScope, own
 
 // sanitizeOwnerID sanitizes an owner ID for safe filesystem usage
 func sanitizeOwnerID(ownerID string) string {
+	// Handle empty input explicitly
+	if ownerID == "" {
+		return ""
+	}
 	// Remove any path components that could lead to directory traversal
 	ownerID = filepath.Base(ownerID)
+	// filepath.Base("") returns ".", so check again
+	if ownerID == "." {
+		return ""
+	}
 	// Remove any non-alphanumeric characters (except dash, underscore, dot)
 	ownerID = strings.Map(func(r rune) rune {
 		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' {
