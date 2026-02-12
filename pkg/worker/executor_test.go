@@ -7,7 +7,6 @@ import (
 
 	"github.com/billm/baaaht/orchestrator/internal/logger"
 	"github.com/billm/baaaht/orchestrator/pkg/policy"
-	"github.com/billm/baaaht/orchestrator/pkg/types"
 )
 
 // TestExecuteTask verifies that ExecuteTask properly creates a container,
@@ -763,7 +762,6 @@ func TestTaskCancellation(t *testing.T) {
 	}
 
 	// Cancel the task
-	cancelReason := "Test cancellation"
 	force := false
 	if err := exec.CancelTask(ctx, taskID, force); err != nil {
 		t.Fatalf("Failed to cancel task: %v", err)

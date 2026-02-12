@@ -113,7 +113,7 @@ func TestWorkerIntegration(t *testing.T) {
 	workerBootstrapCfg := worker.BootstrapConfig{
 		Logger:               log,
 		Version:              worker.DefaultVersion,
-		OrchestratorAddr:     cfg.GRPC.SocketPath,
+		OrchestratorAddr:     "unix://" + cfg.GRPC.SocketPath,
 		WorkerName:           workerName,
 		DialTimeout:          30 * time.Second,
 		RPCTimeout:           10 * time.Second,

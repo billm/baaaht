@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/billm/baaaht/orchestrator/pkg/types"
@@ -121,7 +122,7 @@ func FileReadTool() *ToolSpec {
 }
 
 // FileWriteTool returns a tool specification for writing files
-// Uses Alpine image with tee command to write content
+// Uses Alpine image with sh to execute write script
 func FileWriteTool() *ToolSpec {
 	return &ToolSpec{
 		Type:        ToolTypeFileWrite,
@@ -129,7 +130,7 @@ func FileWriteTool() *ToolSpec {
 		Description: "Write content to a file",
 		Image:       "alpine:3.19",
 		Command:     []string{"sh", "-c"},
-		Args:        []string{"mkdir -p $(dirname \"$1\") && tee \"$1\" > /dev/null", "--"},
+		Args:        []string{}, // Script provided at runtime
 		WorkingDir:  "/workspace",
 		Env:         make(map[string]string),
 		Mounts: []types.Mount{
@@ -251,7 +252,8 @@ func ListTool() *ToolSpec {
 		Name:        "list",
 		Description: "List directory contents",
 		Image:       "alpine:3.19",
-		Command:     []string{"ls", "-la"},
+		Command:     []string{"ls"},
+		Args:        []string{"-la"},
 		WorkingDir:  "/workspace",
 		Env:         make(map[string]string),
 		Mounts: []types.Mount{
@@ -481,14 +483,15 @@ func FileWrite(ctx context.Context, exec *Executor, mountSource, filePath, conte
 	}
 
 	// Build the shell command that creates parent directories and writes content
-	// We use a shell heredoc to safely write content with special characters
-	// The script creates parent dirs and uses cat with heredoc to write content
-	shellScript := fmt.Sprintf("mkdir -p $(dirname %q) && cat > %q << 'BAAAHTEOF'\n%s\nBAAAHTEOF", argPath, argPath, content)
+	// Use printf to write content without adding trailing newlines  
+	// We need to escape single quotes in content for the shell
+	escapedContent := strings.ReplaceAll(content, "'", "'\\''")
+	shellScript := fmt.Sprintf("mkdir -p $(dirname %q) && printf '%%s' '%s' > %q", argPath, escapedContent, argPath)
 
 	// Execute the file write task
 	taskCfg := TaskConfig{
 		ToolType:    ToolTypeFileWrite,
-		Args:        []string{"sh", "-c", shellScript},
+		Args:        []string{shellScript},
 		MountSource: mountSource,
 	}
 
@@ -544,7 +547,7 @@ func ListFiles(ctx context.Context, exec *Executor, mountSource, dirPath string,
 	}
 
 	// Build the ls command with optional recursive flag
-	args := []string{"-la"}
+	args := []string{}
 	if recursive {
 		args = append(args, "-R")
 	}
