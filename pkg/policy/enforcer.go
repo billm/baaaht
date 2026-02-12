@@ -13,12 +13,14 @@ import (
 
 // Enforcer enforces security policies on container configurations
 type Enforcer struct {
-	mu              sync.RWMutex
-	policy          *Policy
-	cfg             config.PolicyConfig
-	logger          *logger.Logger
-	closed          bool
-	sessionPolicies map[types.ID]*Policy // Session-specific policies
+	mu                    sync.RWMutex
+	policy                *Policy
+	cfg                   config.PolicyConfig
+	logger                *logger.Logger
+	closed                bool
+	sessionPolicies       map[types.ID]*Policy // Session-specific policies
+	mountAllowlistResolver *MountAllowlistResolver // Mount allowlist resolver
+	auditLogger           *AuditLogger // Audit logger for security events
 }
 
 // New creates a new policy enforcer
@@ -34,12 +36,26 @@ func New(cfg config.PolicyConfig, log *logger.Logger) (*Enforcer, error) {
 	// Start with default policy
 	policy := DefaultPolicy()
 
+	// Create mount allowlist resolver
+	resolver, err := NewMountAllowlistResolver(policy, log)
+	if err != nil {
+		return nil, types.WrapError(types.ErrCodeInternal, "failed to create mount allowlist resolver", err)
+	}
+
+	// Create audit logger (without file output by default)
+	auditLogger, err := NewDefaultAuditLogger(log)
+	if err != nil {
+		return nil, types.WrapError(types.ErrCodeInternal, "failed to create audit logger", err)
+	}
+
 	e := &Enforcer{
-		policy:          policy,
-		cfg:             cfg,
-		logger:          log.With("component", "policy_enforcer"),
-		closed:          false,
-		sessionPolicies: make(map[types.ID]*Policy),
+		policy:                 policy,
+		cfg:                    cfg,
+		logger:                 log.With("component", "policy_enforcer"),
+		closed:                 false,
+		sessionPolicies:        make(map[types.ID]*Policy),
+		mountAllowlistResolver: resolver,
+		auditLogger:            auditLogger,
 	}
 
 	e.logger.Info("Policy enforcer initialized",
@@ -71,6 +87,14 @@ func (e *Enforcer) SetPolicy(ctx context.Context, policy *Policy) error {
 	}
 
 	e.policy = policy
+
+	// Update the resolver's policy as well
+	if e.mountAllowlistResolver != nil {
+		if err := e.mountAllowlistResolver.SetPolicy(ctx, policy); err != nil {
+			e.logger.Warn("Failed to update mount allowlist resolver policy", "error", err)
+			// Continue anyway - the resolver will use its cached policy
+		}
+	}
 
 	e.logger.Info("Policy updated",
 		"policy_id", policy.ID,
@@ -180,7 +204,7 @@ func (e *Enforcer) ValidateContainerConfig(ctx context.Context, sessionID types.
 	e.validateQuotas(policy, config, result)
 
 	// Validate mounts
-	e.validateMounts(policy, config, result)
+	e.validateMounts(ctx, policy, config, result)
 
 	// Validate network
 	e.validateNetwork(policy, config, result)
@@ -275,7 +299,7 @@ func (e *Enforcer) validateQuotas(policy *Policy, config types.ContainerConfig, 
 }
 
 // validateMounts validates mount configurations
-func (e *Enforcer) validateMounts(policy *Policy, config types.ContainerConfig, result *ValidationResult) {
+func (e *Enforcer) validateMounts(ctx context.Context, policy *Policy, config types.ContainerConfig, result *ValidationResult) {
 	for _, mount := range config.Mounts {
 		switch mount.Type {
 		case types.MountTypeBind:
@@ -287,18 +311,107 @@ func (e *Enforcer) validateMounts(policy *Policy, config types.ContainerConfig, 
 					Component: "mount",
 				}
 				result.Violations = append(result.Violations, violation)
+
+				// Log to audit
+				if e.auditLogger != nil {
+					username := getUsernameFromConfig(config)
+					requestedMode := MountAccessModeReadWrite
+					if mount.ReadOnly {
+						requestedMode = MountAccessModeReadOnly
+					}
+					_ = e.auditLogger.LogMountViolation(username, "", mount.Source, requestedMode,
+						"bind mounts are disabled by policy", map[string]string{
+							"target": mount.Target,
+							"rule":   "mount.bind.disabled",
+						})
+				}
 				continue
 			}
 
-			// Check bind mount source against allow/deny lists
-			if !isPathAllowed(mount.Source, policy.Mounts.AllowedBindSources, policy.Mounts.DeniedBindSources) {
-				violation := Violation{
-					Rule:      "mount.bind.source_not_allowed",
-					Message:   fmt.Sprintf("bind mount source not allowed: %s", mount.Source),
-					Severity:  string(SeverityError),
-					Component: "mount",
+			// Use resolver if available to check mount access and mode
+			// For backward compatibility, only use the resolver if the allowlist is configured.
+			// When the allowlist is configured (non-empty), it operates in fail-closed mode:
+			// paths not in the allowlist are denied. When the allowlist is not configured
+			// (empty), we fall back to legacy allow/deny lists for backward compatibility.
+			useResolver := false
+			var accessMode MountAccessMode = MountAccessModeReadWrite // Default to read-write for backward compatibility
+
+			if e.mountAllowlistResolver != nil && len(policy.Mounts.MountAllowlist) > 0 {
+				// Try to get username from config labels or context
+				username := ""
+				if config.Labels != nil {
+					if user, ok := config.Labels["username"]; ok {
+						username = user
+					}
 				}
-				result.Violations = append(result.Violations, violation)
+
+				mode, err := e.mountAllowlistResolver.ResolveMountAccess(ctx, mount.Source, username)
+				if err != nil {
+					e.logger.Warn("Failed to resolve mount access", "path", mount.Source, "error", err)
+					// Fall through to legacy allow/deny list checking
+				} else {
+					useResolver = true
+					accessMode = mode
+
+					// Check if access is denied by the allowlist
+					if accessMode == MountAccessModeDenied {
+						violation := Violation{
+							Rule:      "mount.bind.source_not_allowed",
+							Message:   fmt.Sprintf("bind mount source not in allowlist: %s", mount.Source),
+							Severity:  string(SeverityError),
+							Component: "mount",
+						}
+						result.Violations = append(result.Violations, violation)
+
+						// Log to audit
+						if e.auditLogger != nil {
+							username := getUsernameFromConfig(config)
+							_ = e.auditLogger.LogMountViolation(username, "", mount.Source, accessMode,
+								"mount source not in allowlist", map[string]string{
+									"target": mount.Target,
+									"rule":   "mount.bind.source_not_allowed",
+								})
+						}
+						continue
+					}
+
+					// Enforce read-only mounts immediately during validation so that
+					// callers cannot bypass enforcement by skipping EnforceContainerConfig.
+					if accessMode == MountAccessModeReadOnly && !mount.ReadOnly {
+						e.logger.Debug("Enforcing read-only mode for mount",
+							"path", mount.Source,
+							"target", mount.Target,
+							"user", username)
+						mount.ReadOnly = true
+					}
+				}
+			}
+
+			// Fall back to legacy allow/deny list checking if resolver was not used or is not available
+			if !useResolver {
+				if !isPathAllowed(mount.Source, policy.Mounts.AllowedBindSources, policy.Mounts.DeniedBindSources) {
+					violation := Violation{
+						Rule:      "mount.bind.source_not_allowed",
+						Message:   fmt.Sprintf("bind mount source not allowed: %s", mount.Source),
+						Severity:  string(SeverityError),
+						Component: "mount",
+					}
+					result.Violations = append(result.Violations, violation)
+
+					// Log to audit
+					if e.auditLogger != nil {
+						username := getUsernameFromConfig(config)
+						requestedMode := MountAccessModeReadWrite
+						if mount.ReadOnly {
+							requestedMode = MountAccessModeReadOnly
+						}
+						_ = e.auditLogger.LogMountViolation(username, "", mount.Source, requestedMode,
+							"bind mount source not in legacy allowlist", map[string]string{
+								"target": mount.Target,
+								"rule":   "mount.bind.source_not_allowed",
+							})
+					}
+				}
 			}
 
 		case types.MountTypeVolume:
@@ -310,6 +423,20 @@ func (e *Enforcer) validateMounts(policy *Policy, config types.ContainerConfig, 
 					Component: "mount",
 				}
 				result.Violations = append(result.Violations, violation)
+
+				// Log to audit
+				if e.auditLogger != nil {
+					username := getUsernameFromConfig(config)
+					requestedMode := MountAccessModeReadWrite
+					if mount.ReadOnly {
+						requestedMode = MountAccessModeReadOnly
+					}
+					_ = e.auditLogger.LogMountViolation(username, "", mount.Source, requestedMode,
+						"volume mounts are disabled by policy", map[string]string{
+							"target": mount.Target,
+							"rule":   "mount.volume.disabled",
+						})
+				}
 				continue
 			}
 
@@ -322,6 +449,20 @@ func (e *Enforcer) validateMounts(policy *Policy, config types.ContainerConfig, 
 					Component: "mount",
 				}
 				result.Violations = append(result.Violations, violation)
+
+				// Log to audit
+				if e.auditLogger != nil {
+					username := getUsernameFromConfig(config)
+					requestedMode := MountAccessModeReadWrite
+					if mount.ReadOnly {
+						requestedMode = MountAccessModeReadOnly
+					}
+					_ = e.auditLogger.LogMountViolation(username, "", mount.Source, requestedMode,
+						"volume not in allowlist", map[string]string{
+							"target": mount.Target,
+							"rule":   "mount.volume.not_allowed",
+						})
+				}
 			}
 
 		case types.MountTypeTmpfs:
@@ -333,6 +474,15 @@ func (e *Enforcer) validateMounts(policy *Policy, config types.ContainerConfig, 
 					Component: "mount",
 				}
 				result.Violations = append(result.Violations, violation)
+
+				// Log to audit
+				if e.auditLogger != nil {
+					username := getUsernameFromConfig(config)
+					_ = e.auditLogger.LogMountViolation(username, "", mount.Target, MountAccessModeReadWrite,
+						"tmpfs mounts are disabled by policy", map[string]string{
+							"rule": "mount.tmpfs.disabled",
+						})
+				}
 				continue
 			}
 
@@ -357,6 +507,18 @@ func (e *Enforcer) validateMounts(policy *Policy, config types.ContainerConfig, 
 						Component: "mount",
 					}
 					result.Violations = append(result.Violations, violation)
+
+					// Log to audit
+					if e.auditLogger != nil {
+						username := getUsernameFromConfig(config)
+						_ = e.auditLogger.LogMountViolation(username, "", mount.Target, MountAccessModeReadWrite,
+							fmt.Sprintf("tmpfs size exceeds maximum: requested %d, maximum %d", size, *policy.Mounts.MaxTmpfsSize),
+							map[string]string{
+								"requested_size": fmt.Sprintf("%d", size),
+								"max_size":       fmt.Sprintf("%d", *policy.Mounts.MaxTmpfsSize),
+								"rule":           "mount.tmpfs.size_exceeded",
+							})
+					}
 				}
 			}
 		}
@@ -371,6 +533,17 @@ func (e *Enforcer) validateMounts(policy *Policy, config types.ContainerConfig, 
 			Component: "mount",
 		}
 		result.Violations = append(result.Violations, violation)
+
+		// Log to audit
+		if e.auditLogger != nil {
+			username := getUsernameFromConfig(config)
+			_ = e.auditLogger.LogMountViolation(username, "", "/",
+				MountAccessModeReadWrite,
+				"read-only root filesystem is required by policy",
+				map[string]string{
+					"rule": "mount.readonly_rootfs.required",
+				})
+		}
 	}
 }
 
@@ -593,6 +766,33 @@ func (e *Enforcer) EnforceContainerConfig(ctx context.Context, sessionID types.I
 		enforced.ReadOnlyRootfs = true
 	}
 
+	// Enforce mount access modes based on allowlist
+	for i := range enforced.Mounts {
+		mount := &enforced.Mounts[i]
+
+		// Only enforce for bind mounts
+		if mount.Type != types.MountTypeBind {
+			continue
+		}
+
+		// Use resolver to check if mount requires read-only mode
+		if e.mountAllowlistResolver != nil && len(policy.Mounts.MountAllowlist) > 0 {
+			// Get username from config
+			username := getUsernameFromConfig(config)
+
+			accessMode, err := e.mountAllowlistResolver.ResolveMountAccess(ctx, mount.Source, username)
+			if err != nil {
+				e.logger.Warn("Failed to resolve mount access for enforcement", "path", mount.Source, "error", err)
+				continue
+			}
+
+			// Enforce read-only mode if required by policy
+			if accessMode == MountAccessModeReadOnly {
+				mount.ReadOnly = true
+			}
+		}
+	}
+
 	return enforced, nil
 }
 
@@ -606,6 +806,21 @@ func (e *Enforcer) Close() error {
 	}
 
 	e.closed = true
+
+	// Close audit logger
+	if e.auditLogger != nil {
+		if err := e.auditLogger.Close(); err != nil {
+			e.logger.Warn("Failed to close audit logger", "error", err)
+		}
+	}
+
+	// Close mount allowlist resolver
+	if e.mountAllowlistResolver != nil {
+		if err := e.mountAllowlistResolver.Close(); err != nil {
+			e.logger.Warn("Failed to close mount allowlist resolver", "error", err)
+		}
+	}
+
 	e.logger.Info("Policy enforcer closed")
 	return nil
 }
@@ -617,6 +832,16 @@ func (e *Enforcer) Stats(ctx context.Context) (activeSessions int) {
 
 	activeSessions = len(e.sessionPolicies)
 	return
+}
+
+// getUsernameFromConfig extracts the username from container config labels
+func getUsernameFromConfig(config types.ContainerConfig) string {
+	if config.Labels != nil {
+		if user, ok := config.Labels["username"]; ok {
+			return user
+		}
+	}
+	return ""
 }
 
 // parseTmpfsSize parses a tmpfs size string (e.g., "100m", "1g") to bytes
@@ -650,4 +875,53 @@ func (e *Enforcer) String() string {
 
 	return fmt.Sprintf("PolicyEnforcer{mode: %s, active_sessions: %d}",
 		e.policy.Mode, len(e.sessionPolicies))
+}
+
+// SetAuditLogger sets a custom audit logger for the enforcer
+// This is primarily used for testing to inject audit loggers with file output
+func (e *Enforcer) SetAuditLogger(auditLogger *AuditLogger) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if e.closed {
+		return types.NewError(types.ErrCodeUnavailable, "enforcer is closed")
+	}
+
+	// Close existing audit logger if present
+	if e.auditLogger != nil {
+		if err := e.auditLogger.Close(); err != nil {
+			e.logger.Warn("Failed to close existing audit logger", "error", err)
+		}
+	}
+
+	e.auditLogger = auditLogger
+	return nil
+}
+
+// GetAuditLogger returns the current audit logger
+// This is primarily used for testing to verify audit log contents
+func (e *Enforcer) GetAuditLogger() *AuditLogger {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.auditLogger
+}
+
+// SetGroupProvider sets the group membership provider for the mount allowlist resolver
+func (e *Enforcer) SetGroupProvider(provider GroupMembershipProvider) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if e.closed {
+		return types.NewError(types.ErrCodeUnavailable, "enforcer is closed")
+	}
+
+	if e.mountAllowlistResolver == nil {
+		return types.NewError(types.ErrCodeInternal, "mount allowlist resolver not initialized")
+	}
+
+	if err := e.mountAllowlistResolver.SetGroupProvider(provider); err != nil {
+		return types.WrapError(types.ErrCodeInternal, "failed to set group provider", err)
+	}
+
+	return nil
 }

@@ -2,7 +2,10 @@ package container
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -967,6 +970,444 @@ func TestStrictModeRejection(t *testing.T) {
 	})
 }
 
+func TestMountAllowlist(t *testing.T) {
+	log, err := logger.NewDefault()
+	require.NoError(t, err)
+
+	client := &Client{}
+	creator, err := NewCreator(client, log)
+	require.NoError(t, err)
+
+	sessionID := types.NewID("test-session-mount-allowlist")
+
+	t.Run("rejects mount source not in allowlist in strict mode", func(t *testing.T) {
+		// Create a policy with mount allowlist entries
+		allowlistPolicy := policy.DefaultPolicy()
+		allowlistPolicy.Mode = policy.EnforcementModeStrict
+		allowlistPolicy.Mounts.AllowBindMounts = true
+		allowlistPolicy.Mounts.MountAllowlist = []policy.MountAllowlistEntry{
+			{
+				Path: "/allowed/data",
+				Mode: policy.MountAccessModeReadWrite,
+				User: "testuser",
+			},
+		}
+
+		enforcer, err := policy.New(config.DefaultPolicyConfig(), log)
+		require.NoError(t, err)
+		err = enforcer.SetPolicy(context.Background(), allowlistPolicy)
+		require.NoError(t, err)
+
+		creator.SetEnforcer(enforcer)
+
+		cfg := CreateConfig{
+			Config: types.ContainerConfig{
+				Image: "alpine:3.18",
+				Labels: map[string]string{
+					"username": "testuser",
+				},
+				Mounts: []types.Mount{
+					{
+						Type:     types.MountTypeBind,
+						Source:   "/not/allowed/path",
+						Target:   "/data",
+						ReadOnly: false,
+					},
+				},
+			},
+			Name:      "test-container-mount-not-allowed",
+			SessionID: sessionID,
+		}
+
+		_, err = creator.Create(context.Background(), cfg)
+
+		// Should fail with permission error due to mount not in allowlist
+		require.Error(t, err)
+		var customErr *types.Error
+		require.ErrorAs(t, err, &customErr)
+		assert.Equal(t, types.ErrCodePermission, customErr.Code,
+			"should reject mount source not in allowlist")
+		assert.Contains(t, customErr.Message, "not in allowlist")
+	})
+
+	t.Run("allows mount source in allowlist", func(t *testing.T) {
+		// Create a policy with mount allowlist entries
+		allowlistPolicy := policy.DefaultPolicy()
+		allowlistPolicy.Mode = policy.EnforcementModeStrict
+		allowlistPolicy.Mounts.AllowBindMounts = true
+		allowlistPolicy.Mounts.MountAllowlist = []policy.MountAllowlistEntry{
+			{
+				Path: "/allowed/data",
+				Mode: policy.MountAccessModeReadWrite,
+				User: "testuser",
+			},
+		}
+
+		enforcer, err := policy.New(config.DefaultPolicyConfig(), log)
+		require.NoError(t, err)
+		err = enforcer.SetPolicy(context.Background(), allowlistPolicy)
+		require.NoError(t, err)
+
+		creator.SetEnforcer(enforcer)
+
+		cfg := CreateConfig{
+			Config: types.ContainerConfig{
+				Image: "alpine:3.18",
+				Labels: map[string]string{
+					"username": "testuser",
+				},
+				Mounts: []types.Mount{
+					{
+						Type:     types.MountTypeBind,
+						Source:   "/allowed/data",
+						Target:   "/data",
+						ReadOnly: false,
+					},
+				},
+			},
+			Name:      "test-container-mount-allowed",
+			SessionID: sessionID,
+		}
+
+		_, err = creator.Create(context.Background(), cfg)
+
+		// Should NOT fail with permission error (will fail with nil Docker client instead)
+		if err != nil {
+			var customErr *types.Error
+			if assert.ErrorAs(t, err, &customErr) {
+				assert.NotEqual(t, types.ErrCodePermission, customErr.Code,
+					"allowed mount should not cause permission error")
+			}
+		}
+	})
+
+	t.Run("enforces read-only mode from allowlist", func(t *testing.T) {
+		// Create a policy with read-only mount in allowlist
+		allowlistPolicy := policy.DefaultPolicy()
+		allowlistPolicy.Mode = policy.EnforcementModeStrict
+		allowlistPolicy.Mounts.AllowBindMounts = true
+		allowlistPolicy.Mounts.MountAllowlist = []policy.MountAllowlistEntry{
+			{
+				Path: "/readonly/data",
+				Mode: policy.MountAccessModeReadOnly,
+				User: "testuser",
+			},
+		}
+
+		enforcer, err := policy.New(config.DefaultPolicyConfig(), log)
+		require.NoError(t, err)
+		err = enforcer.SetPolicy(context.Background(), allowlistPolicy)
+		require.NoError(t, err)
+
+		creator.SetEnforcer(enforcer)
+
+		cfg := CreateConfig{
+			Config: types.ContainerConfig{
+				Image: "alpine:3.18",
+				Labels: map[string]string{
+					"username": "testuser",
+				},
+				Mounts: []types.Mount{
+					{
+						Type:     types.MountTypeBind,
+						Source:   "/readonly/data",
+						Target:   "/data",
+						ReadOnly: false, // User requested read-write
+					},
+				},
+			},
+			Name:      "test-container-readonly-enforcement",
+			SessionID: sessionID,
+		}
+
+		// Apply enforcement to see the read-only flag being set
+		enforced, err := enforcer.EnforceContainerConfig(context.Background(), sessionID, cfg.Config)
+		require.NoError(t, err)
+
+		// The mount should be enforced as read-only
+		require.Len(t, enforced.Mounts, 1)
+		assert.True(t, enforced.Mounts[0].ReadOnly,
+			"mount should be enforced as read-only based on allowlist")
+	})
+
+	t.Run("allows multiple mounts with mixed modes from allowlist", func(t *testing.T) {
+		// Create a policy with mixed mount modes
+		allowlistPolicy := policy.DefaultPolicy()
+		allowlistPolicy.Mode = policy.EnforcementModeStrict
+		allowlistPolicy.Mounts.AllowBindMounts = true
+		allowlistPolicy.Mounts.MountAllowlist = []policy.MountAllowlistEntry{
+			{
+				Path: "/readonly/data",
+				Mode: policy.MountAccessModeReadOnly,
+				User: "testuser",
+			},
+			{
+				Path: "/readwrite/data",
+				Mode: policy.MountAccessModeReadWrite,
+				User: "testuser",
+			},
+		}
+
+		enforcer, err := policy.New(config.DefaultPolicyConfig(), log)
+		require.NoError(t, err)
+		err = enforcer.SetPolicy(context.Background(), allowlistPolicy)
+		require.NoError(t, err)
+
+		creator.SetEnforcer(enforcer)
+
+		cfg := CreateConfig{
+			Config: types.ContainerConfig{
+				Image: "alpine:3.18",
+				Labels: map[string]string{
+					"username": "testuser",
+				},
+				Mounts: []types.Mount{
+					{
+						Type:     types.MountTypeBind,
+						Source:   "/readonly/data",
+						Target:   "/ro",
+						ReadOnly: false,
+					},
+					{
+						Type:     types.MountTypeBind,
+						Source:   "/readwrite/data",
+						Target:   "/rw",
+						ReadOnly: false,
+					},
+				},
+			},
+			Name:      "test-container-mixed-modes",
+			SessionID: sessionID,
+		}
+
+		// Apply enforcement
+		enforced, err := enforcer.EnforceContainerConfig(context.Background(), sessionID, cfg.Config)
+		require.NoError(t, err)
+
+		// Check that readonly mount is enforced as read-only
+		require.Len(t, enforced.Mounts, 2)
+		assert.True(t, enforced.Mounts[0].ReadOnly,
+			"first mount should be read-only")
+
+		// Check that readwrite mount remains read-write
+		assert.False(t, enforced.Mounts[1].ReadOnly,
+			"second mount should remain read-write")
+	})
+
+	t.Run("denied mode in allowlist blocks mount", func(t *testing.T) {
+		// Create a policy with denied mount in allowlist
+		allowlistPolicy := policy.DefaultPolicy()
+		allowlistPolicy.Mode = policy.EnforcementModeStrict
+		allowlistPolicy.Mounts.AllowBindMounts = true
+		allowlistPolicy.Mounts.MountAllowlist = []policy.MountAllowlistEntry{
+			{
+				Path: "/denied/data",
+				Mode: policy.MountAccessModeDenied,
+				User: "testuser",
+			},
+		}
+
+		enforcer, err := policy.New(config.DefaultPolicyConfig(), log)
+		require.NoError(t, err)
+		err = enforcer.SetPolicy(context.Background(), allowlistPolicy)
+		require.NoError(t, err)
+
+		creator.SetEnforcer(enforcer)
+
+		cfg := CreateConfig{
+			Config: types.ContainerConfig{
+				Image: "alpine:3.18",
+				Labels: map[string]string{
+					"username": "testuser",
+				},
+				Mounts: []types.Mount{
+					{
+						Type:     types.MountTypeBind,
+						Source:   "/denied/data",
+						Target:   "/data",
+						ReadOnly: false,
+					},
+				},
+			},
+			Name:      "test-container-denied-mount",
+			SessionID: sessionID,
+		}
+
+		_, err = creator.Create(context.Background(), cfg)
+
+		// Should fail with permission error
+		require.Error(t, err)
+		var customErr *types.Error
+		require.ErrorAs(t, err, &customErr)
+		assert.Equal(t, types.ErrCodePermission, customErr.Code,
+			"denied mount should cause permission error")
+		assert.Contains(t, customErr.Message, "not in allowlist")
+	})
+
+	t.Run("group-scoped allowlist entries work", func(t *testing.T) {
+		// Create a mock group provider
+		// The mock expects username -> groups mapping
+		mockProvider := &MockGroupMembershipProvider{
+			groups: map[string][]string{
+				"alice": {"developers"},
+			},
+		}
+
+		// Create a policy with group-scoped allowlist
+		allowlistPolicy := policy.DefaultPolicy()
+		allowlistPolicy.Mode = policy.EnforcementModeStrict
+		allowlistPolicy.Mounts.AllowBindMounts = true
+		allowlistPolicy.Mounts.MountAllowlist = []policy.MountAllowlistEntry{
+			{
+				Path:  "/shared/team-data",
+				Mode:  policy.MountAccessModeReadWrite,
+				Group: "developers",
+			},
+		}
+
+		enforcer, err := policy.New(config.DefaultPolicyConfig(), log)
+		require.NoError(t, err)
+		err = enforcer.SetPolicy(context.Background(), allowlistPolicy)
+		require.NoError(t, err)
+
+		// Set the group provider
+		err = enforcer.SetGroupProvider(mockProvider)
+		require.NoError(t, err)
+
+		creator.SetEnforcer(enforcer)
+
+		cfg := CreateConfig{
+			Config: types.ContainerConfig{
+				Image: "alpine:3.18",
+				Labels: map[string]string{
+					"username": "alice",
+				},
+				Mounts: []types.Mount{
+					{
+						Type:     types.MountTypeBind,
+						Source:   "/shared/team-data",
+						Target:   "/team",
+						ReadOnly: false,
+					},
+				},
+			},
+			Name:      "test-container-group-allowlist",
+			SessionID: sessionID,
+		}
+
+		// Apply enforcement
+		enforced, err := enforcer.EnforceContainerConfig(context.Background(), sessionID, cfg.Config)
+		require.NoError(t, err)
+
+		// The mount should be allowed (not denied) and remain read-write
+		require.Len(t, enforced.Mounts, 1)
+		assert.False(t, enforced.Mounts[0].ReadOnly,
+			"group-scoped mount should be allowed and read-write")
+	})
+
+	t.Run("permissive mode logs violations but does not block", func(t *testing.T) {
+		// Create a policy with mount allowlist in permissive mode
+		allowlistPolicy := policy.DefaultPolicy()
+		allowlistPolicy.Mode = policy.EnforcementModePermissive
+		allowlistPolicy.Mounts.AllowBindMounts = true
+		allowlistPolicy.Mounts.MountAllowlist = []policy.MountAllowlistEntry{
+			{
+				Path: "/allowed/data",
+				Mode: policy.MountAccessModeReadWrite,
+				User: "testuser",
+			},
+		}
+
+		enforcer, err := policy.New(config.DefaultPolicyConfig(), log)
+		require.NoError(t, err)
+		err = enforcer.SetPolicy(context.Background(), allowlistPolicy)
+		require.NoError(t, err)
+
+		creator.SetEnforcer(enforcer)
+
+		cfg := CreateConfig{
+			Config: types.ContainerConfig{
+				Image: "alpine:3.18",
+				Labels: map[string]string{
+					"username": "testuser",
+				},
+				Mounts: []types.Mount{
+					{
+						Type:     types.MountTypeBind,
+						Source:   "/not/allowed/path",
+						Target:   "/data",
+						ReadOnly: false,
+					},
+				},
+			},
+			Name:      "test-container-permissive-allowlist",
+			SessionID: sessionID,
+		}
+
+		_, err = creator.Create(context.Background(), cfg)
+
+		// Should NOT fail with permission error in permissive mode
+		if err != nil {
+			var customErr *types.Error
+			if assert.ErrorAs(t, err, &customErr) {
+				assert.NotEqual(t, types.ErrCodePermission, customErr.Code,
+					"permissive mode should not block mount violations")
+			}
+		}
+	})
+
+	t.Run("no enforcer allows any mount", func(t *testing.T) {
+		// Remove enforcer
+		creator.SetEnforcer(nil)
+
+		cfg := CreateConfig{
+			Config: types.ContainerConfig{
+				Image: "alpine:3.18",
+				Labels: map[string]string{
+					"username": "testuser",
+				},
+				Mounts: []types.Mount{
+					{
+						Type:     types.MountTypeBind,
+						Source:   "/any/path",
+						Target:   "/data",
+						ReadOnly: false,
+					},
+				},
+			},
+			Name:      "test-container-no-enforcer",
+			SessionID: sessionID,
+		}
+
+		_, err = creator.Create(context.Background(), cfg)
+
+		// Should NOT fail with permission error (will fail with nil Docker client)
+		if err != nil {
+			var customErr *types.Error
+			if assert.ErrorAs(t, err, &customErr) {
+				assert.NotEqual(t, types.ErrCodePermission, customErr.Code,
+					"without enforcer, should not block mounts")
+			}
+		}
+	})
+}
+
+// MockGroupMembershipProvider is a mock implementation for testing
+type MockGroupMembershipProvider struct {
+	groups map[string][]string
+}
+
+func (m *MockGroupMembershipProvider) GetUserGroups(ctx context.Context, username string) ([]string, error) {
+	if groups, ok := m.groups[username]; ok {
+		return groups, nil
+	}
+	return []string{}, nil
+}
+
+func (m *MockGroupMembershipProvider) Close() error {
+	return nil
+}
+
 func TestPolicyViolationLogging(t *testing.T) {
 	log, err := logger.NewDefault()
 	require.NoError(t, err)
@@ -1083,5 +1524,290 @@ func TestPolicyViolationLogging(t *testing.T) {
 			assert.NotEqual(t, types.ErrCodePermission, customErr.Code,
 				"permissive mode should not block with permission error")
 		}
+	})
+}
+
+// TestMountAllowlistE2E tests end-to-end mount allowlist enforcement with audit logging
+func TestMountAllowlistE2E(t *testing.T) {
+	log, err := logger.NewDefault()
+	require.NoError(t, err)
+
+	// Create a temporary audit log file
+	tmpDir := t.TempDir()
+	auditPath := filepath.Join(tmpDir, "audit.log")
+
+	// Create audit logger with file output
+	auditLogger, err := policy.NewAuditLogger(log, auditPath)
+	require.NoError(t, err)
+	defer auditLogger.Close()
+
+	t.Run("blocked mount is rejected with audit log entry", func(t *testing.T) {
+		// Create a policy with user-specific mount allowlist
+		allowlistPolicy := policy.DefaultPolicy()
+		allowlistPolicy.Mode = policy.EnforcementModeStrict
+		allowlistPolicy.Mounts.AllowBindMounts = true
+		allowlistPolicy.Mounts.MountAllowlist = []policy.MountAllowlistEntry{
+			{
+				Path: "/allowed/data",
+				Mode: policy.MountAccessModeReadWrite,
+				User: "testuser",
+			},
+		}
+
+		// Create enforcer
+		enforcer, err := policy.New(config.DefaultPolicyConfig(), log)
+		require.NoError(t, err)
+
+		// Set the policy
+		err = enforcer.SetPolicy(context.Background(), allowlistPolicy)
+		require.NoError(t, err)
+
+		// Inject the audit logger
+		err = enforcer.SetAuditLogger(auditLogger)
+		require.NoError(t, err)
+
+		// Create creator with enforcer
+		client := &Client{}
+		creator, err := NewCreator(client, log)
+		require.NoError(t, err)
+		creator.SetEnforcer(enforcer)
+
+		sessionID := types.NewID("test-session-e2e")
+
+		// Step 1: Attempt to create a container with a blocked mount path
+		cfg := CreateConfig{
+			Config: types.ContainerConfig{
+				Image: "alpine:3.18",
+				Labels: map[string]string{
+					"username": "testuser",
+				},
+				Mounts: []types.Mount{
+					{
+						Type:     types.MountTypeBind,
+						Source:   "/not/allowed/path",
+						Target:   "/data",
+						ReadOnly: false,
+					},
+				},
+			},
+			Name:      "test-container-blocked-mount",
+			SessionID: sessionID,
+		}
+
+		// Step 2: Verify container creation fails with permission error
+		_, err = creator.Create(context.Background(), cfg)
+
+		require.Error(t, err, "container creation should fail for blocked mount")
+		var customErr *types.Error
+		require.ErrorAs(t, err, &customErr, "error should be a types.Error")
+		assert.Equal(t, types.ErrCodePermission, customErr.Code,
+			"error code should be ErrCodePermission")
+		assert.Contains(t, customErr.Message, "not in allowlist",
+			"error message should indicate mount is not in allowlist")
+
+		// Step 3: Verify audit log contains the violation details
+		// Read the audit log file
+		data, err := os.ReadFile(auditPath)
+		require.NoError(t, err, "should be able to read audit log file")
+
+		// Parse the audit log entry
+		var auditEvent map[string]interface{}
+		err = json.Unmarshal(data, &auditEvent)
+		require.NoError(t, err, "audit log should contain valid JSON")
+
+		// Verify audit log contains expected fields
+		assert.Equal(t, string(policy.AuditEventTypeMountViolation), auditEvent["type"],
+			"audit event type should be mount_violation")
+		assert.Equal(t, "error", auditEvent["severity"],
+			"audit event severity should be error")
+		assert.Equal(t, "testuser", auditEvent["user"],
+			"audit event should contain the username")
+		assert.Equal(t, "/not/allowed/path", auditEvent["path"],
+			"audit event should contain the blocked path")
+		assert.Equal(t, "denied", auditEvent["decision"],
+			"audit event decision should be denied")
+		assert.NotEmpty(t, auditEvent["reason"],
+			"audit event should contain a reason")
+		assert.NotEmpty(t, auditEvent["timestamp"],
+			"audit event should contain a timestamp")
+	})
+
+	t.Run("allowed mount succeeds and creates audit log entry", func(t *testing.T) {
+		// Clear the audit log file for this test
+		err := os.Truncate(auditPath, 0)
+		require.NoError(t, err)
+
+		// Create a policy with user-specific mount allowlist
+		allowlistPolicy := policy.DefaultPolicy()
+		allowlistPolicy.Mode = policy.EnforcementModeStrict
+		allowlistPolicy.Mounts.AllowBindMounts = true
+		allowlistPolicy.Mounts.MountAllowlist = []policy.MountAllowlistEntry{
+			{
+				Path: "/allowed/data",
+				Mode: policy.MountAccessModeReadWrite,
+				User: "testuser",
+			},
+		}
+
+		// Create enforcer
+		enforcer, err := policy.New(config.DefaultPolicyConfig(), log)
+		require.NoError(t, err)
+
+		// Set the policy
+		err = enforcer.SetPolicy(context.Background(), allowlistPolicy)
+		require.NoError(t, err)
+
+		// Inject the audit logger
+		err = enforcer.SetAuditLogger(auditLogger)
+		require.NoError(t, err)
+
+		// Create creator with enforcer
+		client := &Client{}
+		creator, err := NewCreator(client, log)
+		require.NoError(t, err)
+		creator.SetEnforcer(enforcer)
+
+		sessionID := types.NewID("test-session-e2e-allowed")
+
+		// Attempt to create a container with an allowed mount
+		cfg := CreateConfig{
+			Config: types.ContainerConfig{
+				Image: "alpine:3.18",
+				Labels: map[string]string{
+					"username": "testuser",
+				},
+				Mounts: []types.Mount{
+					{
+						Type:     types.MountTypeBind,
+						Source:   "/allowed/data",
+						Target:   "/data",
+						ReadOnly: false,
+					},
+				},
+			},
+			Name:      "test-container-allowed-mount",
+			SessionID: sessionID,
+		}
+
+		// Container creation should not fail with permission error
+		// (it will fail with nil Docker client, but that's different)
+		_, err = creator.Create(context.Background(), cfg)
+		if err != nil {
+			var customErr *types.Error
+			if assert.ErrorAs(t, err, &customErr) {
+				assert.NotEqual(t, types.ErrCodePermission, customErr.Code,
+					"allowed mount should not cause permission error")
+			}
+		}
+	})
+
+	t.Run("group-scoped blocked mount is rejected with audit log entry", func(t *testing.T) {
+		// Clear the audit log file for this test
+		err := os.Truncate(auditPath, 0)
+		require.NoError(t, err)
+
+		// Create a mock group provider - expects username -> groups mapping
+		mockProvider := &MockGroupMembershipProvider{
+			groups: map[string][]string{
+				"alice": {"developers"},  // alice is in developers group
+				// bob is not in any group
+			},
+		}
+
+		// Create a policy with group-scoped mount allowlist
+		allowlistPolicy := policy.DefaultPolicy()
+		allowlistPolicy.Mode = policy.EnforcementModeStrict
+		allowlistPolicy.Mounts.AllowBindMounts = true
+		allowlistPolicy.Mounts.MountAllowlist = []policy.MountAllowlistEntry{
+			{
+				Path:  "/shared/team-data",
+				Mode:  policy.MountAccessModeReadWrite,
+				Group: "developers",
+			},
+		}
+
+		// Create enforcer
+		enforcer, err := policy.New(config.DefaultPolicyConfig(), log)
+		require.NoError(t, err)
+
+		// Set the policy
+		err = enforcer.SetPolicy(context.Background(), allowlistPolicy)
+		require.NoError(t, err)
+
+		// Set the group provider
+		err = enforcer.SetGroupProvider(mockProvider)
+		require.NoError(t, err)
+
+		// Inject the audit logger
+		err = enforcer.SetAuditLogger(auditLogger)
+		require.NoError(t, err)
+
+		// Create creator with enforcer
+		client := &Client{}
+		creator, err := NewCreator(client, log)
+		require.NoError(t, err)
+		creator.SetEnforcer(enforcer)
+
+		sessionID := types.NewID("test-session-e2e-group")
+
+		// Attempt to create a container with a mount blocked for this user
+		// bob is not in the developers group, so /shared/team-data should be blocked
+		cfg := CreateConfig{
+			Config: types.ContainerConfig{
+				Image: "alpine:3.18",
+				Labels: map[string]string{
+					"username": "bob", // bob is not in developers group
+				},
+				Mounts: []types.Mount{
+					{
+						Type:     types.MountTypeBind,
+						Source:   "/shared/team-data",
+						Target:   "/team",
+						ReadOnly: false,
+					},
+				},
+			},
+			Name:      "test-container-group-blocked",
+			SessionID: sessionID,
+		}
+
+		// Verify container creation fails with permission error
+		_, err = creator.Create(context.Background(), cfg)
+
+		require.Error(t, err, "container creation should fail for blocked group mount")
+		var customErr *types.Error
+		require.ErrorAs(t, err, &customErr, "error should be a types.Error")
+		assert.Equal(t, types.ErrCodePermission, customErr.Code,
+			"error code should be ErrCodePermission")
+
+		// Verify audit log contains the violation
+		data, err := os.ReadFile(auditPath)
+		require.NoError(t, err, "should be able to read audit log file")
+
+		// The audit log contains JSON lines, need to parse line by line
+		lines := strings.Split(string(data), "\n")
+		var auditEvent map[string]interface{}
+		found := false
+		for _, line := range lines {
+			if strings.TrimSpace(line) == "" {
+				continue
+			}
+			err = json.Unmarshal([]byte(line), &auditEvent)
+			if err == nil && auditEvent["type"] == string(policy.AuditEventTypeMountViolation) {
+				// Check if this is the event we're looking for (bob, /shared/team-data)
+				if auditEvent["user"] == "bob" && auditEvent["path"] == "/shared/team-data" {
+					found = true
+					break
+				}
+			}
+		}
+		require.True(t, found, "should find a mount_violation event for bob and /shared/team-data in audit log")
+
+		assert.Equal(t, string(policy.AuditEventTypeMountViolation), auditEvent["type"],
+			"audit event type should be mount_violation")
+		assert.Equal(t, "bob", auditEvent["user"],
+			"audit event should contain the username")
+		assert.Equal(t, "/shared/team-data", auditEvent["path"],
+			"audit event should contain the blocked path")
 	})
 }
