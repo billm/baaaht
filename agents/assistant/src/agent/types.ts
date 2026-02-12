@@ -57,11 +57,6 @@ export interface AgentConfig {
   orchestratorUrl?: string;
 
   /**
-   * LLM Gateway base URL
-   */
-  llmGatewayUrl?: string;
-
-  /**
    * Default LLM model to use
    */
   defaultModel?: string;

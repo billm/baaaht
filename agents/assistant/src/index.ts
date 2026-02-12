@@ -35,7 +35,6 @@ async function main() {
   console.log(`  Agent ID: ${result.agentId}`);
   console.log(`  Version: ${result.version}`);
   console.log(`  Orchestrator: ${process.env.ORCHESTRATOR_URL ?? 'localhost:50051'}`);
-  console.log(`  LLM Gateway: ${process.env.LLM_GATEWAY_URL ?? 'http://localhost:8080'}`);
   console.log('');
   console.log('Agent is ready and listening for messages...');
   console.log('Press Ctrl+C to shut down.');

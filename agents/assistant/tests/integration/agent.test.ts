@@ -67,7 +67,6 @@ describe('Agent Integration Tests', () => {
       name: 'test-assistant',
       description: 'Test assistant agent',
       orchestratorUrl: 'localhost:50051',
-      llmGatewayUrl: 'http://localhost:8080',
       defaultModel: 'anthropic/claude-sonnet-4-20250514',
       maxConcurrentMessages: 5,
       messageTimeout: 30000,
