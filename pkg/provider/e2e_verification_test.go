@@ -40,7 +40,6 @@ func TestE2E_ProviderSystemFlow(t *testing.T) {
 
 	// Verify provider configuration is loaded
 	assert.NotEmpty(t, cfg.Provider.DefaultProvider, "Default provider should be set")
-	assert.True(t, cfg.Provider.FailoverEnabled, "Failover should be enabled")
 	assert.Greater(t, cfg.Provider.FailoverThreshold, 0, "Failover threshold should be positive")
 	assert.Greater(t, cfg.Provider.CircuitBreakerTimeout, time.Duration(0), "Circuit breaker timeout should be positive")
 

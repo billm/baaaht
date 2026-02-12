@@ -71,6 +71,7 @@ images:
 	cfg.Session.StoragePath = filepath.Join(tmpDir, "sessions")
 	cfg.IPC.SocketPath = filepath.Join(tmpDir, "ipc.sock")
 	cfg.Policy.ConfigPath = policyPath
+	cfg.LLM.Enabled = false
 
 	// Step 3: Bootstrap orchestrator with policy enforcement
 	t.Log("=== Step 3: Bootstrapping orchestrator with policy enforcer ===")
@@ -188,12 +189,13 @@ images:
 				NanoCPUs:    1000000000, // 1 CPU - within limit
 				MemoryBytes: 1073741824, // 1GB - within limit
 			},
-			Env:    make(map[string]string),
-			Labels: make(map[string]string),
+			NetworkMode: "none",
+			Env:         make(map[string]string),
+			Labels:      make(map[string]string),
 		},
 		Name:        containerNameCompliant,
 		SessionID:   sessionID,
-		AutoPull:    true, // Pull the image
+		AutoPull:    false,
 		PullTimeout: 5 * time.Minute,
 	}
 	createCfgCompliant.Config.Labels["baaaht.session_id"] = sessionID.String()
@@ -560,6 +562,7 @@ images:
 	cfg.Policy.ConfigPath = policyPath
 	// Ensure hot-reload is enabled (should be default, but be explicit)
 	cfg.Policy.ReloadOnChanges = true
+	cfg.LLM.Enabled = false
 
 	// Step 3: Bootstrap orchestrator with policy enforcement
 	t.Log("=== Step 3: Bootstrapping orchestrator with policy hot-reload ===")
@@ -625,12 +628,13 @@ images:
 		Config: types.ContainerConfig{
 			Image:   "alpine:latest", // Allowed by initial policy
 			Command: []string{"sleep", "300"},
-			Env:     make(map[string]string),
-			Labels:  make(map[string]string),
+			NetworkMode: "none",
+			Env:         make(map[string]string),
+			Labels:      make(map[string]string),
 		},
 		Name:        containerName1,
 		SessionID:   sessionID,
-		AutoPull:    true,
+		AutoPull:    false,
 		PullTimeout: 5 * time.Minute,
 	}
 	createCfg1.Config.Labels["baaaht.session_id"] = sessionID.String()
@@ -753,12 +757,13 @@ images:
 		Config: types.ContainerConfig{
 			Image:   "alpine:3.18", // Specific tag, should still work
 			Command: []string{"sleep", "300"},
-			Env:     make(map[string]string),
-			Labels:  make(map[string]string),
+			NetworkMode: "none",
+			Env:         make(map[string]string),
+			Labels:      make(map[string]string),
 		},
 		Name:        containerName3,
 		SessionID:   sessionID,
-		AutoPull:    true,
+		AutoPull:    false,
 		PullTimeout: 5 * time.Minute,
 	}
 	createCfg3.Config.Labels["baaaht.session_id"] = sessionID.String()

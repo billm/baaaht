@@ -18,20 +18,20 @@ import (
 
 // ExecutorMockRuntime is a mock implementation of container.Runtime for testing
 type ExecutorMockRuntime struct {
-	containerID string
-	createCalled bool
-	startCalled bool
-	waitCalled  bool
-	destroyCalled bool
-	logsCalled  bool
+	containerID      string
+	createCalled     bool
+	startCalled      bool
+	waitCalled       bool
+	destroyCalled    bool
+	logsCalled       bool
 	containerRunning bool
-	exitCode   int
-	output     []byte
-	stderr     []byte
-	createError error
-	startError error
-	waitError  error
-	logsError  error
+	exitCode         int
+	output           []byte
+	stderr           []byte
+	createError      error
+	startError       error
+	waitError        error
+	logsError        error
 }
 
 func (m *ExecutorMockRuntime) Create(ctx context.Context, cfg container.CreateConfig) (*container.CreateResult, error) {
@@ -702,9 +702,9 @@ func (m *executorMockTool) SetEnabled(enabled bool) {
 
 func (m *executorMockTool) Stats() ToolUsageStats {
 	return ToolUsageStats{
-		TotalExecutions: 10,
+		TotalExecutions:      10,
 		SuccessfulExecutions: 9,
-		FailedExecutions: 1,
+		FailedExecutions:     1,
 	}
 }
 
@@ -826,9 +826,10 @@ func TestExecutorSecurity(t *testing.T) {
 		result, err := executor.Execute(context.Background(), cfg)
 
 		// Execution should fail due to policy violation
-		assert.Error(t, err)
-		assert.Nil(t, result)
-		assert.Contains(t, err.Error(), "violates policy")
+		assert.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Equal(t, ToolExecutionStatusFailed, result.Status)
+		assert.Contains(t, result.ErrorText, "violates policy")
 		// Container should not be created when policy fails
 		assert.False(t, mockRuntime.createCalled)
 	})
@@ -924,8 +925,6 @@ func TestExecutorStrictModeRejection(t *testing.T) {
 		strictPolicy := policy.DefaultPolicy()
 		strictPolicy.Mode = policy.EnforcementModeStrict
 		strictPolicy.Network.AllowNetwork = false
-		err = policy.NewDefault(log)
-		require.NoError(t, err)
 
 		enforcer, err := policy.NewDefault(log)
 		require.NoError(t, err)

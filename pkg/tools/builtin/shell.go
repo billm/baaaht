@@ -92,6 +92,7 @@ func (s *ShellTool) Execute(ctx context.Context, parameters map[string]string) (
 	s.stats.TotalExecutions++
 	now := time.Now()
 	s.lastUsed = &now
+	s.stats.LastExecution = &now
 
 	// Validate parameters first
 	if err := s.Validate(parameters); err != nil {

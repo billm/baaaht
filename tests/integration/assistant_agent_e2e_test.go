@@ -3,7 +3,6 @@ package integration
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -12,12 +11,10 @@ import (
 	"github.com/billm/baaaht/orchestrator/internal/logger"
 	grpcPkg "github.com/billm/baaaht/orchestrator/pkg/grpc"
 	"github.com/billm/baaaht/orchestrator/pkg/orchestrator"
-	"github.com/billm/baaaht/orchestrator/pkg/types"
 	"github.com/billm/baaaht/orchestrator/proto"
 	grpc_health "google.golang.org/grpc/health/grpc_health_v1"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -292,7 +289,7 @@ func TestE2EAssistantAgentFlow(t *testing.T) {
 
 	// Poll for task completion
 	var taskCompleted atomic.Bool
-	var taskResult *proto.TaskInfo
+	var taskResult *proto.Task
 
 	maxPolls := 20
 	pollInterval := 500 * time.Millisecond
@@ -723,7 +720,7 @@ func TestE2EAssistantAgentStreamTask(t *testing.T) {
 
 	// Try to receive response (may fail if task doesn't exist yet, which is OK for this test)
 	// The important thing is the streaming infrastructure works
-	ctx2, cancel := context.WithTimeout(ctx, 2*time.Second)
+	_, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
 
 	resp, err := streamClient.Recv()

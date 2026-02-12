@@ -41,15 +41,15 @@ type ToolInfo struct {
 
 // ToolUsageStatsInfo holds usage statistics for a tool
 type ToolUsageStatsInfo struct {
-	TotalExecutions     int64
+	TotalExecutions      int64
 	SuccessfulExecutions int64
-	FailedExecutions    int64
-	TimeoutExecutions   int64
-	CancelledExecutions int64
-	TotalDurationNs     int64
-	AvgDurationNs       int64
-	LastExecution       *time.Time
-	mu                  sync.RWMutex
+	FailedExecutions     int64
+	TimeoutExecutions    int64
+	CancelledExecutions  int64
+	TotalDurationNs      int64
+	AvgDurationNs        int64
+	LastExecution        *time.Time
+	mu                   sync.RWMutex
 }
 
 // ExecutionInfo holds information about a tool execution
@@ -176,6 +176,10 @@ func (r *ToolRegistry) Update(name string, definition *proto.ToolDefinition) err
 
 	tool.mu.Lock()
 	tool.Definition = definition
+	tool.DisplayName = definition.DisplayName
+	tool.Type = definition.Type
+	tool.Version = definition.Version
+	tool.Enabled = definition.Enabled
 	tool.UpdatedAt = time.Now()
 	tool.mu.Unlock()
 
@@ -355,9 +359,9 @@ func (r *ExecutionRegistry) UpdateStatus(executionID string, status proto.ToolEx
 		execution.StartedAt = &now
 	}
 	if status == proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_COMPLETED ||
-	   status == proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_FAILED ||
-	   status == proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_TIMEOUT ||
-	   status == proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_CANCELLED {
+		status == proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_FAILED ||
+		status == proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_TIMEOUT ||
+		status == proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_CANCELLED {
 		now := time.Now()
 		execution.CompletedAt = &now
 		if execution.StartedAt != nil {
@@ -443,8 +447,15 @@ func (s *ToolService) GetExecutionRegistry() *ExecutionRegistry {
 
 // RegisterTool registers a new tool with the orchestrator
 func (s *ToolService) RegisterTool(ctx context.Context, req *proto.RegisterToolRequest) (*proto.RegisterToolResponse, error) {
-	s.logger.Debug("RegisterTool called", "name", req.Definition.Name)
+	name := ""
+	if req != nil && req.Definition != nil {
+		name = req.Definition.Name
+	}
+	s.logger.Debug("RegisterTool called", "name", name)
 
+	if req == nil {
+		return nil, errInvalidArgument("request is required")
+	}
 	if req.Definition == nil {
 		return nil, errInvalidArgument("definition is required")
 	}
@@ -452,7 +463,7 @@ func (s *ToolService) RegisterTool(ctx context.Context, req *proto.RegisterToolR
 		return nil, errInvalidArgument("definition.name is required")
 	}
 
-	name := req.Definition.Name
+	name = req.Definition.Name
 
 	// Create tool info
 	info := &ToolInfo{
@@ -462,11 +473,11 @@ func (s *ToolService) RegisterTool(ctx context.Context, req *proto.RegisterToolR
 		Enabled:     req.Definition.Enabled,
 		Version:     req.Definition.Version,
 		UsageStats: &ToolUsageStatsInfo{
-			TotalExecutions:     0,
+			TotalExecutions:      0,
 			SuccessfulExecutions: 0,
-			FailedExecutions:    0,
-			TimeoutExecutions:   0,
-			CancelledExecutions: 0,
+			FailedExecutions:     0,
+			TimeoutExecutions:    0,
+			CancelledExecutions:  0,
 		},
 	}
 
@@ -628,7 +639,7 @@ func (s *ToolService) DisableTool(ctx context.Context, req *proto.DisableToolReq
 			exec.mu.RUnlock()
 
 			if status == proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_RUNNING ||
-			   status == proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_PENDING {
+				status == proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_PENDING {
 				if err := s.executionRegistry.Cancel(exec.ExecutionID); err == nil {
 					cancelledCount++
 				}
@@ -787,6 +798,14 @@ func (s *ToolService) ExecuteTool(ctx context.Context, req *proto.ExecuteToolReq
 		AutoCleanup: true,
 	}
 
+	// Allow execution creation in environments where an executor is not configured.
+	if s.executor == nil {
+		return &proto.ExecuteToolResponse{
+			ExecutionId: execution.ExecutionID,
+			Execution:   s.executionInfoToProto(execution),
+		}, nil
+	}
+
 	// Update status to running
 	if err := s.executionRegistry.UpdateStatus(execution.ExecutionID, proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_RUNNING); err != nil {
 		s.logger.Warn("Failed to update execution status to running", "execution_id", execution.ExecutionID, "error", err)
@@ -800,12 +819,13 @@ func (s *ToolService) ExecuteTool(ctx context.Context, req *proto.ExecuteToolReq
 	}
 
 	// Update execution with result
+	status := toolExecutionStatusToProto(result.Status)
 	execution.mu.Lock()
-	execution.Status = proto.ToolExecutionStatus(result.Status)
+	execution.Status = status
 	execution.Result = &proto.ToolExecutionResult{
 		ExecutionId: result.ExecutionID,
 		ToolName:    result.ToolName,
-		Status:      proto.ToolExecutionStatus(result.Status),
+		Status:      status,
 		ExitCode:    result.ExitCode,
 		OutputData:  result.OutputData,
 		OutputText:  result.OutputText,
@@ -938,7 +958,7 @@ func (s *ToolService) StreamTool(stream proto.ToolService_StreamToolServer) erro
 						Complete: &proto.ToolExecutionComplete{
 							ExecutionId: executionID,
 							CompletedAt: timestamppb.Now(),
-							Result:       result,
+							Result:      result,
 						},
 					},
 				}
@@ -1059,7 +1079,7 @@ func (s *ToolService) HealthCheck(ctx context.Context, req *emptypb.Empty) (*pro
 		execution.mu.RUnlock()
 
 		if status == proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_RUNNING ||
-		   status == proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_PENDING {
+			status == proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_PENDING {
 			activeExecutions++
 		}
 	}
@@ -1096,7 +1116,7 @@ func (s *ToolService) GetServiceStatus(ctx context.Context, req *emptypb.Empty) 
 		execution.mu.RUnlock()
 
 		if status == proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_RUNNING ||
-		   status == proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_PENDING {
+			status == proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_PENDING {
 			activeExecutions++
 		}
 	}
@@ -1167,7 +1187,7 @@ func (s *ToolService) GetStats(ctx context.Context, req *proto.GetStatsRequest) 
 		execution.mu.RUnlock()
 
 		if status == proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_RUNNING ||
-		   status == proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_PENDING {
+			status == proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_PENDING {
 			serviceStats.ActiveExecutions++
 		}
 	}
@@ -1181,6 +1201,25 @@ func (s *ToolService) GetStats(ctx context.Context, req *proto.GetStatsRequest) 
 // =============================================================================
 // Helper Functions
 // =============================================================================
+
+func toolExecutionStatusToProto(status tools.ToolExecutionStatus) proto.ToolExecutionStatus {
+	switch status {
+	case tools.ToolExecutionStatusPending:
+		return proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_PENDING
+	case tools.ToolExecutionStatusRunning:
+		return proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_RUNNING
+	case tools.ToolExecutionStatusCompleted:
+		return proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_COMPLETED
+	case tools.ToolExecutionStatusFailed:
+		return proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_FAILED
+	case tools.ToolExecutionStatusTimeout:
+		return proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_TIMEOUT
+	case tools.ToolExecutionStatusCancelled:
+		return proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_CANCELLED
+	default:
+		return proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_UNSPECIFIED
+	}
+}
 
 // toolInfoToProto converts ToolInfo to protobuf ToolInstance
 func (s *ToolService) toolInfoToProto(info *ToolInfo) *proto.ToolInstance {
@@ -1410,7 +1449,7 @@ func (s *ToolService) String() string {
 		execution.mu.RUnlock()
 
 		if status == proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_RUNNING ||
-		   status == proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_PENDING {
+			status == proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_PENDING {
 			activeExecutions++
 		}
 	}

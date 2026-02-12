@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/billm/baaaht/orchestrator/internal/logger"
-	"github.com/billm/baaaht/orchestrator/pkg/types"
 	"github.com/billm/baaaht/orchestrator/pkg/tools"
+	"github.com/billm/baaaht/orchestrator/pkg/types"
 )
 
 // =============================================================================
@@ -177,9 +177,13 @@ func (w *WebTool) Validate(parameters map[string]string) error {
 			return types.NewError(types.ErrCodeInvalidArgument, "URL cannot be empty")
 		}
 		// Validate URL format
-		if _, err := url.Parse(urlStr); err != nil {
+		parsedURL, err := url.Parse(urlStr)
+		if err != nil {
 			return types.NewError(types.ErrCodeInvalidArgument,
-				fmt.Sprintf("invalid URL format: %w", err))
+				fmt.Sprintf("invalid URL format: %v", err))
+		}
+		if parsedURL.Scheme == "" || parsedURL.Host == "" {
+			return types.NewError(types.ErrCodeInvalidArgument, "invalid URL format: URL must include scheme and host")
 		}
 	}
 

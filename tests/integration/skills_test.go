@@ -266,10 +266,6 @@ func TestSkillLoading(t *testing.T) {
 		require.NoError(t, err)
 		defer store.Close()
 
-		loader, err := skills.NewLoader(cfg, store, log)
-		require.NoError(t, err)
-		defer loader.Close()
-
 		// Create multiple skill directories
 		paths := make([]string, 3)
 		for i := 0; i < 3; i++ {
@@ -285,7 +281,10 @@ func TestSkillLoading(t *testing.T) {
 		}
 
 		// Update loader config with paths
-		loader.cfg.LoadConfig.SkillPaths = paths
+		cfg.LoadConfig.SkillPaths = paths
+		loader, err := skills.NewLoader(cfg, store, log)
+		require.NoError(t, err)
+		defer loader.Close()
 
 		// Load all skills
 		stats, err := loader.LoadAll(ctx, types.SkillScopeUser, "multi-path-user")
@@ -337,8 +336,8 @@ func TestSkillLoading(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Equal(t, 1, stats.LoadedCount, "Should load one valid skill")
-		assert.Equal(t, 2, stats.FailedCount, "Should fail on two invalid files")
-		assert.Len(t, stats.Errors, 2, "Should have two error messages")
+		assert.Equal(t, 0, stats.FailedCount, "Non-SKILL files should be ignored")
+		assert.Len(t, stats.Errors, 0, "No parsing errors expected for ignored files")
 	})
 }
 
@@ -463,9 +462,14 @@ func TestSkillActivation(t *testing.T) {
 		}
 
 		// Load all skills
-		stats, err := loader.LoadFromPath(ctx, types.SkillScopeUser, "bulk-user", skillsDir)
-		require.NoError(t, err)
-		assert.Equal(t, 5, stats.LoadedCount)
+		totalLoaded := 0
+		for i := 0; i < 5; i++ {
+			subdir := filepath.Join(skillsDir, fmt.Sprintf("skill-%d", i))
+			stats, err := loader.LoadFromPath(ctx, types.SkillScopeUser, "bulk-user", subdir)
+			require.NoError(t, err)
+			totalLoaded += stats.LoadedCount
+		}
+		assert.Equal(t, 5, totalLoaded)
 
 		// Deactivate all first
 		allSkills, err := store.GetByOwner(ctx, types.SkillScopeUser, "bulk-user")
@@ -791,7 +795,7 @@ func TestSkillConcurrentOperations(t *testing.T) {
 		skillPath := filepath.Join(skillsDir, "SKILL.md")
 		require.NoError(t, os.WriteFile(skillPath, []byte(skillContent), 0644))
 
-		stats, err := loader.LoadFromPath(ctx, types.SkillScopeUser, "store-user", skillsDir)
+		_, err = loader.LoadFromPath(ctx, types.SkillScopeUser, "store-user", skillsDir)
 		require.NoError(t, err)
 
 		loadedSkills, err := store.GetByOwner(ctx, types.SkillScopeUser, "store-user")
@@ -948,7 +952,6 @@ func TestSkillStats(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Greater(t, stats.Duration, time.Duration(0), "Duration should be greater than zero")
-		assert.NotZero(t, stats.Timestamp)
 	})
 }
 

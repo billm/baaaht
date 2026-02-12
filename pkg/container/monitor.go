@@ -314,13 +314,22 @@ func (m *Monitor) Logs(ctx context.Context, cfg LogsConfig) (io.ReadCloser, erro
 	}
 
 	reader, err := m.client.cli.ContainerLogs(timeoutCtx, cfg.ContainerID, options)
-	cancel()
-
 	if err != nil {
+		cancel()
 		return nil, types.WrapError(types.ErrCodeInternal, "failed to retrieve container logs", err)
 	}
 
-	return reader, nil
+	return &cancelOnCloseReadCloser{ReadCloser: reader, cancel: cancel}, nil
+}
+
+type cancelOnCloseReadCloser struct {
+	io.ReadCloser
+	cancel context.CancelFunc
+}
+
+func (r *cancelOnCloseReadCloser) Close() error {
+	r.cancel()
+	return r.ReadCloser.Close()
 }
 
 // LogsReader wraps a log reader and parses log lines

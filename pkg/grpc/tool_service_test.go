@@ -8,10 +8,10 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/billm/baaaht/orchestrator/internal/logger"
 	"github.com/billm/baaaht/orchestrator/pkg/events"
+	"github.com/billm/baaaht/orchestrator/pkg/tools"
 	"github.com/billm/baaaht/orchestrator/proto"
 )
 
@@ -20,6 +20,10 @@ type mockToolServiceDeps struct{}
 
 func (m *mockToolServiceDeps) EventBus() *events.Bus {
 	return nil // Event bus is optional for tests
+}
+
+func (m *mockToolServiceDeps) Executor() *tools.Executor {
+	return nil // Executor is optional for tests that don't execute tools
 }
 
 // Test helper to create a test service
@@ -43,7 +47,7 @@ func TestToolService_RegisterTool(t *testing.T) {
 			Definition: &proto.ToolDefinition{
 				Name:        "test-tool",
 				DisplayName: "Test Tool",
-				Type:        proto.ToolType_TOOL_TYPE_BUILT_IN,
+				Type:        proto.ToolType_TOOL_TYPE_CUSTOM,
 				Description: "A test tool",
 				Version:     "1.0.0",
 				Enabled:     true,
@@ -110,7 +114,7 @@ func TestToolService_RegisterTool(t *testing.T) {
 			Definition: &proto.ToolDefinition{
 				Name:        "duplicate-tool",
 				DisplayName: "Duplicate Tool",
-				Type:        proto.ToolType_TOOL_TYPE_BUILT_IN,
+				Type:        proto.ToolType_TOOL_TYPE_CUSTOM,
 			},
 		}
 
@@ -135,7 +139,7 @@ func TestToolService_RegisterTool(t *testing.T) {
 			Definition: &proto.ToolDefinition{
 				Name:        "force-tool",
 				DisplayName: "Force Tool",
-				Type:        proto.ToolType_TOOL_TYPE_BUILT_IN,
+				Type:        proto.ToolType_TOOL_TYPE_CUSTOM,
 			},
 			Force: false,
 		}
@@ -167,7 +171,7 @@ func TestToolService_UnregisterTool(t *testing.T) {
 		Definition: &proto.ToolDefinition{
 			Name:        "test-unregister-tool",
 			DisplayName: "Test Unregister Tool",
-			Type:        proto.ToolType_TOOL_TYPE_BUILT_IN,
+			Type:        proto.ToolType_TOOL_TYPE_CUSTOM,
 		},
 	}
 	_, err := service.RegisterTool(context.Background(), regReq)
@@ -232,7 +236,7 @@ func TestToolService_UpdateTool(t *testing.T) {
 		Definition: &proto.ToolDefinition{
 			Name:        "test-update-tool",
 			DisplayName: "Original Name",
-			Type:        proto.ToolType_TOOL_TYPE_BUILT_IN,
+			Type:        proto.ToolType_TOOL_TYPE_CUSTOM,
 			Description: "Original description",
 		},
 	}
@@ -247,7 +251,7 @@ func TestToolService_UpdateTool(t *testing.T) {
 			Definition: &proto.ToolDefinition{
 				Name:        "test-update-tool",
 				DisplayName: "Updated Name",
-				Type:        proto.ToolType_TOOL_TYPE_BUILT_IN,
+				Type:        proto.ToolType_TOOL_TYPE_CUSTOM,
 				Description: "Updated description",
 			},
 		}
@@ -323,7 +327,7 @@ func TestToolService_EnableTool(t *testing.T) {
 		Definition: &proto.ToolDefinition{
 			Name:        "test-enable-tool",
 			DisplayName: "Test Enable Tool",
-			Type:        proto.ToolType_TOOL_TYPE_BUILT_IN,
+			Type:        proto.ToolType_TOOL_TYPE_CUSTOM,
 			Enabled:     false,
 		},
 	}
@@ -387,7 +391,7 @@ func TestToolService_DisableTool(t *testing.T) {
 		Definition: &proto.ToolDefinition{
 			Name:        "test-disable-tool",
 			DisplayName: "Test Disable Tool",
-			Type:        proto.ToolType_TOOL_TYPE_BUILT_IN,
+			Type:        proto.ToolType_TOOL_TYPE_CUSTOM,
 			Enabled:     true,
 		},
 	}
@@ -398,8 +402,8 @@ func TestToolService_DisableTool(t *testing.T) {
 
 	t.Run("disable_tool", func(t *testing.T) {
 		req := &proto.DisableToolRequest{
-			Name:                    "test-disable-tool",
-			CancelActiveExecutions:  false,
+			Name:                   "test-disable-tool",
+			CancelActiveExecutions: false,
 		}
 
 		resp, err := service.DisableTool(context.Background(), req)
@@ -458,9 +462,9 @@ func TestToolService_ListTools(t *testing.T) {
 		toolType    proto.ToolType
 		enabled     bool
 	}{
-		{"tool1", "Tool 1", proto.ToolType_TOOL_TYPE_BUILT_IN, true},
-		{"tool2", "Tool 2", proto.ToolType_TOOL_TYPE_CONTAINER, true},
-		{"tool3", "Tool 3", proto.ToolType_TOOL_TYPE_BUILT_IN, false},
+		{"tool1", "Tool 1", proto.ToolType_TOOL_TYPE_CUSTOM, true},
+		{"tool2", "Tool 2", proto.ToolType_TOOL_TYPE_FILE, true},
+		{"tool3", "Tool 3", proto.ToolType_TOOL_TYPE_CUSTOM, false},
 	}
 
 	for _, tool := range tools {
@@ -499,7 +503,7 @@ func TestToolService_ListTools(t *testing.T) {
 	t.Run("list_tools_with_type_filter", func(t *testing.T) {
 		req := &proto.ListToolsRequest{
 			Filter: &proto.ToolFilter{
-				Type: proto.ToolType_TOOL_TYPE_BUILT_IN,
+				Type: proto.ToolType_TOOL_TYPE_CUSTOM,
 			},
 		}
 
@@ -509,7 +513,7 @@ func TestToolService_ListTools(t *testing.T) {
 		}
 
 		if resp.TotalCount != 2 {
-			t.Errorf("Expected 2 BUILT_IN tools, got %d", resp.TotalCount)
+			t.Errorf("Expected 2 CUSTOM tools, got %d", resp.TotalCount)
 		}
 	})
 
@@ -539,7 +543,7 @@ func TestToolService_GetTool(t *testing.T) {
 		Definition: &proto.ToolDefinition{
 			Name:        "test-get-tool",
 			DisplayName: "Test Get Tool",
-			Type:        proto.ToolType_TOOL_TYPE_BUILT_IN,
+			Type:        proto.ToolType_TOOL_TYPE_CUSTOM,
 		},
 	}
 	_, err := service.RegisterTool(context.Background(), regReq)
@@ -601,7 +605,7 @@ func TestToolService_GetToolDefinition(t *testing.T) {
 	definition := &proto.ToolDefinition{
 		Name:        "test-def-tool",
 		DisplayName: "Test Definition Tool",
-		Type:        proto.ToolType_TOOL_TYPE_BUILT_IN,
+		Type:        proto.ToolType_TOOL_TYPE_CUSTOM,
 		Description: "A test tool for getting definitions",
 		Version:     "2.0.0",
 		Parameters: []*proto.ToolParameter{
@@ -682,7 +686,7 @@ func TestToolService_ExecuteTool(t *testing.T) {
 		Definition: &proto.ToolDefinition{
 			Name:        "test-exec-tool",
 			DisplayName: "Test Execution Tool",
-			Type:        proto.ToolType_TOOL_TYPE_BUILT_IN,
+			Type:        proto.ToolType_TOOL_TYPE_CUSTOM,
 			Enabled:     true,
 		},
 	}
@@ -693,10 +697,10 @@ func TestToolService_ExecuteTool(t *testing.T) {
 
 	t.Run("valid_tool_execution", func(t *testing.T) {
 		req := &proto.ExecuteToolRequest{
-			ToolName:    "test-exec-tool",
-			SessionId:   "test-session-123",
-			Parameters:  map[string]string{"key": "value"},
-			TimeoutNs:   30000000000, // 30 seconds
+			ToolName:      "test-exec-tool",
+			SessionId:     "test-session-123",
+			Parameters:    map[string]string{"key": "value"},
+			TimeoutNs:     30000000000, // 30 seconds
 			CorrelationId: "test-correlation-456",
 		}
 
@@ -735,7 +739,7 @@ func TestToolService_ExecuteTool(t *testing.T) {
 		regReq := &proto.RegisterToolRequest{
 			Definition: &proto.ToolDefinition{
 				Name:    "disabled-tool",
-				Type:    proto.ToolType_TOOL_TYPE_BUILT_IN,
+				Type:    proto.ToolType_TOOL_TYPE_CUSTOM,
 				Enabled: false,
 			},
 		}
@@ -779,7 +783,7 @@ func TestToolService_CancelExecution(t *testing.T) {
 	regReq := &proto.RegisterToolRequest{
 		Definition: &proto.ToolDefinition{
 			Name:    "test-cancel-tool",
-			Type:    proto.ToolType_TOOL_TYPE_BUILT_IN,
+			Type:    proto.ToolType_TOOL_TYPE_CUSTOM,
 			Enabled: true,
 		},
 	}
@@ -852,7 +856,7 @@ func TestToolService_GetExecutionStatus(t *testing.T) {
 	regReq := &proto.RegisterToolRequest{
 		Definition: &proto.ToolDefinition{
 			Name:    "test-status-tool",
-			Type:    proto.ToolType_TOOL_TYPE_BUILT_IN,
+			Type:    proto.ToolType_TOOL_TYPE_CUSTOM,
 			Enabled: true,
 		},
 	}
@@ -927,7 +931,7 @@ func TestToolService_ListExecutions(t *testing.T) {
 	regReq := &proto.RegisterToolRequest{
 		Definition: &proto.ToolDefinition{
 			Name:    "test-list-exec-tool",
-			Type:    proto.ToolType_TOOL_TYPE_BUILT_IN,
+			Type:    proto.ToolType_TOOL_TYPE_CUSTOM,
 			Enabled: true,
 		},
 	}
@@ -1054,7 +1058,7 @@ func TestToolService_GetStats(t *testing.T) {
 	regReq := &proto.RegisterToolRequest{
 		Definition: &proto.ToolDefinition{
 			Name:    "test-stats-tool",
-			Type:    proto.ToolType_TOOL_TYPE_BUILT_IN,
+			Type:    proto.ToolType_TOOL_TYPE_CUSTOM,
 			Enabled: true,
 		},
 	}
@@ -1151,7 +1155,7 @@ func TestToolRegistry(t *testing.T) {
 	t.Run("register_and_get_tool", func(t *testing.T) {
 		info := &ToolInfo{
 			DisplayName: "Test Tool",
-			Type:        proto.ToolType_TOOL_TYPE_BUILT_IN,
+			Type:        proto.ToolType_TOOL_TYPE_CUSTOM,
 			Version:     "1.0.0",
 			UsageStats:  &ToolUsageStatsInfo{},
 		}
@@ -1175,7 +1179,7 @@ func TestToolRegistry(t *testing.T) {
 	t.Run("register_duplicate_tool", func(t *testing.T) {
 		info := &ToolInfo{
 			DisplayName: "Duplicate Tool",
-			Type:        proto.ToolType_TOOL_TYPE_BUILT_IN,
+			Type:        proto.ToolType_TOOL_TYPE_CUSTOM,
 			UsageStats:  &ToolUsageStatsInfo{},
 		}
 		toolName := "duplicate-tool"
@@ -1198,7 +1202,7 @@ func TestToolRegistry(t *testing.T) {
 		for i := 0; i < 3; i++ {
 			info := &ToolInfo{
 				DisplayName: "Tool",
-				Type:        proto.ToolType_TOOL_TYPE_BUILT_IN,
+				Type:        proto.ToolType_TOOL_TYPE_CUSTOM,
 				UsageStats:  &ToolUsageStatsInfo{},
 			}
 			name := fmt.Sprintf("tool-%d", i)
@@ -1214,7 +1218,7 @@ func TestToolRegistry(t *testing.T) {
 	t.Run("unregister_tool", func(t *testing.T) {
 		info := &ToolInfo{
 			DisplayName: "Unregister Tool",
-			Type:        proto.ToolType_TOOL_TYPE_BUILT_IN,
+			Type:        proto.ToolType_TOOL_TYPE_CUSTOM,
 			UsageStats:  &ToolUsageStatsInfo{},
 		}
 		toolName := "unregister-test"
@@ -1234,7 +1238,7 @@ func TestToolRegistry(t *testing.T) {
 	t.Run("enable_and_disable_tool", func(t *testing.T) {
 		info := &ToolInfo{
 			DisplayName: "Enable Disable Tool",
-			Type:        proto.ToolType_TOOL_TYPE_BUILT_IN,
+			Type:        proto.ToolType_TOOL_TYPE_CUSTOM,
 			Enabled:     true,
 			UsageStats:  &ToolUsageStatsInfo{},
 		}
@@ -1284,7 +1288,7 @@ func TestToolRegistry(t *testing.T) {
 	t.Run("record_execution", func(t *testing.T) {
 		info := &ToolInfo{
 			DisplayName: "Stats Tool",
-			Type:        proto.ToolType_TOOL_TYPE_BUILT_IN,
+			Type:        proto.ToolType_TOOL_TYPE_CUSTOM,
 			UsageStats:  &ToolUsageStatsInfo{},
 		}
 		toolName := "stats-tool"
@@ -1333,7 +1337,7 @@ func TestToolRegistry(t *testing.T) {
 		if failedExecutions != 1 {
 			t.Errorf("Expected 1 failed execution, got %d", failedExecutions)
 		}
-		expectedAvg := (1000000000 + 2000000000) / 2
+		expectedAvg := int64((1000000000 + 2000000000) / 2)
 		if avgDuration != expectedAvg {
 			t.Errorf("Expected avg duration %d, got %d", expectedAvg, avgDuration)
 		}
@@ -1342,7 +1346,7 @@ func TestToolRegistry(t *testing.T) {
 	t.Run("update_tool", func(t *testing.T) {
 		info := &ToolInfo{
 			DisplayName: "Update Tool",
-			Type:        proto.ToolType_TOOL_TYPE_BUILT_IN,
+			Type:        proto.ToolType_TOOL_TYPE_CUSTOM,
 			UsageStats:  &ToolUsageStatsInfo{},
 		}
 		toolName := "update-test"
@@ -1352,7 +1356,7 @@ func TestToolRegistry(t *testing.T) {
 		newDefinition := &proto.ToolDefinition{
 			Name:        toolName,
 			DisplayName: "Updated Tool",
-			Type:        proto.ToolType_TOOL_TYPE_CONTAINER,
+			Type:        proto.ToolType_TOOL_TYPE_CUSTOM,
 		}
 
 		err := registry.Update(toolName, newDefinition)

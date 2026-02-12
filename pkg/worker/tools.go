@@ -111,7 +111,7 @@ func FileReadTool() *ToolSpec {
 			},
 		},
 		Resources: types.ResourceLimits{
-			NanoCPUs:    100_000_000, // 0.1 CPU
+			NanoCPUs:    100_000_000,      // 0.1 CPU
 			MemoryBytes: 64 * 1024 * 1024, // 64MB
 			PidsLimit:   int64Ptr(10),
 		},
@@ -142,7 +142,7 @@ func FileWriteTool() *ToolSpec {
 			},
 		},
 		Resources: types.ResourceLimits{
-			NanoCPUs:    100_000_000, // 0.1 CPU
+			NanoCPUs:    100_000_000,      // 0.1 CPU
 			MemoryBytes: 64 * 1024 * 1024, // 64MB
 			PidsLimit:   int64Ptr(10),
 		},
@@ -173,7 +173,7 @@ func FileEditTool() *ToolSpec {
 			},
 		},
 		Resources: types.ResourceLimits{
-			NanoCPUs:    100_000_000, // 0.1 CPU
+			NanoCPUs:    100_000_000,      // 0.1 CPU
 			MemoryBytes: 64 * 1024 * 1024, // 64MB
 			PidsLimit:   int64Ptr(10),
 		},
@@ -204,7 +204,7 @@ func GrepTool() *ToolSpec {
 			},
 		},
 		Resources: types.ResourceLimits{
-			NanoCPUs:    200_000_000, // 0.2 CPU
+			NanoCPUs:    200_000_000,       // 0.2 CPU
 			MemoryBytes: 128 * 1024 * 1024, // 128MB
 			PidsLimit:   int64Ptr(20),
 		},
@@ -234,7 +234,7 @@ func FindTool() *ToolSpec {
 			},
 		},
 		Resources: types.ResourceLimits{
-			NanoCPUs:    200_000_000, // 0.2 CPU
+			NanoCPUs:    200_000_000,       // 0.2 CPU
 			MemoryBytes: 128 * 1024 * 1024, // 128MB
 			PidsLimit:   int64Ptr(20),
 		},
@@ -265,7 +265,7 @@ func ListTool() *ToolSpec {
 			},
 		},
 		Resources: types.ResourceLimits{
-			NanoCPUs:    100_000_000, // 0.1 CPU
+			NanoCPUs:    100_000_000,      // 0.1 CPU
 			MemoryBytes: 64 * 1024 * 1024, // 64MB
 			PidsLimit:   int64Ptr(10),
 		},
@@ -289,7 +289,7 @@ func WebSearchTool() *ToolSpec {
 		Env:         make(map[string]string),
 		Mounts:      []types.Mount{}, // No mounts needed for web operations
 		Resources: types.ResourceLimits{
-			NanoCPUs:    200_000_000, // 0.2 CPU
+			NanoCPUs:    200_000_000,       // 0.2 CPU
 			MemoryBytes: 128 * 1024 * 1024, // 128MB
 			PidsLimit:   int64Ptr(10),
 		},
@@ -313,7 +313,7 @@ func FetchURLTool() *ToolSpec {
 		Env:         make(map[string]string),
 		Mounts:      []types.Mount{}, // No mounts needed for web operations
 		Resources: types.ResourceLimits{
-			NanoCPUs:    200_000_000, // 0.2 CPU
+			NanoCPUs:    200_000_000,       // 0.2 CPU
 			MemoryBytes: 128 * 1024 * 1024, // 128MB
 			PidsLimit:   int64Ptr(10),
 		},
@@ -483,7 +483,7 @@ func FileWrite(ctx context.Context, exec *Executor, mountSource, filePath, conte
 	}
 
 	// Build the shell command that creates parent directories and writes content
-	// Use printf to write content without adding trailing newlines  
+	// Use printf to write content without adding trailing newlines
 	// We need to escape single quotes in content for the shell
 	escapedContent := strings.ReplaceAll(content, "'", "'\\''")
 	shellScript := fmt.Sprintf("mkdir -p $(dirname %q) && printf '%%s' '%s' > %q", argPath, escapedContent, argPath)

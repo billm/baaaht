@@ -38,6 +38,7 @@ func loadTestConfig(t *testing.T) *config.Config {
 	cfg.Memory.GroupMemoryPath = filepath.Join(tmpDir, "memory", "groups")
 	cfg.Policy.ConfigPath = filepath.Join(tmpDir, "policies.yaml")
 	cfg.Policy.ReloadOnChanges = false
+	cfg.LLM.Enabled = false
 	return cfg
 }
 

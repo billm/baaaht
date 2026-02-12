@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/billm/baaaht/orchestrator/internal/logger"
-	"github.com/billm/baaaht/orchestrator/pkg/tools/builtin"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 )
 
@@ -541,19 +540,19 @@ func ListTools() []string {
 // These will be replaced by actual implementations in phase 4.
 var builtinToolFactories = map[string]ToolFactory{
 	// File tools
-	"read_file":  builtinFileToolFactory,
-	"write_file": builtinFileToolFactory,
-	"edit_file":  builtinFileToolFactory,
-	"list_dir":   builtinFileToolFactory,
-	"grep":       builtinFileToolFactory,
-	"find":       builtinFileToolFactory,
+	"read_file":  builtinToolPlaceholderFactory,
+	"write_file": builtinToolPlaceholderFactory,
+	"edit_file":  builtinToolPlaceholderFactory,
+	"list_dir":   builtinToolPlaceholderFactory,
+	"grep":       builtinToolPlaceholderFactory,
+	"find":       builtinToolPlaceholderFactory,
 	// Shell tool
-	"exec": builtinShellToolFactory,
+	"exec": builtinToolPlaceholderFactory,
 	// Web tools
-	"web_search": builtinWebToolFactory,
-	"web_fetch":  builtinWebToolFactory,
+	"web_search": builtinToolPlaceholderFactory,
+	"web_fetch":  builtinToolPlaceholderFactory,
 	// Messaging tool
-	"message": builtinMessageToolFactory,
+	"message": builtinToolPlaceholderFactory,
 }
 
 // builtinToolDefinitions contains the definitions for all built-in tools.
@@ -811,24 +810,82 @@ var builtinToolDefinitions = map[string]ToolDefinition{
 	},
 }
 
-// builtinFileToolFactory creates file tools using the builtin implementation.
-func builtinFileToolFactory(def ToolDefinition) (Tool, error) {
-	return builtin.FileToolFactory(def)
+// builtinToolPlaceholderFactory creates a placeholder tool using the built-in tool
+// definition as defaults, optionally overridden by the provided definition.
+func builtinToolPlaceholderFactory(def ToolDefinition) (Tool, error) {
+	baseDef, ok := builtinToolDefinitions[def.Name]
+	if !ok {
+		return nil, types.NewError(types.ErrCodeNotFound, fmt.Sprintf("unknown built-in tool: %s", def.Name))
+	}
+
+	merged := mergeToolDefinitions(baseDef, def)
+	return &builtinToolPlaceholder{
+		name:       merged.Name,
+		toolType:   merged.Type,
+		definition: merged,
+		enabled:    merged.Enabled,
+	}, nil
 }
 
-// builtinShellToolFactory creates shell tools using the builtin implementation.
-func builtinShellToolFactory(def ToolDefinition) (Tool, error) {
-	return builtin.ShellToolFactory(def)
+func mergeToolDefinitions(base, override ToolDefinition) ToolDefinition {
+	merged := base
+
+	// Always use the requested name and enabled flag.
+	if override.Name != "" {
+		merged.Name = override.Name
+	}
+	merged.Enabled = override.Enabled
+
+	if override.DisplayName != "" {
+		merged.DisplayName = override.DisplayName
+	}
+	if override.Type != "" && override.Type != ToolTypeUnspecified {
+		merged.Type = override.Type
+	}
+	if override.Description != "" {
+		merged.Description = override.Description
+	}
+	if override.Parameters != nil {
+		merged.Parameters = override.Parameters
+	}
+
+	// SecurityPolicy contains slices, so we can't compare directly; treat any set field as an override.
+	if hasSecurityPolicyOverride(override.SecurityPolicy) {
+		merged.SecurityPolicy = override.SecurityPolicy
+	}
+	if override.ResourceLimits != (types.ResourceLimits{}) {
+		merged.ResourceLimits = override.ResourceLimits
+	}
+	if override.Timeout != 0 {
+		merged.Timeout = override.Timeout
+	}
+	if override.ContainerImage != "" {
+		merged.ContainerImage = override.ContainerImage
+	}
+	if override.Command != nil {
+		merged.Command = override.Command
+	}
+	if override.Metadata != nil {
+		merged.Metadata = override.Metadata
+	}
+	if override.Version != "" {
+		merged.Version = override.Version
+	}
+
+	return merged
 }
 
-// builtinWebToolFactory creates web tools using the builtin implementation.
-func builtinWebToolFactory(def ToolDefinition) (Tool, error) {
-	return builtin.WebToolFactory(def)
-}
-
-// builtinMessageToolFactory creates message tools using the builtin implementation.
-func builtinMessageToolFactory(def ToolDefinition) (Tool, error) {
-	return builtin.MessageToolFactory(def)
+func hasSecurityPolicyOverride(p ToolSecurityPolicy) bool {
+	return p.AllowNetwork ||
+		p.AllowFilesystem ||
+		p.ReadOnlyFilesystem ||
+		p.AllowIPC ||
+		p.MaxConcurrent != 0 ||
+		len(p.AllowedHosts) > 0 ||
+		len(p.BlockedHosts) > 0 ||
+		len(p.AllowedPaths) > 0 ||
+		len(p.AllowedUsers) > 0 ||
+		len(p.BlockedCommands) > 0
 }
 
 // builtinToolPlaceholder is a placeholder implementation for built-in tools.

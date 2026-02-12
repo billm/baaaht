@@ -2,7 +2,7 @@ package builtin
 
 import (
 	"context"
-	"fmt"
+	"net/url"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -79,11 +79,11 @@ func TestNewWebTool(t *testing.T) {
 			tool, err := NewWebTool(tt.def)
 
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Nil(t, tool)
 				if tt.errCode != "" {
 					var customErr *types.Error
-					assert.ErrorAs(t, err, &customErr)
+					require.ErrorAs(t, err, &customErr)
 					assert.Equal(t, tt.errCode, customErr.Code)
 				}
 			} else {
@@ -252,10 +252,10 @@ func TestWebTool_Validation(t *testing.T) {
 			err = tool.Validate(tt.parameters)
 
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				if tt.errCode != "" {
 					var customErr *types.Error
-					assert.ErrorAs(t, err, &customErr)
+					require.ErrorAs(t, err, &customErr)
 					assert.Equal(t, tt.errCode, customErr.Code)
 				}
 			} else {
@@ -410,9 +410,9 @@ func TestWebTool_WebFetch(t *testing.T) {
 		}))
 		defer blockedServer.Close()
 
-		// Parse the server URL to get the host
-		blockedURL, _ := strings.CutPrefix(blockedServer.URL, "http://")
-		blockedHost, _, _ := strings.Cut(blockedURL, "/")
+		blockedParsedURL, err := url.Parse(blockedServer.URL)
+		require.NoError(t, err)
+		blockedHost := blockedParsedURL.Hostname()
 
 		def := tools.ToolDefinition{
 			Name:        "web_fetch",
@@ -447,15 +447,9 @@ func TestWebTool_WebFetch(t *testing.T) {
 		}))
 		defer allowedServer.Close()
 
-		otherServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("Should not reach here"))
-		}))
-		defer otherServer.Close()
-
-		// Parse the allowed server URL to get the host
-		allowedURL, _ := strings.CutPrefix(allowedServer.URL, "http://")
-		allowedHost, _, _ := strings.Cut(allowedURL, "/")
+		allowedParsedURL, err := url.Parse(allowedServer.URL)
+		require.NoError(t, err)
+		allowedHost := allowedParsedURL.Hostname()
 
 		t.Run("allowed host succeeds", func(t *testing.T) {
 			def := tools.ToolDefinition{
@@ -479,8 +473,8 @@ func TestWebTool_WebFetch(t *testing.T) {
 
 			result, err := tool.Execute(ctx, params)
 
-			assert.NoError(t, err)
-			assert.NotNil(t, result)
+			require.NoError(t, err)
+			require.NotNil(t, result)
 			assert.Equal(t, "Allowed content", result.OutputText)
 		})
 
@@ -501,7 +495,7 @@ func TestWebTool_WebFetch(t *testing.T) {
 
 			ctx := context.Background()
 			params := map[string]string{
-				"url": otherServer.URL,
+				"url": "https://example.com",
 			}
 
 			result, err := tool.Execute(ctx, params)
