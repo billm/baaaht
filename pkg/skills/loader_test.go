@@ -1035,6 +1035,7 @@ func TestLoadFromPathCaseInsensitive(t *testing.T) {
 	require.NoError(t, err)
 
 	// Should find both files (case-insensitive matching)
+	// Note: Test config does not enable recursive scanning, so only top-level SKILL.md is found
 	assert.Equal(t, 1, stats.TotalCount)
 }
 
