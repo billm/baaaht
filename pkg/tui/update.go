@@ -20,41 +20,29 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
 		keyStr := keyMsg.String()
 
-		// Debug logging for ALL ctrl+key combinations (only in verbose mode)
-		if m.verbose && m.logger != nil && len(keyStr) > 4 && (keyStr[:4] == "ctrl" || keyStr[:4] == "Ctrl") {
-			m.logger.Info("Ctrl key pressed", "key", keyStr, "input_value", m.input.Value())
+		// Debug logging for ALL key presses (only in verbose mode)
+		if m.verbose && m.logger != nil {
+			m.logger.Info("Key pressed",
+				"key", keyStr,
+				"type", keyMsg.Type.String(),
+				"alt", keyMsg.Alt,
+				"input_value", m.input.Value())
 		}
 
 		switch keyStr {
-		case "ctrl+enter", "ctrl+enter ", "ctrl+j":
+		case "enter":
 			// Send message
 			text := m.input.Value()
 			if m.verbose && m.logger != nil {
-				m.logger.Info("Sending message via Ctrl+Enter", "text", text, "key", keyStr)
+				m.logger.Info("Sending message", "text", text)
 			}
 			if text != "" {
 				m.chat.AppendMessage(components.MessageTypeUser, text)
 				resetCmd := m.input.Reset()
 				return m, tea.Batch(m.sendMessageCmd(text), resetCmd)
 			}
-			return m, nil
-		case "enter":
-			// TEMPORARY: Also accept plain enter for testing
-			// Only enabled when running in verbose mode to avoid surprising users.
-			if !m.verbose {
-				break
-			}
-			text := m.input.Value()
-			if m.verbose && m.logger != nil {
-				m.logger.Info("Sending message via Enter", "text", text)
-			}
-			if text != "" {
-				m.chat.AppendMessage(components.MessageTypeUser, text)
-				resetCmd := m.input.Reset()
-				return m, tea.Batch(m.sendMessageCmd(text), resetCmd)
-			}
-			return m, nil
-		case "ctrl+c", "ctrl+d", "ctrl+x":
+			return m, m.input.Reset()
+		case "ctrl+c", "ctrl+x":
 			// Quit
 			m.quitting = true
 			return m, m.shutdownCmd()

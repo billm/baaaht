@@ -1,8 +1,6 @@
 package tui
 
 import (
-	"strings"
-
 	"github.com/billm/baaaht/orchestrator/pkg/tui/styles"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -30,14 +28,14 @@ type KeyMap struct {
 // DefaultKeyMap returns the default keybindings for the TUI.
 // These bindings follow common CLI conventions:
 // - ctrl+c/ctrl+x for quit (ctrl+x is safer than 'q' which can be typed in text)
-// - ctrl+enter for sending messages
+// - enter for sending messages (shift+enter is preferred, but doesn't seem to work in ghostty, so using plain enter for now)
 // - ctrl+n/ctrl+p for next/previous (like Emacs/Vim)
 // - ctrl+l for listing sessions (shows overlay modal)
 // - esc for cancel (standard UI convention)
 func DefaultKeyMap() KeyMap {
 	return KeyMap{
 		Quit:            "ctrl+x",
-		SendMessage:     "ctrl+enter",
+		SendMessage:     "enter",
 		NextSession:     "ctrl+n",
 		PreviousSession: "ctrl+p",
 		ListSessions:    "ctrl+l",
@@ -74,7 +72,7 @@ func (k KeyMap) HelpEntries() []HelpEntry {
 // ShortHelp returns essential help entries for the footer.
 func (k KeyMap) ShortHelp() []HelpEntry {
 	return []HelpEntry{
-		{Key: k.SendMessage, Desc: "Send", Style: styles.Styles.HelpKey},
+		{Key: "enter", Desc: "Send", Style: styles.Styles.HelpKey},
 		{Key: k.RetryConnection, Desc: "Retry", Style: styles.Styles.HelpKey},
 		{Key: k.ListSessions, Desc: "Sessions", Style: styles.Styles.HelpKey},
 		{Key: k.Quit, Desc: "Quit", Style: styles.Styles.HelpKey},
@@ -94,25 +92,12 @@ func (k KeyMap) FullHelp() []HelpEntry {
 // IsQuitKey checks if the given key matches any quit keybinding.
 func (k KeyMap) IsQuitKey(msg tea.KeyMsg) bool {
 	s := msg.String()
-	return s == "ctrl+c" || s == "ctrl+d" || s == "ctrl+x"
+	return s == "ctrl+c" || s == "ctrl+x"
 }
 
 // IsSendKey checks if the given key is the send message keybinding.
 func (k KeyMap) IsSendKey(msg tea.KeyMsg) bool {
-	s := msg.String()
-	// Handle variations of ctrl+enter key string
-	// Bubbletea may represent this as "ctrl+enter", "ctrl+enter ", etc.
-	// We check for multiple variations to be robust
-	if s == "ctrl+enter" || s == "ctrl+enter " || s == "ctrl+j" {
-		return true
-	}
-	// Also check if the string contains both ctrl and enter (case-insensitive)
-	// This handles any platform-specific variations
-	sLower := strings.ToLower(s)
-	if strings.Contains(sLower, "ctrl") && strings.Contains(sLower, "enter") {
-		return true
-	}
-	return false
+	return msg.String() == "enter"
 }
 
 // IsCancelKey checks if the given key is the cancel keybinding.
