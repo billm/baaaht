@@ -165,6 +165,21 @@ func Bootstrap(ctx context.Context, cfg BootstrapConfig) (*BootstrapResult, erro
 		log.Warn("Container runtime not provided, tool service will not execute tools")
 	}
 
+	// Create AgentService first (OrchestratorService needs it)
+	agentSvc := NewAgentService(deps, log, cfg.SkillsLoader)
+	if err := server.RegisterService(&proto.AgentService_ServiceDesc, agentSvc); err != nil {
+		result.Error = types.WrapError(types.ErrCodeInternal, "failed to register agent service", err)
+		// Cleanup on failure
+		_ = server.Stop()
+		return result, result.Error
+	}
+
+	// Set health status for agent service
+	health.SetServingStatus("agent", grpc_health.HealthCheckResponse_SERVING)
+
+	// Add AgentService to dependencies so OrchestratorService can use it
+	deps.agentService = agentSvc
+
 	// Create and register OrchestratorService
 	orchSvc := NewOrchestratorService(deps, log)
 	if err := server.RegisterService(&proto.OrchestratorService_ServiceDesc, orchSvc); err != nil {
@@ -176,18 +191,6 @@ func Bootstrap(ctx context.Context, cfg BootstrapConfig) (*BootstrapResult, erro
 
 	// Set health status for orchestrator service
 	health.SetServingStatus("orchestrator", grpc_health.HealthCheckResponse_SERVING)
-
-	// Create and register AgentService
-	agentSvc := NewAgentService(deps, log, cfg.SkillsLoader)
-	if err := server.RegisterService(&proto.AgentService_ServiceDesc, agentSvc); err != nil {
-		result.Error = types.WrapError(types.ErrCodeInternal, "failed to register agent service", err)
-		// Cleanup on failure
-		_ = server.Stop()
-		return result, result.Error
-	}
-
-	// Set health status for agent service
-	health.SetServingStatus("agent", grpc_health.HealthCheckResponse_SERVING)
 
 	// Create and register GatewayService
 	gatewaySvc := NewGatewayService(deps, log)
@@ -463,6 +466,7 @@ type serviceDependencies struct {
 	eventBus       *events.Bus
 	ipcBroker      *ipc.Broker
 	executor       *tools.Executor
+	agentService   *AgentService
 }
 
 func (d *serviceDependencies) SessionManager() *session.Manager {
@@ -479,6 +483,10 @@ func (d *serviceDependencies) IPCBroker() *ipc.Broker {
 
 func (d *serviceDependencies) Executor() *tools.Executor {
 	return d.executor
+}
+
+func (d *serviceDependencies) AgentService() *AgentService {
+	return d.agentService
 }
 
 // validateDependencies validates that all required dependencies are provided

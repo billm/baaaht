@@ -23,6 +23,7 @@ type ServiceDependencies interface {
 	SessionManager() *session.Manager
 	EventBus() *events.Bus
 	IPCBroker() *ipc.Broker
+	AgentService() *AgentService
 }
 
 // OrchestratorService implements the gRPC OrchestratorService interface
@@ -34,6 +35,9 @@ type OrchestratorService struct {
 
 	// Track active streams for graceful shutdown
 	streams map[interface{}]context.CancelFunc
+
+	// Track StreamMessages streams by session ID for message routing
+	sessionStreams map[types.ID]proto.OrchestratorService_StreamMessagesServer
 }
 
 // NewOrchestratorService creates a new orchestrator service
@@ -48,9 +52,10 @@ func NewOrchestratorService(deps ServiceDependencies, log *logger.Logger) *Orche
 	}
 
 	return &OrchestratorService{
-		deps:   deps,
-		logger:  log.With("component", "orchestrator_service"),
-		streams: make(map[interface{}]context.CancelFunc),
+		deps:           deps,
+		logger:         log.With("component", "orchestrator_service"),
+		streams:        make(map[interface{}]context.CancelFunc),
+		sessionStreams: make(map[types.ID]proto.OrchestratorService_StreamMessagesServer),
 	}
 }
 
@@ -403,6 +408,17 @@ func (s *OrchestratorService) StreamMessages(stream proto.OrchestratorService_St
 				s.logger.Error("Session validation failed", "session_id", sessionID, "error", err)
 				return grpcErrorFromTypesError(err)
 			}
+
+			// Register this stream for the session
+			s.mu.Lock()
+			s.sessionStreams[sessionID] = stream
+			s.mu.Unlock()
+
+			defer func() {
+				s.mu.Lock()
+				delete(s.sessionStreams, sessionID)
+				s.mu.Unlock()
+			}()
 		}
 
 		// Process message
@@ -439,18 +455,92 @@ func (s *OrchestratorService) StreamMessages(stream proto.OrchestratorService_St
 				continue
 			}
 
-			// Send message back as acknowledgment
-			resp := &proto.StreamMessageResponse{
-				Payload: &proto.StreamMessageResponse_Message{
-					Message: messageToProto(message),
-				},
-			}
-			if err := stream.Send(resp); err != nil {
-				s.logger.Error("Failed to send message response", "session_id", sessionID, "error", err)
-				return err
+			// Route user messages to the assistant agent
+			if message.Role == types.MessageRoleUser {
+				s.logger.Debug("Routing user message to assistant", "session_id", sessionID, "message_id", message.ID)
+				if err := s.routeToAssistant(streamCtx, sessionID, message); err != nil {
+					s.logger.Error("Failed to route message to assistant", "session_id", sessionID, "error", err)
+					// Send error response
+					ts := types.NewTimestamp()
+					resp := &proto.StreamMessageResponse{
+						Payload: &proto.StreamMessageResponse_Event{
+							Event: &proto.Event{
+								Id:        string(types.GenerateID()),
+								Type:      proto.EventType_EVENT_TYPE_CONTAINER_ERROR,
+								Source:    "orchestrator",
+								Timestamp: timestampToProto(&ts),
+								Data:      map[string]string{"error": err.Error()},
+							},
+						},
+					}
+					_ = stream.Send(resp)
+				}
 			}
 		}
 	}
+}
+
+// routeToAssistant routes a user message to the assistant agent
+func (s *OrchestratorService) routeToAssistant(ctx context.Context, sessionID types.ID, message types.Message) error {
+	// Get agent service from dependencies
+	agentSvc := s.deps.AgentService()
+	if agentSvc == nil {
+		return types.NewError(types.ErrCodeUnavailable, "agent service not available")
+	}
+
+	// Find assistant agent
+	registry := agentSvc.GetRegistry()
+	agents := registry.List()
+
+	var assistantID string
+	for _, agent := range agents {
+		// Look for an agent with name "assistant" or type "assistant"
+		if agent.Name == "assistant" || agent.Type == "assistant" {
+			assistantID = agent.ID
+			break
+		}
+	}
+
+	if assistantID == "" {
+		return types.NewError(types.ErrCodeNotFound, "assistant agent not found")
+	}
+
+	s.logger.Debug("Found assistant agent", "agent_id", assistantID)
+
+	// Route message to assistant agent through AgentService
+	// The assistant needs to process the message and send a response back
+	if err := agentSvc.RouteMessageToAgent(ctx, assistantID, sessionID, message, s); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// SendResponseToSession sends an assistant response back to the TUI stream for a session
+func (s *OrchestratorService) SendResponseToSession(sessionID types.ID, message types.Message) error {
+	s.mu.RLock()
+	stream, exists := s.sessionStreams[sessionID]
+	s.mu.RUnlock()
+
+	if !exists {
+		s.logger.Warn("No active stream for session", "session_id", sessionID)
+		return types.NewError(types.ErrCodeNotFound, "no active stream for session")
+	}
+
+	// Send assistant response to TUI
+	resp := &proto.StreamMessageResponse{
+		Payload: &proto.StreamMessageResponse_Message{
+			Message: messageToProto(message),
+		},
+	}
+
+	if err := stream.Send(resp); err != nil {
+		s.logger.Error("Failed to send response to TUI", "session_id", sessionID, "error", err)
+		return types.WrapError(types.ErrCodeInternal, "failed to send response", err)
+	}
+
+	s.logger.Debug("Sent assistant response to TUI", "session_id", sessionID, "message_id", message.ID)
+	return nil
 }
 
 // =============================================================================

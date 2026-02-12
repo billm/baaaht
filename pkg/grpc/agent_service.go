@@ -11,6 +11,7 @@ import (
 
 	"github.com/billm/baaaht/orchestrator/internal/logger"
 	"github.com/billm/baaaht/orchestrator/pkg/events"
+	"github.com/billm/baaaht/orchestrator/pkg/session"
 	"github.com/billm/baaaht/orchestrator/pkg/skills"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 	"github.com/billm/baaaht/orchestrator/proto"
@@ -19,6 +20,7 @@ import (
 // AgentServiceDependencies represents the agent service dependencies
 type AgentServiceDependencies interface {
 	EventBus() *events.Bus
+	SessionManager() *session.Manager
 }
 
 // AgentInfo holds information about a registered agent
@@ -234,6 +236,17 @@ type AgentService struct {
 
 	// Track active streams for graceful shutdown
 	streams map[interface{}]context.CancelFunc
+
+	// Track agent streams by agent ID for message routing
+	agentStreams map[string]proto.AgentService_StreamAgentServer
+
+	// Track message response callbacks
+	messageHandlers map[string]MessageResponseHandler
+}
+
+// MessageResponseHandler handles responses from agents
+type MessageResponseHandler interface {
+	SendResponseToSession(sessionID types.ID, message types.Message) error
 }
 
 // NewAgentService creates a new agent service
@@ -247,11 +260,13 @@ func NewAgentService(deps AgentServiceDependencies, log *logger.Logger, skillsLo
 	}
 
 	service := &AgentService{
-		deps:         deps,
-		registry:     NewAgentRegistry(log),
-		skillsLoader: skillsLoader,
-		logger:       log.With("component", "agent_service"),
-		streams:      make(map[interface{}]context.CancelFunc),
+		deps:            deps,
+		registry:        NewAgentRegistry(log),
+		skillsLoader:    skillsLoader,
+		logger:          log.With("component", "agent_service"),
+		streams:         make(map[interface{}]context.CancelFunc),
+		agentStreams:    make(map[string]proto.AgentService_StreamAgentServer),
+		messageHandlers: make(map[string]MessageResponseHandler),
 	}
 
 	if skillsLoader != nil {
@@ -776,9 +791,20 @@ func (s *AgentService) StreamAgent(stream proto.AgentService_StreamAgentServer) 
 				s.logger.Error("Agent not found", "agent_id", agentID, "error", err)
 				return grpcErrorFromTypesError(err)
 			}
+
+			// Register this stream for the agent
+			s.mu.Lock()
+			s.agentStreams[agentID] = stream
+			s.mu.Unlock()
+
+			defer func() {
+				s.mu.Lock()
+				delete(s.agentStreams, agentID)
+				s.mu.Unlock()
+			}()
 		}
 
-		// Handle message
+		// Handle message from agent (e.g., assistant response)
 		if req.GetMessage() != nil {
 			msg := req.GetMessage()
 
@@ -787,7 +813,43 @@ func (s *AgentService) StreamAgent(stream proto.AgentService_StreamAgentServer) 
 				"message_id", msg.Id,
 				"type", msg.Type.String())
 
-			// Echo message back as acknowledgment
+			// Check if this is a response to a user message (contains session_id in metadata)
+			if msg.Metadata != nil && msg.Metadata.SessionId != "" {
+				sessionID := types.ID(msg.Metadata.SessionId)
+
+				// Extract message content from DataMessage payload
+				if dataMsg := msg.GetDataMessage(); dataMsg != nil {
+					content := string(dataMsg.Data)
+
+					// Create response message
+					responseMsg := types.Message{
+						ID:        types.ID(msg.Id),
+						Timestamp: types.NewTimestampFromTime(time.Now()),
+						Role:      types.MessageRoleAssistant,
+						Content:   content,
+					}
+
+					// Add response to session
+					if mgr := s.deps.SessionManager(); mgr != nil {
+						if err := mgr.AddMessage(ctx, sessionID, responseMsg); err != nil {
+							s.logger.Error("Failed to add assistant response to session", "session_id", sessionID, "error", err)
+						}
+					}
+
+					// Route response back to TUI via message handler
+					s.mu.RLock()
+					handler, exists := s.messageHandlers[agentID]
+					s.mu.RUnlock()
+
+					if exists && handler != nil {
+						if err := handler.SendResponseToSession(sessionID, responseMsg); err != nil {
+							s.logger.Error("Failed to send response to TUI", "session_id", sessionID, "error", err)
+						}
+					}
+				}
+			}
+
+			// Send acknowledgment
 			resp := &proto.StreamAgentResponse{
 				Payload: &proto.StreamAgentResponse_Message{
 					Message: msg,
@@ -831,6 +893,59 @@ func (s *AgentService) SendMessage(ctx context.Context, req *proto.AgentSendMess
 		MessageId: messageID,
 		Timestamp: timestamppb.Now(),
 	}, nil
+}
+
+// RouteMessageToAgent routes a user message to a specific agent
+func (s *AgentService) RouteMessageToAgent(ctx context.Context, agentID string, sessionID types.ID, message types.Message, handler MessageResponseHandler) error {
+	s.logger.Debug("RouteMessageToAgent called", "agent_id", agentID, "session_id", sessionID, "message_id", message.ID)
+
+	// Store the response handler for this agent
+	s.mu.Lock()
+	s.messageHandlers[agentID] = handler
+	s.mu.Unlock()
+
+	// Get agent stream
+	s.mu.RLock()
+	stream, exists := s.agentStreams[agentID]
+	s.mu.RUnlock()
+
+	if !exists || stream == nil {
+		return types.NewError(types.ErrCodeUnavailable, "agent stream not available")
+	}
+
+	// Create AgentMessage with DataMessage payload containing the user message
+	agentMsg := &proto.AgentMessage{
+		Id:        string(message.ID),
+		Type:      proto.MessageType_MESSAGE_TYPE_DATA,
+		Timestamp: timestamppb.New(message.Timestamp.Time),
+		SourceId:  "orchestrator",
+		TargetId:  agentID,
+		Payload: &proto.AgentMessage_DataMessage{
+			DataMessage: &proto.DataMessage{
+				ContentType: "text/plain",
+				Data:        []byte(message.Content),
+			},
+		},
+		Metadata: &proto.AgentMessageMetadata{
+			SessionId:     string(sessionID),
+			CorrelationId: string(message.ID),
+		},
+	}
+
+	// Send message to agent via stream
+	resp := &proto.StreamAgentResponse{
+		Payload: &proto.StreamAgentResponse_Message{
+			Message: agentMsg,
+		},
+	}
+
+	if err := stream.Send(resp); err != nil {
+		s.logger.Error("Failed to send message to agent", "agent_id", agentID, "error", err)
+		return types.WrapError(types.ErrCodeInternal, "failed to send message to agent", err)
+	}
+
+	s.logger.Debug("Sent message to agent", "agent_id", agentID, "session_id", sessionID)
+	return nil
 }
 
 // =============================================================================
