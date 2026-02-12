@@ -9,9 +9,9 @@ import { EventEmitter } from 'events';
 import type { Client } from '@grpc/grpc-js';
 import type {
   AgentMessage,
-  MessageType,
 } from './proto/agent.js';
-import { AgentType, AgentState } from './proto/agent.js';
+import { AgentState, MessageType } from './proto/agent.js';
+import { StreamAgentClient, StreamEventType } from './orchestrator/stream-client.js';
 import type {
   LLMRequest,
   LLMMessage as LLMMsg,
@@ -162,7 +162,7 @@ export class Agent extends EventEmitter {
   private totalToolCalls: number;
 
   // Stream communication
-  private streamClient: any | null; // StreamAgentClient
+  private streamClient: StreamAgentClient | null;
 
   // Shutdown state
   private isShutdown: boolean;
@@ -280,6 +280,21 @@ export class Agent extends EventEmitter {
         agentId: this.agentId,
       });
 
+      this.streamClient = new StreamAgentClient(this.dependencies.grpcClient, this.agentId);
+      this.streamClient.on(StreamEventType.MESSAGE, (event: { data?: unknown }) => {
+        void this.handleOrchestratorStreamMessage(event.data as AgentMessage);
+      });
+      this.streamClient.on(StreamEventType.ERROR, (event: { error?: Error }) => {
+        if (event.error) {
+          this.emit(AgentEventType.ERROR, {
+            type: AgentEventType.ERROR,
+            timestamp: new Date(),
+            error: event.error,
+          });
+        }
+      });
+      await this.streamClient.connect();
+
       this.registered = true;
       this.state = AgentState.AGENT_STATE_IDLE;
       this.ready = true;
@@ -321,6 +336,11 @@ export class Agent extends EventEmitter {
     this.registered = false;
     this.ready = false;
     this.state = AgentState.AGENT_STATE_UNREGISTERING;
+
+    if (this.streamClient) {
+      await this.streamClient.close();
+      this.streamClient = null;
+    }
 
     // Wait for active messages to complete
     while (this.activeMessageCount > 0) {
@@ -418,9 +438,16 @@ export class Agent extends EventEmitter {
     this.lastActivityAt = new Date();
 
     // Extract message content
-    const content = message.content ?? '';
-    const sessionId = message.sessionId ?? '';
-    const correlationId = message.id ?? generateMessageId();
+    let content = (message as AgentMessage & { content?: string }).content ?? '';
+    if (!content && message.payload && 'dataMessage' in message.payload && message.payload.dataMessage?.data) {
+      content = new TextDecoder().decode(message.payload.dataMessage.data);
+    }
+
+    const sessionId =
+      (message as AgentMessage & { sessionId?: string }).sessionId ??
+      message.metadata?.sessionId ??
+      '';
+    const correlationId = message.metadata?.correlationId ?? message.id ?? generateMessageId();
 
     if (!content) {
       throw createAgentError(
@@ -466,6 +493,77 @@ export class Agent extends EventEmitter {
     if (this.config.debug) {
       this.debug(`Message received: ${processMessage.id} (session: ${sessionId})`);
     }
+  }
+
+  private async handleOrchestratorStreamMessage(message: AgentMessage): Promise<void> {
+    if (!message || !message.payload || !('dataMessage' in message.payload)) {
+      return;
+    }
+
+    if (message.sourceId === this.agentId) {
+      return;
+    }
+
+    if (message.sourceId && message.sourceId !== 'orchestrator') {
+      return;
+    }
+
+    if (message.targetId && message.targetId !== this.agentId) {
+      return;
+    }
+
+    const sessionId = message.metadata?.sessionId ?? '';
+    const correlationId = message.metadata?.correlationId ?? message.id ?? generateMessageId();
+    if (!sessionId) {
+      this.emit(AgentEventType.ERROR, {
+        type: AgentEventType.ERROR,
+        timestamp: new Date(),
+        error: createAgentError('Missing session ID in stream message', AgentErrorCode.MESSAGE_INVALID),
+      });
+      return;
+    }
+
+    await this.receiveMessage(message, async (response: AgentResponse) => {
+      await this.sendResponseViaStream(sessionId, correlationId, response);
+    });
+  }
+
+  private async sendResponseViaStream(
+    sessionId: string,
+    correlationId: string,
+    response: AgentResponse
+  ): Promise<void> {
+    if (!this.streamClient || !this.streamClient.isConnected()) {
+      throw createAgentError('Stream client not connected', AgentErrorCode.ORCHESTRATOR_CONNECTION_FAILED, true);
+    }
+
+    const responseContent = response.error
+      ? response.error.message
+      : (response.content ?? '');
+
+    const responseMessage: AgentMessage = {
+      id: generateMessageId(),
+      type: response.error ? MessageType.MESSAGE_TYPE_ERROR : MessageType.MESSAGE_TYPE_DATA,
+      timestamp: new Date(),
+      sourceId: this.agentId,
+      targetId: 'orchestrator',
+      payload: {
+        dataMessage: {
+          contentType: response.error ? 'application/vnd.baaaht.conversation.error+text' : 'text/plain',
+          data: new TextEncoder().encode(responseContent),
+          headers: {
+            session_id: sessionId,
+            correlation_id: correlationId,
+          },
+        },
+      },
+      metadata: {
+        sessionId,
+        correlationId,
+      },
+    };
+
+    await this.streamClient.sendMessage(responseMessage);
   }
 
   /**

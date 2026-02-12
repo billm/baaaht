@@ -3,6 +3,7 @@ package grpc
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -25,42 +26,42 @@ type AgentServiceDependencies interface {
 
 // AgentInfo holds information about a registered agent
 type AgentInfo struct {
-	ID             string
-	Name           string
-	Type           string
-	State          string
-	Metadata       map[string]interface{}
-	Capabilities   *proto.AgentCapabilities
-	RegisteredAt   time.Time
-	LastHeartbeat  time.Time
-	ActiveTasks    map[string]*TaskInfo
-	mu             sync.RWMutex
+	ID            string
+	Name          string
+	Type          string
+	State         string
+	Metadata      map[string]interface{}
+	Capabilities  *proto.AgentCapabilities
+	RegisteredAt  time.Time
+	LastHeartbeat time.Time
+	ActiveTasks   map[string]*TaskInfo
+	mu            sync.RWMutex
 }
 
 // TaskInfo holds information about a task
 type TaskInfo struct {
-	ID         string
-	Name       string
-	SessionID  string
-	Type       string
-	State      string
-	Priority   string
-	Config     *proto.TaskConfig
-	Result     *proto.TaskResult
-	Error      *proto.TaskError
-	Progress   float32
-	CreatedAt  time.Time
-	StartedAt  *time.Time
+	ID          string
+	Name        string
+	SessionID   string
+	Type        string
+	State       string
+	Priority    string
+	Config      *proto.TaskConfig
+	Result      *proto.TaskResult
+	Error       *proto.TaskError
+	Progress    float32
+	CreatedAt   time.Time
+	StartedAt   *time.Time
 	CompletedAt *time.Time
-	mu         sync.RWMutex
+	mu          sync.RWMutex
 }
 
 // AgentRegistry manages agent registration and task tracking
 type AgentRegistry struct {
-	mu       sync.RWMutex
-	agents   map[string]*AgentInfo
-	tasks    map[string]*TaskInfo
-	logger   *logger.Logger
+	mu     sync.RWMutex
+	agents map[string]*AgentInfo
+	tasks  map[string]*TaskInfo
+	logger *logger.Logger
 }
 
 // NewAgentRegistry creates a new agent registry
@@ -228,21 +229,30 @@ func (r *AgentRegistry) ListTasks(agentID string) []*TaskInfo {
 // AgentService implements the gRPC AgentService interface
 type AgentService struct {
 	proto.UnimplementedAgentServiceServer
-	deps          AgentServiceDependencies
-	registry      *AgentRegistry
-	skillsLoader  *skills.Loader
-	logger        *logger.Logger
-	mu            sync.RWMutex
+	deps         AgentServiceDependencies
+	registry     *AgentRegistry
+	skillsLoader *skills.Loader
+	logger       *logger.Logger
+	mu           sync.RWMutex
 
 	// Track active streams for graceful shutdown
 	streams map[interface{}]context.CancelFunc
 
 	// Track agent streams by agent ID for message routing
-	agentStreams map[string]proto.AgentService_StreamAgentServer
+	agentStreams   map[string]proto.AgentService_StreamAgentServer
+	agentSendLocks map[string]*sync.Mutex
 
-	// Track message response callbacks
-	messageHandlers map[string]MessageResponseHandler
+	// Track pending routed responses keyed by agentID:correlationID
+	pendingResponses map[string]pendingResponseRoute
+	pendingTimers    map[string]*time.Timer
 }
+
+type pendingResponseRoute struct {
+	sessionID types.ID
+	handler   MessageResponseHandler
+}
+
+const pendingResponseTimeout = 60 * time.Second
 
 // MessageResponseHandler handles responses from agents
 type MessageResponseHandler interface {
@@ -260,13 +270,15 @@ func NewAgentService(deps AgentServiceDependencies, log *logger.Logger, skillsLo
 	}
 
 	service := &AgentService{
-		deps:            deps,
-		registry:        NewAgentRegistry(log),
-		skillsLoader:    skillsLoader,
-		logger:          log.With("component", "agent_service"),
-		streams:         make(map[interface{}]context.CancelFunc),
-		agentStreams:    make(map[string]proto.AgentService_StreamAgentServer),
-		messageHandlers: make(map[string]MessageResponseHandler),
+		deps:             deps,
+		registry:         NewAgentRegistry(log),
+		skillsLoader:     skillsLoader,
+		logger:           log.With("component", "agent_service"),
+		streams:          make(map[interface{}]context.CancelFunc),
+		agentStreams:     make(map[string]proto.AgentService_StreamAgentServer),
+		agentSendLocks:   make(map[string]*sync.Mutex),
+		pendingResponses: make(map[string]pendingResponseRoute),
+		pendingTimers:    make(map[string]*time.Timer),
 	}
 
 	if skillsLoader != nil {
@@ -274,6 +286,142 @@ func NewAgentService(deps AgentServiceDependencies, log *logger.Logger, skillsLo
 	}
 
 	return service
+}
+
+func pendingResponseKey(agentID, correlationID string) string {
+	return fmt.Sprintf("%s:%s", agentID, correlationID)
+}
+
+func (s *AgentService) clearPendingResponseLocked(pendingKey string) {
+	delete(s.pendingResponses, pendingKey)
+	if timer, ok := s.pendingTimers[pendingKey]; ok {
+		timer.Stop()
+		delete(s.pendingTimers, pendingKey)
+	}
+}
+
+func (s *AgentService) processAgentResponse(ctx context.Context, agentID string, msg *proto.AgentMessage) {
+	if msg == nil || msg.Metadata == nil || msg.Metadata.CorrelationId == "" {
+		return
+	}
+
+	pendingKey := pendingResponseKey(agentID, msg.Metadata.CorrelationId)
+
+	s.mu.Lock()
+	pendingRoute, exists := s.pendingResponses[pendingKey]
+	if exists {
+		s.clearPendingResponseLocked(pendingKey)
+	}
+	s.mu.Unlock()
+
+	if !exists {
+		s.logger.Warn("Discarding unsolicited agent response",
+			"agent_id", agentID,
+			"correlation_id", msg.Metadata.CorrelationId)
+		return
+	}
+
+	sessionID := types.ID(msg.Metadata.SessionId)
+	if sessionID != pendingRoute.sessionID {
+		s.logger.Warn("Discarding agent response with mismatched session",
+			"agent_id", agentID,
+			"expected_session", pendingRoute.sessionID,
+			"actual_session", sessionID,
+			"correlation_id", msg.Metadata.CorrelationId)
+		return
+	}
+
+	dataMsg := msg.GetDataMessage()
+	if dataMsg == nil {
+		return
+	}
+
+	responseMsg := types.Message{
+		ID:        types.GenerateID(),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
+		Role:      types.MessageRoleAssistant,
+		Content:   string(dataMsg.Data),
+	}
+
+	if mgr := s.deps.SessionManager(); mgr != nil {
+		if err := mgr.AddMessage(ctx, sessionID, responseMsg); err != nil {
+			s.logger.Error("Failed to add assistant response to session", "session_id", sessionID, "error", err)
+		}
+	}
+
+	if pendingRoute.handler != nil {
+		if err := pendingRoute.handler.SendResponseToSession(sessionID, responseMsg); err != nil {
+			s.logger.Error("Failed to send response to TUI", "session_id", sessionID, "error", err)
+		}
+	}
+}
+
+func (s *AgentService) expirePendingResponse(agentID, pendingKey string) {
+	var pendingRoute pendingResponseRoute
+	var exists bool
+
+	s.mu.Lock()
+	pendingRoute, exists = s.pendingResponses[pendingKey]
+	if exists {
+		s.clearPendingResponseLocked(pendingKey)
+	}
+	s.mu.Unlock()
+
+	if !exists {
+		return
+	}
+
+	timeoutMsg := types.Message{
+		ID:        types.GenerateID(),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
+		Role:      types.MessageRoleAssistant,
+		Content:   "Timed out waiting for assistant response.",
+	}
+
+	if mgr := s.deps.SessionManager(); mgr != nil {
+		if err := mgr.AddMessage(context.Background(), pendingRoute.sessionID, timeoutMsg); err != nil {
+			s.logger.Error("Failed to add timeout response to session", "session_id", pendingRoute.sessionID, "error", err)
+		}
+	}
+
+	if pendingRoute.handler != nil {
+		if err := pendingRoute.handler.SendResponseToSession(pendingRoute.sessionID, timeoutMsg); err != nil {
+			s.logger.Error("Failed to send timeout response to session", "session_id", pendingRoute.sessionID, "error", err)
+		}
+	}
+
+	s.logger.Warn("Pending agent response expired",
+		"agent_id", agentID,
+		"session_id", pendingRoute.sessionID,
+		"pending_key", pendingKey)
+}
+
+func (s *AgentService) sendToAgentStream(agentID string, resp *proto.StreamAgentResponse) error {
+	s.mu.RLock()
+	stream, exists := s.agentStreams[agentID]
+	sendLock := s.agentSendLocks[agentID]
+	s.mu.RUnlock()
+
+	if !exists || stream == nil || sendLock == nil {
+		return types.NewError(types.ErrCodeUnavailable, "agent stream not available")
+	}
+
+	sendLock.Lock()
+	defer sendLock.Unlock()
+
+	if err := stream.Send(resp); err != nil {
+		return types.WrapError(types.ErrCodeInternal, "failed to send message to agent", err)
+	}
+
+	return nil
+}
+
+func (s *AgentService) HasAgentStream(agentID string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	stream, exists := s.agentStreams[agentID]
+	return exists && stream != nil
 }
 
 // GetRegistry returns the agent registry
@@ -403,8 +551,8 @@ func (s *AgentService) Register(ctx context.Context, req *proto.RegisterRequest)
 	}
 
 	return &proto.RegisterResponse{
-		AgentId:          agentID,
-		Agent:            s.agentInfoToProto(agent),
+		AgentId:           agentID,
+		Agent:             s.agentInfoToProto(agent),
 		RegistrationToken: agentID, // Use agent ID as token for simplicity
 	}, nil
 }
@@ -527,10 +675,10 @@ func (s *AgentService) ExecuteTask(ctx context.Context, req *proto.ExecuteTaskRe
 					Priority: types.PriorityNormal,
 				},
 				Data: map[string]interface{}{
-					"task_id":   task.ID,
-					"agent_id":  req.AgentId,
+					"task_id":    task.ID,
+					"agent_id":   req.AgentId,
 					"session_id": req.SessionId,
-					"type":      req.Type.String(),
+					"type":       req.Type.String(),
 				},
 			}
 			if err := bus.Publish(ctx, event); err != nil {
@@ -615,8 +763,8 @@ func (s *AgentService) StreamTask(stream proto.AgentService_StreamTaskServer) er
 			resp := &proto.StreamTaskResponse{
 				Payload: &proto.StreamTaskResponse_Output{
 					Output: &proto.TaskOutput{
-						Data:   input.Data,
-						Text:   string(input.Data),
+						Data:       input.Data,
+						Text:       string(input.Data),
 						StreamType: "stdout",
 					},
 				},
@@ -767,6 +915,16 @@ func (s *AgentService) StreamAgent(stream proto.AgentService_StreamAgentServer) 
 
 		// Handle heartbeat
 		if req.GetHeartbeat() != nil {
+			if !firstMessage {
+				if err := s.sendToAgentStream(agentID, &proto.StreamAgentResponse{
+					Payload: &proto.StreamAgentResponse_Heartbeat{&emptypb.Empty{}},
+				}); err != nil {
+					s.logger.Error("Failed to send heartbeat response", "error", err)
+					return err
+				}
+				continue
+			}
+
 			if err := stream.Send(&proto.StreamAgentResponse{
 				Payload: &proto.StreamAgentResponse_Heartbeat{&emptypb.Empty{}},
 			}); err != nil {
@@ -795,11 +953,18 @@ func (s *AgentService) StreamAgent(stream proto.AgentService_StreamAgentServer) 
 			// Register this stream for the agent
 			s.mu.Lock()
 			s.agentStreams[agentID] = stream
+			s.agentSendLocks[agentID] = &sync.Mutex{}
 			s.mu.Unlock()
 
 			defer func() {
 				s.mu.Lock()
 				delete(s.agentStreams, agentID)
+				delete(s.agentSendLocks, agentID)
+				for key := range s.pendingResponses {
+					if strings.HasPrefix(key, agentID+":") {
+						s.clearPendingResponseLocked(key)
+					}
+				}
 				s.mu.Unlock()
 			}()
 		}
@@ -813,53 +978,7 @@ func (s *AgentService) StreamAgent(stream proto.AgentService_StreamAgentServer) 
 				"message_id", msg.Id,
 				"type", msg.Type.String())
 
-			// Check if this is a response to a user message (contains session_id in metadata)
-			if msg.Metadata != nil && msg.Metadata.SessionId != "" {
-				sessionID := types.ID(msg.Metadata.SessionId)
-
-				// Extract message content from DataMessage payload
-				if dataMsg := msg.GetDataMessage(); dataMsg != nil {
-					content := string(dataMsg.Data)
-
-					// Create response message
-					responseMsg := types.Message{
-						ID:        types.ID(msg.Id),
-						Timestamp: types.NewTimestampFromTime(time.Now()),
-						Role:      types.MessageRoleAssistant,
-						Content:   content,
-					}
-
-					// Add response to session
-					if mgr := s.deps.SessionManager(); mgr != nil {
-						if err := mgr.AddMessage(ctx, sessionID, responseMsg); err != nil {
-							s.logger.Error("Failed to add assistant response to session", "session_id", sessionID, "error", err)
-						}
-					}
-
-					// Route response back to TUI via message handler
-					handlerKey := fmt.Sprintf("%s:%s", agentID, sessionID)
-					s.mu.RLock()
-					handler, exists := s.messageHandlers[handlerKey]
-					s.mu.RUnlock()
-
-					if exists && handler != nil {
-						if err := handler.SendResponseToSession(sessionID, responseMsg); err != nil {
-							s.logger.Error("Failed to send response to TUI", "session_id", sessionID, "error", err)
-						}
-					}
-				}
-			}
-
-			// Send acknowledgment
-			resp := &proto.StreamAgentResponse{
-				Payload: &proto.StreamAgentResponse_Message{
-					Message: msg,
-				},
-			}
-			if err := stream.Send(resp); err != nil {
-				s.logger.Error("Failed to send message response", "agent_id", agentID, "error", err)
-				return err
-			}
+			s.processAgentResponse(ctx, agentID, msg)
 		}
 	}
 }
@@ -900,20 +1019,30 @@ func (s *AgentService) SendMessage(ctx context.Context, req *proto.AgentSendMess
 func (s *AgentService) RouteMessageToAgent(ctx context.Context, agentID string, sessionID types.ID, message types.Message, handler MessageResponseHandler) error {
 	s.logger.Debug("RouteMessageToAgent called", "agent_id", agentID, "session_id", sessionID, "message_id", message.ID)
 
-	// Store the response handler for this agent+session combination
-	handlerKey := fmt.Sprintf("%s:%s", agentID, sessionID)
-	s.mu.Lock()
-	s.messageHandlers[handlerKey] = handler
-	s.mu.Unlock()
-
-	// Get agent stream
-	s.mu.RLock()
-	stream, exists := s.agentStreams[agentID]
-	s.mu.RUnlock()
-
-	if !exists || stream == nil {
-		return types.NewError(types.ErrCodeUnavailable, "agent stream not available")
+	if message.ID.IsEmpty() {
+		message.ID = types.GenerateID()
 	}
+	if message.Timestamp.IsZero() {
+		message.Timestamp = types.NewTimestampFromTime(time.Now())
+	}
+
+	correlationID := string(message.ID)
+
+	// Store the pending response route for this agent+correlation combination
+	pendingKey := pendingResponseKey(agentID, correlationID)
+	s.mu.Lock()
+	if existingTimer, ok := s.pendingTimers[pendingKey]; ok {
+		existingTimer.Stop()
+		delete(s.pendingTimers, pendingKey)
+	}
+	s.pendingResponses[pendingKey] = pendingResponseRoute{
+		sessionID: sessionID,
+		handler:   handler,
+	}
+	s.pendingTimers[pendingKey] = time.AfterFunc(pendingResponseTimeout, func() {
+		s.expirePendingResponse(agentID, pendingKey)
+	})
+	s.mu.Unlock()
 
 	// Create AgentMessage with DataMessage payload containing the user message
 	agentMsg := &proto.AgentMessage{
@@ -930,7 +1059,7 @@ func (s *AgentService) RouteMessageToAgent(ctx context.Context, agentID string, 
 		},
 		Metadata: &proto.AgentMessageMetadata{
 			SessionId:     string(sessionID),
-			CorrelationId: string(message.ID),
+			CorrelationId: correlationID,
 		},
 	}
 
@@ -941,9 +1070,12 @@ func (s *AgentService) RouteMessageToAgent(ctx context.Context, agentID string, 
 		},
 	}
 
-	if err := stream.Send(resp); err != nil {
+	if err := s.sendToAgentStream(agentID, resp); err != nil {
+		s.mu.Lock()
+		s.clearPendingResponseLocked(pendingKey)
+		s.mu.Unlock()
 		s.logger.Error("Failed to send message to agent", "agent_id", agentID, "error", err)
-		return types.WrapError(types.ErrCodeInternal, "failed to send message to agent", err)
+		return err
 	}
 
 	s.logger.Debug("Sent message to agent", "agent_id", agentID, "session_id", sessionID)
@@ -975,8 +1107,8 @@ func (s *AgentService) HealthCheck(ctx context.Context, req *emptypb.Empty) (*pr
 	}
 
 	return &proto.AgentHealthCheckResponse{
-		Status:    statusToProto(types.StatusRunning),
-		Version:   version,
+		Status:     statusToProto(types.StatusRunning),
+		Version:    version,
 		Subsystems: subsystems,
 	}, nil
 }
@@ -1017,7 +1149,7 @@ func (s *AgentService) GetCapabilities(ctx context.Context, req *emptypb.Empty) 
 		SupportedTools:     []string{"bash", "python", "file_reader"},
 		MaxConcurrentTasks: 10,
 		ResourceLimits: &proto.ResourceLimits{
-			NanoCpus:    1000000000, // 1 CPU
+			NanoCpus:    1000000000,         // 1 CPU
 			MemoryBytes: 1024 * 1024 * 1024, // 1GB
 		},
 		SupportsStreaming:    true,
@@ -1040,16 +1172,16 @@ func (s *AgentService) agentInfoToProto(info *AgentInfo) *proto.Agent {
 	defer info.mu.RUnlock()
 
 	pb := &proto.Agent{
-		Id:           info.ID,
-		Name:         info.Name,
-		Type:         agentTypeToProto(info.Type),
-		State:        agentStateToProto(info.State),
-		Status:       statusToProto(types.StatusRunning),
-		RegisteredAt: timestamppb.New(info.RegisteredAt),
+		Id:            info.ID,
+		Name:          info.Name,
+		Type:          agentTypeToProto(info.Type),
+		State:         agentStateToProto(info.State),
+		Status:        statusToProto(types.StatusRunning),
+		RegisteredAt:  timestamppb.New(info.RegisteredAt),
 		LastHeartbeat: timestamppb.New(info.LastHeartbeat),
-		Metadata:     agentMetadataToProto(info.Metadata),
-		Capabilities: info.Capabilities,
-		ActiveTasks:  make([]string, 0, len(info.ActiveTasks)),
+		Metadata:      agentMetadataToProto(info.Metadata),
+		Capabilities:  info.Capabilities,
+		ActiveTasks:   make([]string, 0, len(info.ActiveTasks)),
 	}
 
 	for taskID := range info.ActiveTasks {
@@ -1065,17 +1197,17 @@ func (s *AgentService) taskInfoToProto(task *TaskInfo) *proto.Task {
 	defer task.mu.RUnlock()
 
 	pb := &proto.Task{
-		Id:         task.ID,
-		Name:       task.Name,
-		SessionId:  task.SessionID,
-		Type:       taskTypeToProto(task.Type),
-		State:      taskStateToProto(task.State),
-		Priority:   taskPriorityToProto(task.Priority),
-		CreatedAt:  timestamppb.New(task.CreatedAt),
-		Config:     task.Config,
-		Result:     task.Result,
-		Error:      task.Error,
-		Progress:   float64(task.Progress),
+		Id:        task.ID,
+		Name:      task.Name,
+		SessionId: task.SessionID,
+		Type:      taskTypeToProto(task.Type),
+		State:     taskStateToProto(task.State),
+		Priority:  taskPriorityToProto(task.Priority),
+		CreatedAt: timestamppb.New(task.CreatedAt),
+		Config:    task.Config,
+		Result:    task.Result,
+		Error:     task.Error,
+		Progress:  float64(task.Progress),
 	}
 
 	if task.StartedAt != nil {

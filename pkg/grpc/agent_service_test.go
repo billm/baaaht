@@ -3,14 +3,19 @@ package grpc
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
+	"time"
 
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/billm/baaaht/orchestrator/internal/logger"
 	"github.com/billm/baaaht/orchestrator/pkg/events"
+	"github.com/billm/baaaht/orchestrator/pkg/session"
+	"github.com/billm/baaaht/orchestrator/pkg/types"
 	"github.com/billm/baaaht/orchestrator/proto"
 )
 
@@ -19,6 +24,10 @@ type mockAgentServiceDeps struct{}
 
 func (m *mockAgentServiceDeps) EventBus() *events.Bus {
 	return nil // Event bus is optional for tests
+}
+
+func (m *mockAgentServiceDeps) SessionManager() *session.Manager {
+	return nil
 }
 
 // Test helper to create a test service
@@ -214,10 +223,10 @@ func TestAgentService_ExecuteTask(t *testing.T) {
 			Type:      proto.TaskType_TASK_TYPE_CODE_EXECUTION,
 			Priority:  proto.TaskPriority_TASK_PRIORITY_NORMAL,
 			Config: &proto.TaskConfig{
-				Command:         "echo hello",
-				Arguments:       []string{"world"},
+				Command:          "echo hello",
+				Arguments:        []string{"world"},
 				WorkingDirectory: "/tmp",
-				TimeoutNs:       30000000000, // 30 seconds
+				TimeoutNs:        30000000000, // 30 seconds
 			},
 		}
 
@@ -510,7 +519,7 @@ func TestAgentService_SendMessage(t *testing.T) {
 		req := &proto.AgentSendMessageRequest{
 			AgentId: regResp.AgentId,
 			Message: &proto.AgentMessage{
-				Type:   proto.MessageType_MESSAGE_TYPE_DATA,
+				Type:     proto.MessageType_MESSAGE_TYPE_DATA,
 				SourceId: "orchestrator",
 				TargetId: regResp.AgentId,
 				Payload: &proto.AgentMessage_DataMessage{
@@ -581,6 +590,214 @@ func TestAgentService_SendMessage(t *testing.T) {
 			t.Errorf("Expected InvalidArgument, got %v", status.Code(err))
 		}
 	})
+}
+
+type captureResponseHandler struct {
+	mu      sync.Mutex
+	calls   int
+	session types.ID
+	message types.Message
+	lastErr error
+}
+
+func (h *captureResponseHandler) SendResponseToSession(sessionID types.ID, message types.Message) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.calls++
+	h.session = sessionID
+	h.message = message
+	return h.lastErr
+}
+
+func (h *captureResponseHandler) callCount() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.calls
+}
+
+func (h *captureResponseHandler) lastMessage() (types.ID, types.Message) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.session, h.message
+}
+
+type mockAgentRouteStream struct {
+	proto.AgentService_StreamAgentServer
+	ctx  context.Context
+	sent []*proto.StreamAgentResponse
+}
+
+func (m *mockAgentRouteStream) Context() context.Context { return m.ctx }
+
+func (m *mockAgentRouteStream) Send(resp *proto.StreamAgentResponse) error {
+	m.sent = append(m.sent, resp)
+	return nil
+}
+
+func (m *mockAgentRouteStream) Recv() (*proto.StreamAgentRequest, error) {
+	return nil, context.Canceled
+}
+
+func (m *mockAgentRouteStream) SetHeader(metadata.MD) error  { return nil }
+func (m *mockAgentRouteStream) SendHeader(metadata.MD) error { return nil }
+func (m *mockAgentRouteStream) SetTrailer(metadata.MD)       {}
+func (m *mockAgentRouteStream) SendMsg(any) error            { return nil }
+func (m *mockAgentRouteStream) RecvMsg(any) error            { return nil }
+
+func TestAgentService_RouteMessageAndProcessResponse(t *testing.T) {
+	service := newTestAgentService(t)
+
+	regResp, err := service.Register(context.Background(), &proto.RegisterRequest{
+		Name: "assistant",
+		Type: proto.AgentType_AGENT_TYPE_WORKER,
+	})
+	if err != nil {
+		t.Fatalf("Failed to register agent: %v", err)
+	}
+
+	agentID := regResp.AgentId
+	stream := &mockAgentRouteStream{ctx: context.Background()}
+
+	service.mu.Lock()
+	service.agentStreams[agentID] = stream
+	service.agentSendLocks[agentID] = &sync.Mutex{}
+	service.mu.Unlock()
+
+	handler := &captureResponseHandler{}
+	sessionID := types.ID("session-123")
+	requestMsg := types.Message{
+		ID:      types.ID("corr-123"),
+		Role:    types.MessageRoleUser,
+		Content: "hello",
+	}
+
+	if err := service.RouteMessageToAgent(context.Background(), agentID, sessionID, requestMsg, handler); err != nil {
+		t.Fatalf("RouteMessageToAgent failed: %v", err)
+	}
+
+	if len(stream.sent) != 1 {
+		t.Fatalf("Expected 1 routed message, got %d", len(stream.sent))
+	}
+
+	routed := stream.sent[0].GetMessage()
+	if routed == nil || routed.Metadata == nil {
+		t.Fatal("Expected routed message metadata")
+	}
+
+	if routed.Metadata.CorrelationId != "corr-123" {
+		t.Fatalf("Expected correlation corr-123, got %q", routed.Metadata.CorrelationId)
+	}
+
+	service.processAgentResponse(context.Background(), agentID, &proto.AgentMessage{
+		Metadata: &proto.AgentMessageMetadata{
+			SessionId:     string(sessionID),
+			CorrelationId: "corr-123",
+		},
+		Payload: &proto.AgentMessage_DataMessage{DataMessage: &proto.DataMessage{Data: []byte("response")}},
+	})
+
+	if handler.callCount() != 1 {
+		t.Fatalf("Expected 1 response callback, got %d", handler.callCount())
+	}
+
+	recordedSession, recordedMessage := handler.lastMessage()
+	if recordedSession != sessionID {
+		t.Fatalf("Expected session %q, got %q", sessionID, recordedSession)
+	}
+	if recordedMessage.Content != "response" {
+		t.Fatalf("Expected response content, got %q", recordedMessage.Content)
+	}
+
+	service.mu.RLock()
+	_, pendingExists := service.pendingResponses[pendingResponseKey(agentID, "corr-123")]
+	_, timerExists := service.pendingTimers[pendingResponseKey(agentID, "corr-123")]
+	service.mu.RUnlock()
+	if pendingExists || timerExists {
+		t.Fatal("Expected pending response and timer to be cleared")
+	}
+}
+
+func TestAgentService_DiscardMismatchedResponse(t *testing.T) {
+	service := newTestAgentService(t)
+
+	regResp, err := service.Register(context.Background(), &proto.RegisterRequest{
+		Name: "assistant",
+		Type: proto.AgentType_AGENT_TYPE_WORKER,
+	})
+	if err != nil {
+		t.Fatalf("Failed to register agent: %v", err)
+	}
+
+	agentID := regResp.AgentId
+	stream := &mockAgentRouteStream{ctx: context.Background()}
+
+	service.mu.Lock()
+	service.agentStreams[agentID] = stream
+	service.agentSendLocks[agentID] = &sync.Mutex{}
+	service.mu.Unlock()
+
+	handler := &captureResponseHandler{}
+	if err := service.RouteMessageToAgent(context.Background(), agentID, types.ID("session-a"), types.Message{
+		ID:      types.ID("corr-mismatch"),
+		Role:    types.MessageRoleUser,
+		Content: "hello",
+	}, handler); err != nil {
+		t.Fatalf("RouteMessageToAgent failed: %v", err)
+	}
+
+	service.processAgentResponse(context.Background(), agentID, &proto.AgentMessage{
+		Metadata: &proto.AgentMessageMetadata{
+			SessionId:     "session-b",
+			CorrelationId: "corr-mismatch",
+		},
+		Payload: &proto.AgentMessage_DataMessage{DataMessage: &proto.DataMessage{Data: []byte("response")}},
+	})
+
+	if handler.callCount() != 0 {
+		t.Fatalf("Expected no callback for mismatched session, got %d", handler.callCount())
+	}
+
+	service.mu.RLock()
+	_, pendingExists := service.pendingResponses[pendingResponseKey(agentID, "corr-mismatch")]
+	_, timerExists := service.pendingTimers[pendingResponseKey(agentID, "corr-mismatch")]
+	service.mu.RUnlock()
+	if pendingExists || timerExists {
+		t.Fatal("Expected mismatched response to clear pending route and timer")
+	}
+}
+
+func TestAgentService_ExpirePendingResponse(t *testing.T) {
+	service := newTestAgentService(t)
+	handler := &captureResponseHandler{}
+	agentID := "agent-timeout"
+	pendingKey := pendingResponseKey(agentID, "corr-timeout")
+
+	service.mu.Lock()
+	service.pendingResponses[pendingKey] = pendingResponseRoute{
+		sessionID: types.ID("session-timeout"),
+		handler:   handler,
+	}
+	service.pendingTimers[pendingKey] = time.NewTimer(time.Hour)
+	service.mu.Unlock()
+
+	service.expirePendingResponse(agentID, pendingKey)
+
+	if handler.callCount() != 1 {
+		t.Fatalf("Expected timeout callback, got %d", handler.callCount())
+	}
+
+	_, msg := handler.lastMessage()
+	if msg.Content == "" {
+		t.Fatal("Expected timeout message content")
+	}
+
+	service.mu.RLock()
+	_, pendingExists := service.pendingResponses[pendingKey]
+	_, timerExists := service.pendingTimers[pendingKey]
+	service.mu.RUnlock()
+	if pendingExists || timerExists {
+		t.Fatal("Expected expired pending route and timer to be cleared")
+	}
 }
 
 // =============================================================================

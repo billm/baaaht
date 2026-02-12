@@ -7,6 +7,8 @@
 
 import { credentials, Client, ChannelCredentials, loadPackageDefinition } from '@grpc/grpc-js';
 import { loadSync } from '@grpc/proto-loader';
+import { fileURLToPath } from 'url';
+import path from 'path';
 import type {
   RegisterRequest,
   RegisterResponse,
@@ -100,16 +102,20 @@ export class OrchestratorClient {
       }
 
       try {
+        const protoPath = fileURLToPath(new URL('../../../../proto/agent.proto', import.meta.url));
+        const protoIncludeDir = path.dirname(protoPath);
+
         // Load the proto definition dynamically
         // Note: This assumes proto files have been compiled and are available
         const packageDefinition = loadSync(
-          '../../proto/agent.proto',
+          protoPath,
           {
             keepCase: false,
             longs: String,
             enums: String,
             defaults: false,
             oneofs: true,
+            includeDirs: [protoIncludeDir],
           }
         );
 
