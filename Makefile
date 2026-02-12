@@ -131,11 +131,11 @@ proto-gen: $(PROTO_GO_FILES) $(PROTO_GRPC_GO_FILES)
 
 $(PROTO_DIR)/%.pb.go: $(PROTO_DIR)/%.proto
 	@echo "Generating $<..."
-	@protoc --go_out=. --go_opt=paths=source_relative $<
+	@cd $(PROTO_DIR) && protoc -I. --go_out=. --go_opt=paths=source_relative $(notdir $<)
 
 $(PROTO_DIR)/%_grpc.pb.go: $(PROTO_DIR)/%.proto
 	@echo "Generating gRPC stubs for $<..."
-	@protoc --go-grpc_out=. --go-grpc_opt=paths=source_relative $<
+	@cd $(PROTO_DIR) && protoc -I. --go-grpc_out=. --go-grpc_opt=paths=source_relative $(notdir $<)
 
 ## proto-clean: Remove generated Protocol Buffer Go files
 proto-clean:

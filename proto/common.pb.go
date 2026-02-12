@@ -8,7 +8,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v6.33.4
-// source: proto/common.proto
+// source: common.proto
 
 package proto
 
@@ -77,11 +77,11 @@ func (x Status) String() string {
 }
 
 func (Status) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_common_proto_enumTypes[0].Descriptor()
+	return file_common_proto_enumTypes[0].Descriptor()
 }
 
 func (Status) Type() protoreflect.EnumType {
-	return &file_proto_common_proto_enumTypes[0]
+	return &file_common_proto_enumTypes[0]
 }
 
 func (x Status) Number() protoreflect.EnumNumber {
@@ -90,7 +90,7 @@ func (x Status) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Status.Descriptor instead.
 func (Status) EnumDescriptor() ([]byte, []int) {
-	return file_proto_common_proto_rawDescGZIP(), []int{0}
+	return file_common_proto_rawDescGZIP(), []int{0}
 }
 
 // Health represents the health state of a component
@@ -136,11 +136,11 @@ func (x Health) String() string {
 }
 
 func (Health) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_common_proto_enumTypes[1].Descriptor()
+	return file_common_proto_enumTypes[1].Descriptor()
 }
 
 func (Health) Type() protoreflect.EnumType {
-	return &file_proto_common_proto_enumTypes[1]
+	return &file_common_proto_enumTypes[1]
 }
 
 func (x Health) Number() protoreflect.EnumNumber {
@@ -149,7 +149,7 @@ func (x Health) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Health.Descriptor instead.
 func (Health) EnumDescriptor() ([]byte, []int) {
-	return file_proto_common_proto_rawDescGZIP(), []int{1}
+	return file_common_proto_rawDescGZIP(), []int{1}
 }
 
 // Priority represents the priority level
@@ -192,11 +192,11 @@ func (x Priority) String() string {
 }
 
 func (Priority) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_common_proto_enumTypes[2].Descriptor()
+	return file_common_proto_enumTypes[2].Descriptor()
 }
 
 func (Priority) Type() protoreflect.EnumType {
-	return &file_proto_common_proto_enumTypes[2]
+	return &file_common_proto_enumTypes[2]
 }
 
 func (x Priority) Number() protoreflect.EnumNumber {
@@ -205,7 +205,7 @@ func (x Priority) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Priority.Descriptor instead.
 func (Priority) EnumDescriptor() ([]byte, []int) {
-	return file_proto_common_proto_rawDescGZIP(), []int{2}
+	return file_common_proto_rawDescGZIP(), []int{2}
 }
 
 // Provider represents the LLM provider
@@ -251,11 +251,11 @@ func (x Provider) String() string {
 }
 
 func (Provider) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_common_proto_enumTypes[3].Descriptor()
+	return file_common_proto_enumTypes[3].Descriptor()
 }
 
 func (Provider) Type() protoreflect.EnumType {
-	return &file_proto_common_proto_enumTypes[3]
+	return &file_common_proto_enumTypes[3]
 }
 
 func (x Provider) Number() protoreflect.EnumNumber {
@@ -264,7 +264,7 @@ func (x Provider) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Provider.Descriptor instead.
 func (Provider) EnumDescriptor() ([]byte, []int) {
-	return file_proto_common_proto_rawDescGZIP(), []int{3}
+	return file_common_proto_rawDescGZIP(), []int{3}
 }
 
 // ToolType represents the category of tool
@@ -310,11 +310,11 @@ func (x ToolType) String() string {
 }
 
 func (ToolType) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_common_proto_enumTypes[4].Descriptor()
+	return file_common_proto_enumTypes[4].Descriptor()
 }
 
 func (ToolType) Type() protoreflect.EnumType {
-	return &file_proto_common_proto_enumTypes[4]
+	return &file_common_proto_enumTypes[4]
 }
 
 func (x ToolType) Number() protoreflect.EnumNumber {
@@ -323,7 +323,7 @@ func (x ToolType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ToolType.Descriptor instead.
 func (ToolType) EnumDescriptor() ([]byte, []int) {
-	return file_proto_common_proto_rawDescGZIP(), []int{4}
+	return file_common_proto_rawDescGZIP(), []int{4}
 }
 
 // ToolState represents the lifecycle state of a tool
@@ -369,11 +369,11 @@ func (x ToolState) String() string {
 }
 
 func (ToolState) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_common_proto_enumTypes[5].Descriptor()
+	return file_common_proto_enumTypes[5].Descriptor()
 }
 
 func (ToolState) Type() protoreflect.EnumType {
-	return &file_proto_common_proto_enumTypes[5]
+	return &file_common_proto_enumTypes[5]
 }
 
 func (x ToolState) Number() protoreflect.EnumNumber {
@@ -382,7 +382,7 @@ func (x ToolState) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ToolState.Descriptor instead.
 func (ToolState) EnumDescriptor() ([]byte, []int) {
-	return file_proto_common_proto_rawDescGZIP(), []int{5}
+	return file_common_proto_rawDescGZIP(), []int{5}
 }
 
 // ToolExecutionStatus represents the status of a tool execution
@@ -431,11 +431,11 @@ func (x ToolExecutionStatus) String() string {
 }
 
 func (ToolExecutionStatus) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_common_proto_enumTypes[6].Descriptor()
+	return file_common_proto_enumTypes[6].Descriptor()
 }
 
 func (ToolExecutionStatus) Type() protoreflect.EnumType {
-	return &file_proto_common_proto_enumTypes[6]
+	return &file_common_proto_enumTypes[6]
 }
 
 func (x ToolExecutionStatus) Number() protoreflect.EnumNumber {
@@ -444,7 +444,7 @@ func (x ToolExecutionStatus) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ToolExecutionStatus.Descriptor instead.
 func (ToolExecutionStatus) EnumDescriptor() ([]byte, []int) {
-	return file_proto_common_proto_rawDescGZIP(), []int{6}
+	return file_common_proto_rawDescGZIP(), []int{6}
 }
 
 // ParameterType represents the type of a tool parameter
@@ -499,11 +499,11 @@ func (x ParameterType) String() string {
 }
 
 func (ParameterType) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_common_proto_enumTypes[7].Descriptor()
+	return file_common_proto_enumTypes[7].Descriptor()
 }
 
 func (ParameterType) Type() protoreflect.EnumType {
-	return &file_proto_common_proto_enumTypes[7]
+	return &file_common_proto_enumTypes[7]
 }
 
 func (x ParameterType) Number() protoreflect.EnumNumber {
@@ -512,7 +512,7 @@ func (x ParameterType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ParameterType.Descriptor instead.
 func (ParameterType) EnumDescriptor() ([]byte, []int) {
-	return file_proto_common_proto_rawDescGZIP(), []int{7}
+	return file_common_proto_rawDescGZIP(), []int{7}
 }
 
 // ResourceLimits defines resource constraints for a container/session
@@ -528,7 +528,7 @@ type ResourceLimits struct {
 
 func (x *ResourceLimits) Reset() {
 	*x = ResourceLimits{}
-	mi := &file_proto_common_proto_msgTypes[0]
+	mi := &file_common_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -540,7 +540,7 @@ func (x *ResourceLimits) String() string {
 func (*ResourceLimits) ProtoMessage() {}
 
 func (x *ResourceLimits) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_common_proto_msgTypes[0]
+	mi := &file_common_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -553,7 +553,7 @@ func (x *ResourceLimits) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResourceLimits.ProtoReflect.Descriptor instead.
 func (*ResourceLimits) Descriptor() ([]byte, []int) {
-	return file_proto_common_proto_rawDescGZIP(), []int{0}
+	return file_common_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *ResourceLimits) GetNanoCpus() int64 {
@@ -602,7 +602,7 @@ type ResourceUsage struct {
 
 func (x *ResourceUsage) Reset() {
 	*x = ResourceUsage{}
-	mi := &file_proto_common_proto_msgTypes[1]
+	mi := &file_common_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -614,7 +614,7 @@ func (x *ResourceUsage) String() string {
 func (*ResourceUsage) ProtoMessage() {}
 
 func (x *ResourceUsage) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_common_proto_msgTypes[1]
+	mi := &file_common_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -627,7 +627,7 @@ func (x *ResourceUsage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResourceUsage.ProtoReflect.Descriptor instead.
 func (*ResourceUsage) Descriptor() ([]byte, []int) {
-	return file_proto_common_proto_rawDescGZIP(), []int{1}
+	return file_common_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *ResourceUsage) GetCpuPercent() float64 {
@@ -706,7 +706,7 @@ type ModelCapabilities struct {
 
 func (x *ModelCapabilities) Reset() {
 	*x = ModelCapabilities{}
-	mi := &file_proto_common_proto_msgTypes[2]
+	mi := &file_common_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -718,7 +718,7 @@ func (x *ModelCapabilities) String() string {
 func (*ModelCapabilities) ProtoMessage() {}
 
 func (x *ModelCapabilities) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_common_proto_msgTypes[2]
+	mi := &file_common_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -731,7 +731,7 @@ func (x *ModelCapabilities) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ModelCapabilities.ProtoReflect.Descriptor instead.
 func (*ModelCapabilities) Descriptor() ([]byte, []int) {
-	return file_proto_common_proto_rawDescGZIP(), []int{2}
+	return file_common_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *ModelCapabilities) GetStreaming() bool {
@@ -774,7 +774,7 @@ type TokenUsage struct {
 
 func (x *TokenUsage) Reset() {
 	*x = TokenUsage{}
-	mi := &file_proto_common_proto_msgTypes[3]
+	mi := &file_common_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -786,7 +786,7 @@ func (x *TokenUsage) String() string {
 func (*TokenUsage) ProtoMessage() {}
 
 func (x *TokenUsage) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_common_proto_msgTypes[3]
+	mi := &file_common_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -799,7 +799,7 @@ func (x *TokenUsage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TokenUsage.ProtoReflect.Descriptor instead.
 func (*TokenUsage) Descriptor() ([]byte, []int) {
-	return file_proto_common_proto_rawDescGZIP(), []int{3}
+	return file_common_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *TokenUsage) GetInputTokens() int32 {
@@ -845,7 +845,7 @@ type ToolDefinition struct {
 
 func (x *ToolDefinition) Reset() {
 	*x = ToolDefinition{}
-	mi := &file_proto_common_proto_msgTypes[4]
+	mi := &file_common_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -857,7 +857,7 @@ func (x *ToolDefinition) String() string {
 func (*ToolDefinition) ProtoMessage() {}
 
 func (x *ToolDefinition) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_common_proto_msgTypes[4]
+	mi := &file_common_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -870,7 +870,7 @@ func (x *ToolDefinition) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ToolDefinition.ProtoReflect.Descriptor instead.
 func (*ToolDefinition) Descriptor() ([]byte, []int) {
-	return file_proto_common_proto_rawDescGZIP(), []int{4}
+	return file_common_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ToolDefinition) GetName() string {
@@ -980,7 +980,7 @@ type ToolParameter struct {
 
 func (x *ToolParameter) Reset() {
 	*x = ToolParameter{}
-	mi := &file_proto_common_proto_msgTypes[5]
+	mi := &file_common_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -992,7 +992,7 @@ func (x *ToolParameter) String() string {
 func (*ToolParameter) ProtoMessage() {}
 
 func (x *ToolParameter) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_common_proto_msgTypes[5]
+	mi := &file_common_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1005,7 +1005,7 @@ func (x *ToolParameter) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ToolParameter.ProtoReflect.Descriptor instead.
 func (*ToolParameter) Descriptor() ([]byte, []int) {
-	return file_proto_common_proto_rawDescGZIP(), []int{5}
+	return file_common_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ToolParameter) GetName() string {
@@ -1076,7 +1076,7 @@ type ToolSecurityPolicy struct {
 
 func (x *ToolSecurityPolicy) Reset() {
 	*x = ToolSecurityPolicy{}
-	mi := &file_proto_common_proto_msgTypes[6]
+	mi := &file_common_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1088,7 +1088,7 @@ func (x *ToolSecurityPolicy) String() string {
 func (*ToolSecurityPolicy) ProtoMessage() {}
 
 func (x *ToolSecurityPolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_common_proto_msgTypes[6]
+	mi := &file_common_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1101,7 +1101,7 @@ func (x *ToolSecurityPolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ToolSecurityPolicy.ProtoReflect.Descriptor instead.
 func (*ToolSecurityPolicy) Descriptor() ([]byte, []int) {
-	return file_proto_common_proto_rawDescGZIP(), []int{6}
+	return file_common_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ToolSecurityPolicy) GetAllowNetwork() bool {
@@ -1190,7 +1190,7 @@ type ToolExecutionRequest struct {
 
 func (x *ToolExecutionRequest) Reset() {
 	*x = ToolExecutionRequest{}
-	mi := &file_proto_common_proto_msgTypes[7]
+	mi := &file_common_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1202,7 +1202,7 @@ func (x *ToolExecutionRequest) String() string {
 func (*ToolExecutionRequest) ProtoMessage() {}
 
 func (x *ToolExecutionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_common_proto_msgTypes[7]
+	mi := &file_common_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1215,7 +1215,7 @@ func (x *ToolExecutionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ToolExecutionRequest.ProtoReflect.Descriptor instead.
 func (*ToolExecutionRequest) Descriptor() ([]byte, []int) {
-	return file_proto_common_proto_rawDescGZIP(), []int{7}
+	return file_common_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ToolExecutionRequest) GetToolName() string {
@@ -1288,7 +1288,7 @@ type ToolExecutionResult struct {
 
 func (x *ToolExecutionResult) Reset() {
 	*x = ToolExecutionResult{}
-	mi := &file_proto_common_proto_msgTypes[8]
+	mi := &file_common_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1300,7 +1300,7 @@ func (x *ToolExecutionResult) String() string {
 func (*ToolExecutionResult) ProtoMessage() {}
 
 func (x *ToolExecutionResult) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_common_proto_msgTypes[8]
+	mi := &file_common_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1313,7 +1313,7 @@ func (x *ToolExecutionResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ToolExecutionResult.ProtoReflect.Descriptor instead.
 func (*ToolExecutionResult) Descriptor() ([]byte, []int) {
-	return file_proto_common_proto_rawDescGZIP(), []int{8}
+	return file_common_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ToolExecutionResult) GetExecutionId() string {
@@ -1415,7 +1415,7 @@ type ToolConfig struct {
 
 func (x *ToolConfig) Reset() {
 	*x = ToolConfig{}
-	mi := &file_proto_common_proto_msgTypes[9]
+	mi := &file_common_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1427,7 +1427,7 @@ func (x *ToolConfig) String() string {
 func (*ToolConfig) ProtoMessage() {}
 
 func (x *ToolConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_common_proto_msgTypes[9]
+	mi := &file_common_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1440,7 +1440,7 @@ func (x *ToolConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ToolConfig.ProtoReflect.Descriptor instead.
 func (*ToolConfig) Descriptor() ([]byte, []int) {
-	return file_proto_common_proto_rawDescGZIP(), []int{9}
+	return file_common_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ToolConfig) GetTools() []*ToolDefinition {
@@ -1485,11 +1485,11 @@ func (x *ToolConfig) GetTelemetryEnabled() bool {
 	return false
 }
 
-var File_proto_common_proto protoreflect.FileDescriptor
+var File_common_proto protoreflect.FileDescriptor
 
-const file_proto_common_proto_rawDesc = "" +
+const file_common_proto_rawDesc = "" +
 	"\n" +
-	"\x12proto/common.proto\x12\tcommon.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x90\x01\n" +
+	"\fcommon.proto\x12\tcommon.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x90\x01\n" +
 	"\x0eResourceLimits\x12\x1b\n" +
 	"\tnano_cpus\x18\x01 \x01(\x03R\bnanoCpus\x12!\n" +
 	"\fmemory_bytes\x18\x02 \x01(\x03R\vmemoryBytes\x12\x1f\n" +
@@ -1680,20 +1680,20 @@ const file_proto_common_proto_rawDesc = "" +
 	"\x1dPARAMETER_TYPE_DIRECTORY_PATH\x10\bB,Z*github.com/billm/baaaht/orchestrator/protob\x06proto3"
 
 var (
-	file_proto_common_proto_rawDescOnce sync.Once
-	file_proto_common_proto_rawDescData []byte
+	file_common_proto_rawDescOnce sync.Once
+	file_common_proto_rawDescData []byte
 )
 
-func file_proto_common_proto_rawDescGZIP() []byte {
-	file_proto_common_proto_rawDescOnce.Do(func() {
-		file_proto_common_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_proto_common_proto_rawDesc), len(file_proto_common_proto_rawDesc)))
+func file_common_proto_rawDescGZIP() []byte {
+	file_common_proto_rawDescOnce.Do(func() {
+		file_common_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_common_proto_rawDesc), len(file_common_proto_rawDesc)))
 	})
-	return file_proto_common_proto_rawDescData
+	return file_common_proto_rawDescData
 }
 
-var file_proto_common_proto_enumTypes = make([]protoimpl.EnumInfo, 8)
-var file_proto_common_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
-var file_proto_common_proto_goTypes = []any{
+var file_common_proto_enumTypes = make([]protoimpl.EnumInfo, 8)
+var file_common_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_common_proto_goTypes = []any{
 	(Status)(0),                   // 0: common.v1.Status
 	(Health)(0),                   // 1: common.v1.Health
 	(Priority)(0),                 // 2: common.v1.Priority
@@ -1719,7 +1719,7 @@ var file_proto_common_proto_goTypes = []any{
 	nil,                           // 22: common.v1.ToolConfig.DefaultEnvEntry
 	(*timestamppb.Timestamp)(nil), // 23: google.protobuf.Timestamp
 }
-var file_proto_common_proto_depIdxs = []int32{
+var file_common_proto_depIdxs = []int32{
 	4,  // 0: common.v1.ToolDefinition.type:type_name -> common.v1.ToolType
 	13, // 1: common.v1.ToolDefinition.parameters:type_name -> common.v1.ToolParameter
 	14, // 2: common.v1.ToolDefinition.security_policy:type_name -> common.v1.ToolSecurityPolicy
@@ -1742,27 +1742,27 @@ var file_proto_common_proto_depIdxs = []int32{
 	0,  // [0:15] is the sub-list for field type_name
 }
 
-func init() { file_proto_common_proto_init() }
-func file_proto_common_proto_init() {
-	if File_proto_common_proto != nil {
+func init() { file_common_proto_init() }
+func file_common_proto_init() {
+	if File_common_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_common_proto_rawDesc), len(file_proto_common_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_common_proto_rawDesc), len(file_common_proto_rawDesc)),
 			NumEnums:      8,
 			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_proto_common_proto_goTypes,
-		DependencyIndexes: file_proto_common_proto_depIdxs,
-		EnumInfos:         file_proto_common_proto_enumTypes,
-		MessageInfos:      file_proto_common_proto_msgTypes,
+		GoTypes:           file_common_proto_goTypes,
+		DependencyIndexes: file_common_proto_depIdxs,
+		EnumInfos:         file_common_proto_enumTypes,
+		MessageInfos:      file_common_proto_msgTypes,
 	}.Build()
-	File_proto_common_proto = out.File
-	file_proto_common_proto_goTypes = nil
-	file_proto_common_proto_depIdxs = nil
+	File_common_proto = out.File
+	file_common_proto_goTypes = nil
+	file_common_proto_depIdxs = nil
 }

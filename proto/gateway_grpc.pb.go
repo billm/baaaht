@@ -10,7 +10,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.1
 // - protoc             v6.33.4
-// source: proto/gateway.proto
+// source: gateway.proto
 
 package proto
 
@@ -493,5 +493,5 @@ var GatewayService_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
-	Metadata: "proto/gateway.proto",
+	Metadata: "gateway.proto",
 }

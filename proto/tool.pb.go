@@ -9,7 +9,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v6.33.4
-// source: proto/tool.proto
+// source: tool.proto
 
 package proto
 
@@ -51,7 +51,7 @@ type ToolInstance struct {
 
 func (x *ToolInstance) Reset() {
 	*x = ToolInstance{}
-	mi := &file_proto_tool_proto_msgTypes[0]
+	mi := &file_tool_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -63,7 +63,7 @@ func (x *ToolInstance) String() string {
 func (*ToolInstance) ProtoMessage() {}
 
 func (x *ToolInstance) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[0]
+	mi := &file_tool_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -76,7 +76,7 @@ func (x *ToolInstance) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ToolInstance.ProtoReflect.Descriptor instead.
 func (*ToolInstance) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{0}
+	return file_tool_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *ToolInstance) GetName() string {
@@ -180,7 +180,7 @@ type ToolUsageStats struct {
 
 func (x *ToolUsageStats) Reset() {
 	*x = ToolUsageStats{}
-	mi := &file_proto_tool_proto_msgTypes[1]
+	mi := &file_tool_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -192,7 +192,7 @@ func (x *ToolUsageStats) String() string {
 func (*ToolUsageStats) ProtoMessage() {}
 
 func (x *ToolUsageStats) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[1]
+	mi := &file_tool_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -205,7 +205,7 @@ func (x *ToolUsageStats) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ToolUsageStats.ProtoReflect.Descriptor instead.
 func (*ToolUsageStats) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{1}
+	return file_tool_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *ToolUsageStats) GetTotalExecutions() int64 {
@@ -287,7 +287,7 @@ type ToolExecution struct {
 
 func (x *ToolExecution) Reset() {
 	*x = ToolExecution{}
-	mi := &file_proto_tool_proto_msgTypes[2]
+	mi := &file_tool_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -299,7 +299,7 @@ func (x *ToolExecution) String() string {
 func (*ToolExecution) ProtoMessage() {}
 
 func (x *ToolExecution) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[2]
+	mi := &file_tool_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -312,7 +312,7 @@ func (x *ToolExecution) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ToolExecution.ProtoReflect.Descriptor instead.
 func (*ToolExecution) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{2}
+	return file_tool_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *ToolExecution) GetExecutionId() string {
@@ -424,7 +424,7 @@ type RegisterToolRequest struct {
 
 func (x *RegisterToolRequest) Reset() {
 	*x = RegisterToolRequest{}
-	mi := &file_proto_tool_proto_msgTypes[3]
+	mi := &file_tool_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -436,7 +436,7 @@ func (x *RegisterToolRequest) String() string {
 func (*RegisterToolRequest) ProtoMessage() {}
 
 func (x *RegisterToolRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[3]
+	mi := &file_tool_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -449,7 +449,7 @@ func (x *RegisterToolRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterToolRequest.ProtoReflect.Descriptor instead.
 func (*RegisterToolRequest) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{3}
+	return file_tool_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *RegisterToolRequest) GetDefinition() *ToolDefinition {
@@ -477,7 +477,7 @@ type RegisterToolResponse struct {
 
 func (x *RegisterToolResponse) Reset() {
 	*x = RegisterToolResponse{}
-	mi := &file_proto_tool_proto_msgTypes[4]
+	mi := &file_tool_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -489,7 +489,7 @@ func (x *RegisterToolResponse) String() string {
 func (*RegisterToolResponse) ProtoMessage() {}
 
 func (x *RegisterToolResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[4]
+	mi := &file_tool_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -502,7 +502,7 @@ func (x *RegisterToolResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RegisterToolResponse.ProtoReflect.Descriptor instead.
 func (*RegisterToolResponse) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{4}
+	return file_tool_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *RegisterToolResponse) GetName() string {
@@ -530,7 +530,7 @@ type UnregisterToolRequest struct {
 
 func (x *UnregisterToolRequest) Reset() {
 	*x = UnregisterToolRequest{}
-	mi := &file_proto_tool_proto_msgTypes[5]
+	mi := &file_tool_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -542,7 +542,7 @@ func (x *UnregisterToolRequest) String() string {
 func (*UnregisterToolRequest) ProtoMessage() {}
 
 func (x *UnregisterToolRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[5]
+	mi := &file_tool_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -555,7 +555,7 @@ func (x *UnregisterToolRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnregisterToolRequest.ProtoReflect.Descriptor instead.
 func (*UnregisterToolRequest) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{5}
+	return file_tool_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *UnregisterToolRequest) GetName() string {
@@ -583,7 +583,7 @@ type UnregisterToolResponse struct {
 
 func (x *UnregisterToolResponse) Reset() {
 	*x = UnregisterToolResponse{}
-	mi := &file_proto_tool_proto_msgTypes[6]
+	mi := &file_tool_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -595,7 +595,7 @@ func (x *UnregisterToolResponse) String() string {
 func (*UnregisterToolResponse) ProtoMessage() {}
 
 func (x *UnregisterToolResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[6]
+	mi := &file_tool_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -608,7 +608,7 @@ func (x *UnregisterToolResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnregisterToolResponse.ProtoReflect.Descriptor instead.
 func (*UnregisterToolResponse) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{6}
+	return file_tool_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *UnregisterToolResponse) GetSuccess() bool {
@@ -636,7 +636,7 @@ type UpdateToolRequest struct {
 
 func (x *UpdateToolRequest) Reset() {
 	*x = UpdateToolRequest{}
-	mi := &file_proto_tool_proto_msgTypes[7]
+	mi := &file_tool_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -648,7 +648,7 @@ func (x *UpdateToolRequest) String() string {
 func (*UpdateToolRequest) ProtoMessage() {}
 
 func (x *UpdateToolRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[7]
+	mi := &file_tool_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -661,7 +661,7 @@ func (x *UpdateToolRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateToolRequest.ProtoReflect.Descriptor instead.
 func (*UpdateToolRequest) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{7}
+	return file_tool_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *UpdateToolRequest) GetName() string {
@@ -688,7 +688,7 @@ type UpdateToolResponse struct {
 
 func (x *UpdateToolResponse) Reset() {
 	*x = UpdateToolResponse{}
-	mi := &file_proto_tool_proto_msgTypes[8]
+	mi := &file_tool_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -700,7 +700,7 @@ func (x *UpdateToolResponse) String() string {
 func (*UpdateToolResponse) ProtoMessage() {}
 
 func (x *UpdateToolResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[8]
+	mi := &file_tool_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -713,7 +713,7 @@ func (x *UpdateToolResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateToolResponse.ProtoReflect.Descriptor instead.
 func (*UpdateToolResponse) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{8}
+	return file_tool_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *UpdateToolResponse) GetTool() *ToolInstance {
@@ -733,7 +733,7 @@ type EnableToolRequest struct {
 
 func (x *EnableToolRequest) Reset() {
 	*x = EnableToolRequest{}
-	mi := &file_proto_tool_proto_msgTypes[9]
+	mi := &file_tool_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -745,7 +745,7 @@ func (x *EnableToolRequest) String() string {
 func (*EnableToolRequest) ProtoMessage() {}
 
 func (x *EnableToolRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[9]
+	mi := &file_tool_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -758,7 +758,7 @@ func (x *EnableToolRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnableToolRequest.ProtoReflect.Descriptor instead.
 func (*EnableToolRequest) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{9}
+	return file_tool_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *EnableToolRequest) GetName() string {
@@ -779,7 +779,7 @@ type EnableToolResponse struct {
 
 func (x *EnableToolResponse) Reset() {
 	*x = EnableToolResponse{}
-	mi := &file_proto_tool_proto_msgTypes[10]
+	mi := &file_tool_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -791,7 +791,7 @@ func (x *EnableToolResponse) String() string {
 func (*EnableToolResponse) ProtoMessage() {}
 
 func (x *EnableToolResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[10]
+	mi := &file_tool_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -804,7 +804,7 @@ func (x *EnableToolResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnableToolResponse.ProtoReflect.Descriptor instead.
 func (*EnableToolResponse) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{10}
+	return file_tool_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *EnableToolResponse) GetName() string {
@@ -832,7 +832,7 @@ type DisableToolRequest struct {
 
 func (x *DisableToolRequest) Reset() {
 	*x = DisableToolRequest{}
-	mi := &file_proto_tool_proto_msgTypes[11]
+	mi := &file_tool_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -844,7 +844,7 @@ func (x *DisableToolRequest) String() string {
 func (*DisableToolRequest) ProtoMessage() {}
 
 func (x *DisableToolRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[11]
+	mi := &file_tool_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -857,7 +857,7 @@ func (x *DisableToolRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DisableToolRequest.ProtoReflect.Descriptor instead.
 func (*DisableToolRequest) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{11}
+	return file_tool_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *DisableToolRequest) GetName() string {
@@ -886,7 +886,7 @@ type DisableToolResponse struct {
 
 func (x *DisableToolResponse) Reset() {
 	*x = DisableToolResponse{}
-	mi := &file_proto_tool_proto_msgTypes[12]
+	mi := &file_tool_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -898,7 +898,7 @@ func (x *DisableToolResponse) String() string {
 func (*DisableToolResponse) ProtoMessage() {}
 
 func (x *DisableToolResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[12]
+	mi := &file_tool_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -911,7 +911,7 @@ func (x *DisableToolResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DisableToolResponse.ProtoReflect.Descriptor instead.
 func (*DisableToolResponse) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{12}
+	return file_tool_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *DisableToolResponse) GetName() string {
@@ -945,7 +945,7 @@ type ListToolsRequest struct {
 
 func (x *ListToolsRequest) Reset() {
 	*x = ListToolsRequest{}
-	mi := &file_proto_tool_proto_msgTypes[13]
+	mi := &file_tool_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -957,7 +957,7 @@ func (x *ListToolsRequest) String() string {
 func (*ListToolsRequest) ProtoMessage() {}
 
 func (x *ListToolsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[13]
+	mi := &file_tool_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -970,7 +970,7 @@ func (x *ListToolsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListToolsRequest.ProtoReflect.Descriptor instead.
 func (*ListToolsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{13}
+	return file_tool_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ListToolsRequest) GetFilter() *ToolFilter {
@@ -994,7 +994,7 @@ type ToolFilter struct {
 
 func (x *ToolFilter) Reset() {
 	*x = ToolFilter{}
-	mi := &file_proto_tool_proto_msgTypes[14]
+	mi := &file_tool_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1006,7 +1006,7 @@ func (x *ToolFilter) String() string {
 func (*ToolFilter) ProtoMessage() {}
 
 func (x *ToolFilter) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[14]
+	mi := &file_tool_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1019,7 +1019,7 @@ func (x *ToolFilter) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ToolFilter.ProtoReflect.Descriptor instead.
 func (*ToolFilter) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{14}
+	return file_tool_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *ToolFilter) GetType() ToolType {
@@ -1068,7 +1068,7 @@ type ListToolsResponse struct {
 
 func (x *ListToolsResponse) Reset() {
 	*x = ListToolsResponse{}
-	mi := &file_proto_tool_proto_msgTypes[15]
+	mi := &file_tool_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1080,7 +1080,7 @@ func (x *ListToolsResponse) String() string {
 func (*ListToolsResponse) ProtoMessage() {}
 
 func (x *ListToolsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[15]
+	mi := &file_tool_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1093,7 +1093,7 @@ func (x *ListToolsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListToolsResponse.ProtoReflect.Descriptor instead.
 func (*ListToolsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{15}
+	return file_tool_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ListToolsResponse) GetTools() []*ToolInstance {
@@ -1120,7 +1120,7 @@ type GetToolRequest struct {
 
 func (x *GetToolRequest) Reset() {
 	*x = GetToolRequest{}
-	mi := &file_proto_tool_proto_msgTypes[16]
+	mi := &file_tool_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1132,7 +1132,7 @@ func (x *GetToolRequest) String() string {
 func (*GetToolRequest) ProtoMessage() {}
 
 func (x *GetToolRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[16]
+	mi := &file_tool_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1145,7 +1145,7 @@ func (x *GetToolRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetToolRequest.ProtoReflect.Descriptor instead.
 func (*GetToolRequest) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{16}
+	return file_tool_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *GetToolRequest) GetName() string {
@@ -1165,7 +1165,7 @@ type GetToolResponse struct {
 
 func (x *GetToolResponse) Reset() {
 	*x = GetToolResponse{}
-	mi := &file_proto_tool_proto_msgTypes[17]
+	mi := &file_tool_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1177,7 +1177,7 @@ func (x *GetToolResponse) String() string {
 func (*GetToolResponse) ProtoMessage() {}
 
 func (x *GetToolResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[17]
+	mi := &file_tool_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1190,7 +1190,7 @@ func (x *GetToolResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetToolResponse.ProtoReflect.Descriptor instead.
 func (*GetToolResponse) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{17}
+	return file_tool_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *GetToolResponse) GetTool() *ToolInstance {
@@ -1210,7 +1210,7 @@ type GetToolDefinitionRequest struct {
 
 func (x *GetToolDefinitionRequest) Reset() {
 	*x = GetToolDefinitionRequest{}
-	mi := &file_proto_tool_proto_msgTypes[18]
+	mi := &file_tool_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1222,7 +1222,7 @@ func (x *GetToolDefinitionRequest) String() string {
 func (*GetToolDefinitionRequest) ProtoMessage() {}
 
 func (x *GetToolDefinitionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[18]
+	mi := &file_tool_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1235,7 +1235,7 @@ func (x *GetToolDefinitionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetToolDefinitionRequest.ProtoReflect.Descriptor instead.
 func (*GetToolDefinitionRequest) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{18}
+	return file_tool_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *GetToolDefinitionRequest) GetName() string {
@@ -1255,7 +1255,7 @@ type GetToolDefinitionResponse struct {
 
 func (x *GetToolDefinitionResponse) Reset() {
 	*x = GetToolDefinitionResponse{}
-	mi := &file_proto_tool_proto_msgTypes[19]
+	mi := &file_tool_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1267,7 +1267,7 @@ func (x *GetToolDefinitionResponse) String() string {
 func (*GetToolDefinitionResponse) ProtoMessage() {}
 
 func (x *GetToolDefinitionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[19]
+	mi := &file_tool_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1280,7 +1280,7 @@ func (x *GetToolDefinitionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetToolDefinitionResponse.ProtoReflect.Descriptor instead.
 func (*GetToolDefinitionResponse) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{19}
+	return file_tool_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *GetToolDefinitionResponse) GetDefinition() *ToolDefinition {
@@ -1305,7 +1305,7 @@ type ExecuteToolRequest struct {
 
 func (x *ExecuteToolRequest) Reset() {
 	*x = ExecuteToolRequest{}
-	mi := &file_proto_tool_proto_msgTypes[20]
+	mi := &file_tool_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1317,7 +1317,7 @@ func (x *ExecuteToolRequest) String() string {
 func (*ExecuteToolRequest) ProtoMessage() {}
 
 func (x *ExecuteToolRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[20]
+	mi := &file_tool_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1330,7 +1330,7 @@ func (x *ExecuteToolRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecuteToolRequest.ProtoReflect.Descriptor instead.
 func (*ExecuteToolRequest) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{20}
+	return file_tool_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ExecuteToolRequest) GetToolName() string {
@@ -1386,7 +1386,7 @@ type ExecuteToolResponse struct {
 
 func (x *ExecuteToolResponse) Reset() {
 	*x = ExecuteToolResponse{}
-	mi := &file_proto_tool_proto_msgTypes[21]
+	mi := &file_tool_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1398,7 +1398,7 @@ func (x *ExecuteToolResponse) String() string {
 func (*ExecuteToolResponse) ProtoMessage() {}
 
 func (x *ExecuteToolResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[21]
+	mi := &file_tool_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1411,7 +1411,7 @@ func (x *ExecuteToolResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecuteToolResponse.ProtoReflect.Descriptor instead.
 func (*ExecuteToolResponse) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{21}
+	return file_tool_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *ExecuteToolResponse) GetExecutionId() string {
@@ -1444,7 +1444,7 @@ type StreamToolRequest struct {
 
 func (x *StreamToolRequest) Reset() {
 	*x = StreamToolRequest{}
-	mi := &file_proto_tool_proto_msgTypes[22]
+	mi := &file_tool_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1456,7 +1456,7 @@ func (x *StreamToolRequest) String() string {
 func (*StreamToolRequest) ProtoMessage() {}
 
 func (x *StreamToolRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[22]
+	mi := &file_tool_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1469,7 +1469,7 @@ func (x *StreamToolRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StreamToolRequest.ProtoReflect.Descriptor instead.
 func (*StreamToolRequest) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{22}
+	return file_tool_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *StreamToolRequest) GetExecutionId() string {
@@ -1546,7 +1546,7 @@ type ToolInput struct {
 
 func (x *ToolInput) Reset() {
 	*x = ToolInput{}
-	mi := &file_proto_tool_proto_msgTypes[23]
+	mi := &file_tool_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1558,7 +1558,7 @@ func (x *ToolInput) String() string {
 func (*ToolInput) ProtoMessage() {}
 
 func (x *ToolInput) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[23]
+	mi := &file_tool_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1571,7 +1571,7 @@ func (x *ToolInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ToolInput.ProtoReflect.Descriptor instead.
 func (*ToolInput) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{23}
+	return file_tool_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *ToolInput) GetData() []byte {
@@ -1599,7 +1599,7 @@ type CancelExecutionCommand struct {
 
 func (x *CancelExecutionCommand) Reset() {
 	*x = CancelExecutionCommand{}
-	mi := &file_proto_tool_proto_msgTypes[24]
+	mi := &file_tool_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1611,7 +1611,7 @@ func (x *CancelExecutionCommand) String() string {
 func (*CancelExecutionCommand) ProtoMessage() {}
 
 func (x *CancelExecutionCommand) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[24]
+	mi := &file_tool_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1624,7 +1624,7 @@ func (x *CancelExecutionCommand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelExecutionCommand.ProtoReflect.Descriptor instead.
 func (*CancelExecutionCommand) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{24}
+	return file_tool_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *CancelExecutionCommand) GetReason() string {
@@ -1659,7 +1659,7 @@ type StreamToolResponse struct {
 
 func (x *StreamToolResponse) Reset() {
 	*x = StreamToolResponse{}
-	mi := &file_proto_tool_proto_msgTypes[25]
+	mi := &file_tool_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1671,7 +1671,7 @@ func (x *StreamToolResponse) String() string {
 func (*StreamToolResponse) ProtoMessage() {}
 
 func (x *StreamToolResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[25]
+	mi := &file_tool_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1684,7 +1684,7 @@ func (x *StreamToolResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StreamToolResponse.ProtoReflect.Descriptor instead.
 func (*StreamToolResponse) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{25}
+	return file_tool_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *StreamToolResponse) GetPayload() isStreamToolResponse_Payload {
@@ -1801,7 +1801,7 @@ type ToolOutput struct {
 
 func (x *ToolOutput) Reset() {
 	*x = ToolOutput{}
-	mi := &file_proto_tool_proto_msgTypes[26]
+	mi := &file_tool_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1813,7 +1813,7 @@ func (x *ToolOutput) String() string {
 func (*ToolOutput) ProtoMessage() {}
 
 func (x *ToolOutput) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[26]
+	mi := &file_tool_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1826,7 +1826,7 @@ func (x *ToolOutput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ToolOutput.ProtoReflect.Descriptor instead.
 func (*ToolOutput) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{26}
+	return file_tool_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *ToolOutput) GetData() []byte {
@@ -1869,7 +1869,7 @@ type ToolExecutionStatusUpdate struct {
 
 func (x *ToolExecutionStatusUpdate) Reset() {
 	*x = ToolExecutionStatusUpdate{}
-	mi := &file_proto_tool_proto_msgTypes[27]
+	mi := &file_tool_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1881,7 +1881,7 @@ func (x *ToolExecutionStatusUpdate) String() string {
 func (*ToolExecutionStatusUpdate) ProtoMessage() {}
 
 func (x *ToolExecutionStatusUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[27]
+	mi := &file_tool_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1894,7 +1894,7 @@ func (x *ToolExecutionStatusUpdate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ToolExecutionStatusUpdate.ProtoReflect.Descriptor instead.
 func (*ToolExecutionStatusUpdate) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{27}
+	return file_tool_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *ToolExecutionStatusUpdate) GetStatus() ToolExecutionStatus {
@@ -1931,7 +1931,7 @@ type ToolExecutionProgress struct {
 
 func (x *ToolExecutionProgress) Reset() {
 	*x = ToolExecutionProgress{}
-	mi := &file_proto_tool_proto_msgTypes[28]
+	mi := &file_tool_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1943,7 +1943,7 @@ func (x *ToolExecutionProgress) String() string {
 func (*ToolExecutionProgress) ProtoMessage() {}
 
 func (x *ToolExecutionProgress) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[28]
+	mi := &file_tool_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1956,7 +1956,7 @@ func (x *ToolExecutionProgress) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ToolExecutionProgress.ProtoReflect.Descriptor instead.
 func (*ToolExecutionProgress) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{28}
+	return file_tool_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *ToolExecutionProgress) GetPercent() float64 {
@@ -1999,7 +1999,7 @@ type ToolExecutionComplete struct {
 
 func (x *ToolExecutionComplete) Reset() {
 	*x = ToolExecutionComplete{}
-	mi := &file_proto_tool_proto_msgTypes[29]
+	mi := &file_tool_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2011,7 +2011,7 @@ func (x *ToolExecutionComplete) String() string {
 func (*ToolExecutionComplete) ProtoMessage() {}
 
 func (x *ToolExecutionComplete) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[29]
+	mi := &file_tool_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2024,7 +2024,7 @@ func (x *ToolExecutionComplete) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ToolExecutionComplete.ProtoReflect.Descriptor instead.
 func (*ToolExecutionComplete) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{29}
+	return file_tool_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *ToolExecutionComplete) GetExecutionId() string {
@@ -2061,7 +2061,7 @@ type ToolExecutionError struct {
 
 func (x *ToolExecutionError) Reset() {
 	*x = ToolExecutionError{}
-	mi := &file_proto_tool_proto_msgTypes[30]
+	mi := &file_tool_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2073,7 +2073,7 @@ func (x *ToolExecutionError) String() string {
 func (*ToolExecutionError) ProtoMessage() {}
 
 func (x *ToolExecutionError) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[30]
+	mi := &file_tool_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2086,7 +2086,7 @@ func (x *ToolExecutionError) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ToolExecutionError.ProtoReflect.Descriptor instead.
 func (*ToolExecutionError) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{30}
+	return file_tool_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *ToolExecutionError) GetCode() string {
@@ -2129,7 +2129,7 @@ type CancelExecutionRequest struct {
 
 func (x *CancelExecutionRequest) Reset() {
 	*x = CancelExecutionRequest{}
-	mi := &file_proto_tool_proto_msgTypes[31]
+	mi := &file_tool_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2141,7 +2141,7 @@ func (x *CancelExecutionRequest) String() string {
 func (*CancelExecutionRequest) ProtoMessage() {}
 
 func (x *CancelExecutionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[31]
+	mi := &file_tool_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2154,7 +2154,7 @@ func (x *CancelExecutionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelExecutionRequest.ProtoReflect.Descriptor instead.
 func (*CancelExecutionRequest) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{31}
+	return file_tool_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *CancelExecutionRequest) GetExecutionId() string {
@@ -2190,7 +2190,7 @@ type CancelExecutionResponse struct {
 
 func (x *CancelExecutionResponse) Reset() {
 	*x = CancelExecutionResponse{}
-	mi := &file_proto_tool_proto_msgTypes[32]
+	mi := &file_tool_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2202,7 +2202,7 @@ func (x *CancelExecutionResponse) String() string {
 func (*CancelExecutionResponse) ProtoMessage() {}
 
 func (x *CancelExecutionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[32]
+	mi := &file_tool_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2215,7 +2215,7 @@ func (x *CancelExecutionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelExecutionResponse.ProtoReflect.Descriptor instead.
 func (*CancelExecutionResponse) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{32}
+	return file_tool_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *CancelExecutionResponse) GetExecutionId() string {
@@ -2249,7 +2249,7 @@ type GetExecutionStatusRequest struct {
 
 func (x *GetExecutionStatusRequest) Reset() {
 	*x = GetExecutionStatusRequest{}
-	mi := &file_proto_tool_proto_msgTypes[33]
+	mi := &file_tool_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2261,7 +2261,7 @@ func (x *GetExecutionStatusRequest) String() string {
 func (*GetExecutionStatusRequest) ProtoMessage() {}
 
 func (x *GetExecutionStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[33]
+	mi := &file_tool_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2274,7 +2274,7 @@ func (x *GetExecutionStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetExecutionStatusRequest.ProtoReflect.Descriptor instead.
 func (*GetExecutionStatusRequest) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{33}
+	return file_tool_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *GetExecutionStatusRequest) GetExecutionId() string {
@@ -2294,7 +2294,7 @@ type GetExecutionStatusResponse struct {
 
 func (x *GetExecutionStatusResponse) Reset() {
 	*x = GetExecutionStatusResponse{}
-	mi := &file_proto_tool_proto_msgTypes[34]
+	mi := &file_tool_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2306,7 +2306,7 @@ func (x *GetExecutionStatusResponse) String() string {
 func (*GetExecutionStatusResponse) ProtoMessage() {}
 
 func (x *GetExecutionStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[34]
+	mi := &file_tool_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2319,7 +2319,7 @@ func (x *GetExecutionStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetExecutionStatusResponse.ProtoReflect.Descriptor instead.
 func (*GetExecutionStatusResponse) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{34}
+	return file_tool_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *GetExecutionStatusResponse) GetExecution() *ToolExecution {
@@ -2339,7 +2339,7 @@ type ListExecutionsRequest struct {
 
 func (x *ListExecutionsRequest) Reset() {
 	*x = ListExecutionsRequest{}
-	mi := &file_proto_tool_proto_msgTypes[35]
+	mi := &file_tool_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2351,7 +2351,7 @@ func (x *ListExecutionsRequest) String() string {
 func (*ListExecutionsRequest) ProtoMessage() {}
 
 func (x *ListExecutionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[35]
+	mi := &file_tool_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2364,7 +2364,7 @@ func (x *ListExecutionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListExecutionsRequest.ProtoReflect.Descriptor instead.
 func (*ListExecutionsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{35}
+	return file_tool_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *ListExecutionsRequest) GetFilter() *ExecutionFilter {
@@ -2388,7 +2388,7 @@ type ExecutionFilter struct {
 
 func (x *ExecutionFilter) Reset() {
 	*x = ExecutionFilter{}
-	mi := &file_proto_tool_proto_msgTypes[36]
+	mi := &file_tool_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2400,7 +2400,7 @@ func (x *ExecutionFilter) String() string {
 func (*ExecutionFilter) ProtoMessage() {}
 
 func (x *ExecutionFilter) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[36]
+	mi := &file_tool_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2413,7 +2413,7 @@ func (x *ExecutionFilter) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecutionFilter.ProtoReflect.Descriptor instead.
 func (*ExecutionFilter) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{36}
+	return file_tool_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *ExecutionFilter) GetToolName() string {
@@ -2462,7 +2462,7 @@ type ListExecutionsResponse struct {
 
 func (x *ListExecutionsResponse) Reset() {
 	*x = ListExecutionsResponse{}
-	mi := &file_proto_tool_proto_msgTypes[37]
+	mi := &file_tool_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2474,7 +2474,7 @@ func (x *ListExecutionsResponse) String() string {
 func (*ListExecutionsResponse) ProtoMessage() {}
 
 func (x *ListExecutionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[37]
+	mi := &file_tool_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2487,7 +2487,7 @@ func (x *ListExecutionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListExecutionsResponse.ProtoReflect.Descriptor instead.
 func (*ListExecutionsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{37}
+	return file_tool_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *ListExecutionsResponse) GetExecutions() []*ToolExecution {
@@ -2518,7 +2518,7 @@ type ToolHealthCheckResponse struct {
 
 func (x *ToolHealthCheckResponse) Reset() {
 	*x = ToolHealthCheckResponse{}
-	mi := &file_proto_tool_proto_msgTypes[38]
+	mi := &file_tool_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2530,7 +2530,7 @@ func (x *ToolHealthCheckResponse) String() string {
 func (*ToolHealthCheckResponse) ProtoMessage() {}
 
 func (x *ToolHealthCheckResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[38]
+	mi := &file_tool_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2543,7 +2543,7 @@ func (x *ToolHealthCheckResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ToolHealthCheckResponse.ProtoReflect.Descriptor instead.
 func (*ToolHealthCheckResponse) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{38}
+	return file_tool_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *ToolHealthCheckResponse) GetHealth() Health {
@@ -2596,7 +2596,7 @@ type ToolServiceStatusResponse struct {
 
 func (x *ToolServiceStatusResponse) Reset() {
 	*x = ToolServiceStatusResponse{}
-	mi := &file_proto_tool_proto_msgTypes[39]
+	mi := &file_tool_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2608,7 +2608,7 @@ func (x *ToolServiceStatusResponse) String() string {
 func (*ToolServiceStatusResponse) ProtoMessage() {}
 
 func (x *ToolServiceStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[39]
+	mi := &file_tool_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2621,7 +2621,7 @@ func (x *ToolServiceStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ToolServiceStatusResponse.ProtoReflect.Descriptor instead.
 func (*ToolServiceStatusResponse) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{39}
+	return file_tool_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *ToolServiceStatusResponse) GetStatus() Status {
@@ -2676,7 +2676,7 @@ type GetStatsRequest struct {
 
 func (x *GetStatsRequest) Reset() {
 	*x = GetStatsRequest{}
-	mi := &file_proto_tool_proto_msgTypes[40]
+	mi := &file_tool_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2688,7 +2688,7 @@ func (x *GetStatsRequest) String() string {
 func (*GetStatsRequest) ProtoMessage() {}
 
 func (x *GetStatsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[40]
+	mi := &file_tool_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2701,7 +2701,7 @@ func (x *GetStatsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetStatsRequest.ProtoReflect.Descriptor instead.
 func (*GetStatsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{40}
+	return file_tool_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *GetStatsRequest) GetToolName() string {
@@ -2722,7 +2722,7 @@ type GetStatsResponse struct {
 
 func (x *GetStatsResponse) Reset() {
 	*x = GetStatsResponse{}
-	mi := &file_proto_tool_proto_msgTypes[41]
+	mi := &file_tool_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2734,7 +2734,7 @@ func (x *GetStatsResponse) String() string {
 func (*GetStatsResponse) ProtoMessage() {}
 
 func (x *GetStatsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[41]
+	mi := &file_tool_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2747,7 +2747,7 @@ func (x *GetStatsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetStatsResponse.ProtoReflect.Descriptor instead.
 func (*GetStatsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{41}
+	return file_tool_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *GetStatsResponse) GetServiceStats() *ToolServiceStats {
@@ -2778,7 +2778,7 @@ type ToolServiceStats struct {
 
 func (x *ToolServiceStats) Reset() {
 	*x = ToolServiceStats{}
-	mi := &file_proto_tool_proto_msgTypes[42]
+	mi := &file_tool_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2790,7 +2790,7 @@ func (x *ToolServiceStats) String() string {
 func (*ToolServiceStats) ProtoMessage() {}
 
 func (x *ToolServiceStats) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[42]
+	mi := &file_tool_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2803,7 +2803,7 @@ func (x *ToolServiceStats) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ToolServiceStats.ProtoReflect.Descriptor instead.
 func (*ToolServiceStats) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{42}
+	return file_tool_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *ToolServiceStats) GetTotalExecutions() int64 {
@@ -2852,7 +2852,7 @@ type ToolStats struct {
 
 func (x *ToolStats) Reset() {
 	*x = ToolStats{}
-	mi := &file_proto_tool_proto_msgTypes[43]
+	mi := &file_tool_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2864,7 +2864,7 @@ func (x *ToolStats) String() string {
 func (*ToolStats) ProtoMessage() {}
 
 func (x *ToolStats) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_tool_proto_msgTypes[43]
+	mi := &file_tool_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2877,7 +2877,7 @@ func (x *ToolStats) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ToolStats.ProtoReflect.Descriptor instead.
 func (*ToolStats) Descriptor() ([]byte, []int) {
-	return file_proto_tool_proto_rawDescGZIP(), []int{43}
+	return file_tool_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *ToolStats) GetToolName() string {
@@ -2894,11 +2894,12 @@ func (x *ToolStats) GetUsageStats() *ToolUsageStats {
 	return nil
 }
 
-var File_proto_tool_proto protoreflect.FileDescriptor
+var File_tool_proto protoreflect.FileDescriptor
 
-const file_proto_tool_proto_rawDesc = "" +
+const file_tool_proto_rawDesc = "" +
 	"\n" +
-	"\x10proto/tool.proto\x12\atool.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x12proto/common.proto\"\xa8\x04\n" +
+	"\n" +
+	"tool.proto\x12\atool.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\fcommon.proto\"\xa8\x04\n" +
 	"\fToolInstance\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12!\n" +
 	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12'\n" +
@@ -3163,19 +3164,19 @@ const file_proto_tool_proto_rawDesc = "" +
 	"\bGetStats\x12\x18.tool.v1.GetStatsRequest\x1a\x19.tool.v1.GetStatsResponseB,Z*github.com/billm/baaaht/orchestrator/protob\x06proto3"
 
 var (
-	file_proto_tool_proto_rawDescOnce sync.Once
-	file_proto_tool_proto_rawDescData []byte
+	file_tool_proto_rawDescOnce sync.Once
+	file_tool_proto_rawDescData []byte
 )
 
-func file_proto_tool_proto_rawDescGZIP() []byte {
-	file_proto_tool_proto_rawDescOnce.Do(func() {
-		file_proto_tool_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_proto_tool_proto_rawDesc), len(file_proto_tool_proto_rawDesc)))
+func file_tool_proto_rawDescGZIP() []byte {
+	file_tool_proto_rawDescOnce.Do(func() {
+		file_tool_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_tool_proto_rawDesc), len(file_tool_proto_rawDesc)))
 	})
-	return file_proto_tool_proto_rawDescData
+	return file_tool_proto_rawDescData
 }
 
-var file_proto_tool_proto_msgTypes = make([]protoimpl.MessageInfo, 49)
-var file_proto_tool_proto_goTypes = []any{
+var file_tool_proto_msgTypes = make([]protoimpl.MessageInfo, 49)
+var file_tool_proto_goTypes = []any{
 	(*ToolInstance)(nil),               // 0: tool.v1.ToolInstance
 	(*ToolUsageStats)(nil),             // 1: tool.v1.ToolUsageStats
 	(*ToolExecution)(nil),              // 2: tool.v1.ToolExecution
@@ -3236,7 +3237,7 @@ var file_proto_tool_proto_goTypes = []any{
 	(*emptypb.Empty)(nil),              // 57: google.protobuf.Empty
 	(Health)(0),                        // 58: common.v1.Health
 }
-var file_proto_tool_proto_depIdxs = []int32{
+var file_tool_proto_depIdxs = []int32{
 	49, // 0: tool.v1.ToolInstance.type:type_name -> common.v1.ToolType
 	50, // 1: tool.v1.ToolInstance.state:type_name -> common.v1.ToolState
 	51, // 2: tool.v1.ToolInstance.status:type_name -> common.v1.Status
@@ -3339,18 +3340,18 @@ var file_proto_tool_proto_depIdxs = []int32{
 	0,  // [0:63] is the sub-list for field type_name
 }
 
-func init() { file_proto_tool_proto_init() }
-func file_proto_tool_proto_init() {
-	if File_proto_tool_proto != nil {
+func init() { file_tool_proto_init() }
+func file_tool_proto_init() {
+	if File_tool_proto != nil {
 		return
 	}
-	file_proto_common_proto_init()
-	file_proto_tool_proto_msgTypes[22].OneofWrappers = []any{
+	file_common_proto_init()
+	file_tool_proto_msgTypes[22].OneofWrappers = []any{
 		(*StreamToolRequest_Input)(nil),
 		(*StreamToolRequest_Heartbeat)(nil),
 		(*StreamToolRequest_Cancel)(nil),
 	}
-	file_proto_tool_proto_msgTypes[25].OneofWrappers = []any{
+	file_tool_proto_msgTypes[25].OneofWrappers = []any{
 		(*StreamToolResponse_Output)(nil),
 		(*StreamToolResponse_Status)(nil),
 		(*StreamToolResponse_Progress)(nil),
@@ -3362,17 +3363,17 @@ func file_proto_tool_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_tool_proto_rawDesc), len(file_proto_tool_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_tool_proto_rawDesc), len(file_tool_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   49,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_proto_tool_proto_goTypes,
-		DependencyIndexes: file_proto_tool_proto_depIdxs,
-		MessageInfos:      file_proto_tool_proto_msgTypes,
+		GoTypes:           file_tool_proto_goTypes,
+		DependencyIndexes: file_tool_proto_depIdxs,
+		MessageInfos:      file_tool_proto_msgTypes,
 	}.Build()
-	File_proto_tool_proto = out.File
-	file_proto_tool_proto_goTypes = nil
-	file_proto_tool_proto_depIdxs = nil
+	File_tool_proto = out.File
+	file_tool_proto_goTypes = nil
+	file_tool_proto_depIdxs = nil
 }

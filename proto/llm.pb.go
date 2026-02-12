@@ -9,7 +9,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v6.33.4
-// source: proto/llm.proto
+// source: llm.proto
 
 package proto
 
@@ -74,11 +74,11 @@ func (x FinishReason) String() string {
 }
 
 func (FinishReason) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_llm_proto_enumTypes[0].Descriptor()
+	return file_llm_proto_enumTypes[0].Descriptor()
 }
 
 func (FinishReason) Type() protoreflect.EnumType {
-	return &file_proto_llm_proto_enumTypes[0]
+	return &file_llm_proto_enumTypes[0]
 }
 
 func (x FinishReason) Number() protoreflect.EnumNumber {
@@ -87,7 +87,7 @@ func (x FinishReason) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use FinishReason.Descriptor instead.
 func (FinishReason) EnumDescriptor() ([]byte, []int) {
-	return file_proto_llm_proto_rawDescGZIP(), []int{0}
+	return file_llm_proto_rawDescGZIP(), []int{0}
 }
 
 // LLMRequest represents a request to an LLM provider
@@ -108,7 +108,7 @@ type LLMRequest struct {
 
 func (x *LLMRequest) Reset() {
 	*x = LLMRequest{}
-	mi := &file_proto_llm_proto_msgTypes[0]
+	mi := &file_llm_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -120,7 +120,7 @@ func (x *LLMRequest) String() string {
 func (*LLMRequest) ProtoMessage() {}
 
 func (x *LLMRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_llm_proto_msgTypes[0]
+	mi := &file_llm_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -133,7 +133,7 @@ func (x *LLMRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LLMRequest.ProtoReflect.Descriptor instead.
 func (*LLMRequest) Descriptor() ([]byte, []int) {
-	return file_proto_llm_proto_rawDescGZIP(), []int{0}
+	return file_llm_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *LLMRequest) GetRequestId() string {
@@ -211,7 +211,7 @@ type LLMMessage struct {
 
 func (x *LLMMessage) Reset() {
 	*x = LLMMessage{}
-	mi := &file_proto_llm_proto_msgTypes[1]
+	mi := &file_llm_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -223,7 +223,7 @@ func (x *LLMMessage) String() string {
 func (*LLMMessage) ProtoMessage() {}
 
 func (x *LLMMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_llm_proto_msgTypes[1]
+	mi := &file_llm_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -236,7 +236,7 @@ func (x *LLMMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LLMMessage.ProtoReflect.Descriptor instead.
 func (*LLMMessage) Descriptor() ([]byte, []int) {
-	return file_proto_llm_proto_rawDescGZIP(), []int{1}
+	return file_llm_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *LLMMessage) GetRole() string {
@@ -275,7 +275,7 @@ type LLMParameters struct {
 
 func (x *LLMParameters) Reset() {
 	*x = LLMParameters{}
-	mi := &file_proto_llm_proto_msgTypes[2]
+	mi := &file_llm_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -287,7 +287,7 @@ func (x *LLMParameters) String() string {
 func (*LLMParameters) ProtoMessage() {}
 
 func (x *LLMParameters) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_llm_proto_msgTypes[2]
+	mi := &file_llm_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -300,7 +300,7 @@ func (x *LLMParameters) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LLMParameters.ProtoReflect.Descriptor instead.
 func (*LLMParameters) Descriptor() ([]byte, []int) {
-	return file_proto_llm_proto_rawDescGZIP(), []int{2}
+	return file_llm_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *LLMParameters) GetMaxTokens() int32 {
@@ -357,7 +357,7 @@ type Tool struct {
 
 func (x *Tool) Reset() {
 	*x = Tool{}
-	mi := &file_proto_llm_proto_msgTypes[3]
+	mi := &file_llm_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -369,7 +369,7 @@ func (x *Tool) String() string {
 func (*Tool) ProtoMessage() {}
 
 func (x *Tool) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_llm_proto_msgTypes[3]
+	mi := &file_llm_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -382,7 +382,7 @@ func (x *Tool) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Tool.ProtoReflect.Descriptor instead.
 func (*Tool) Descriptor() ([]byte, []int) {
-	return file_proto_llm_proto_rawDescGZIP(), []int{3}
+	return file_llm_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *Tool) GetName() string {
@@ -418,7 +418,7 @@ type ToolInputSchema struct {
 
 func (x *ToolInputSchema) Reset() {
 	*x = ToolInputSchema{}
-	mi := &file_proto_llm_proto_msgTypes[4]
+	mi := &file_llm_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -430,7 +430,7 @@ func (x *ToolInputSchema) String() string {
 func (*ToolInputSchema) ProtoMessage() {}
 
 func (x *ToolInputSchema) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_llm_proto_msgTypes[4]
+	mi := &file_llm_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -443,7 +443,7 @@ func (x *ToolInputSchema) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ToolInputSchema.ProtoReflect.Descriptor instead.
 func (*ToolInputSchema) Descriptor() ([]byte, []int) {
-	return file_proto_llm_proto_rawDescGZIP(), []int{4}
+	return file_llm_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ToolInputSchema) GetType() string {
@@ -479,7 +479,7 @@ type ToolProperty struct {
 
 func (x *ToolProperty) Reset() {
 	*x = ToolProperty{}
-	mi := &file_proto_llm_proto_msgTypes[5]
+	mi := &file_llm_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -491,7 +491,7 @@ func (x *ToolProperty) String() string {
 func (*ToolProperty) ProtoMessage() {}
 
 func (x *ToolProperty) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_llm_proto_msgTypes[5]
+	mi := &file_llm_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -504,7 +504,7 @@ func (x *ToolProperty) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ToolProperty.ProtoReflect.Descriptor instead.
 func (*ToolProperty) Descriptor() ([]byte, []int) {
-	return file_proto_llm_proto_rawDescGZIP(), []int{5}
+	return file_llm_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ToolProperty) GetType() string {
@@ -543,7 +543,7 @@ type LLMMetadata struct {
 
 func (x *LLMMetadata) Reset() {
 	*x = LLMMetadata{}
-	mi := &file_proto_llm_proto_msgTypes[6]
+	mi := &file_llm_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -555,7 +555,7 @@ func (x *LLMMetadata) String() string {
 func (*LLMMetadata) ProtoMessage() {}
 
 func (x *LLMMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_llm_proto_msgTypes[6]
+	mi := &file_llm_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -568,7 +568,7 @@ func (x *LLMMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LLMMetadata.ProtoReflect.Descriptor instead.
 func (*LLMMetadata) Descriptor() ([]byte, []int) {
-	return file_proto_llm_proto_rawDescGZIP(), []int{6}
+	return file_llm_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *LLMMetadata) GetCreatedAt() *timestamppb.Timestamp {
@@ -631,7 +631,7 @@ type LLMResponse struct {
 
 func (x *LLMResponse) Reset() {
 	*x = LLMResponse{}
-	mi := &file_proto_llm_proto_msgTypes[7]
+	mi := &file_llm_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -643,7 +643,7 @@ func (x *LLMResponse) String() string {
 func (*LLMResponse) ProtoMessage() {}
 
 func (x *LLMResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_llm_proto_msgTypes[7]
+	mi := &file_llm_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -656,7 +656,7 @@ func (x *LLMResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LLMResponse.ProtoReflect.Descriptor instead.
 func (*LLMResponse) Descriptor() ([]byte, []int) {
-	return file_proto_llm_proto_rawDescGZIP(), []int{7}
+	return file_llm_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *LLMResponse) GetRequestId() string {
@@ -734,7 +734,7 @@ type ToolCall struct {
 
 func (x *ToolCall) Reset() {
 	*x = ToolCall{}
-	mi := &file_proto_llm_proto_msgTypes[8]
+	mi := &file_llm_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -746,7 +746,7 @@ func (x *ToolCall) String() string {
 func (*ToolCall) ProtoMessage() {}
 
 func (x *ToolCall) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_llm_proto_msgTypes[8]
+	mi := &file_llm_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -759,7 +759,7 @@ func (x *ToolCall) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ToolCall.ProtoReflect.Descriptor instead.
 func (*ToolCall) Descriptor() ([]byte, []int) {
-	return file_proto_llm_proto_rawDescGZIP(), []int{8}
+	return file_llm_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ToolCall) GetId() string {
@@ -797,7 +797,7 @@ type StreamLLMRequest struct {
 
 func (x *StreamLLMRequest) Reset() {
 	*x = StreamLLMRequest{}
-	mi := &file_proto_llm_proto_msgTypes[9]
+	mi := &file_llm_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -809,7 +809,7 @@ func (x *StreamLLMRequest) String() string {
 func (*StreamLLMRequest) ProtoMessage() {}
 
 func (x *StreamLLMRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_llm_proto_msgTypes[9]
+	mi := &file_llm_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -822,7 +822,7 @@ func (x *StreamLLMRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StreamLLMRequest.ProtoReflect.Descriptor instead.
 func (*StreamLLMRequest) Descriptor() ([]byte, []int) {
-	return file_proto_llm_proto_rawDescGZIP(), []int{9}
+	return file_llm_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *StreamLLMRequest) GetPayload() isStreamLLMRequest_Payload {
@@ -884,7 +884,7 @@ type StreamLLMResponse struct {
 
 func (x *StreamLLMResponse) Reset() {
 	*x = StreamLLMResponse{}
-	mi := &file_proto_llm_proto_msgTypes[10]
+	mi := &file_llm_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -896,7 +896,7 @@ func (x *StreamLLMResponse) String() string {
 func (*StreamLLMResponse) ProtoMessage() {}
 
 func (x *StreamLLMResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_llm_proto_msgTypes[10]
+	mi := &file_llm_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -909,7 +909,7 @@ func (x *StreamLLMResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StreamLLMResponse.ProtoReflect.Descriptor instead.
 func (*StreamLLMResponse) Descriptor() ([]byte, []int) {
-	return file_proto_llm_proto_rawDescGZIP(), []int{10}
+	return file_llm_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *StreamLLMResponse) GetPayload() isStreamLLMResponse_Payload {
@@ -1026,7 +1026,7 @@ type StreamChunk struct {
 
 func (x *StreamChunk) Reset() {
 	*x = StreamChunk{}
-	mi := &file_proto_llm_proto_msgTypes[11]
+	mi := &file_llm_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1038,7 +1038,7 @@ func (x *StreamChunk) String() string {
 func (*StreamChunk) ProtoMessage() {}
 
 func (x *StreamChunk) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_llm_proto_msgTypes[11]
+	mi := &file_llm_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1051,7 +1051,7 @@ func (x *StreamChunk) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StreamChunk.ProtoReflect.Descriptor instead.
 func (*StreamChunk) Descriptor() ([]byte, []int) {
-	return file_proto_llm_proto_rawDescGZIP(), []int{11}
+	return file_llm_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *StreamChunk) GetRequestId() string {
@@ -1095,7 +1095,7 @@ type StreamToolCall struct {
 
 func (x *StreamToolCall) Reset() {
 	*x = StreamToolCall{}
-	mi := &file_proto_llm_proto_msgTypes[12]
+	mi := &file_llm_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1107,7 +1107,7 @@ func (x *StreamToolCall) String() string {
 func (*StreamToolCall) ProtoMessage() {}
 
 func (x *StreamToolCall) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_llm_proto_msgTypes[12]
+	mi := &file_llm_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1120,7 +1120,7 @@ func (x *StreamToolCall) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StreamToolCall.ProtoReflect.Descriptor instead.
 func (*StreamToolCall) Descriptor() ([]byte, []int) {
-	return file_proto_llm_proto_rawDescGZIP(), []int{12}
+	return file_llm_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *StreamToolCall) GetRequestId() string {
@@ -1162,7 +1162,7 @@ type StreamUsage struct {
 
 func (x *StreamUsage) Reset() {
 	*x = StreamUsage{}
-	mi := &file_proto_llm_proto_msgTypes[13]
+	mi := &file_llm_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1174,7 +1174,7 @@ func (x *StreamUsage) String() string {
 func (*StreamUsage) ProtoMessage() {}
 
 func (x *StreamUsage) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_llm_proto_msgTypes[13]
+	mi := &file_llm_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1187,7 +1187,7 @@ func (x *StreamUsage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StreamUsage.ProtoReflect.Descriptor instead.
 func (*StreamUsage) Descriptor() ([]byte, []int) {
-	return file_proto_llm_proto_rawDescGZIP(), []int{13}
+	return file_llm_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *StreamUsage) GetRequestId() string {
@@ -1218,7 +1218,7 @@ type StreamError struct {
 
 func (x *StreamError) Reset() {
 	*x = StreamError{}
-	mi := &file_proto_llm_proto_msgTypes[14]
+	mi := &file_llm_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1230,7 +1230,7 @@ func (x *StreamError) String() string {
 func (*StreamError) ProtoMessage() {}
 
 func (x *StreamError) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_llm_proto_msgTypes[14]
+	mi := &file_llm_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1243,7 +1243,7 @@ func (x *StreamError) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StreamError.ProtoReflect.Descriptor instead.
 func (*StreamError) Descriptor() ([]byte, []int) {
-	return file_proto_llm_proto_rawDescGZIP(), []int{14}
+	return file_llm_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *StreamError) GetRequestId() string {
@@ -1292,7 +1292,7 @@ type StreamComplete struct {
 
 func (x *StreamComplete) Reset() {
 	*x = StreamComplete{}
-	mi := &file_proto_llm_proto_msgTypes[15]
+	mi := &file_llm_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1304,7 +1304,7 @@ func (x *StreamComplete) String() string {
 func (*StreamComplete) ProtoMessage() {}
 
 func (x *StreamComplete) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_llm_proto_msgTypes[15]
+	mi := &file_llm_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1317,7 +1317,7 @@ func (x *StreamComplete) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StreamComplete.ProtoReflect.Descriptor instead.
 func (*StreamComplete) Descriptor() ([]byte, []int) {
-	return file_proto_llm_proto_rawDescGZIP(), []int{15}
+	return file_llm_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *StreamComplete) GetRequestId() string {
@@ -1344,7 +1344,7 @@ type CompleteLLMRequest struct {
 
 func (x *CompleteLLMRequest) Reset() {
 	*x = CompleteLLMRequest{}
-	mi := &file_proto_llm_proto_msgTypes[16]
+	mi := &file_llm_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1356,7 +1356,7 @@ func (x *CompleteLLMRequest) String() string {
 func (*CompleteLLMRequest) ProtoMessage() {}
 
 func (x *CompleteLLMRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_llm_proto_msgTypes[16]
+	mi := &file_llm_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1369,7 +1369,7 @@ func (x *CompleteLLMRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompleteLLMRequest.ProtoReflect.Descriptor instead.
 func (*CompleteLLMRequest) Descriptor() ([]byte, []int) {
-	return file_proto_llm_proto_rawDescGZIP(), []int{16}
+	return file_llm_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *CompleteLLMRequest) GetRequest() *LLMRequest {
@@ -1389,7 +1389,7 @@ type CompleteLLMResponse struct {
 
 func (x *CompleteLLMResponse) Reset() {
 	*x = CompleteLLMResponse{}
-	mi := &file_proto_llm_proto_msgTypes[17]
+	mi := &file_llm_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1401,7 +1401,7 @@ func (x *CompleteLLMResponse) String() string {
 func (*CompleteLLMResponse) ProtoMessage() {}
 
 func (x *CompleteLLMResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_llm_proto_msgTypes[17]
+	mi := &file_llm_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1414,7 +1414,7 @@ func (x *CompleteLLMResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CompleteLLMResponse.ProtoReflect.Descriptor instead.
 func (*CompleteLLMResponse) Descriptor() ([]byte, []int) {
-	return file_proto_llm_proto_rawDescGZIP(), []int{17}
+	return file_llm_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *CompleteLLMResponse) GetResponse() *LLMResponse {
@@ -1434,7 +1434,7 @@ type ListModelsRequest struct {
 
 func (x *ListModelsRequest) Reset() {
 	*x = ListModelsRequest{}
-	mi := &file_proto_llm_proto_msgTypes[18]
+	mi := &file_llm_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1446,7 +1446,7 @@ func (x *ListModelsRequest) String() string {
 func (*ListModelsRequest) ProtoMessage() {}
 
 func (x *ListModelsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_llm_proto_msgTypes[18]
+	mi := &file_llm_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1459,7 +1459,7 @@ func (x *ListModelsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListModelsRequest.ProtoReflect.Descriptor instead.
 func (*ListModelsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_llm_proto_rawDescGZIP(), []int{18}
+	return file_llm_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *ListModelsRequest) GetProvider() string {
@@ -1479,7 +1479,7 @@ type ListModelsResponse struct {
 
 func (x *ListModelsResponse) Reset() {
 	*x = ListModelsResponse{}
-	mi := &file_proto_llm_proto_msgTypes[19]
+	mi := &file_llm_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1491,7 +1491,7 @@ func (x *ListModelsResponse) String() string {
 func (*ListModelsResponse) ProtoMessage() {}
 
 func (x *ListModelsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_llm_proto_msgTypes[19]
+	mi := &file_llm_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1504,7 +1504,7 @@ func (x *ListModelsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListModelsResponse.ProtoReflect.Descriptor instead.
 func (*ListModelsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_llm_proto_rawDescGZIP(), []int{19}
+	return file_llm_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *ListModelsResponse) GetModels() []*ModelInfo {
@@ -1528,7 +1528,7 @@ type ModelInfo struct {
 
 func (x *ModelInfo) Reset() {
 	*x = ModelInfo{}
-	mi := &file_proto_llm_proto_msgTypes[20]
+	mi := &file_llm_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1540,7 +1540,7 @@ func (x *ModelInfo) String() string {
 func (*ModelInfo) ProtoMessage() {}
 
 func (x *ModelInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_llm_proto_msgTypes[20]
+	mi := &file_llm_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1553,7 +1553,7 @@ func (x *ModelInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ModelInfo.ProtoReflect.Descriptor instead.
 func (*ModelInfo) Descriptor() ([]byte, []int) {
-	return file_proto_llm_proto_rawDescGZIP(), []int{20}
+	return file_llm_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ModelInfo) GetId() string {
@@ -1601,7 +1601,7 @@ type GetCapabilitiesRequest struct {
 
 func (x *GetCapabilitiesRequest) Reset() {
 	*x = GetCapabilitiesRequest{}
-	mi := &file_proto_llm_proto_msgTypes[21]
+	mi := &file_llm_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1613,7 +1613,7 @@ func (x *GetCapabilitiesRequest) String() string {
 func (*GetCapabilitiesRequest) ProtoMessage() {}
 
 func (x *GetCapabilitiesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_llm_proto_msgTypes[21]
+	mi := &file_llm_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1626,7 +1626,7 @@ func (x *GetCapabilitiesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCapabilitiesRequest.ProtoReflect.Descriptor instead.
 func (*GetCapabilitiesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_llm_proto_rawDescGZIP(), []int{21}
+	return file_llm_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *GetCapabilitiesRequest) GetProvider() string {
@@ -1646,7 +1646,7 @@ type GetCapabilitiesResponse struct {
 
 func (x *GetCapabilitiesResponse) Reset() {
 	*x = GetCapabilitiesResponse{}
-	mi := &file_proto_llm_proto_msgTypes[22]
+	mi := &file_llm_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1658,7 +1658,7 @@ func (x *GetCapabilitiesResponse) String() string {
 func (*GetCapabilitiesResponse) ProtoMessage() {}
 
 func (x *GetCapabilitiesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_llm_proto_msgTypes[22]
+	mi := &file_llm_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1671,7 +1671,7 @@ func (x *GetCapabilitiesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCapabilitiesResponse.ProtoReflect.Descriptor instead.
 func (*GetCapabilitiesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_llm_proto_rawDescGZIP(), []int{22}
+	return file_llm_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *GetCapabilitiesResponse) GetProviders() []*ProviderCapabilities {
@@ -1694,7 +1694,7 @@ type ProviderCapabilities struct {
 
 func (x *ProviderCapabilities) Reset() {
 	*x = ProviderCapabilities{}
-	mi := &file_proto_llm_proto_msgTypes[23]
+	mi := &file_llm_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1706,7 +1706,7 @@ func (x *ProviderCapabilities) String() string {
 func (*ProviderCapabilities) ProtoMessage() {}
 
 func (x *ProviderCapabilities) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_llm_proto_msgTypes[23]
+	mi := &file_llm_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1719,7 +1719,7 @@ func (x *ProviderCapabilities) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProviderCapabilities.ProtoReflect.Descriptor instead.
 func (*ProviderCapabilities) Descriptor() ([]byte, []int) {
-	return file_proto_llm_proto_rawDescGZIP(), []int{23}
+	return file_llm_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *ProviderCapabilities) GetName() string {
@@ -1764,7 +1764,7 @@ type LLMHealthCheckResponse struct {
 
 func (x *LLMHealthCheckResponse) Reset() {
 	*x = LLMHealthCheckResponse{}
-	mi := &file_proto_llm_proto_msgTypes[24]
+	mi := &file_llm_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1776,7 +1776,7 @@ func (x *LLMHealthCheckResponse) String() string {
 func (*LLMHealthCheckResponse) ProtoMessage() {}
 
 func (x *LLMHealthCheckResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_llm_proto_msgTypes[24]
+	mi := &file_llm_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1789,7 +1789,7 @@ func (x *LLMHealthCheckResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LLMHealthCheckResponse.ProtoReflect.Descriptor instead.
 func (*LLMHealthCheckResponse) Descriptor() ([]byte, []int) {
-	return file_proto_llm_proto_rawDescGZIP(), []int{24}
+	return file_llm_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *LLMHealthCheckResponse) GetHealth() Health {
@@ -1843,7 +1843,7 @@ type LLMStatusResponse struct {
 
 func (x *LLMStatusResponse) Reset() {
 	*x = LLMStatusResponse{}
-	mi := &file_proto_llm_proto_msgTypes[25]
+	mi := &file_llm_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1855,7 +1855,7 @@ func (x *LLMStatusResponse) String() string {
 func (*LLMStatusResponse) ProtoMessage() {}
 
 func (x *LLMStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_llm_proto_msgTypes[25]
+	mi := &file_llm_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1868,7 +1868,7 @@ func (x *LLMStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LLMStatusResponse.ProtoReflect.Descriptor instead.
 func (*LLMStatusResponse) Descriptor() ([]byte, []int) {
-	return file_proto_llm_proto_rawDescGZIP(), []int{25}
+	return file_llm_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *LLMStatusResponse) GetStatus() Status {
@@ -1935,7 +1935,7 @@ type ProviderStatus struct {
 
 func (x *ProviderStatus) Reset() {
 	*x = ProviderStatus{}
-	mi := &file_proto_llm_proto_msgTypes[26]
+	mi := &file_llm_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1947,7 +1947,7 @@ func (x *ProviderStatus) String() string {
 func (*ProviderStatus) ProtoMessage() {}
 
 func (x *ProviderStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_llm_proto_msgTypes[26]
+	mi := &file_llm_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1960,7 +1960,7 @@ func (x *ProviderStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProviderStatus.ProtoReflect.Descriptor instead.
 func (*ProviderStatus) Descriptor() ([]byte, []int) {
-	return file_proto_llm_proto_rawDescGZIP(), []int{26}
+	return file_llm_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *ProviderStatus) GetAvailable() bool {
@@ -2005,11 +2005,11 @@ func (x *ProviderStatus) GetLastRequestAt() *timestamppb.Timestamp {
 	return nil
 }
 
-var File_proto_llm_proto protoreflect.FileDescriptor
+var File_llm_proto protoreflect.FileDescriptor
 
-const file_proto_llm_proto_rawDesc = "" +
+const file_llm_proto_rawDesc = "" +
 	"\n" +
-	"\x0fproto/llm.proto\x12\x06llm.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x12proto/common.proto\"\xe7\x02\n" +
+	"\tllm.proto\x12\x06llm.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\fcommon.proto\"\xe7\x02\n" +
 	"\n" +
 	"LLMRequest\x12\x1d\n" +
 	"\n" +
@@ -2199,20 +2199,20 @@ const file_proto_llm_proto_rawDesc = "" +
 	"\tGetStatus\x12\x16.google.protobuf.Empty\x1a\x19.llm.v1.LLMStatusResponseB,Z*github.com/billm/baaaht/orchestrator/protob\x06proto3"
 
 var (
-	file_proto_llm_proto_rawDescOnce sync.Once
-	file_proto_llm_proto_rawDescData []byte
+	file_llm_proto_rawDescOnce sync.Once
+	file_llm_proto_rawDescData []byte
 )
 
-func file_proto_llm_proto_rawDescGZIP() []byte {
-	file_proto_llm_proto_rawDescOnce.Do(func() {
-		file_proto_llm_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_proto_llm_proto_rawDesc), len(file_proto_llm_proto_rawDesc)))
+func file_llm_proto_rawDescGZIP() []byte {
+	file_llm_proto_rawDescOnce.Do(func() {
+		file_llm_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_llm_proto_rawDesc), len(file_llm_proto_rawDesc)))
 	})
-	return file_proto_llm_proto_rawDescData
+	return file_llm_proto_rawDescData
 }
 
-var file_proto_llm_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_proto_llm_proto_msgTypes = make([]protoimpl.MessageInfo, 33)
-var file_proto_llm_proto_goTypes = []any{
+var file_llm_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_llm_proto_msgTypes = make([]protoimpl.MessageInfo, 33)
+var file_llm_proto_goTypes = []any{
 	(FinishReason)(0),               // 0: llm.v1.FinishReason
 	(*LLMRequest)(nil),              // 1: llm.v1.LLMRequest
 	(*LLMMessage)(nil),              // 2: llm.v1.LLMMessage
@@ -2255,7 +2255,7 @@ var file_proto_llm_proto_goTypes = []any{
 	(Status)(0),                     // 39: common.v1.Status
 	(*durationpb.Duration)(nil),     // 40: google.protobuf.Duration
 }
-var file_proto_llm_proto_depIdxs = []int32{
+var file_llm_proto_depIdxs = []int32{
 	2,  // 0: llm.v1.LLMRequest.messages:type_name -> llm.v1.LLMMessage
 	3,  // 1: llm.v1.LLMRequest.parameters:type_name -> llm.v1.LLMParameters
 	4,  // 2: llm.v1.LLMRequest.tools:type_name -> llm.v1.Tool
@@ -2317,17 +2317,17 @@ var file_proto_llm_proto_depIdxs = []int32{
 	0,  // [0:42] is the sub-list for field type_name
 }
 
-func init() { file_proto_llm_proto_init() }
-func file_proto_llm_proto_init() {
-	if File_proto_llm_proto != nil {
+func init() { file_llm_proto_init() }
+func file_llm_proto_init() {
+	if File_llm_proto != nil {
 		return
 	}
-	file_proto_common_proto_init()
-	file_proto_llm_proto_msgTypes[9].OneofWrappers = []any{
+	file_common_proto_init()
+	file_llm_proto_msgTypes[9].OneofWrappers = []any{
 		(*StreamLLMRequest_Request)(nil),
 		(*StreamLLMRequest_Heartbeat)(nil),
 	}
-	file_proto_llm_proto_msgTypes[10].OneofWrappers = []any{
+	file_llm_proto_msgTypes[10].OneofWrappers = []any{
 		(*StreamLLMResponse_Chunk)(nil),
 		(*StreamLLMResponse_ToolCall)(nil),
 		(*StreamLLMResponse_Usage)(nil),
@@ -2339,18 +2339,18 @@ func file_proto_llm_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_llm_proto_rawDesc), len(file_proto_llm_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_llm_proto_rawDesc), len(file_llm_proto_rawDesc)),
 			NumEnums:      1,
 			NumMessages:   33,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_proto_llm_proto_goTypes,
-		DependencyIndexes: file_proto_llm_proto_depIdxs,
-		EnumInfos:         file_proto_llm_proto_enumTypes,
-		MessageInfos:      file_proto_llm_proto_msgTypes,
+		GoTypes:           file_llm_proto_goTypes,
+		DependencyIndexes: file_llm_proto_depIdxs,
+		EnumInfos:         file_llm_proto_enumTypes,
+		MessageInfos:      file_llm_proto_msgTypes,
 	}.Build()
-	File_proto_llm_proto = out.File
-	file_proto_llm_proto_goTypes = nil
-	file_proto_llm_proto_depIdxs = nil
+	File_llm_proto = out.File
+	file_llm_proto_goTypes = nil
+	file_llm_proto_depIdxs = nil
 }
