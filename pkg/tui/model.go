@@ -255,6 +255,8 @@ func (m Model) waitForStreamMsgCmd() tea.Cmd {
 				msg := payload.Message
 				role := "assistant"
 				switch msg.Role {
+				case proto.MessageRole_MESSAGE_ROLE_USER:
+					role = "user"
 				case proto.MessageRole_MESSAGE_ROLE_ASSISTANT:
 					role = "assistant"
 				case proto.MessageRole_MESSAGE_ROLE_SYSTEM:
@@ -267,7 +269,12 @@ func (m Model) waitForStreamMsgCmd() tea.Cmd {
 					Content: msg.Content,
 				}
 			case *proto.StreamMessageResponse_Event:
-				// For now, ignore events and continue waiting for the next message
+				if payload.Event != nil {
+					if errMsg, ok := payload.Event.Data["error"]; ok && errMsg != "" {
+						return StreamSendFailedMsg{Err: fmt.Errorf("stream error: %s", errMsg)}
+					}
+				}
+				// Ignore non-error events and continue waiting for the next message
 				continue
 			case *proto.StreamMessageResponse_Heartbeat:
 				// Continue waiting for messages after heartbeat
