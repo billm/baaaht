@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -842,17 +843,32 @@ func TestLoadWithPath(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	t.Run("empty path delegates to Load()", func(t *testing.T) {
-		// LoadWithPath("") should behave like Load()
-		cfg, err := LoadWithPath("")
+		nonExistentPath := filepath.Join(t.TempDir(), "nonexistent.yaml")
+		SetTestConfigPath(nonExistentPath)
+		defer SetTestConfigPath("")
+
+		previousDockerHost, hadDockerHost := os.LookupEnv("DOCKER_HOST")
+		os.Unsetenv("DOCKER_HOST")
+		defer func() {
+			if hadDockerHost {
+				os.Setenv("DOCKER_HOST", previousDockerHost)
+				return
+			}
+			os.Unsetenv("DOCKER_HOST")
+		}()
+
+		cfgWithPath, err := LoadWithPath("")
 		if err != nil {
 			t.Fatalf("LoadWithPath(\"\") error = %v, want nil", err)
 		}
-		if cfg == nil {
-			t.Fatal("LoadWithPath(\"\") returned nil config")
+
+		cfgFromLoad, err := Load()
+		if err != nil {
+			t.Fatalf("Load() error = %v, want nil", err)
 		}
-		// Verify it has default values
-		if cfg.Docker.Host == "" {
-			t.Error("LoadWithPath(\"\") did not load defaults")
+
+		if !reflect.DeepEqual(cfgWithPath, cfgFromLoad) {
+			t.Error("LoadWithPath(\"\") did not delegate equivalently to Load()")
 		}
 	})
 
