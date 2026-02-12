@@ -350,9 +350,14 @@ func (c *Creator) convertConfig(cfg types.ContainerConfig, name string, sessionI
 	*network.NetworkingConfig,
 	error) {
 	// Build container config
+	// Combine Command and Args into a single Cmd
+	cmd := make([]string, 0, len(cfg.Command)+len(cfg.Args))
+	cmd = append(cmd, cfg.Command...)
+	cmd = append(cmd, cfg.Args...)
+	
 	containerConfig := &container.Config{
 		Image:       cfg.Image,
-		Cmd:         strslice.StrSlice(cfg.Command),
+		Cmd:         strslice.StrSlice(cmd),
 		ArgsEscaped: true,
 		Env:         convertEnvMap(cfg.Env),
 		WorkingDir:  cfg.WorkingDir,
@@ -362,11 +367,6 @@ func (c *Creator) convertConfig(cfg types.ContainerConfig, name string, sessionI
 		OpenStdin:   false,
 		User:        cfg.User,
 		Healthcheck: convertHealthCheck(cfg.HealthCheck),
-	}
-
-	// Convert Args to Entrypoint if needed (for OCI compatibility)
-	if len(cfg.Args) > 0 {
-		containerConfig.Entrypoint = strslice.StrSlice(cfg.Args)
 	}
 
 	// Build host config

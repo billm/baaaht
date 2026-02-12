@@ -74,11 +74,7 @@ docker build -f cmd/worker/Dockerfile -t baaaht/worker:latest .
 
 ## Configuration
 
-The worker can be configured via:
-
-1. **Command-line flags**: Override specific settings
-2. **Environment variables**: Prefix with `WORKER_` (e.g., `WORKER_LOG_LEVEL`)
-3. **Configuration file**: YAML or JSON format at `~/.config/baaaht/config.yaml`
+The worker is configured via command-line flags passed to the `worker` binary.
 
 ### Configuration Options
 

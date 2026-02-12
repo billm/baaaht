@@ -498,7 +498,10 @@ func (e *Executor) ExecuteTask(ctx context.Context, cfg TaskConfig) *TaskResult 
 	result.ExitCode = exitCode
 	e.logger.Info("Container exited", "container_id", result.ContainerID, "exit_code", exitCode)
 
-	// Capture logs
+	// Capture logs (use a fresh context with timeout since execCtx may be canceled)
+	logsCtx, logsCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer logsCancel()
+	
 	logsCfg := container.LogsConfig{
 		ContainerID: result.ContainerID,
 		Stdout:      true,
@@ -507,7 +510,7 @@ func (e *Executor) ExecuteTask(ctx context.Context, cfg TaskConfig) *TaskResult 
 		Timestamps:  false,
 	}
 
-	logReader, err := e.runtime.Logs(execCtx, logsCfg)
+	logReader, err := e.runtime.Logs(logsCtx, logsCfg)
 	if err != nil {
 		e.logger.Warn("Failed to retrieve logs", "error", err)
 		// Continue anyway - we have the exit code
@@ -519,36 +522,42 @@ func (e *Executor) ExecuteTask(ctx context.Context, cfg TaskConfig) *TaskResult 
 
 		// Docker logs multiplex stdout and stderr together
 		// We need to demultiplex them
+		// Docker format: 8-byte header + payload
+		// Header: [0] = stream type (1=stdout, 2=stderr), [1-3] = reserved, [4-7] = size (big-endian)
 		buf := make([]byte, 8192)
 		for {
 			n, readErr := logReader.Read(buf)
 			if n > 0 {
-				// Docker logs format: header byte + stream type + data
-				// We need to strip the 8-byte header
 				data := buf[:n]
 				i := 0
 				for i < len(data) {
+					// Need at least 8 bytes for header
 					if i+8 > len(data) {
 						break
 					}
-					// Skip 4-byte header (protocol info) + 4-byte length
-					// The 5th byte indicates the stream: 1 = stdout, 2 = stderr
-					streamType := data[4]
+					
+					// Parse header at current offset
+					streamType := data[i]
+					// Payload size is big-endian uint32 at bytes 4-7 of header
+					payloadSize := int(data[i+4])<<24 | int(data[i+5])<<16 | int(data[i+6])<<8 | int(data[i+7])
 					payloadStart := i + 8
-					payloadEnd := payloadStart
-
-					// Find the end of this payload
-					remaining := len(data) - payloadStart
-					if remaining > 0 {
-						payloadEnd = len(data)
-						payload := data[payloadStart:payloadEnd]
-
-						if streamType == 1 {
-							stdoutBuf.Write(payload)
-						} else if streamType == 2 {
-							stderrBuf.Write(payload)
-						}
+					payloadEnd := payloadStart + payloadSize
+					
+					// Check if we have the full payload
+					if payloadEnd > len(data) {
+						// Partial frame - break and get more data on next read
+						break
 					}
+					
+					payload := data[payloadStart:payloadEnd]
+					
+					if streamType == 1 {
+						stdoutBuf.Write(payload)
+					} else if streamType == 2 {
+						stderrBuf.Write(payload)
+					}
+					
+					// Advance to next frame
 					i = payloadEnd
 				}
 			}
@@ -577,18 +586,23 @@ func (e *Executor) ExecuteTask(ctx context.Context, cfg TaskConfig) *TaskResult 
 
 // CancelTask cancels a running task by stopping its container
 func (e *Executor) CancelTask(ctx context.Context, taskID string, force bool) error {
+	// Fetch task info under lock, then release before runtime operations
 	e.mu.Lock()
-	defer e.mu.Unlock()
-
 	if e.closed {
+		e.mu.Unlock()
 		return types.NewError(types.ErrCodeUnavailable, "executor is closed")
 	}
 
 	// Find the running task
 	taskInfo, exists := e.runningTasks[taskID]
 	if !exists {
+		e.mu.Unlock()
 		return types.NewError(types.ErrCodeNotFound, "task not found or already completed")
 	}
+
+	// Remove from tracking immediately to prevent concurrent access
+	delete(e.runningTasks, taskID)
+	e.mu.Unlock()
 
 	e.logger.Info("Cancelling task",
 		"task_id", taskID,
@@ -600,7 +614,7 @@ func (e *Executor) CancelTask(ctx context.Context, taskID string, force bool) er
 		taskInfo.CancelFunc()
 	}
 
-	// Stop the container if it exists
+	// Stop the container if it exists (outside of lock)
 	if taskInfo.ContainerID != "" {
 		if !force {
 			// Try graceful stop first
@@ -642,9 +656,6 @@ func (e *Executor) CancelTask(ctx context.Context, taskID string, force bool) er
 				"container_id", taskInfo.ContainerID)
 		}
 	}
-
-	// Remove from tracking (it will also be removed by defer in ExecuteTask, but doing it here for clarity)
-	delete(e.runningTasks, taskID)
 
 	return nil
 }

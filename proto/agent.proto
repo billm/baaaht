@@ -377,17 +377,20 @@ message ExecuteTaskResponse {
 }
 
 // StreamTaskRequest
+// Bidirectional streaming message for task execution:
+// - Orchestrator -> Worker: input, heartbeat, cancel
+// - Worker -> Orchestrator: progress, output, status, complete, error_msg
 message StreamTaskRequest {
   string task_id = 1;
   oneof payload {
-    TaskInput input = 2;
-    google.protobuf.Empty heartbeat = 3;
-    CancelCommand cancel = 4;
-    TaskProgress progress = 5;
-    TaskOutput output = 6;
-    TaskStatusUpdate status = 7;
-    TaskComplete complete = 8;
-    TaskError error_msg = 9;
+    TaskInput input = 2;            // Orchestrator -> Worker: Initial task input
+    google.protobuf.Empty heartbeat = 3;  // Bidirectional: Keep connection alive
+    CancelCommand cancel = 4;       // Orchestrator -> Worker: Cancel task execution
+    TaskProgress progress = 5;      // Worker -> Orchestrator: Progress updates
+    TaskOutput output = 6;          // Worker -> Orchestrator: Incremental output
+    TaskStatusUpdate status = 7;    // Worker -> Orchestrator: Status changes
+    TaskComplete complete = 8;      // Worker -> Orchestrator: Task completion
+    TaskError error_msg = 9;        // Worker -> Orchestrator: Error notifications
   }
 }
 
