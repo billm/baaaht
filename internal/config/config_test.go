@@ -837,6 +837,253 @@ orchestrator:
 	}
 }
 
+func TestLoadWithPath(t *testing.T) {
+	// Create a temporary directory for test files
+	tmpDir := t.TempDir()
+
+	t.Run("empty path delegates to Load()", func(t *testing.T) {
+		// LoadWithPath("") should behave like Load()
+		cfg, err := LoadWithPath("")
+		if err != nil {
+			t.Fatalf("LoadWithPath(\"\") error = %v, want nil", err)
+		}
+		if cfg == nil {
+			t.Fatal("LoadWithPath(\"\") returned nil config")
+		}
+		// Verify it has default values
+		if cfg.Docker.Host == "" {
+			t.Error("LoadWithPath(\"\") did not load defaults")
+		}
+	})
+
+	t.Run("explicit path loads from file", func(t *testing.T) {
+		// Create a config file with a distinctive value
+		configPath := filepath.Join(tmpDir, "custom-config.yaml")
+		yamlContent := `
+docker:
+  host: unix:///var/run/custom/docker.sock
+  api_version: "1.44"
+  timeout: 45s
+  max_retries: 5
+  retry_delay: 1s
+
+api_server:
+  host: 127.0.0.1
+  port: 7777
+  read_timeout: 30s
+  write_timeout: 30s
+  idle_timeout: 60s
+
+logging:
+  level: debug
+  format: text
+  output: stdout
+
+session:
+  timeout: 1h
+  max_sessions: 200
+  cleanup_interval: 5m
+  idle_timeout: 10m
+
+event:
+  queue_size: 5000
+  workers: 2
+  buffer_size: 1000
+  timeout: 5s
+  retry_attempts: 3
+  retry_delay: 100ms
+
+ipc:
+  socket_path: /tmp/custom-ipc.sock
+  buffer_size: 32768
+  timeout: 30s
+  max_connections: 100
+
+scheduler:
+  queue_size: 500
+  workers: 1
+  max_retries: 3
+  retry_delay: 1s
+  task_timeout: 5m
+  queue_timeout: 1m
+
+credentials:
+  store_path: /tmp/custom-credentials
+  encryption_enabled: true
+  key_rotation_days: 90
+  max_credential_age: 365
+
+policy:
+  config_path: /tmp/custom-policy.yaml
+  enforcement_mode: strict
+  default_quota_cpu: 1000000000
+  default_quota_memory: 1073741824
+
+metrics:
+  enabled: false
+  port: 9090
+  path: /metrics
+
+tracing:
+  enabled: false
+  sample_rate: 0.1
+  exporter: stdout
+
+orchestrator:
+  shutdown_timeout: 30s
+  health_check_interval: 30s
+  graceful_stop_timeout: 10s
+`
+		if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
+			t.Fatalf("Failed to write config file: %v", err)
+		}
+
+		// Load with explicit path
+		cfg, err := LoadWithPath(configPath)
+		if err != nil {
+			t.Fatalf("LoadWithPath(%q) error = %v, want nil", configPath, err)
+		}
+
+		// Verify it loaded values from the file
+		if cfg.Docker.Host != "unix:///var/run/custom/docker.sock" {
+			t.Errorf("Docker.Host = %q, want \"unix:///var/run/custom/docker.sock\"", cfg.Docker.Host)
+		}
+		if cfg.APIServer.Port != 7777 {
+			t.Errorf("APIServer.Port = %d, want 7777", cfg.APIServer.Port)
+		}
+		if cfg.Session.MaxSessions != 200 {
+			t.Errorf("Session.MaxSessions = %d, want 200", cfg.Session.MaxSessions)
+		}
+	})
+
+	t.Run("missing explicit file returns error", func(t *testing.T) {
+		// Try to load from a non-existent file
+		nonExistentPath := filepath.Join(tmpDir, "does-not-exist.yaml")
+		cfg, err := LoadWithPath(nonExistentPath)
+		if err == nil {
+			t.Fatal("LoadWithPath(nonexistent) error = nil, want error")
+		}
+		if cfg != nil {
+			t.Error("LoadWithPath(nonexistent) returned non-nil config")
+		}
+
+		// Verify error is a "not found" error
+		if !strings.Contains(err.Error(), "not found") {
+			t.Errorf("LoadWithPath(nonexistent) error = %q, want it to contain \"not found\"", err.Error())
+		}
+	})
+
+	t.Run("explicit path with env override", func(t *testing.T) {
+		// Create a config file
+		configPath := filepath.Join(tmpDir, "env-override.yaml")
+		yamlContent := `
+docker:
+  host: unix:///var/run/yaml/docker.sock
+  api_version: "1.44"
+  timeout: 30s
+  max_retries: 3
+  retry_delay: 1s
+
+api_server:
+  host: 0.0.0.0
+  port: 8080
+  read_timeout: 30s
+  write_timeout: 30s
+  idle_timeout: 60s
+
+logging:
+  level: info
+  format: json
+  output: stdout
+
+session:
+  timeout: 30m
+  max_sessions: 100
+  cleanup_interval: 5m
+  idle_timeout: 10m
+
+event:
+  queue_size: 10000
+  workers: 4
+  buffer_size: 1000
+  timeout: 5s
+  retry_attempts: 3
+  retry_delay: 100ms
+
+ipc:
+  socket_path: /tmp/baaaht-ipc.sock
+  buffer_size: 65536
+  timeout: 30s
+  max_connections: 100
+
+scheduler:
+  queue_size: 1000
+  workers: 2
+  max_retries: 3
+  retry_delay: 1s
+  task_timeout: 5m
+  queue_timeout: 1m
+
+credentials:
+  store_path: /tmp/test-credentials
+  encryption_enabled: true
+  key_rotation_days: 90
+  max_credential_age: 365
+
+policy:
+  config_path: /tmp/test-policy.yaml
+  enforcement_mode: strict
+  default_quota_cpu: 1000000000
+  default_quota_memory: 1073741824
+
+metrics:
+  enabled: false
+  port: 9090
+  path: /metrics
+
+tracing:
+  enabled: false
+  sample_rate: 0.1
+  exporter: stdout
+
+orchestrator:
+  shutdown_timeout: 30s
+  health_check_interval: 30s
+  graceful_stop_timeout: 10s
+`
+		if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
+			t.Fatalf("Failed to write config file: %v", err)
+		}
+
+		// Set environment variable
+		os.Setenv("DOCKER_HOST", "unix:///var/run/env/docker.sock")
+		defer os.Unsetenv("DOCKER_HOST")
+
+		// Load with explicit path
+		cfg, err := LoadWithPath(configPath)
+		if err != nil {
+			t.Fatalf("LoadWithPath(%q) error = %v, want nil", configPath, err)
+		}
+
+		// Verify env var takes precedence
+		if cfg.Docker.Host != "unix:///var/run/env/docker.sock" {
+			t.Errorf("Docker.Host = %q, want \"unix:///var/run/env/docker.sock\" (from env)", cfg.Docker.Host)
+		}
+	})
+
+	t.Run("invalid file path returns error", func(t *testing.T) {
+		// Try to load from a file with invalid extension
+		invalidPath := filepath.Join(tmpDir, "config.txt")
+		cfg, err := LoadWithPath(invalidPath)
+		if err == nil {
+			t.Fatal("LoadWithPath(invalid extension) error = nil, want error")
+		}
+		if cfg != nil {
+			t.Error("LoadWithPath(invalid extension) returned non-nil config")
+		}
+	})
+}
+
 func TestValidateDockerConfig(t *testing.T) {
 	tests := []struct {
 		name    string

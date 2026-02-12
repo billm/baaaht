@@ -406,7 +406,7 @@ func initLogger() error {
 
 // loadConfig loads the configuration from environment variables and CLI overrides
 func loadConfig() (*config.Config, error) {
-	cfg, err := config.Load()
+	cfg, err := config.LoadWithPath(cfgFile)
 	if err != nil {
 		return nil, err
 	}

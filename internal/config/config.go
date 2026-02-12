@@ -1010,6 +1010,35 @@ func Load() (*Config, error) {
 	return cfg, nil
 }
 
+// LoadWithPath loads configuration from a specific file path or defaults
+// If path is empty, delegates to Load() for default behavior.
+// If path is not empty, loads from the specified file (error if missing/invalid),
+// then applies environment overrides and validates.
+func LoadWithPath(path string) (*Config, error) {
+	// If no path specified, use default Load behavior
+	if path == "" {
+		return Load()
+	}
+
+	// Load from the specified file
+	cfg, err := LoadFromFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	// Apply environment variable overrides
+	if err := applyEnvOverrides(cfg); err != nil {
+		return nil, err
+	}
+
+	// Validate the configuration
+	if err := cfg.Validate(); err != nil {
+		return nil, err
+	}
+
+	return cfg, nil
+}
+
 // Validate checks the configuration for validity
 func (c *Config) Validate() error {
 	// Validate Docker configuration
