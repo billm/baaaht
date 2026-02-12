@@ -418,6 +418,16 @@ func applyDefaults(cfg *Config) {
 	if cfg.Audit.MaxAge == 0 {
 		cfg.Audit.MaxAge = defaultAudit.MaxAge
 	}
+	// For completely missing audit sections in older configs, also apply
+	// boolean defaults so behavior matches DefaultAuditConfig().
+	if cfg.Audit.Output == "" &&
+		cfg.Audit.Format == "" &&
+		cfg.Audit.MaxSize == 0 &&
+		cfg.Audit.MaxBackups == 0 &&
+		cfg.Audit.MaxAge == 0 {
+		cfg.Audit.RotationEnabled = defaultAudit.RotationEnabled
+		cfg.Audit.Compress = defaultAudit.Compress
+	}
 }
 
 // applyEnvOverrides applies environment variable overrides to the configuration.

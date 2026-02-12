@@ -329,7 +329,10 @@ func (e *Enforcer) validateMounts(ctx context.Context, policy *Policy, config ty
 			}
 
 			// Use resolver if available to check mount access and mode
-			// For backward compatibility, only use the resolver if the allowlist is configured
+			// For backward compatibility, only use the resolver if the allowlist is configured.
+			// When the allowlist is configured (non-empty), it operates in fail-closed mode:
+			// paths not in the allowlist are denied. When the allowlist is not configured
+			// (empty), we fall back to legacy allow/deny lists for backward compatibility.
 			useResolver := false
 			var accessMode MountAccessMode = MountAccessModeReadWrite // Default to read-write for backward compatibility
 
