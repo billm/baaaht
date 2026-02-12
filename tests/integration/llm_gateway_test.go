@@ -12,6 +12,7 @@ import (
 	"github.com/billm/baaaht/orchestrator/pkg/credentials"
 	"github.com/billm/baaaht/orchestrator/pkg/orchestrator"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
+	containerapi "github.com/docker/docker/api/types/container"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,6 +30,23 @@ func createTestCredentialStore(t *testing.T, log *logger.Logger) *credentials.St
 	return store
 }
 
+func cleanupGatewayContainer(t *testing.T, log *logger.Logger) {
+	t.Helper()
+	dockerClient, err := container.NewDefault(log)
+	if err != nil {
+		t.Logf("Warning: failed to create docker client for gateway cleanup: %v", err)
+		return
+	}
+	defer dockerClient.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	_ = dockerClient.Client().ContainerRemove(ctx, "baaaht-llm-gateway", containerapi.RemoveOptions{
+		Force:         true,
+		RemoveVolumes: true,
+	})
+}
+
 // TestLLMGatewayLifecycle tests the complete lifecycle of the LLM Gateway manager
 func TestLLMGatewayLifecycle(t *testing.T) {
 	if testing.Short() {
@@ -43,6 +61,7 @@ func TestLLMGatewayLifecycle(t *testing.T) {
 	ctx := context.Background()
 	log, err := logger.New(config.DefaultLoggingConfig())
 	require.NoError(t, err, "Failed to create logger")
+	cleanupGatewayContainer(t, log)
 
 	// Load test config
 	cfg := loadTestConfig(t)
@@ -222,6 +241,7 @@ func TestLLMGatewayDisabled(t *testing.T) {
 	ctx := context.Background()
 	log, err := logger.New(config.DefaultLoggingConfig())
 	require.NoError(t, err, "Failed to create logger")
+	cleanupGatewayContainer(t, log)
 
 	cfg := loadTestConfig(t)
 
@@ -278,6 +298,7 @@ func TestLLMGatewayInvalidCredentials(t *testing.T) {
 	ctx := context.Background()
 	log, err := logger.New(config.DefaultLoggingConfig())
 	require.NoError(t, err, "Failed to create logger")
+	cleanupGatewayContainer(t, log)
 
 	cfg := loadTestConfig(t)
 
@@ -377,6 +398,7 @@ func TestLLMGatewayHealthMonitoring(t *testing.T) {
 	ctx := context.Background()
 	log, err := logger.New(config.DefaultLoggingConfig())
 	require.NoError(t, err, "Failed to create logger")
+	cleanupGatewayContainer(t, log)
 
 	cfg := loadTestConfig(t)
 

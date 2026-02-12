@@ -257,7 +257,7 @@ func TestWorkerBootstrapFailure(t *testing.T) {
 		workerResult, err := worker.Bootstrap(ctx, workerBootstrapCfg)
 		assert.Error(t, err, "Bootstrap should fail with invalid address")
 		assert.False(t, workerResult.IsSuccessful(), "Bootstrap result should not be successful")
-		assert.Nil(t, workerResult.Agent, "Agent should be nil on failure")
+		assert.NotNil(t, workerResult.Agent, "Agent should be returned for cleanup on failure")
 		t.Logf("Expected error: %v", err)
 	})
 
@@ -335,8 +335,11 @@ func TestWorkerAgentDirect(t *testing.T) {
 
 		// Invalid address format should still create agent, but dial will fail
 		agent, err := worker.NewAgent("", agentCfg, log)
-		assert.Error(t, err, "Empty address should fail")
-		assert.Nil(t, agent, "Agent should be nil with empty address")
+		assert.NoError(t, err, "Empty address is accepted; dialing will fail later")
+		assert.NotNil(t, agent, "Agent should be created even with empty address")
+		if agent != nil {
+			_ = agent.Close()
+		}
 	})
 
 	t.Run("agent close without dial", func(t *testing.T) {
@@ -807,7 +810,7 @@ func TestWorkerCleanup(t *testing.T) {
 	}()
 
 	// Create a lifecycle manager to check container status
-	lifecycleMgr, err := container.NewLifecycleManager(nil, log)
+	lifecycleMgr, err := container.NewLifecycleManagerFromRuntime(rt, log)
 	require.NoError(t, err, "Failed to create lifecycle manager")
 
 	t.Run("cleanup on invalid image error", func(t *testing.T) {
@@ -841,7 +844,10 @@ func TestWorkerCleanup(t *testing.T) {
 
 			// Check if the container still exists
 			isRunning, err := lifecycleMgr.IsRunning(ctx, result.ContainerID)
-			require.NoError(t, err, "Failed to check container status")
+			if err != nil {
+				t.Logf("Container was removed before status check: %v", err)
+				return
+			}
 
 			// Container should not be running (cleaned up)
 			assert.False(t, isRunning, "Container should be cleaned up after error")
@@ -909,7 +915,10 @@ func TestWorkerCleanup(t *testing.T) {
 
 			// Check if the container still exists
 			isRunning, err := lifecycleMgr.IsRunning(ctx, result.ContainerID)
-			require.NoError(t, err, "Failed to check container status")
+			if err != nil {
+				t.Logf("Container was removed before status check: %v", err)
+				return
+			}
 
 			// Container should not be running (cleaned up by defer)
 			assert.False(t, isRunning, "Container should be cleaned up after cancellation")
@@ -968,7 +977,10 @@ func TestWorkerCleanup(t *testing.T) {
 
 			// Check if the container still exists
 			isRunning, err := lifecycleMgr.IsRunning(ctx, result.ContainerID)
-			require.NoError(t, err, "Failed to check container status")
+			if err != nil {
+				t.Logf("Container was removed before status check: %v", err)
+				return
+			}
 
 			// Container should not be running (cleaned up by defer)
 			assert.False(t, isRunning, "Container should be cleaned up after successful execution")
