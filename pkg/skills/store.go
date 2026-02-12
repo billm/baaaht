@@ -484,7 +484,8 @@ func (s *Store) saveToDisk(skill *types.Skill) error {
 		return types.WrapError(types.ErrCodeInternal, "failed to serialize skill", err)
 	}
 
-	// Enforce MaxSkillsPerOwner if configured (only for new skills, not updates)
+	// Enforce MaxSkillsPerOwner if configured
+	// Excludes current skill ID from count to allow updates when at limit
 	if s.cfg.MaxSkillsPerOwner > 0 {
 		// Count existing skills for this owner (excluding the current skill ID)
 		count := 0
@@ -748,14 +749,10 @@ func (s *Store) deserializeFromMarkdown(data []byte, scope types.SkillScope, own
 
 // sanitizeOwnerID sanitizes an owner ID for safe filesystem usage
 func sanitizeOwnerID(ownerID string) string {
-	// Handle empty input explicitly
-	if ownerID == "" {
-		return ""
-	}
 	// Remove any path components that could lead to directory traversal
 	ownerID = filepath.Base(ownerID)
-	// filepath.Base("") returns ".", so check again
-	if ownerID == "." {
+	// filepath.Base("") returns ".", handle this case
+	if ownerID == "." || ownerID == "" {
 		return ""
 	}
 	// Remove any non-alphanumeric characters (except dash, underscore, dot)
