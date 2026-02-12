@@ -15,6 +15,7 @@ package proto
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -264,6 +265,254 @@ func (x Provider) Number() protoreflect.EnumNumber {
 // Deprecated: Use Provider.Descriptor instead.
 func (Provider) EnumDescriptor() ([]byte, []int) {
 	return file_proto_common_proto_rawDescGZIP(), []int{3}
+}
+
+// ToolType represents the category of tool
+type ToolType int32
+
+const (
+	ToolType_TOOL_TYPE_UNSPECIFIED ToolType = 0
+	ToolType_TOOL_TYPE_FILE        ToolType = 1 // File operations (read, write, edit, list, grep, find)
+	ToolType_TOOL_TYPE_SHELL       ToolType = 2 // Shell command execution
+	ToolType_TOOL_TYPE_WEB         ToolType = 3 // Web operations (search, fetch)
+	ToolType_TOOL_TYPE_MESSAGE     ToolType = 4 // Messaging operations
+	ToolType_TOOL_TYPE_CUSTOM      ToolType = 5 // Custom user-defined tools
+)
+
+// Enum value maps for ToolType.
+var (
+	ToolType_name = map[int32]string{
+		0: "TOOL_TYPE_UNSPECIFIED",
+		1: "TOOL_TYPE_FILE",
+		2: "TOOL_TYPE_SHELL",
+		3: "TOOL_TYPE_WEB",
+		4: "TOOL_TYPE_MESSAGE",
+		5: "TOOL_TYPE_CUSTOM",
+	}
+	ToolType_value = map[string]int32{
+		"TOOL_TYPE_UNSPECIFIED": 0,
+		"TOOL_TYPE_FILE":        1,
+		"TOOL_TYPE_SHELL":       2,
+		"TOOL_TYPE_WEB":         3,
+		"TOOL_TYPE_MESSAGE":     4,
+		"TOOL_TYPE_CUSTOM":      5,
+	}
+)
+
+func (x ToolType) Enum() *ToolType {
+	p := new(ToolType)
+	*p = x
+	return p
+}
+
+func (x ToolType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ToolType) Descriptor() protoreflect.EnumDescriptor {
+	return file_proto_common_proto_enumTypes[4].Descriptor()
+}
+
+func (ToolType) Type() protoreflect.EnumType {
+	return &file_proto_common_proto_enumTypes[4]
+}
+
+func (x ToolType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ToolType.Descriptor instead.
+func (ToolType) EnumDescriptor() ([]byte, []int) {
+	return file_proto_common_proto_rawDescGZIP(), []int{4}
+}
+
+// ToolState represents the lifecycle state of a tool
+type ToolState int32
+
+const (
+	ToolState_TOOL_STATE_UNSPECIFIED ToolState = 0
+	ToolState_TOOL_STATE_REGISTERED  ToolState = 1
+	ToolState_TOOL_STATE_AVAILABLE   ToolState = 2
+	ToolState_TOOL_STATE_BUSY        ToolState = 3
+	ToolState_TOOL_STATE_DISABLED    ToolState = 4
+	ToolState_TOOL_STATE_ERROR       ToolState = 5
+)
+
+// Enum value maps for ToolState.
+var (
+	ToolState_name = map[int32]string{
+		0: "TOOL_STATE_UNSPECIFIED",
+		1: "TOOL_STATE_REGISTERED",
+		2: "TOOL_STATE_AVAILABLE",
+		3: "TOOL_STATE_BUSY",
+		4: "TOOL_STATE_DISABLED",
+		5: "TOOL_STATE_ERROR",
+	}
+	ToolState_value = map[string]int32{
+		"TOOL_STATE_UNSPECIFIED": 0,
+		"TOOL_STATE_REGISTERED":  1,
+		"TOOL_STATE_AVAILABLE":   2,
+		"TOOL_STATE_BUSY":        3,
+		"TOOL_STATE_DISABLED":    4,
+		"TOOL_STATE_ERROR":       5,
+	}
+)
+
+func (x ToolState) Enum() *ToolState {
+	p := new(ToolState)
+	*p = x
+	return p
+}
+
+func (x ToolState) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ToolState) Descriptor() protoreflect.EnumDescriptor {
+	return file_proto_common_proto_enumTypes[5].Descriptor()
+}
+
+func (ToolState) Type() protoreflect.EnumType {
+	return &file_proto_common_proto_enumTypes[5]
+}
+
+func (x ToolState) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ToolState.Descriptor instead.
+func (ToolState) EnumDescriptor() ([]byte, []int) {
+	return file_proto_common_proto_rawDescGZIP(), []int{5}
+}
+
+// ToolExecutionStatus represents the status of a tool execution
+type ToolExecutionStatus int32
+
+const (
+	ToolExecutionStatus_TOOL_EXECUTION_STATUS_UNSPECIFIED ToolExecutionStatus = 0
+	ToolExecutionStatus_TOOL_EXECUTION_STATUS_PENDING     ToolExecutionStatus = 1
+	ToolExecutionStatus_TOOL_EXECUTION_STATUS_RUNNING     ToolExecutionStatus = 2
+	ToolExecutionStatus_TOOL_EXECUTION_STATUS_COMPLETED   ToolExecutionStatus = 3
+	ToolExecutionStatus_TOOL_EXECUTION_STATUS_FAILED      ToolExecutionStatus = 4
+	ToolExecutionStatus_TOOL_EXECUTION_STATUS_TIMEOUT     ToolExecutionStatus = 5
+	ToolExecutionStatus_TOOL_EXECUTION_STATUS_CANCELLED   ToolExecutionStatus = 6
+)
+
+// Enum value maps for ToolExecutionStatus.
+var (
+	ToolExecutionStatus_name = map[int32]string{
+		0: "TOOL_EXECUTION_STATUS_UNSPECIFIED",
+		1: "TOOL_EXECUTION_STATUS_PENDING",
+		2: "TOOL_EXECUTION_STATUS_RUNNING",
+		3: "TOOL_EXECUTION_STATUS_COMPLETED",
+		4: "TOOL_EXECUTION_STATUS_FAILED",
+		5: "TOOL_EXECUTION_STATUS_TIMEOUT",
+		6: "TOOL_EXECUTION_STATUS_CANCELLED",
+	}
+	ToolExecutionStatus_value = map[string]int32{
+		"TOOL_EXECUTION_STATUS_UNSPECIFIED": 0,
+		"TOOL_EXECUTION_STATUS_PENDING":     1,
+		"TOOL_EXECUTION_STATUS_RUNNING":     2,
+		"TOOL_EXECUTION_STATUS_COMPLETED":   3,
+		"TOOL_EXECUTION_STATUS_FAILED":      4,
+		"TOOL_EXECUTION_STATUS_TIMEOUT":     5,
+		"TOOL_EXECUTION_STATUS_CANCELLED":   6,
+	}
+)
+
+func (x ToolExecutionStatus) Enum() *ToolExecutionStatus {
+	p := new(ToolExecutionStatus)
+	*p = x
+	return p
+}
+
+func (x ToolExecutionStatus) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ToolExecutionStatus) Descriptor() protoreflect.EnumDescriptor {
+	return file_proto_common_proto_enumTypes[6].Descriptor()
+}
+
+func (ToolExecutionStatus) Type() protoreflect.EnumType {
+	return &file_proto_common_proto_enumTypes[6]
+}
+
+func (x ToolExecutionStatus) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ToolExecutionStatus.Descriptor instead.
+func (ToolExecutionStatus) EnumDescriptor() ([]byte, []int) {
+	return file_proto_common_proto_rawDescGZIP(), []int{6}
+}
+
+// ParameterType represents the type of a tool parameter
+type ParameterType int32
+
+const (
+	ParameterType_PARAMETER_TYPE_UNSPECIFIED    ParameterType = 0
+	ParameterType_PARAMETER_TYPE_STRING         ParameterType = 1
+	ParameterType_PARAMETER_TYPE_INTEGER        ParameterType = 2
+	ParameterType_PARAMETER_TYPE_FLOAT          ParameterType = 3
+	ParameterType_PARAMETER_TYPE_BOOLEAN        ParameterType = 4
+	ParameterType_PARAMETER_TYPE_ARRAY          ParameterType = 5
+	ParameterType_PARAMETER_TYPE_OBJECT         ParameterType = 6
+	ParameterType_PARAMETER_TYPE_FILE_PATH      ParameterType = 7 // Special type for file paths
+	ParameterType_PARAMETER_TYPE_DIRECTORY_PATH ParameterType = 8 // Special type for directory paths
+)
+
+// Enum value maps for ParameterType.
+var (
+	ParameterType_name = map[int32]string{
+		0: "PARAMETER_TYPE_UNSPECIFIED",
+		1: "PARAMETER_TYPE_STRING",
+		2: "PARAMETER_TYPE_INTEGER",
+		3: "PARAMETER_TYPE_FLOAT",
+		4: "PARAMETER_TYPE_BOOLEAN",
+		5: "PARAMETER_TYPE_ARRAY",
+		6: "PARAMETER_TYPE_OBJECT",
+		7: "PARAMETER_TYPE_FILE_PATH",
+		8: "PARAMETER_TYPE_DIRECTORY_PATH",
+	}
+	ParameterType_value = map[string]int32{
+		"PARAMETER_TYPE_UNSPECIFIED":    0,
+		"PARAMETER_TYPE_STRING":         1,
+		"PARAMETER_TYPE_INTEGER":        2,
+		"PARAMETER_TYPE_FLOAT":          3,
+		"PARAMETER_TYPE_BOOLEAN":        4,
+		"PARAMETER_TYPE_ARRAY":          5,
+		"PARAMETER_TYPE_OBJECT":         6,
+		"PARAMETER_TYPE_FILE_PATH":      7,
+		"PARAMETER_TYPE_DIRECTORY_PATH": 8,
+	}
+)
+
+func (x ParameterType) Enum() *ParameterType {
+	p := new(ParameterType)
+	*p = x
+	return p
+}
+
+func (x ParameterType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ParameterType) Descriptor() protoreflect.EnumDescriptor {
+	return file_proto_common_proto_enumTypes[7].Descriptor()
+}
+
+func (ParameterType) Type() protoreflect.EnumType {
+	return &file_proto_common_proto_enumTypes[7]
+}
+
+func (x ParameterType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ParameterType.Descriptor instead.
+func (ParameterType) EnumDescriptor() ([]byte, []int) {
+	return file_proto_common_proto_rawDescGZIP(), []int{7}
 }
 
 // ResourceLimits defines resource constraints for a container/session
@@ -574,11 +823,673 @@ func (x *TokenUsage) GetTotalTokens() int32 {
 	return 0
 }
 
+// ToolDefinition defines a tool's interface and configuration
+type ToolDefinition struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Name           string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	DisplayName    string                 `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"` // Human-readable name
+	Type           ToolType               `protobuf:"varint,3,opt,name=type,proto3,enum=common.v1.ToolType" json:"type,omitempty"`
+	Description    string                 `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`                                                                      // Description of what the tool does
+	Parameters     []*ToolParameter       `protobuf:"bytes,5,rep,name=parameters,proto3" json:"parameters,omitempty"`                                                                        // Parameters the tool accepts
+	SecurityPolicy *ToolSecurityPolicy    `protobuf:"bytes,6,opt,name=security_policy,json=securityPolicy,proto3" json:"security_policy,omitempty"`                                          // Security constraints
+	ResourceLimits *ResourceLimits        `protobuf:"bytes,7,opt,name=resource_limits,json=resourceLimits,proto3" json:"resource_limits,omitempty"`                                          // Resource constraints
+	TimeoutNs      int64                  `protobuf:"varint,8,opt,name=timeout_ns,json=timeoutNs,proto3" json:"timeout_ns,omitempty"`                                                        // Default timeout in nanoseconds
+	ContainerImage string                 `protobuf:"bytes,9,opt,name=container_image,json=containerImage,proto3" json:"container_image,omitempty"`                                          // Container image for execution
+	Command        []string               `protobuf:"bytes,10,rep,name=command,proto3" json:"command,omitempty"`                                                                             // Command to run in container
+	Metadata       map[string]string      `protobuf:"bytes,11,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // Additional metadata
+	Version        string                 `protobuf:"bytes,12,opt,name=version,proto3" json:"version,omitempty"`                                                                             // Tool version
+	Enabled        bool                   `protobuf:"varint,13,opt,name=enabled,proto3" json:"enabled,omitempty"`                                                                            // Whether tool is enabled
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *ToolDefinition) Reset() {
+	*x = ToolDefinition{}
+	mi := &file_proto_common_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ToolDefinition) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ToolDefinition) ProtoMessage() {}
+
+func (x *ToolDefinition) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_common_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ToolDefinition.ProtoReflect.Descriptor instead.
+func (*ToolDefinition) Descriptor() ([]byte, []int) {
+	return file_proto_common_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *ToolDefinition) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ToolDefinition) GetDisplayName() string {
+	if x != nil {
+		return x.DisplayName
+	}
+	return ""
+}
+
+func (x *ToolDefinition) GetType() ToolType {
+	if x != nil {
+		return x.Type
+	}
+	return ToolType_TOOL_TYPE_UNSPECIFIED
+}
+
+func (x *ToolDefinition) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *ToolDefinition) GetParameters() []*ToolParameter {
+	if x != nil {
+		return x.Parameters
+	}
+	return nil
+}
+
+func (x *ToolDefinition) GetSecurityPolicy() *ToolSecurityPolicy {
+	if x != nil {
+		return x.SecurityPolicy
+	}
+	return nil
+}
+
+func (x *ToolDefinition) GetResourceLimits() *ResourceLimits {
+	if x != nil {
+		return x.ResourceLimits
+	}
+	return nil
+}
+
+func (x *ToolDefinition) GetTimeoutNs() int64 {
+	if x != nil {
+		return x.TimeoutNs
+	}
+	return 0
+}
+
+func (x *ToolDefinition) GetContainerImage() string {
+	if x != nil {
+		return x.ContainerImage
+	}
+	return ""
+}
+
+func (x *ToolDefinition) GetCommand() []string {
+	if x != nil {
+		return x.Command
+	}
+	return nil
+}
+
+func (x *ToolDefinition) GetMetadata() map[string]string {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *ToolDefinition) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *ToolDefinition) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+// ToolParameter defines a parameter for a tool
+type ToolParameter struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Description   string                 `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
+	Type          ParameterType          `protobuf:"varint,3,opt,name=type,proto3,enum=common.v1.ParameterType" json:"type,omitempty"`
+	Required      bool                   `protobuf:"varint,4,opt,name=required,proto3" json:"required,omitempty"`
+	DefaultValue  string                 `protobuf:"bytes,5,opt,name=default_value,json=defaultValue,proto3" json:"default_value,omitempty"`                                                     // Optional default value
+	AllowedValues []string               `protobuf:"bytes,6,rep,name=allowed_values,json=allowedValues,proto3" json:"allowed_values,omitempty"`                                                  // Optional enum of allowed values
+	Constraints   map[string]string      `protobuf:"bytes,7,rep,name=constraints,proto3" json:"constraints,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // Additional constraints (min, max, pattern, etc.)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ToolParameter) Reset() {
+	*x = ToolParameter{}
+	mi := &file_proto_common_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ToolParameter) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ToolParameter) ProtoMessage() {}
+
+func (x *ToolParameter) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_common_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ToolParameter.ProtoReflect.Descriptor instead.
+func (*ToolParameter) Descriptor() ([]byte, []int) {
+	return file_proto_common_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *ToolParameter) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ToolParameter) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *ToolParameter) GetType() ParameterType {
+	if x != nil {
+		return x.Type
+	}
+	return ParameterType_PARAMETER_TYPE_UNSPECIFIED
+}
+
+func (x *ToolParameter) GetRequired() bool {
+	if x != nil {
+		return x.Required
+	}
+	return false
+}
+
+func (x *ToolParameter) GetDefaultValue() string {
+	if x != nil {
+		return x.DefaultValue
+	}
+	return ""
+}
+
+func (x *ToolParameter) GetAllowedValues() []string {
+	if x != nil {
+		return x.AllowedValues
+	}
+	return nil
+}
+
+func (x *ToolParameter) GetConstraints() map[string]string {
+	if x != nil {
+		return x.Constraints
+	}
+	return nil
+}
+
+// ToolSecurityPolicy defines security constraints for tool execution
+type ToolSecurityPolicy struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	AllowNetwork       bool                   `protobuf:"varint,1,opt,name=allow_network,json=allowNetwork,proto3" json:"allow_network,omitempty"`                     // Whether network access is allowed
+	AllowedHosts       []string               `protobuf:"bytes,2,rep,name=allowed_hosts,json=allowedHosts,proto3" json:"allowed_hosts,omitempty"`                      // Allowlist for network access
+	BlockedHosts       []string               `protobuf:"bytes,3,rep,name=blocked_hosts,json=blockedHosts,proto3" json:"blocked_hosts,omitempty"`                      // Blocklist for network access
+	AllowFilesystem    bool                   `protobuf:"varint,4,opt,name=allow_filesystem,json=allowFilesystem,proto3" json:"allow_filesystem,omitempty"`            // Whether filesystem access is allowed
+	AllowedPaths       []string               `protobuf:"bytes,5,rep,name=allowed_paths,json=allowedPaths,proto3" json:"allowed_paths,omitempty"`                      // Allowlist for filesystem access (scoped mounts)
+	ReadOnlyFilesystem bool                   `protobuf:"varint,6,opt,name=read_only_filesystem,json=readOnlyFilesystem,proto3" json:"read_only_filesystem,omitempty"` // Whether filesystem access is read-only
+	AllowIpc           bool                   `protobuf:"varint,7,opt,name=allow_ipc,json=allowIpc,proto3" json:"allow_ipc,omitempty"`                                 // Whether IPC communication is allowed
+	MaxConcurrent      int32                  `protobuf:"varint,8,opt,name=max_concurrent,json=maxConcurrent,proto3" json:"max_concurrent,omitempty"`                  // Maximum concurrent executions
+	AllowedUsers       []string               `protobuf:"bytes,9,rep,name=allowed_users,json=allowedUsers,proto3" json:"allowed_users,omitempty"`                      // Users allowed to execute tool
+	BlockedCommands    []string               `protobuf:"bytes,10,rep,name=blocked_commands,json=blockedCommands,proto3" json:"blocked_commands,omitempty"`            // Blocked shell commands
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *ToolSecurityPolicy) Reset() {
+	*x = ToolSecurityPolicy{}
+	mi := &file_proto_common_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ToolSecurityPolicy) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ToolSecurityPolicy) ProtoMessage() {}
+
+func (x *ToolSecurityPolicy) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_common_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ToolSecurityPolicy.ProtoReflect.Descriptor instead.
+func (*ToolSecurityPolicy) Descriptor() ([]byte, []int) {
+	return file_proto_common_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *ToolSecurityPolicy) GetAllowNetwork() bool {
+	if x != nil {
+		return x.AllowNetwork
+	}
+	return false
+}
+
+func (x *ToolSecurityPolicy) GetAllowedHosts() []string {
+	if x != nil {
+		return x.AllowedHosts
+	}
+	return nil
+}
+
+func (x *ToolSecurityPolicy) GetBlockedHosts() []string {
+	if x != nil {
+		return x.BlockedHosts
+	}
+	return nil
+}
+
+func (x *ToolSecurityPolicy) GetAllowFilesystem() bool {
+	if x != nil {
+		return x.AllowFilesystem
+	}
+	return false
+}
+
+func (x *ToolSecurityPolicy) GetAllowedPaths() []string {
+	if x != nil {
+		return x.AllowedPaths
+	}
+	return nil
+}
+
+func (x *ToolSecurityPolicy) GetReadOnlyFilesystem() bool {
+	if x != nil {
+		return x.ReadOnlyFilesystem
+	}
+	return false
+}
+
+func (x *ToolSecurityPolicy) GetAllowIpc() bool {
+	if x != nil {
+		return x.AllowIpc
+	}
+	return false
+}
+
+func (x *ToolSecurityPolicy) GetMaxConcurrent() int32 {
+	if x != nil {
+		return x.MaxConcurrent
+	}
+	return 0
+}
+
+func (x *ToolSecurityPolicy) GetAllowedUsers() []string {
+	if x != nil {
+		return x.AllowedUsers
+	}
+	return nil
+}
+
+func (x *ToolSecurityPolicy) GetBlockedCommands() []string {
+	if x != nil {
+		return x.BlockedCommands
+	}
+	return nil
+}
+
+// ToolExecutionRequest represents a request to execute a tool
+type ToolExecutionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ToolName      string                 `protobuf:"bytes,1,opt,name=tool_name,json=toolName,proto3" json:"tool_name,omitempty"`
+	SessionId     string                 `protobuf:"bytes,2,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	ExecutionId   string                 `protobuf:"bytes,3,opt,name=execution_id,json=executionId,proto3" json:"execution_id,omitempty"`                                                      // Unique ID for this execution
+	Parameters    map[string]string      `protobuf:"bytes,4,rep,name=parameters,proto3" json:"parameters,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // Tool parameters
+	TimeoutNs     int64                  `protobuf:"varint,5,opt,name=timeout_ns,json=timeoutNs,proto3" json:"timeout_ns,omitempty"`                                                           // Optional override timeout
+	CorrelationId string                 `protobuf:"bytes,6,opt,name=correlation_id,json=correlationId,proto3" json:"correlation_id,omitempty"`                                                // For tracking
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ToolExecutionRequest) Reset() {
+	*x = ToolExecutionRequest{}
+	mi := &file_proto_common_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ToolExecutionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ToolExecutionRequest) ProtoMessage() {}
+
+func (x *ToolExecutionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_common_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ToolExecutionRequest.ProtoReflect.Descriptor instead.
+func (*ToolExecutionRequest) Descriptor() ([]byte, []int) {
+	return file_proto_common_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *ToolExecutionRequest) GetToolName() string {
+	if x != nil {
+		return x.ToolName
+	}
+	return ""
+}
+
+func (x *ToolExecutionRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *ToolExecutionRequest) GetExecutionId() string {
+	if x != nil {
+		return x.ExecutionId
+	}
+	return ""
+}
+
+func (x *ToolExecutionRequest) GetParameters() map[string]string {
+	if x != nil {
+		return x.Parameters
+	}
+	return nil
+}
+
+func (x *ToolExecutionRequest) GetTimeoutNs() int64 {
+	if x != nil {
+		return x.TimeoutNs
+	}
+	return 0
+}
+
+func (x *ToolExecutionRequest) GetCorrelationId() string {
+	if x != nil {
+		return x.CorrelationId
+	}
+	return ""
+}
+
+func (x *ToolExecutionRequest) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+// ToolExecutionResult represents the result of a tool execution
+type ToolExecutionResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ExecutionId   string                 `protobuf:"bytes,1,opt,name=execution_id,json=executionId,proto3" json:"execution_id,omitempty"`
+	ToolName      string                 `protobuf:"bytes,2,opt,name=tool_name,json=toolName,proto3" json:"tool_name,omitempty"`
+	Status        ToolExecutionStatus    `protobuf:"varint,3,opt,name=status,proto3,enum=common.v1.ToolExecutionStatus" json:"status,omitempty"`
+	ExitCode      int32                  `protobuf:"varint,4,opt,name=exit_code,json=exitCode,proto3" json:"exit_code,omitempty"`                                                          // Exit code from container
+	OutputData    []byte                 `protobuf:"bytes,5,opt,name=output_data,json=outputData,proto3" json:"output_data,omitempty"`                                                     // Raw output data
+	OutputText    string                 `protobuf:"bytes,6,opt,name=output_text,json=outputText,proto3" json:"output_text,omitempty"`                                                     // Text output (if applicable)
+	ErrorData     []byte                 `protobuf:"bytes,7,opt,name=error_data,json=errorData,proto3" json:"error_data,omitempty"`                                                        // Raw error data
+	ErrorText     string                 `protobuf:"bytes,8,opt,name=error_text,json=errorText,proto3" json:"error_text,omitempty"`                                                        // Error message (if failed)
+	Metadata      map[string]string      `protobuf:"bytes,9,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // Additional result metadata
+	DurationNs    int64                  `protobuf:"varint,10,opt,name=duration_ns,json=durationNs,proto3" json:"duration_ns,omitempty"`                                                   // Execution duration in nanoseconds
+	CompletedAt   *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=completed_at,json=completedAt,proto3" json:"completed_at,omitempty"`
+	ContainerId   string                 `protobuf:"bytes,12,opt,name=container_id,json=containerId,proto3" json:"container_id,omitempty"` // Container that executed the tool
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ToolExecutionResult) Reset() {
+	*x = ToolExecutionResult{}
+	mi := &file_proto_common_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ToolExecutionResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ToolExecutionResult) ProtoMessage() {}
+
+func (x *ToolExecutionResult) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_common_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ToolExecutionResult.ProtoReflect.Descriptor instead.
+func (*ToolExecutionResult) Descriptor() ([]byte, []int) {
+	return file_proto_common_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *ToolExecutionResult) GetExecutionId() string {
+	if x != nil {
+		return x.ExecutionId
+	}
+	return ""
+}
+
+func (x *ToolExecutionResult) GetToolName() string {
+	if x != nil {
+		return x.ToolName
+	}
+	return ""
+}
+
+func (x *ToolExecutionResult) GetStatus() ToolExecutionStatus {
+	if x != nil {
+		return x.Status
+	}
+	return ToolExecutionStatus_TOOL_EXECUTION_STATUS_UNSPECIFIED
+}
+
+func (x *ToolExecutionResult) GetExitCode() int32 {
+	if x != nil {
+		return x.ExitCode
+	}
+	return 0
+}
+
+func (x *ToolExecutionResult) GetOutputData() []byte {
+	if x != nil {
+		return x.OutputData
+	}
+	return nil
+}
+
+func (x *ToolExecutionResult) GetOutputText() string {
+	if x != nil {
+		return x.OutputText
+	}
+	return ""
+}
+
+func (x *ToolExecutionResult) GetErrorData() []byte {
+	if x != nil {
+		return x.ErrorData
+	}
+	return nil
+}
+
+func (x *ToolExecutionResult) GetErrorText() string {
+	if x != nil {
+		return x.ErrorText
+	}
+	return ""
+}
+
+func (x *ToolExecutionResult) GetMetadata() map[string]string {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *ToolExecutionResult) GetDurationNs() int64 {
+	if x != nil {
+		return x.DurationNs
+	}
+	return 0
+}
+
+func (x *ToolExecutionResult) GetCompletedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CompletedAt
+	}
+	return nil
+}
+
+func (x *ToolExecutionResult) GetContainerId() string {
+	if x != nil {
+		return x.ContainerId
+	}
+	return ""
+}
+
+// ToolConfig represents runtime configuration for tool execution
+type ToolConfig struct {
+	state                 protoimpl.MessageState `protogen:"open.v1"`
+	Tools                 []*ToolDefinition      `protobuf:"bytes,1,rep,name=tools,proto3" json:"tools,omitempty"`                                                                                                       // Available tools
+	DefaultRegistry       string                 `protobuf:"bytes,2,opt,name=default_registry,json=defaultRegistry,proto3" json:"default_registry,omitempty"`                                                            // Default container registry
+	DefaultEnv            map[string]string      `protobuf:"bytes,3,rep,name=default_env,json=defaultEnv,proto3" json:"default_env,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // Default environment variables
+	DefaultResourceLimits *ResourceLimits        `protobuf:"bytes,4,opt,name=default_resource_limits,json=defaultResourceLimits,proto3" json:"default_resource_limits,omitempty"`                                        // Default resource limits
+	DefaultTimeoutNs      int64                  `protobuf:"varint,5,opt,name=default_timeout_ns,json=defaultTimeoutNs,proto3" json:"default_timeout_ns,omitempty"`                                                      // Default timeout for all tools
+	TelemetryEnabled      bool                   `protobuf:"varint,6,opt,name=telemetry_enabled,json=telemetryEnabled,proto3" json:"telemetry_enabled,omitempty"`                                                        // Whether telemetry is enabled
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *ToolConfig) Reset() {
+	*x = ToolConfig{}
+	mi := &file_proto_common_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ToolConfig) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ToolConfig) ProtoMessage() {}
+
+func (x *ToolConfig) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_common_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ToolConfig.ProtoReflect.Descriptor instead.
+func (*ToolConfig) Descriptor() ([]byte, []int) {
+	return file_proto_common_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *ToolConfig) GetTools() []*ToolDefinition {
+	if x != nil {
+		return x.Tools
+	}
+	return nil
+}
+
+func (x *ToolConfig) GetDefaultRegistry() string {
+	if x != nil {
+		return x.DefaultRegistry
+	}
+	return ""
+}
+
+func (x *ToolConfig) GetDefaultEnv() map[string]string {
+	if x != nil {
+		return x.DefaultEnv
+	}
+	return nil
+}
+
+func (x *ToolConfig) GetDefaultResourceLimits() *ResourceLimits {
+	if x != nil {
+		return x.DefaultResourceLimits
+	}
+	return nil
+}
+
+func (x *ToolConfig) GetDefaultTimeoutNs() int64 {
+	if x != nil {
+		return x.DefaultTimeoutNs
+	}
+	return 0
+}
+
+func (x *ToolConfig) GetTelemetryEnabled() bool {
+	if x != nil {
+		return x.TelemetryEnabled
+	}
+	return false
+}
+
 var File_proto_common_proto protoreflect.FileDescriptor
 
 const file_proto_common_proto_rawDesc = "" +
 	"\n" +
-	"\x12proto/common.proto\x12\tcommon.v1\"\x90\x01\n" +
+	"\x12proto/common.proto\x12\tcommon.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x90\x01\n" +
 	"\x0eResourceLimits\x12\x1b\n" +
 	"\tnano_cpus\x18\x01 \x01(\x03R\bnanoCpus\x12!\n" +
 	"\fmemory_bytes\x18\x02 \x01(\x03R\vmemoryBytes\x12\x1f\n" +
@@ -611,7 +1522,101 @@ const file_proto_common_proto_rawDesc = "" +
 	"TokenUsage\x12!\n" +
 	"\finput_tokens\x18\x01 \x01(\x05R\vinputTokens\x12#\n" +
 	"\routput_tokens\x18\x02 \x01(\x05R\foutputTokens\x12!\n" +
-	"\ftotal_tokens\x18\x03 \x01(\x05R\vtotalTokens*\xaf\x01\n" +
+	"\ftotal_tokens\x18\x03 \x01(\x05R\vtotalTokens\"\xf0\x04\n" +
+	"\x0eToolDefinition\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12!\n" +
+	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12'\n" +
+	"\x04type\x18\x03 \x01(\x0e2\x13.common.v1.ToolTypeR\x04type\x12 \n" +
+	"\vdescription\x18\x04 \x01(\tR\vdescription\x128\n" +
+	"\n" +
+	"parameters\x18\x05 \x03(\v2\x18.common.v1.ToolParameterR\n" +
+	"parameters\x12F\n" +
+	"\x0fsecurity_policy\x18\x06 \x01(\v2\x1d.common.v1.ToolSecurityPolicyR\x0esecurityPolicy\x12B\n" +
+	"\x0fresource_limits\x18\a \x01(\v2\x19.common.v1.ResourceLimitsR\x0eresourceLimits\x12\x1d\n" +
+	"\n" +
+	"timeout_ns\x18\b \x01(\x03R\ttimeoutNs\x12'\n" +
+	"\x0fcontainer_image\x18\t \x01(\tR\x0econtainerImage\x12\x18\n" +
+	"\acommand\x18\n" +
+	" \x03(\tR\acommand\x12C\n" +
+	"\bmetadata\x18\v \x03(\v2'.common.v1.ToolDefinition.MetadataEntryR\bmetadata\x12\x18\n" +
+	"\aversion\x18\f \x01(\tR\aversion\x12\x18\n" +
+	"\aenabled\x18\r \x01(\bR\aenabled\x1a;\n" +
+	"\rMetadataEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xe8\x02\n" +
+	"\rToolParameter\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12 \n" +
+	"\vdescription\x18\x02 \x01(\tR\vdescription\x12,\n" +
+	"\x04type\x18\x03 \x01(\x0e2\x18.common.v1.ParameterTypeR\x04type\x12\x1a\n" +
+	"\brequired\x18\x04 \x01(\bR\brequired\x12#\n" +
+	"\rdefault_value\x18\x05 \x01(\tR\fdefaultValue\x12%\n" +
+	"\x0eallowed_values\x18\x06 \x03(\tR\rallowedValues\x12K\n" +
+	"\vconstraints\x18\a \x03(\v2).common.v1.ToolParameter.ConstraintsEntryR\vconstraints\x1a>\n" +
+	"\x10ConstraintsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x99\x03\n" +
+	"\x12ToolSecurityPolicy\x12#\n" +
+	"\rallow_network\x18\x01 \x01(\bR\fallowNetwork\x12#\n" +
+	"\rallowed_hosts\x18\x02 \x03(\tR\fallowedHosts\x12#\n" +
+	"\rblocked_hosts\x18\x03 \x03(\tR\fblockedHosts\x12)\n" +
+	"\x10allow_filesystem\x18\x04 \x01(\bR\x0fallowFilesystem\x12#\n" +
+	"\rallowed_paths\x18\x05 \x03(\tR\fallowedPaths\x120\n" +
+	"\x14read_only_filesystem\x18\x06 \x01(\bR\x12readOnlyFilesystem\x12\x1b\n" +
+	"\tallow_ipc\x18\a \x01(\bR\ballowIpc\x12%\n" +
+	"\x0emax_concurrent\x18\b \x01(\x05R\rmaxConcurrent\x12#\n" +
+	"\rallowed_users\x18\t \x03(\tR\fallowedUsers\x12)\n" +
+	"\x10blocked_commands\x18\n" +
+	" \x03(\tR\x0fblockedCommands\"\x86\x03\n" +
+	"\x14ToolExecutionRequest\x12\x1b\n" +
+	"\ttool_name\x18\x01 \x01(\tR\btoolName\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x02 \x01(\tR\tsessionId\x12!\n" +
+	"\fexecution_id\x18\x03 \x01(\tR\vexecutionId\x12O\n" +
+	"\n" +
+	"parameters\x18\x04 \x03(\v2/.common.v1.ToolExecutionRequest.ParametersEntryR\n" +
+	"parameters\x12\x1d\n" +
+	"\n" +
+	"timeout_ns\x18\x05 \x01(\x03R\ttimeoutNs\x12%\n" +
+	"\x0ecorrelation_id\x18\x06 \x01(\tR\rcorrelationId\x129\n" +
+	"\n" +
+	"created_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x1a=\n" +
+	"\x0fParametersEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xb4\x04\n" +
+	"\x13ToolExecutionResult\x12!\n" +
+	"\fexecution_id\x18\x01 \x01(\tR\vexecutionId\x12\x1b\n" +
+	"\ttool_name\x18\x02 \x01(\tR\btoolName\x126\n" +
+	"\x06status\x18\x03 \x01(\x0e2\x1e.common.v1.ToolExecutionStatusR\x06status\x12\x1b\n" +
+	"\texit_code\x18\x04 \x01(\x05R\bexitCode\x12\x1f\n" +
+	"\voutput_data\x18\x05 \x01(\fR\n" +
+	"outputData\x12\x1f\n" +
+	"\voutput_text\x18\x06 \x01(\tR\n" +
+	"outputText\x12\x1d\n" +
+	"\n" +
+	"error_data\x18\a \x01(\fR\terrorData\x12\x1d\n" +
+	"\n" +
+	"error_text\x18\b \x01(\tR\terrorText\x12H\n" +
+	"\bmetadata\x18\t \x03(\v2,.common.v1.ToolExecutionResult.MetadataEntryR\bmetadata\x12\x1f\n" +
+	"\vduration_ns\x18\n" +
+	" \x01(\x03R\n" +
+	"durationNs\x12=\n" +
+	"\fcompleted_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\vcompletedAt\x12!\n" +
+	"\fcontainer_id\x18\f \x01(\tR\vcontainerId\x1a;\n" +
+	"\rMetadataEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x9d\x03\n" +
+	"\n" +
+	"ToolConfig\x12/\n" +
+	"\x05tools\x18\x01 \x03(\v2\x19.common.v1.ToolDefinitionR\x05tools\x12)\n" +
+	"\x10default_registry\x18\x02 \x01(\tR\x0fdefaultRegistry\x12F\n" +
+	"\vdefault_env\x18\x03 \x03(\v2%.common.v1.ToolConfig.DefaultEnvEntryR\n" +
+	"defaultEnv\x12Q\n" +
+	"\x17default_resource_limits\x18\x04 \x01(\v2\x19.common.v1.ResourceLimitsR\x15defaultResourceLimits\x12,\n" +
+	"\x12default_timeout_ns\x18\x05 \x01(\x03R\x10defaultTimeoutNs\x12+\n" +
+	"\x11telemetry_enabled\x18\x06 \x01(\bR\x10telemetryEnabled\x1a=\n" +
+	"\x0fDefaultEnvEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01*\xaf\x01\n" +
 	"\x06Status\x12\x16\n" +
 	"\x12STATUS_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0eSTATUS_UNKNOWN\x10\x01\x12\x13\n" +
@@ -640,7 +1645,39 @@ const file_proto_common_proto_rawDesc = "" +
 	"\x0fPROVIDER_OPENAI\x10\x02\x12\x17\n" +
 	"\x13PROVIDER_OPENROUTER\x10\x03\x12\x13\n" +
 	"\x0fPROVIDER_OLLAMA\x10\x04\x12\x15\n" +
-	"\x11PROVIDER_LMSTUDIO\x10\x05B,Z*github.com/billm/baaaht/orchestrator/protob\x06proto3"
+	"\x11PROVIDER_LMSTUDIO\x10\x05*\x8e\x01\n" +
+	"\bToolType\x12\x19\n" +
+	"\x15TOOL_TYPE_UNSPECIFIED\x10\x00\x12\x12\n" +
+	"\x0eTOOL_TYPE_FILE\x10\x01\x12\x13\n" +
+	"\x0fTOOL_TYPE_SHELL\x10\x02\x12\x11\n" +
+	"\rTOOL_TYPE_WEB\x10\x03\x12\x15\n" +
+	"\x11TOOL_TYPE_MESSAGE\x10\x04\x12\x14\n" +
+	"\x10TOOL_TYPE_CUSTOM\x10\x05*\xa0\x01\n" +
+	"\tToolState\x12\x1a\n" +
+	"\x16TOOL_STATE_UNSPECIFIED\x10\x00\x12\x19\n" +
+	"\x15TOOL_STATE_REGISTERED\x10\x01\x12\x18\n" +
+	"\x14TOOL_STATE_AVAILABLE\x10\x02\x12\x13\n" +
+	"\x0fTOOL_STATE_BUSY\x10\x03\x12\x17\n" +
+	"\x13TOOL_STATE_DISABLED\x10\x04\x12\x14\n" +
+	"\x10TOOL_STATE_ERROR\x10\x05*\x91\x02\n" +
+	"\x13ToolExecutionStatus\x12%\n" +
+	"!TOOL_EXECUTION_STATUS_UNSPECIFIED\x10\x00\x12!\n" +
+	"\x1dTOOL_EXECUTION_STATUS_PENDING\x10\x01\x12!\n" +
+	"\x1dTOOL_EXECUTION_STATUS_RUNNING\x10\x02\x12#\n" +
+	"\x1fTOOL_EXECUTION_STATUS_COMPLETED\x10\x03\x12 \n" +
+	"\x1cTOOL_EXECUTION_STATUS_FAILED\x10\x04\x12!\n" +
+	"\x1dTOOL_EXECUTION_STATUS_TIMEOUT\x10\x05\x12#\n" +
+	"\x1fTOOL_EXECUTION_STATUS_CANCELLED\x10\x06*\x92\x02\n" +
+	"\rParameterType\x12\x1e\n" +
+	"\x1aPARAMETER_TYPE_UNSPECIFIED\x10\x00\x12\x19\n" +
+	"\x15PARAMETER_TYPE_STRING\x10\x01\x12\x1a\n" +
+	"\x16PARAMETER_TYPE_INTEGER\x10\x02\x12\x18\n" +
+	"\x14PARAMETER_TYPE_FLOAT\x10\x03\x12\x1a\n" +
+	"\x16PARAMETER_TYPE_BOOLEAN\x10\x04\x12\x18\n" +
+	"\x14PARAMETER_TYPE_ARRAY\x10\x05\x12\x19\n" +
+	"\x15PARAMETER_TYPE_OBJECT\x10\x06\x12\x1c\n" +
+	"\x18PARAMETER_TYPE_FILE_PATH\x10\a\x12!\n" +
+	"\x1dPARAMETER_TYPE_DIRECTORY_PATH\x10\bB,Z*github.com/billm/baaaht/orchestrator/protob\x06proto3"
 
 var (
 	file_proto_common_proto_rawDescOnce sync.Once
@@ -654,24 +1691,55 @@ func file_proto_common_proto_rawDescGZIP() []byte {
 	return file_proto_common_proto_rawDescData
 }
 
-var file_proto_common_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_proto_common_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_proto_common_proto_enumTypes = make([]protoimpl.EnumInfo, 8)
+var file_proto_common_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_proto_common_proto_goTypes = []any{
-	(Status)(0),               // 0: common.v1.Status
-	(Health)(0),               // 1: common.v1.Health
-	(Priority)(0),             // 2: common.v1.Priority
-	(Provider)(0),             // 3: common.v1.Provider
-	(*ResourceLimits)(nil),    // 4: common.v1.ResourceLimits
-	(*ResourceUsage)(nil),     // 5: common.v1.ResourceUsage
-	(*ModelCapabilities)(nil), // 6: common.v1.ModelCapabilities
-	(*TokenUsage)(nil),        // 7: common.v1.TokenUsage
+	(Status)(0),                   // 0: common.v1.Status
+	(Health)(0),                   // 1: common.v1.Health
+	(Priority)(0),                 // 2: common.v1.Priority
+	(Provider)(0),                 // 3: common.v1.Provider
+	(ToolType)(0),                 // 4: common.v1.ToolType
+	(ToolState)(0),                // 5: common.v1.ToolState
+	(ToolExecutionStatus)(0),      // 6: common.v1.ToolExecutionStatus
+	(ParameterType)(0),            // 7: common.v1.ParameterType
+	(*ResourceLimits)(nil),        // 8: common.v1.ResourceLimits
+	(*ResourceUsage)(nil),         // 9: common.v1.ResourceUsage
+	(*ModelCapabilities)(nil),     // 10: common.v1.ModelCapabilities
+	(*TokenUsage)(nil),            // 11: common.v1.TokenUsage
+	(*ToolDefinition)(nil),        // 12: common.v1.ToolDefinition
+	(*ToolParameter)(nil),         // 13: common.v1.ToolParameter
+	(*ToolSecurityPolicy)(nil),    // 14: common.v1.ToolSecurityPolicy
+	(*ToolExecutionRequest)(nil),  // 15: common.v1.ToolExecutionRequest
+	(*ToolExecutionResult)(nil),   // 16: common.v1.ToolExecutionResult
+	(*ToolConfig)(nil),            // 17: common.v1.ToolConfig
+	nil,                           // 18: common.v1.ToolDefinition.MetadataEntry
+	nil,                           // 19: common.v1.ToolParameter.ConstraintsEntry
+	nil,                           // 20: common.v1.ToolExecutionRequest.ParametersEntry
+	nil,                           // 21: common.v1.ToolExecutionResult.MetadataEntry
+	nil,                           // 22: common.v1.ToolConfig.DefaultEnvEntry
+	(*timestamppb.Timestamp)(nil), // 23: google.protobuf.Timestamp
 }
 var file_proto_common_proto_depIdxs = []int32{
-	0, // [0:0] is the sub-list for method output_type
-	0, // [0:0] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	4,  // 0: common.v1.ToolDefinition.type:type_name -> common.v1.ToolType
+	13, // 1: common.v1.ToolDefinition.parameters:type_name -> common.v1.ToolParameter
+	14, // 2: common.v1.ToolDefinition.security_policy:type_name -> common.v1.ToolSecurityPolicy
+	8,  // 3: common.v1.ToolDefinition.resource_limits:type_name -> common.v1.ResourceLimits
+	18, // 4: common.v1.ToolDefinition.metadata:type_name -> common.v1.ToolDefinition.MetadataEntry
+	7,  // 5: common.v1.ToolParameter.type:type_name -> common.v1.ParameterType
+	19, // 6: common.v1.ToolParameter.constraints:type_name -> common.v1.ToolParameter.ConstraintsEntry
+	20, // 7: common.v1.ToolExecutionRequest.parameters:type_name -> common.v1.ToolExecutionRequest.ParametersEntry
+	23, // 8: common.v1.ToolExecutionRequest.created_at:type_name -> google.protobuf.Timestamp
+	6,  // 9: common.v1.ToolExecutionResult.status:type_name -> common.v1.ToolExecutionStatus
+	21, // 10: common.v1.ToolExecutionResult.metadata:type_name -> common.v1.ToolExecutionResult.MetadataEntry
+	23, // 11: common.v1.ToolExecutionResult.completed_at:type_name -> google.protobuf.Timestamp
+	12, // 12: common.v1.ToolConfig.tools:type_name -> common.v1.ToolDefinition
+	22, // 13: common.v1.ToolConfig.default_env:type_name -> common.v1.ToolConfig.DefaultEnvEntry
+	8,  // 14: common.v1.ToolConfig.default_resource_limits:type_name -> common.v1.ResourceLimits
+	15, // [15:15] is the sub-list for method output_type
+	15, // [15:15] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_proto_common_proto_init() }
@@ -684,8 +1752,8 @@ func file_proto_common_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_common_proto_rawDesc), len(file_proto_common_proto_rawDesc)),
-			NumEnums:      4,
-			NumMessages:   4,
+			NumEnums:      8,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
