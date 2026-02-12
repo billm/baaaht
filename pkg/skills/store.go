@@ -128,12 +128,9 @@ func (s *Store) Store(ctx context.Context, skill *types.Skill) error {
 			existing.Capabilities = make([]types.SkillCapability, len(skill.Capabilities))
 			for i, cap := range skill.Capabilities {
 				existing.Capabilities[i] = cap
-				// Deep copy the Config map
+				// Deep copy the Config map (recursively handles nested structures)
 				if cap.Config != nil {
-					existing.Capabilities[i].Config = make(map[string]interface{}, len(cap.Config))
-					for k, v := range cap.Config {
-						existing.Capabilities[i].Config[k] = v
-					}
+					existing.Capabilities[i].Config = deepCopyConfigMap(cap.Config)
 				}
 			}
 		} else {
@@ -683,17 +680,60 @@ func deepCopySkill(skill *types.Skill) *types.Skill {
 		result.Capabilities = make([]types.SkillCapability, len(skill.Capabilities))
 		for i, cap := range skill.Capabilities {
 			result.Capabilities[i] = cap
-			// Deep copy the Config map
+			// Deep copy the Config map (recursively handles nested structures)
 			if cap.Config != nil {
-				result.Capabilities[i].Config = make(map[string]interface{}, len(cap.Config))
-				for k, v := range cap.Config {
-					result.Capabilities[i].Config[k] = v
-				}
+				result.Capabilities[i].Config = deepCopyConfigMap(cap.Config)
 			}
 		}
 	}
 
 	return &result
+}
+
+// deepCopyConfigMap creates a deep copy of a config map, handling nested structures
+func deepCopyConfigMap(m map[string]interface{}) map[string]interface{} {
+	if m == nil {
+		return nil
+	}
+	result := make(map[string]interface{}, len(m))
+	for k, v := range m {
+		result[k] = deepCopyValue(v)
+	}
+	return result
+}
+
+// deepCopyValue creates a deep copy of a value, handling common types
+func deepCopyValue(v interface{}) interface{} {
+	if v == nil {
+		return nil
+	}
+
+	switch val := v.(type) {
+	case map[string]interface{}:
+		return deepCopyConfigMap(val)
+	case []interface{}:
+		result := make([]interface{}, len(val))
+		for i, item := range val {
+			result[i] = deepCopyValue(item)
+		}
+		return result
+	case []string:
+		result := make([]string, len(val))
+		copy(result, val)
+		return result
+	case []int:
+		result := make([]int, len(val))
+		copy(result, val)
+		return result
+	case []float64:
+		result := make([]float64, len(val))
+		copy(result, val)
+		return result
+	default:
+		// For primitive types (string, int, float64, bool, etc.), return as-is
+		// These are immutable in Go, so no deep copy needed
+		return v
+	}
 }
 
 // serializeToMarkdown converts a skill to markdown format with frontmatter

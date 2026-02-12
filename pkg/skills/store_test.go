@@ -671,7 +671,7 @@ func TestSanitizeOwnerID(t *testing.T) {
 		{"user_123", "user_123"},
 		{"user.123", "user.123"},
 		{"user@123", "user-123"},
-		{"user/123", "123"}, // filepath.Base extracts only the last component
+		{"user/123", "123"}, // filepath.Base("user/123") returns "123" (extracts only the last path component)
 		{"user\\123", "user-123"},
 		{"../malicious", "malicious"},
 		{"../../etc/passwd", "passwd"},
