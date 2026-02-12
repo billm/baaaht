@@ -1,7 +1,7 @@
 # Baaaht Monorepo Makefile
 
 .PHONY: all build test clean lint docker-build docker-run help build-orchestrator proto-gen proto-clean orchestrator tui \
-       llm-gateway llm-gateway-build llm-gateway-docker llm-gateway-clean
+       worker llm-gateway llm-gateway-build llm-gateway-docker llm-gateway-clean
 
 # Variables
 BUILD_DIR=bin
@@ -18,7 +18,7 @@ PROTO_GO_FILES=$(patsubst $(PROTO_DIR)/%.proto,$(PROTO_DIR)/%.pb.go,$(PROTO_FILE
 PROTO_GRPC_GO_FILES=$(patsubst $(PROTO_DIR)/%.proto,$(PROTO_DIR)/%_grpc.pb.go,$(PROTO_FILES))
 
 # Available tools (binaries to build)
-TOOLS=$(BUILD_DIR)/orchestrator $(BUILD_DIR)/tui
+TOOLS=$(BUILD_DIR)/orchestrator $(BUILD_DIR)/tui $(BUILD_DIR)/worker
 
 # Go build flags
 GO_FLAGS=-v
@@ -35,6 +35,14 @@ $(BUILD_DIR)/orchestrator: $(PROTO_GO_FILES) $(PROTO_GRPC_GO_FILES)
 	@echo "Building orchestrator..."
 	@mkdir -p $(BUILD_DIR)
 	go build $(GO_FLAGS) -o $(BUILD_DIR)/orchestrator ./cmd/orchestrator
+
+## worker: Build the worker binary
+worker: $(BUILD_DIR)/worker
+
+$(BUILD_DIR)/worker:
+	@echo "Building worker..."
+	@mkdir -p $(BUILD_DIR)
+	go build $(GO_FLAGS) -o $(BUILD_DIR)/worker ./cmd/worker
 
 ## build-tui: Build the TUI binary
 tui: $(BUILD_DIR)/tui

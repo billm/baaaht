@@ -31,6 +31,18 @@ const (
 	SeverityInfo Severity = "info"
 )
 
+// MountAccessMode defines the access mode for a mount allowlist entry
+type MountAccessMode string
+
+const (
+	// MountAccessModeReadOnly allows read-only access to the mount
+	MountAccessModeReadOnly MountAccessMode = "readonly"
+	// MountAccessModeReadWrite allows read-write access to the mount
+	MountAccessModeReadWrite MountAccessMode = "readwrite"
+	// MountAccessModeDenied explicitly denies access to the mount
+	MountAccessModeDenied MountAccessMode = "denied"
+)
+
 // Policy represents a set of security rules and restrictions
 type Policy struct {
 	ID          string            `json:"id" yaml:"id"`
@@ -79,6 +91,20 @@ type MountPolicy struct {
 	MaxTmpfsSize *int64 `json:"max_tmpfs_size,omitempty" yaml:"max_tmpfs_size,omitempty"`
 	// Read-only root filesystem enforcement
 	EnforceReadOnlyRootfs bool `json:"enforce_read_only_rootfs,omitempty" yaml:"enforce_read_only_rootfs,omitempty"`
+	// Mount allowlist with per-user/per-group entries
+	MountAllowlist []MountAllowlistEntry `json:"mount_allowlist,omitempty" yaml:"mount_allowlist,omitempty"`
+}
+
+// MountAllowlistEntry defines a single mount allowlist entry with user/group scoping
+type MountAllowlistEntry struct {
+	// Path is the mount path on the host
+	Path string `json:"path" yaml:"path"`
+	// User is the username this entry applies to (empty = all users)
+	User string `json:"user,omitempty" yaml:"user,omitempty"`
+	// Group is the group name this entry applies to (empty = all groups)
+	Group string `json:"group,omitempty" yaml:"group,omitempty"`
+	// Mode defines the access mode for this mount
+	Mode MountAccessMode `json:"mode" yaml:"mode"`
 }
 
 // NetworkPolicy defines network restrictions
@@ -190,6 +216,9 @@ func (p *Policy) Merge(other *Policy) *Policy {
 		merged.Mounts.MaxTmpfsSize = other.Mounts.MaxTmpfsSize
 	}
 	merged.Mounts.EnforceReadOnlyRootfs = other.Mounts.EnforceReadOnlyRootfs
+	if len(other.Mounts.MountAllowlist) > 0 {
+		merged.Mounts.MountAllowlist = other.Mounts.MountAllowlist
+	}
 
 	// Merge network policy
 	merged.Network.AllowNetwork = other.Network.AllowNetwork
@@ -266,6 +295,32 @@ func (p *Policy) Validate() error {
 	// Validate mount policy
 	if p.Mounts.MaxTmpfsSize != nil && *p.Mounts.MaxTmpfsSize < 0 {
 		return fmt.Errorf("max tmpfs size cannot be negative")
+	}
+
+	// Validate mount allowlist entries
+	for i, entry := range p.Mounts.MountAllowlist {
+		// Validate path is not empty
+		if entry.Path == "" {
+			return fmt.Errorf("mount allowlist entry %d: path cannot be empty", i)
+		}
+
+		// Validate path is absolute
+		if !filepath.IsAbs(entry.Path) {
+			return fmt.Errorf("mount allowlist entry %d: path must be absolute: %s", i, entry.Path)
+		}
+
+		// Validate mode
+		switch entry.Mode {
+		case MountAccessModeReadOnly, MountAccessModeReadWrite, MountAccessModeDenied:
+			// Valid modes
+		default:
+			return fmt.Errorf("mount allowlist entry %d: invalid mode %q, must be readonly, readwrite, or denied", i, entry.Mode)
+		}
+
+		// Validate that user and group are not both specified
+		if entry.User != "" && entry.Group != "" {
+			return fmt.Errorf("mount allowlist entry %d: cannot specify both user and group", i)
+		}
 	}
 
 	// Validate image patterns

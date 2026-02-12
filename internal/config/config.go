@@ -31,6 +31,7 @@ type Config struct {
 	LLM          LLMConfig          `json:"llm" yaml:"llm"`
 	Provider     ProviderConfig     `json:"provider" yaml:"provider"`
 	Skills       SkillsConfig       `json:"skills" yaml:"skills"`
+	Audit        AuditConfig        `json:"audit" yaml:"audit"`
 }
 
 // DockerConfig contains Docker client configuration
@@ -289,6 +290,17 @@ type SkillsRetention struct {
 	ErrorMaxAge      time.Duration `json:"error_max_age" yaml:"error_max_age"`         // Time in error state before cleanup
 	MinLoadCount     int           `json:"min_load_count" yaml:"min_load_count"`       // Minimum loads to keep
 	PreserveVerified bool          `json:"preserve_verified" yaml:"preserve_verified"` // Don't delete verified skills
+// AuditConfig contains audit logging configuration
+type AuditConfig struct {
+	Enabled             bool   `json:"enabled" yaml:"enabled"`                          // Enable audit logging
+	Output              string `json:"output" yaml:"output"`                            // stdout, stderr, syslog, or file path
+	Format              string `json:"format" yaml:"format"`                            // json, text
+	RotationEnabled     bool   `json:"rotation_enabled" yaml:"rotation_enabled"`        // Enable log rotation
+	MaxSize             int    `json:"max_size" yaml:"max_size"`                        // Maximum size of audit log file in MB
+	MaxBackups          int    `json:"max_backups" yaml:"max_backups"`                  // Maximum number of backup files to keep
+	MaxAge              int    `json:"max_age" yaml:"max_age"`                          // Maximum age of audit log files in days
+	Compress            bool   `json:"compress" yaml:"compress"`                        // Compress rotated log files
+	IncludeSensitiveData bool  `json:"include_sensitive_data" yaml:"include_sensitive_data"` // Include sensitive data in audit logs
 }
 
 // applyDefaults fills in zero-valued config fields with their defaults
@@ -661,6 +673,37 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.Skills.Retention.ErrorMaxAge == 0 {
 		cfg.Skills.Retention.ErrorMaxAge = defaultSkills.Retention.ErrorMaxAge
+  }
+	// Audit defaults - NEW field, may not exist in older YAML files
+	// Apply field-by-field to handle partial configs
+	defaultAudit := DefaultAuditConfig()
+	if cfg.Audit.Output == "" {
+		cfg.Audit.Output = defaultAudit.Output
+	}
+	if cfg.Audit.Format == "" {
+		cfg.Audit.Format = defaultAudit.Format
+	}
+	if cfg.Audit.MaxSize == 0 {
+		cfg.Audit.MaxSize = defaultAudit.MaxSize
+	}
+	if cfg.Audit.MaxBackups == 0 {
+		cfg.Audit.MaxBackups = defaultAudit.MaxBackups
+	}
+	if cfg.Audit.MaxAge == 0 {
+		cfg.Audit.MaxAge = defaultAudit.MaxAge
+	}
+	// For completely missing audit sections in older configs, also apply
+	// boolean defaults so behavior matches DefaultAuditConfig().
+	// TODO: Consider using pointer bools for optional audit fields or adding an
+	// explicit flag to detect missing configs more robustly. This check will break
+	// if new non-boolean fields are added to the audit config.
+	if cfg.Audit.Output == "" &&
+		cfg.Audit.Format == "" &&
+		cfg.Audit.MaxSize == 0 &&
+		cfg.Audit.MaxBackups == 0 &&
+		cfg.Audit.MaxAge == 0 {
+		cfg.Audit.RotationEnabled = defaultAudit.RotationEnabled
+		cfg.Audit.Compress = defaultAudit.Compress
 	}
 }
 
@@ -948,6 +991,7 @@ func Load() (*Config, error) {
 			LLM:          DefaultLLMConfig(),
 			Provider:     DefaultProviderConfig(),
 			Skills:       DefaultSkillsConfig(),
+			Audit:        DefaultAuditConfig(),
 		}
 	}
 
@@ -1223,6 +1267,29 @@ func (c *Config) Validate() error {
 			if c.Skills.Retention.MinLoadCount < 0 {
 				return types.NewError(types.ErrCodeInvalidArgument, "skills retention min load count cannot be negative")
 			}
+    }
+  }
+	// Validate Audit configuration
+	if c.Audit.Enabled {
+		if c.Audit.Output == "" {
+			return types.NewError(types.ErrCodeInvalidArgument, "audit output cannot be empty when audit is enabled")
+		}
+		validAuditFormats := map[string]bool{
+			"json": true,
+			"text": true,
+		}
+		if !validAuditFormats[c.Audit.Format] {
+			return types.NewError(types.ErrCodeInvalidArgument,
+				fmt.Sprintf("invalid audit format: %s (must be json or text)", c.Audit.Format))
+		}
+		if c.Audit.MaxSize <= 0 {
+			return types.NewError(types.ErrCodeInvalidArgument, "audit max size must be positive")
+		}
+		if c.Audit.MaxBackups < 0 {
+			return types.NewError(types.ErrCodeInvalidArgument, "audit max backups cannot be negative")
+		}
+		if c.Audit.MaxAge <= 0 {
+			return types.NewError(types.ErrCodeInvalidArgument, "audit max age must be positive")
 		}
 	}
 
@@ -1246,7 +1313,7 @@ func (c *Config) ProfilingAddress() string {
 
 // String returns a string representation of the configuration (sensitive data is hidden)
 func (c *Config) String() string {
-	return fmt.Sprintf("Config{Docker: %s, API: %s, Logging: %s, Session: %s, Event: %s, IPC: %s, Scheduler: %s, Credentials: %s, Policy: %s, Metrics: %s, Tracing: %s, Orchestrator: %s, Runtime: %s, Memory: %s, GRPC: %s, LLM: %s, Provider: %s, Skills: %s}",
+	return fmt.Sprintf("Config{Docker: %s, API: %s, Logging: %s, Session: %s, Event: %s, IPC: %s, Scheduler: %s, Credentials: %s, Policy: %s, Metrics: %s, Tracing: %s, Orchestrator: %s, Runtime: %s, Memory: %s, GRPC: %s, LLM: %s, Provider: %s, Skills: %s, Audit: %s}",
 		c.Docker.String(),
 		c.APIServer.String(),
 		c.Logging.String(),
@@ -1265,6 +1332,7 @@ func (c *Config) String() string {
 		c.LLM.String(),
 		c.Provider.String(),
 		c.Skills.String(),
+		c.Audit.String(),
 	)
 }
 
@@ -1448,4 +1516,7 @@ func (c SkillsGitHubConfig) String() string {
 func (c SkillsRetention) String() string {
 	return fmt.Sprintf("SkillsRetention{Enabled: %v, MaxAge: %s, PreserveVerified: %v}",
 		c.Enabled, c.MaxAge, c.PreserveVerified)
+func (c AuditConfig) String() string {
+	return fmt.Sprintf("AuditConfig{Enabled: %v, Output: %s, Format: %s, RotationEnabled: %v}",
+		c.Enabled, c.Output, c.Format, c.RotationEnabled)
 }

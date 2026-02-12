@@ -208,6 +208,14 @@ const (
 	DefaultSkillsRetentionUnusedMaxAge = 30 * 24 * time.Hour // 30 days
 	DefaultSkillsRetentionErrorMaxAge = 7 * 24 * time.Hour // 7 days
 	DefaultSkillsRetentionMinLoadCount = 0
+
+  // Default Audit settings
+	DefaultAuditEnabled        = false
+	DefaultAuditOutput         = "stdout"
+	DefaultAuditFormat         = "json"
+	DefaultAuditMaxSize        = 100 // MB
+	DefaultAuditMaxBackups     = 10
+	DefaultAuditMaxAge         = 30  // days
 )
 
 // DefaultDockerConfig returns the default Docker configuration
@@ -508,6 +516,20 @@ func DefaultSkillsConfig() SkillsConfig {
 			ErrorMaxAge:      DefaultSkillsRetentionErrorMaxAge,
 			MinLoadCount:     DefaultSkillsRetentionMinLoadCount,
 			PreserveVerified: true,
-		},
+		}
+  }
+}
+// DefaultAuditConfig returns the default audit logging configuration
+func DefaultAuditConfig() AuditConfig {
+	return AuditConfig{
+		Enabled:             DefaultAuditEnabled,
+		Output:              DefaultAuditOutput,
+		Format:              DefaultAuditFormat,
+		RotationEnabled:     true,
+		MaxSize:             DefaultAuditMaxSize,
+		MaxBackups:          DefaultAuditMaxBackups,
+		MaxAge:              DefaultAuditMaxAge,
+		Compress:            true,
+		IncludeSensitiveData: false,
 	}
 }

@@ -2283,6 +2283,11 @@ type StreamTaskRequest struct {
 	//	*StreamTaskRequest_Input
 	//	*StreamTaskRequest_Heartbeat
 	//	*StreamTaskRequest_Cancel
+	//	*StreamTaskRequest_Progress
+	//	*StreamTaskRequest_Output
+	//	*StreamTaskRequest_Status
+	//	*StreamTaskRequest_Complete
+	//	*StreamTaskRequest_ErrorMsg
 	Payload       isStreamTaskRequest_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -2359,6 +2364,51 @@ func (x *StreamTaskRequest) GetCancel() *CancelCommand {
 	return nil
 }
 
+func (x *StreamTaskRequest) GetProgress() *TaskProgress {
+	if x != nil {
+		if x, ok := x.Payload.(*StreamTaskRequest_Progress); ok {
+			return x.Progress
+		}
+	}
+	return nil
+}
+
+func (x *StreamTaskRequest) GetOutput() *TaskOutput {
+	if x != nil {
+		if x, ok := x.Payload.(*StreamTaskRequest_Output); ok {
+			return x.Output
+		}
+	}
+	return nil
+}
+
+func (x *StreamTaskRequest) GetStatus() *TaskStatusUpdate {
+	if x != nil {
+		if x, ok := x.Payload.(*StreamTaskRequest_Status); ok {
+			return x.Status
+		}
+	}
+	return nil
+}
+
+func (x *StreamTaskRequest) GetComplete() *TaskComplete {
+	if x != nil {
+		if x, ok := x.Payload.(*StreamTaskRequest_Complete); ok {
+			return x.Complete
+		}
+	}
+	return nil
+}
+
+func (x *StreamTaskRequest) GetErrorMsg() *TaskError {
+	if x != nil {
+		if x, ok := x.Payload.(*StreamTaskRequest_ErrorMsg); ok {
+			return x.ErrorMsg
+		}
+	}
+	return nil
+}
+
 type isStreamTaskRequest_Payload interface {
 	isStreamTaskRequest_Payload()
 }
@@ -2375,11 +2425,41 @@ type StreamTaskRequest_Cancel struct {
 	Cancel *CancelCommand `protobuf:"bytes,4,opt,name=cancel,proto3,oneof"`
 }
 
+type StreamTaskRequest_Progress struct {
+	Progress *TaskProgress `protobuf:"bytes,5,opt,name=progress,proto3,oneof"`
+}
+
+type StreamTaskRequest_Output struct {
+	Output *TaskOutput `protobuf:"bytes,6,opt,name=output,proto3,oneof"`
+}
+
+type StreamTaskRequest_Status struct {
+	Status *TaskStatusUpdate `protobuf:"bytes,7,opt,name=status,proto3,oneof"`
+}
+
+type StreamTaskRequest_Complete struct {
+	Complete *TaskComplete `protobuf:"bytes,8,opt,name=complete,proto3,oneof"`
+}
+
+type StreamTaskRequest_ErrorMsg struct {
+	ErrorMsg *TaskError `protobuf:"bytes,9,opt,name=error_msg,json=errorMsg,proto3,oneof"`
+}
+
 func (*StreamTaskRequest_Input) isStreamTaskRequest_Payload() {}
 
 func (*StreamTaskRequest_Heartbeat) isStreamTaskRequest_Payload() {}
 
 func (*StreamTaskRequest_Cancel) isStreamTaskRequest_Payload() {}
+
+func (*StreamTaskRequest_Progress) isStreamTaskRequest_Payload() {}
+
+func (*StreamTaskRequest_Output) isStreamTaskRequest_Payload() {}
+
+func (*StreamTaskRequest_Status) isStreamTaskRequest_Payload() {}
+
+func (*StreamTaskRequest_Complete) isStreamTaskRequest_Payload() {}
+
+func (*StreamTaskRequest_ErrorMsg) isStreamTaskRequest_Payload() {}
 
 // TaskInput contains input data for a streaming task
 type TaskInput struct {
@@ -3948,12 +4028,17 @@ const file_proto_agent_proto_rawDesc = "" +
 	"\bpriority\x18\x05 \x01(\x0e2\x16.agent.v1.TaskPriorityR\bpriority\"R\n" +
 	"\x13ExecuteTaskResponse\x12\x17\n" +
 	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12\"\n" +
-	"\x04task\x18\x02 \x01(\v2\x0e.agent.v1.TaskR\x04task\"\xcf\x01\n" +
+	"\x04task\x18\x02 \x01(\v2\x0e.agent.v1.TaskR\x04task\"\xd5\x03\n" +
 	"\x11StreamTaskRequest\x12\x17\n" +
 	"\atask_id\x18\x01 \x01(\tR\x06taskId\x12+\n" +
 	"\x05input\x18\x02 \x01(\v2\x13.agent.v1.TaskInputH\x00R\x05input\x126\n" +
 	"\theartbeat\x18\x03 \x01(\v2\x16.google.protobuf.EmptyH\x00R\theartbeat\x121\n" +
-	"\x06cancel\x18\x04 \x01(\v2\x17.agent.v1.CancelCommandH\x00R\x06cancelB\t\n" +
+	"\x06cancel\x18\x04 \x01(\v2\x17.agent.v1.CancelCommandH\x00R\x06cancel\x124\n" +
+	"\bprogress\x18\x05 \x01(\v2\x16.agent.v1.TaskProgressH\x00R\bprogress\x12.\n" +
+	"\x06output\x18\x06 \x01(\v2\x14.agent.v1.TaskOutputH\x00R\x06output\x124\n" +
+	"\x06status\x18\a \x01(\v2\x1a.agent.v1.TaskStatusUpdateH\x00R\x06status\x124\n" +
+	"\bcomplete\x18\b \x01(\v2\x16.agent.v1.TaskCompleteH\x00R\bcomplete\x122\n" +
+	"\terror_msg\x18\t \x01(\v2\x13.agent.v1.TaskErrorH\x00R\berrorMsgB\t\n" +
 	"\apayload\"\x9b\x01\n" +
 	"\tTaskInput\x12\x12\n" +
 	"\x04data\x18\x01 \x01(\fR\x04data\x12=\n" +
@@ -4213,123 +4298,128 @@ var file_proto_agent_proto_goTypes = []any{
 	(*emptypb.Empty)(nil),            // 65: google.protobuf.Empty
 }
 var file_proto_agent_proto_depIdxs = []int32{
-	0,  // 0: agent.v1.Agent.type:type_name -> agent.v1.AgentType
-	1,  // 1: agent.v1.Agent.state:type_name -> agent.v1.AgentState
-	61, // 2: agent.v1.Agent.status:type_name -> common.v1.Status
-	62, // 3: agent.v1.Agent.registered_at:type_name -> google.protobuf.Timestamp
-	62, // 4: agent.v1.Agent.last_heartbeat:type_name -> google.protobuf.Timestamp
-	8,  // 5: agent.v1.Agent.metadata:type_name -> agent.v1.AgentMetadata
-	9,  // 6: agent.v1.Agent.capabilities:type_name -> agent.v1.AgentCapabilities
-	63, // 7: agent.v1.Agent.resources:type_name -> common.v1.ResourceUsage
-	51, // 8: agent.v1.AgentMetadata.labels:type_name -> agent.v1.AgentMetadata.LabelsEntry
-	64, // 9: agent.v1.AgentCapabilities.resource_limits:type_name -> common.v1.ResourceLimits
-	2,  // 10: agent.v1.Task.type:type_name -> agent.v1.TaskType
-	3,  // 11: agent.v1.Task.state:type_name -> agent.v1.TaskState
-	4,  // 12: agent.v1.Task.priority:type_name -> agent.v1.TaskPriority
-	62, // 13: agent.v1.Task.created_at:type_name -> google.protobuf.Timestamp
-	62, // 14: agent.v1.Task.started_at:type_name -> google.protobuf.Timestamp
-	62, // 15: agent.v1.Task.completed_at:type_name -> google.protobuf.Timestamp
-	62, // 16: agent.v1.Task.expires_at:type_name -> google.protobuf.Timestamp
-	11, // 17: agent.v1.Task.config:type_name -> agent.v1.TaskConfig
-	13, // 18: agent.v1.Task.result:type_name -> agent.v1.TaskResult
-	14, // 19: agent.v1.Task.error:type_name -> agent.v1.TaskError
-	52, // 20: agent.v1.TaskConfig.environment:type_name -> agent.v1.TaskConfig.EnvironmentEntry
-	53, // 21: agent.v1.TaskConfig.parameters:type_name -> agent.v1.TaskConfig.ParametersEntry
-	12, // 22: agent.v1.TaskConfig.constraints:type_name -> agent.v1.TaskConstraints
-	54, // 23: agent.v1.TaskResult.metadata:type_name -> agent.v1.TaskResult.MetadataEntry
-	62, // 24: agent.v1.TaskResult.completed_at:type_name -> google.protobuf.Timestamp
-	62, // 25: agent.v1.TaskError.occurred_at:type_name -> google.protobuf.Timestamp
-	5,  // 26: agent.v1.AgentMessage.type:type_name -> agent.v1.MessageType
-	62, // 27: agent.v1.AgentMessage.timestamp:type_name -> google.protobuf.Timestamp
-	16, // 28: agent.v1.AgentMessage.task_message:type_name -> agent.v1.TaskMessage
-	17, // 29: agent.v1.AgentMessage.control_message:type_name -> agent.v1.ControlMessage
-	18, // 30: agent.v1.AgentMessage.data_message:type_name -> agent.v1.DataMessage
-	19, // 31: agent.v1.AgentMessage.event_message:type_name -> agent.v1.EventMessage
-	20, // 32: agent.v1.AgentMessage.metadata:type_name -> agent.v1.AgentMessageMetadata
-	3,  // 33: agent.v1.TaskMessage.state:type_name -> agent.v1.TaskState
-	6,  // 34: agent.v1.ControlMessage.command:type_name -> agent.v1.ControlCommand
-	55, // 35: agent.v1.ControlMessage.parameters:type_name -> agent.v1.ControlMessage.ParametersEntry
-	56, // 36: agent.v1.DataMessage.headers:type_name -> agent.v1.DataMessage.HeadersEntry
-	57, // 37: agent.v1.EventMessage.data:type_name -> agent.v1.EventMessage.DataEntry
-	58, // 38: agent.v1.AgentMessageMetadata.headers:type_name -> agent.v1.AgentMessageMetadata.HeadersEntry
-	0,  // 39: agent.v1.RegisterRequest.type:type_name -> agent.v1.AgentType
-	8,  // 40: agent.v1.RegisterRequest.metadata:type_name -> agent.v1.AgentMetadata
-	9,  // 41: agent.v1.RegisterRequest.capabilities:type_name -> agent.v1.AgentCapabilities
-	7,  // 42: agent.v1.RegisterResponse.agent:type_name -> agent.v1.Agent
-	63, // 43: agent.v1.HeartbeatRequest.resources:type_name -> common.v1.ResourceUsage
-	62, // 44: agent.v1.HeartbeatResponse.timestamp:type_name -> google.protobuf.Timestamp
-	11, // 45: agent.v1.ExecuteTaskRequest.config:type_name -> agent.v1.TaskConfig
-	2,  // 46: agent.v1.ExecuteTaskRequest.type:type_name -> agent.v1.TaskType
-	4,  // 47: agent.v1.ExecuteTaskRequest.priority:type_name -> agent.v1.TaskPriority
-	10, // 48: agent.v1.ExecuteTaskResponse.task:type_name -> agent.v1.Task
-	30, // 49: agent.v1.StreamTaskRequest.input:type_name -> agent.v1.TaskInput
-	65, // 50: agent.v1.StreamTaskRequest.heartbeat:type_name -> google.protobuf.Empty
-	31, // 51: agent.v1.StreamTaskRequest.cancel:type_name -> agent.v1.CancelCommand
-	59, // 52: agent.v1.TaskInput.metadata:type_name -> agent.v1.TaskInput.MetadataEntry
-	33, // 53: agent.v1.StreamTaskResponse.output:type_name -> agent.v1.TaskOutput
-	34, // 54: agent.v1.StreamTaskResponse.status:type_name -> agent.v1.TaskStatusUpdate
-	35, // 55: agent.v1.StreamTaskResponse.progress:type_name -> agent.v1.TaskProgress
-	36, // 56: agent.v1.StreamTaskResponse.complete:type_name -> agent.v1.TaskComplete
-	14, // 57: agent.v1.StreamTaskResponse.error:type_name -> agent.v1.TaskError
-	65, // 58: agent.v1.StreamTaskResponse.heartbeat:type_name -> google.protobuf.Empty
-	3,  // 59: agent.v1.TaskStatusUpdate.state:type_name -> agent.v1.TaskState
-	62, // 60: agent.v1.TaskStatusUpdate.timestamp:type_name -> google.protobuf.Timestamp
-	60, // 61: agent.v1.TaskProgress.details:type_name -> agent.v1.TaskProgress.DetailsEntry
-	13, // 62: agent.v1.TaskComplete.result:type_name -> agent.v1.TaskResult
-	62, // 63: agent.v1.TaskComplete.completed_at:type_name -> google.protobuf.Timestamp
-	3,  // 64: agent.v1.CancelTaskResponse.state:type_name -> agent.v1.TaskState
-	40, // 65: agent.v1.ListTasksRequest.filter:type_name -> agent.v1.TaskFilter
-	3,  // 66: agent.v1.TaskFilter.state:type_name -> agent.v1.TaskState
-	2,  // 67: agent.v1.TaskFilter.type:type_name -> agent.v1.TaskType
-	4,  // 68: agent.v1.TaskFilter.priority:type_name -> agent.v1.TaskPriority
-	62, // 69: agent.v1.TaskFilter.created_after:type_name -> google.protobuf.Timestamp
-	62, // 70: agent.v1.TaskFilter.created_before:type_name -> google.protobuf.Timestamp
-	10, // 71: agent.v1.ListTasksResponse.tasks:type_name -> agent.v1.Task
-	10, // 72: agent.v1.GetTaskStatusResponse.task:type_name -> agent.v1.Task
-	15, // 73: agent.v1.StreamAgentRequest.message:type_name -> agent.v1.AgentMessage
-	65, // 74: agent.v1.StreamAgentRequest.heartbeat:type_name -> google.protobuf.Empty
-	15, // 75: agent.v1.StreamAgentResponse.message:type_name -> agent.v1.AgentMessage
-	65, // 76: agent.v1.StreamAgentResponse.heartbeat:type_name -> google.protobuf.Empty
-	15, // 77: agent.v1.AgentSendMessageRequest.message:type_name -> agent.v1.AgentMessage
-	62, // 78: agent.v1.AgentSendMessageResponse.timestamp:type_name -> google.protobuf.Timestamp
-	61, // 79: agent.v1.AgentHealthCheckResponse.status:type_name -> common.v1.Status
-	61, // 80: agent.v1.AgentStatusResponse.status:type_name -> common.v1.Status
-	1,  // 81: agent.v1.AgentStatusResponse.state:type_name -> agent.v1.AgentState
-	62, // 82: agent.v1.AgentStatusResponse.started_at:type_name -> google.protobuf.Timestamp
-	62, // 83: agent.v1.AgentStatusResponse.uptime:type_name -> google.protobuf.Timestamp
-	63, // 84: agent.v1.AgentStatusResponse.resources:type_name -> common.v1.ResourceUsage
-	9,  // 85: agent.v1.CapabilitiesResponse.capabilities:type_name -> agent.v1.AgentCapabilities
-	21, // 86: agent.v1.AgentService.Register:input_type -> agent.v1.RegisterRequest
-	23, // 87: agent.v1.AgentService.Unregister:input_type -> agent.v1.UnregisterRequest
-	25, // 88: agent.v1.AgentService.Heartbeat:input_type -> agent.v1.HeartbeatRequest
-	27, // 89: agent.v1.AgentService.ExecuteTask:input_type -> agent.v1.ExecuteTaskRequest
-	29, // 90: agent.v1.AgentService.StreamTask:input_type -> agent.v1.StreamTaskRequest
-	37, // 91: agent.v1.AgentService.CancelTask:input_type -> agent.v1.CancelTaskRequest
-	39, // 92: agent.v1.AgentService.ListTasks:input_type -> agent.v1.ListTasksRequest
-	42, // 93: agent.v1.AgentService.GetTaskStatus:input_type -> agent.v1.GetTaskStatusRequest
-	44, // 94: agent.v1.AgentService.StreamAgent:input_type -> agent.v1.StreamAgentRequest
-	46, // 95: agent.v1.AgentService.SendMessage:input_type -> agent.v1.AgentSendMessageRequest
-	65, // 96: agent.v1.AgentService.HealthCheck:input_type -> google.protobuf.Empty
-	65, // 97: agent.v1.AgentService.GetStatus:input_type -> google.protobuf.Empty
-	65, // 98: agent.v1.AgentService.GetCapabilities:input_type -> google.protobuf.Empty
-	22, // 99: agent.v1.AgentService.Register:output_type -> agent.v1.RegisterResponse
-	24, // 100: agent.v1.AgentService.Unregister:output_type -> agent.v1.UnregisterResponse
-	26, // 101: agent.v1.AgentService.Heartbeat:output_type -> agent.v1.HeartbeatResponse
-	28, // 102: agent.v1.AgentService.ExecuteTask:output_type -> agent.v1.ExecuteTaskResponse
-	32, // 103: agent.v1.AgentService.StreamTask:output_type -> agent.v1.StreamTaskResponse
-	38, // 104: agent.v1.AgentService.CancelTask:output_type -> agent.v1.CancelTaskResponse
-	41, // 105: agent.v1.AgentService.ListTasks:output_type -> agent.v1.ListTasksResponse
-	43, // 106: agent.v1.AgentService.GetTaskStatus:output_type -> agent.v1.GetTaskStatusResponse
-	45, // 107: agent.v1.AgentService.StreamAgent:output_type -> agent.v1.StreamAgentResponse
-	47, // 108: agent.v1.AgentService.SendMessage:output_type -> agent.v1.AgentSendMessageResponse
-	48, // 109: agent.v1.AgentService.HealthCheck:output_type -> agent.v1.AgentHealthCheckResponse
-	49, // 110: agent.v1.AgentService.GetStatus:output_type -> agent.v1.AgentStatusResponse
-	50, // 111: agent.v1.AgentService.GetCapabilities:output_type -> agent.v1.CapabilitiesResponse
-	99, // [99:112] is the sub-list for method output_type
-	86, // [86:99] is the sub-list for method input_type
-	86, // [86:86] is the sub-list for extension type_name
-	86, // [86:86] is the sub-list for extension extendee
-	0,  // [0:86] is the sub-list for field type_name
+	0,   // 0: agent.v1.Agent.type:type_name -> agent.v1.AgentType
+	1,   // 1: agent.v1.Agent.state:type_name -> agent.v1.AgentState
+	61,  // 2: agent.v1.Agent.status:type_name -> common.v1.Status
+	62,  // 3: agent.v1.Agent.registered_at:type_name -> google.protobuf.Timestamp
+	62,  // 4: agent.v1.Agent.last_heartbeat:type_name -> google.protobuf.Timestamp
+	8,   // 5: agent.v1.Agent.metadata:type_name -> agent.v1.AgentMetadata
+	9,   // 6: agent.v1.Agent.capabilities:type_name -> agent.v1.AgentCapabilities
+	63,  // 7: agent.v1.Agent.resources:type_name -> common.v1.ResourceUsage
+	51,  // 8: agent.v1.AgentMetadata.labels:type_name -> agent.v1.AgentMetadata.LabelsEntry
+	64,  // 9: agent.v1.AgentCapabilities.resource_limits:type_name -> common.v1.ResourceLimits
+	2,   // 10: agent.v1.Task.type:type_name -> agent.v1.TaskType
+	3,   // 11: agent.v1.Task.state:type_name -> agent.v1.TaskState
+	4,   // 12: agent.v1.Task.priority:type_name -> agent.v1.TaskPriority
+	62,  // 13: agent.v1.Task.created_at:type_name -> google.protobuf.Timestamp
+	62,  // 14: agent.v1.Task.started_at:type_name -> google.protobuf.Timestamp
+	62,  // 15: agent.v1.Task.completed_at:type_name -> google.protobuf.Timestamp
+	62,  // 16: agent.v1.Task.expires_at:type_name -> google.protobuf.Timestamp
+	11,  // 17: agent.v1.Task.config:type_name -> agent.v1.TaskConfig
+	13,  // 18: agent.v1.Task.result:type_name -> agent.v1.TaskResult
+	14,  // 19: agent.v1.Task.error:type_name -> agent.v1.TaskError
+	52,  // 20: agent.v1.TaskConfig.environment:type_name -> agent.v1.TaskConfig.EnvironmentEntry
+	53,  // 21: agent.v1.TaskConfig.parameters:type_name -> agent.v1.TaskConfig.ParametersEntry
+	12,  // 22: agent.v1.TaskConfig.constraints:type_name -> agent.v1.TaskConstraints
+	54,  // 23: agent.v1.TaskResult.metadata:type_name -> agent.v1.TaskResult.MetadataEntry
+	62,  // 24: agent.v1.TaskResult.completed_at:type_name -> google.protobuf.Timestamp
+	62,  // 25: agent.v1.TaskError.occurred_at:type_name -> google.protobuf.Timestamp
+	5,   // 26: agent.v1.AgentMessage.type:type_name -> agent.v1.MessageType
+	62,  // 27: agent.v1.AgentMessage.timestamp:type_name -> google.protobuf.Timestamp
+	16,  // 28: agent.v1.AgentMessage.task_message:type_name -> agent.v1.TaskMessage
+	17,  // 29: agent.v1.AgentMessage.control_message:type_name -> agent.v1.ControlMessage
+	18,  // 30: agent.v1.AgentMessage.data_message:type_name -> agent.v1.DataMessage
+	19,  // 31: agent.v1.AgentMessage.event_message:type_name -> agent.v1.EventMessage
+	20,  // 32: agent.v1.AgentMessage.metadata:type_name -> agent.v1.AgentMessageMetadata
+	3,   // 33: agent.v1.TaskMessage.state:type_name -> agent.v1.TaskState
+	6,   // 34: agent.v1.ControlMessage.command:type_name -> agent.v1.ControlCommand
+	55,  // 35: agent.v1.ControlMessage.parameters:type_name -> agent.v1.ControlMessage.ParametersEntry
+	56,  // 36: agent.v1.DataMessage.headers:type_name -> agent.v1.DataMessage.HeadersEntry
+	57,  // 37: agent.v1.EventMessage.data:type_name -> agent.v1.EventMessage.DataEntry
+	58,  // 38: agent.v1.AgentMessageMetadata.headers:type_name -> agent.v1.AgentMessageMetadata.HeadersEntry
+	0,   // 39: agent.v1.RegisterRequest.type:type_name -> agent.v1.AgentType
+	8,   // 40: agent.v1.RegisterRequest.metadata:type_name -> agent.v1.AgentMetadata
+	9,   // 41: agent.v1.RegisterRequest.capabilities:type_name -> agent.v1.AgentCapabilities
+	7,   // 42: agent.v1.RegisterResponse.agent:type_name -> agent.v1.Agent
+	63,  // 43: agent.v1.HeartbeatRequest.resources:type_name -> common.v1.ResourceUsage
+	62,  // 44: agent.v1.HeartbeatResponse.timestamp:type_name -> google.protobuf.Timestamp
+	11,  // 45: agent.v1.ExecuteTaskRequest.config:type_name -> agent.v1.TaskConfig
+	2,   // 46: agent.v1.ExecuteTaskRequest.type:type_name -> agent.v1.TaskType
+	4,   // 47: agent.v1.ExecuteTaskRequest.priority:type_name -> agent.v1.TaskPriority
+	10,  // 48: agent.v1.ExecuteTaskResponse.task:type_name -> agent.v1.Task
+	30,  // 49: agent.v1.StreamTaskRequest.input:type_name -> agent.v1.TaskInput
+	65,  // 50: agent.v1.StreamTaskRequest.heartbeat:type_name -> google.protobuf.Empty
+	31,  // 51: agent.v1.StreamTaskRequest.cancel:type_name -> agent.v1.CancelCommand
+	35,  // 52: agent.v1.StreamTaskRequest.progress:type_name -> agent.v1.TaskProgress
+	33,  // 53: agent.v1.StreamTaskRequest.output:type_name -> agent.v1.TaskOutput
+	34,  // 54: agent.v1.StreamTaskRequest.status:type_name -> agent.v1.TaskStatusUpdate
+	36,  // 55: agent.v1.StreamTaskRequest.complete:type_name -> agent.v1.TaskComplete
+	14,  // 56: agent.v1.StreamTaskRequest.error_msg:type_name -> agent.v1.TaskError
+	59,  // 57: agent.v1.TaskInput.metadata:type_name -> agent.v1.TaskInput.MetadataEntry
+	33,  // 58: agent.v1.StreamTaskResponse.output:type_name -> agent.v1.TaskOutput
+	34,  // 59: agent.v1.StreamTaskResponse.status:type_name -> agent.v1.TaskStatusUpdate
+	35,  // 60: agent.v1.StreamTaskResponse.progress:type_name -> agent.v1.TaskProgress
+	36,  // 61: agent.v1.StreamTaskResponse.complete:type_name -> agent.v1.TaskComplete
+	14,  // 62: agent.v1.StreamTaskResponse.error:type_name -> agent.v1.TaskError
+	65,  // 63: agent.v1.StreamTaskResponse.heartbeat:type_name -> google.protobuf.Empty
+	3,   // 64: agent.v1.TaskStatusUpdate.state:type_name -> agent.v1.TaskState
+	62,  // 65: agent.v1.TaskStatusUpdate.timestamp:type_name -> google.protobuf.Timestamp
+	60,  // 66: agent.v1.TaskProgress.details:type_name -> agent.v1.TaskProgress.DetailsEntry
+	13,  // 67: agent.v1.TaskComplete.result:type_name -> agent.v1.TaskResult
+	62,  // 68: agent.v1.TaskComplete.completed_at:type_name -> google.protobuf.Timestamp
+	3,   // 69: agent.v1.CancelTaskResponse.state:type_name -> agent.v1.TaskState
+	40,  // 70: agent.v1.ListTasksRequest.filter:type_name -> agent.v1.TaskFilter
+	3,   // 71: agent.v1.TaskFilter.state:type_name -> agent.v1.TaskState
+	2,   // 72: agent.v1.TaskFilter.type:type_name -> agent.v1.TaskType
+	4,   // 73: agent.v1.TaskFilter.priority:type_name -> agent.v1.TaskPriority
+	62,  // 74: agent.v1.TaskFilter.created_after:type_name -> google.protobuf.Timestamp
+	62,  // 75: agent.v1.TaskFilter.created_before:type_name -> google.protobuf.Timestamp
+	10,  // 76: agent.v1.ListTasksResponse.tasks:type_name -> agent.v1.Task
+	10,  // 77: agent.v1.GetTaskStatusResponse.task:type_name -> agent.v1.Task
+	15,  // 78: agent.v1.StreamAgentRequest.message:type_name -> agent.v1.AgentMessage
+	65,  // 79: agent.v1.StreamAgentRequest.heartbeat:type_name -> google.protobuf.Empty
+	15,  // 80: agent.v1.StreamAgentResponse.message:type_name -> agent.v1.AgentMessage
+	65,  // 81: agent.v1.StreamAgentResponse.heartbeat:type_name -> google.protobuf.Empty
+	15,  // 82: agent.v1.AgentSendMessageRequest.message:type_name -> agent.v1.AgentMessage
+	62,  // 83: agent.v1.AgentSendMessageResponse.timestamp:type_name -> google.protobuf.Timestamp
+	61,  // 84: agent.v1.AgentHealthCheckResponse.status:type_name -> common.v1.Status
+	61,  // 85: agent.v1.AgentStatusResponse.status:type_name -> common.v1.Status
+	1,   // 86: agent.v1.AgentStatusResponse.state:type_name -> agent.v1.AgentState
+	62,  // 87: agent.v1.AgentStatusResponse.started_at:type_name -> google.protobuf.Timestamp
+	62,  // 88: agent.v1.AgentStatusResponse.uptime:type_name -> google.protobuf.Timestamp
+	63,  // 89: agent.v1.AgentStatusResponse.resources:type_name -> common.v1.ResourceUsage
+	9,   // 90: agent.v1.CapabilitiesResponse.capabilities:type_name -> agent.v1.AgentCapabilities
+	21,  // 91: agent.v1.AgentService.Register:input_type -> agent.v1.RegisterRequest
+	23,  // 92: agent.v1.AgentService.Unregister:input_type -> agent.v1.UnregisterRequest
+	25,  // 93: agent.v1.AgentService.Heartbeat:input_type -> agent.v1.HeartbeatRequest
+	27,  // 94: agent.v1.AgentService.ExecuteTask:input_type -> agent.v1.ExecuteTaskRequest
+	29,  // 95: agent.v1.AgentService.StreamTask:input_type -> agent.v1.StreamTaskRequest
+	37,  // 96: agent.v1.AgentService.CancelTask:input_type -> agent.v1.CancelTaskRequest
+	39,  // 97: agent.v1.AgentService.ListTasks:input_type -> agent.v1.ListTasksRequest
+	42,  // 98: agent.v1.AgentService.GetTaskStatus:input_type -> agent.v1.GetTaskStatusRequest
+	44,  // 99: agent.v1.AgentService.StreamAgent:input_type -> agent.v1.StreamAgentRequest
+	46,  // 100: agent.v1.AgentService.SendMessage:input_type -> agent.v1.AgentSendMessageRequest
+	65,  // 101: agent.v1.AgentService.HealthCheck:input_type -> google.protobuf.Empty
+	65,  // 102: agent.v1.AgentService.GetStatus:input_type -> google.protobuf.Empty
+	65,  // 103: agent.v1.AgentService.GetCapabilities:input_type -> google.protobuf.Empty
+	22,  // 104: agent.v1.AgentService.Register:output_type -> agent.v1.RegisterResponse
+	24,  // 105: agent.v1.AgentService.Unregister:output_type -> agent.v1.UnregisterResponse
+	26,  // 106: agent.v1.AgentService.Heartbeat:output_type -> agent.v1.HeartbeatResponse
+	28,  // 107: agent.v1.AgentService.ExecuteTask:output_type -> agent.v1.ExecuteTaskResponse
+	32,  // 108: agent.v1.AgentService.StreamTask:output_type -> agent.v1.StreamTaskResponse
+	38,  // 109: agent.v1.AgentService.CancelTask:output_type -> agent.v1.CancelTaskResponse
+	41,  // 110: agent.v1.AgentService.ListTasks:output_type -> agent.v1.ListTasksResponse
+	43,  // 111: agent.v1.AgentService.GetTaskStatus:output_type -> agent.v1.GetTaskStatusResponse
+	45,  // 112: agent.v1.AgentService.StreamAgent:output_type -> agent.v1.StreamAgentResponse
+	47,  // 113: agent.v1.AgentService.SendMessage:output_type -> agent.v1.AgentSendMessageResponse
+	48,  // 114: agent.v1.AgentService.HealthCheck:output_type -> agent.v1.AgentHealthCheckResponse
+	49,  // 115: agent.v1.AgentService.GetStatus:output_type -> agent.v1.AgentStatusResponse
+	50,  // 116: agent.v1.AgentService.GetCapabilities:output_type -> agent.v1.CapabilitiesResponse
+	104, // [104:117] is the sub-list for method output_type
+	91,  // [91:104] is the sub-list for method input_type
+	91,  // [91:91] is the sub-list for extension type_name
+	91,  // [91:91] is the sub-list for extension extendee
+	0,   // [0:91] is the sub-list for field type_name
 }
 
 func init() { file_proto_agent_proto_init() }
@@ -4348,6 +4438,11 @@ func file_proto_agent_proto_init() {
 		(*StreamTaskRequest_Input)(nil),
 		(*StreamTaskRequest_Heartbeat)(nil),
 		(*StreamTaskRequest_Cancel)(nil),
+		(*StreamTaskRequest_Progress)(nil),
+		(*StreamTaskRequest_Output)(nil),
+		(*StreamTaskRequest_Status)(nil),
+		(*StreamTaskRequest_Complete)(nil),
+		(*StreamTaskRequest_ErrorMsg)(nil),
 	}
 	file_proto_agent_proto_msgTypes[25].OneofWrappers = []any{
 		(*StreamTaskResponse_Output)(nil),

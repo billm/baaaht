@@ -7,6 +7,8 @@ import (
 	"github.com/billm/baaaht/orchestrator/internal/config"
 	"github.com/billm/baaaht/orchestrator/internal/logger"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // createTestEnforcer creates a policy enforcer for testing
@@ -833,7 +835,7 @@ func TestEnforcerString(t *testing.T) {
 	}
 
 	// Should contain mode
-	if !containsString(s, "mode:") {
+	if !containsSubstring(s, "mode:") {
 		t.Error("string representation should contain mode")
 	}
 }
@@ -869,7 +871,7 @@ func BenchmarkValidateConfig(b *testing.B) {
 }
 
 // Helper function
-func containsString(s, substr string) bool {
+func containsSubstring(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
 		(len(s) > 0 && len(substr) > 0 && findSubstring(s, substr)))
 }
@@ -881,4 +883,303 @@ func findSubstring(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+// TestEnforceMountMode tests enforcement of read-only mode on mounts based on allowlist
+func TestEnforceMountMode(t *testing.T) {
+	log, err := logger.NewDefault()
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
+
+	enforcer, err := NewDefault(log)
+	if err != nil {
+		t.Fatalf("failed to create enforcer: %v", err)
+	}
+	defer enforcer.Close()
+
+	ctx := context.Background()
+	sessionID := types.GenerateID()
+
+	// Create a policy with mount allowlist entries
+	policy := DefaultPolicy()
+	policy.Mode = EnforcementModeStrict
+	policy.Mounts.AllowBindMounts = true
+	policy.Mounts.MountAllowlist = []MountAllowlistEntry{
+		{
+			Path: "/readonly/data",
+			Mode: MountAccessModeReadOnly,
+			User: "testuser",
+		},
+		{
+			Path: "/readwrite/data",
+			Mode: MountAccessModeReadWrite,
+			User: "testuser",
+		},
+	}
+
+	err = enforcer.SetPolicy(ctx, policy)
+	if err != nil {
+		t.Fatalf("failed to set policy: %v", err)
+	}
+
+	tests := []struct {
+		name              string
+		config            types.ContainerConfig
+		wantReadOnlyIndex int   // Index of mount that should be read-only, -1 if none
+		wantReadWrite     bool  // Whether a mount should remain read-write
+	}{
+		{
+			name: "enforce read-only on readonly path",
+			config: types.ContainerConfig{
+				Image: "nginx:1.21",
+				Labels: map[string]string{
+					"username": "testuser",
+				},
+				Mounts: []types.Mount{
+					{
+						Type:     types.MountTypeBind,
+						Source:   "/readonly/data",
+						Target:   "/data",
+						ReadOnly: false, // User requested read-write
+					},
+				},
+			},
+			wantReadOnlyIndex: 0,
+		},
+		{
+			name: "allow read-write on readwrite path",
+			config: types.ContainerConfig{
+				Image: "nginx:1.21",
+				Labels: map[string]string{
+					"username": "testuser",
+				},
+				Mounts: []types.Mount{
+					{
+						Type:     types.MountTypeBind,
+						Source:   "/readwrite/data",
+						Target:   "/data",
+						ReadOnly: false,
+					},
+				},
+			},
+			wantReadOnlyIndex: -1,
+			wantReadWrite:     true,
+		},
+		{
+			name: "enforce read-only even when already set",
+			config: types.ContainerConfig{
+				Image: "nginx:1.21",
+				Labels: map[string]string{
+					"username": "testuser",
+				},
+				Mounts: []types.Mount{
+					{
+						Type:     types.MountTypeBind,
+						Source:   "/readonly/data",
+						Target:   "/data",
+						ReadOnly: true,
+					},
+				},
+			},
+			wantReadOnlyIndex: 0,
+		},
+		{
+			name: "multiple mounts with mixed modes",
+			config: types.ContainerConfig{
+				Image: "nginx:1.21",
+				Labels: map[string]string{
+					"username": "testuser",
+				},
+				Mounts: []types.Mount{
+					{
+						Type:     types.MountTypeBind,
+						Source:   "/readonly/data",
+						Target:   "/ro",
+						ReadOnly: false,
+					},
+					{
+						Type:     types.MountTypeBind,
+						Source:   "/readwrite/data",
+						Target:   "/rw",
+						ReadOnly: false,
+					},
+				},
+			},
+			wantReadOnlyIndex: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			enforced, err := enforcer.EnforceContainerConfig(ctx, sessionID, tt.config)
+			if err != nil {
+				t.Fatalf("enforcement failed: %v", err)
+			}
+
+			if tt.wantReadOnlyIndex >= 0 {
+				if tt.wantReadOnlyIndex >= len(enforced.Mounts) {
+					t.Errorf("mount index %d out of range", tt.wantReadOnlyIndex)
+					return
+				}
+				if !enforced.Mounts[tt.wantReadOnlyIndex].ReadOnly {
+					t.Errorf("mount at index %d should be read-only", tt.wantReadOnlyIndex)
+				}
+			}
+
+			if tt.wantReadWrite {
+				// Find a mount that should be read-write
+				foundRW := false
+				for _, m := range enforced.Mounts {
+					if m.Source == "/readwrite/data" && !m.ReadOnly {
+						foundRW = true
+						break
+					}
+				}
+				if !foundRW {
+					t.Error("expected at least one mount to be read-write")
+				}
+			}
+		})
+	}
+}
+
+// TestEnforceMountModeDisabledMode tests that enforcement is skipped in disabled mode
+func TestEnforceMountModeDisabledMode(t *testing.T) {
+	log, err := logger.NewDefault()
+	if err != nil {
+		t.Fatalf("failed to create logger: %v", err)
+	}
+
+	enforcer, err := NewDefault(log)
+	if err != nil {
+		t.Fatalf("failed to create enforcer: %v", err)
+	}
+	defer enforcer.Close()
+
+	ctx := context.Background()
+	sessionID := types.GenerateID()
+
+	// Create a policy with mount allowlist but disabled enforcement
+	policy := DefaultPolicy()
+	policy.Mode = EnforcementModeDisabled
+	policy.Mounts.AllowBindMounts = true
+	policy.Mounts.MountAllowlist = []MountAllowlistEntry{
+		{
+			Path: "/readonly/data",
+			Mode: MountAccessModeReadOnly,
+			User: "testuser",
+		},
+	}
+
+	err = enforcer.SetPolicy(ctx, policy)
+	if err != nil {
+		t.Fatalf("failed to set policy: %v", err)
+	}
+
+	config := types.ContainerConfig{
+		Image: "nginx:1.21",
+		Labels: map[string]string{
+			"username": "testuser",
+		},
+		Mounts: []types.Mount{
+			{
+				Type:     types.MountTypeBind,
+				Source:   "/readonly/data",
+				Target:   "/data",
+				ReadOnly: false, // User requested read-write
+			},
+		},
+	}
+
+	enforced, err := enforcer.EnforceContainerConfig(ctx, sessionID, config)
+	if err != nil {
+		t.Fatalf("enforcement failed: %v", err)
+	}
+
+	// In disabled mode, the mount should remain as the user requested
+	if enforced.Mounts[0].ReadOnly {
+		t.Error("in disabled mode, mount should not be forced to read-only")
+	}
+}
+
+// TestSetAuditLogger tests setting a custom audit logger on the enforcer
+func TestSetAuditLogger(t *testing.T) {
+	enforcer := createTestEnforcer(t)
+	defer enforcer.Close()
+
+	log, err := logger.NewDefault()
+	require.NoError(t, err)
+
+	// Create a custom audit logger
+	customAuditLogger, err := NewAuditLogger(log, "")
+	require.NoError(t, err)
+
+	// Set the custom audit logger
+	err = enforcer.SetAuditLogger(customAuditLogger)
+	require.NoError(t, err, "setting audit logger should succeed")
+
+	// Get the audit logger to verify it was set
+	retrievedLogger := enforcer.GetAuditLogger()
+	require.NotNil(t, retrievedLogger, "audit logger should not be nil")
+	assert.Same(t, customAuditLogger, retrievedLogger, "retrieved logger should be the same as the one set")
+}
+
+// TestSetAuditLoggerOnClosedEnforcer tests that setting audit logger on closed enforcer fails
+func TestSetAuditLoggerOnClosedEnforcer(t *testing.T) {
+	enforcer := createTestEnforcer(t)
+	enforcer.Close()
+
+	log, err := logger.NewDefault()
+	require.NoError(t, err)
+
+	customAuditLogger, err := NewAuditLogger(log, "")
+	require.NoError(t, err)
+
+	err = enforcer.SetAuditLogger(customAuditLogger)
+	assert.Error(t, err, "setting audit logger on closed enforcer should fail")
+	var customErr *types.Error
+	assert.ErrorAs(t, err, &customErr)
+	assert.Equal(t, types.ErrCodeUnavailable, customErr.Code)
+}
+
+// TestSetGroupProvider tests setting a group membership provider on the enforcer
+func TestSetGroupProvider(t *testing.T) {
+	enforcer := createTestEnforcer(t)
+	defer enforcer.Close()
+
+	// Create a mock group provider
+	mockProvider := &mockGroupProvider{
+		groups: map[string][]string{
+			"testuser": {"developers"},
+		},
+	}
+
+	// Set the group provider
+	err := enforcer.SetGroupProvider(mockProvider)
+	require.NoError(t, err, "setting group provider should succeed")
+}
+
+// TestSetGroupProviderOnClosedEnforcer tests that setting group provider on closed enforcer fails
+func TestSetGroupProviderOnClosedEnforcer(t *testing.T) {
+	enforcer := createTestEnforcer(t)
+	enforcer.Close()
+
+	mockProvider := &mockGroupProvider{}
+
+	err := enforcer.SetGroupProvider(mockProvider)
+	assert.Error(t, err, "setting group provider on closed enforcer should fail")
+	var customErr *types.Error
+	assert.ErrorAs(t, err, &customErr)
+	assert.Equal(t, types.ErrCodeUnavailable, customErr.Code)
+}
+
+// TestGetAuditLoggerReturnsNilForNewEnforcer tests that GetAuditLogger returns the default audit logger
+func TestGetAuditLoggerReturnsDefaultLogger(t *testing.T) {
+	enforcer := createTestEnforcer(t)
+	defer enforcer.Close()
+
+	// Get the default audit logger
+	retrievedLogger := enforcer.GetAuditLogger()
+	require.NotNil(t, retrievedLogger, "audit logger should not be nil for new enforcer")
 }

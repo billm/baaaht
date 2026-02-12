@@ -202,6 +202,12 @@ func interpolateEnvVarsInPolicy(pol *Policy) {
 	for i := range pol.Mounts.DeniedVolumes {
 		pol.Mounts.DeniedVolumes[i] = interpolateEnvVars(pol.Mounts.DeniedVolumes[i])
 	}
+	// Mount allowlist entries
+	for i := range pol.Mounts.MountAllowlist {
+		pol.Mounts.MountAllowlist[i].Path = interpolateEnvVars(pol.Mounts.MountAllowlist[i].Path)
+		pol.Mounts.MountAllowlist[i].User = interpolateEnvVars(pol.Mounts.MountAllowlist[i].User)
+		pol.Mounts.MountAllowlist[i].Group = interpolateEnvVars(pol.Mounts.MountAllowlist[i].Group)
+	}
 
 	// Network policy
 	for i := range pol.Network.AllowedNetworks {
