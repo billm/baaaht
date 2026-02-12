@@ -18,11 +18,11 @@ import (
 // containers, providing a unified interface for LLM requests, and tracking
 // token usage for cost monitoring.
 type LLMGatewayManager struct {
-	runtime    container.Runtime
-	config     config.LLMConfig
-	credStore  *credentials.Store
-	logger     *logger.Logger
-	mu         sync.RWMutex
+	runtime   container.Runtime
+	config    config.LLMConfig
+	credStore *credentials.Store
+	logger    *logger.Logger
+	mu        sync.RWMutex
 
 	// Container state
 	containerID string
@@ -35,11 +35,11 @@ type LLMGatewayManager struct {
 	creator   *container.Creator
 
 	// Health monitoring
-	healthCheckInterval time.Duration
-	healthCheckCtx      context.Context
-	healthCheckCancel   context.CancelFunc
-	healthCheckDone     chan struct{}
-	consecutiveFailures int
+	healthCheckInterval    time.Duration
+	healthCheckCtx         context.Context
+	healthCheckCancel      context.CancelFunc
+	healthCheckDone        chan struct{}
+	consecutiveFailures    int
 	maxConsecutiveFailures int
 }
 
@@ -86,20 +86,20 @@ func NewLLMGatewayManager(
 	healthCtx, healthCancel := context.WithCancel(context.Background())
 
 	return &LLMGatewayManager{
-		runtime:               runtime,
-		config:                cfg,
-		credStore:             credStore,
-		logger:                log.With("component", "llm_gateway_manager"),
-		lifecycle:             lifecycle,
-		monitor:               monitor,
-		creator:               creator,
-		started:               false,
-		closed:                false,
-		healthCheckInterval:   30 * time.Second,
-		healthCheckCtx:        healthCtx,
-		healthCheckCancel:     healthCancel,
-		healthCheckDone:       make(chan struct{}),
-		consecutiveFailures:   0,
+		runtime:                runtime,
+		config:                 cfg,
+		credStore:              credStore,
+		logger:                 log.With("component", "llm_gateway_manager"),
+		lifecycle:              lifecycle,
+		monitor:                monitor,
+		creator:                creator,
+		started:                false,
+		closed:                 false,
+		healthCheckInterval:    30 * time.Second,
+		healthCheckCtx:         healthCtx,
+		healthCheckCancel:      healthCancel,
+		healthCheckDone:        make(chan struct{}),
+		consecutiveFailures:    0,
 		maxConsecutiveFailures: 3,
 	}, nil
 }
@@ -377,14 +377,25 @@ func (m *LLMGatewayManager) validateCredentials(ctx context.Context) error {
 		return types.NewError(types.ErrCodeInvalidArgument, "default provider is not configured")
 	}
 
-	// Verify at least one enabled provider has credentials stored in the credential store
+	// Verify at least one enabled provider is properly configured
+	// (either has credentials in store OR doesn't require credentials)
 	hasValidProvider := false
 	for name, provider := range m.config.Providers {
 		if !provider.Enabled {
 			continue
 		}
 
-		// Attempt to fetch credentials for this provider from the credential store.
+		// Check if this provider requires credentials from the store
+		envVar, requiresKey := credentials.GetCredentialEnvVar(name)
+		if !requiresKey || envVar == "" {
+			// Provider doesn't require credentials from store (e.g., local LLMs like lmstudio/ollama)
+			hasValidProvider = true
+			m.logger.Debug("Provider doesn't require credential store",
+				"provider", name)
+			break
+		}
+
+		// Provider requires credentials, check if they exist in store
 		if _, err := m.credStore.GetLLMCredential(ctx, name); err == nil {
 			hasValidProvider = true
 			m.logger.Debug("Found valid provider credentials in store",
@@ -428,14 +439,14 @@ func (m *LLMGatewayManager) createGatewayContainer(ctx context.Context) (string,
 			Env:       env,
 			Labels:    m.buildLabels(),
 			Resources: m.buildResourceLimits(),
-			Mounts:    []types.Mount{}, // Stateless - no volume mounts
+			Mounts:    []types.Mount{},    // Stateless - no volume mounts
 			Networks:  []string{"bridge"}, // Use bridge network for egress-only access
 			// Security constraints
-			User:         "1000:1000", // Non-root user
-			ReadOnlyRootfs: true,      // Read-only root filesystem
-			SecurityOpt:  []string{"no-new-privileges"}, // Prevent privilege escalation
-			CapDrop:      []string{"ALL"}, // Drop all Linux capabilities
-			CapAdd:       []string{"NET_BIND_SERVICE"}, // Add back only what's needed
+			User:           "1000:1000",                   // Non-root user
+			ReadOnlyRootfs: true,                          // Read-only root filesystem
+			SecurityOpt:    []string{"no-new-privileges"}, // Prevent privilege escalation
+			CapDrop:        []string{"ALL"},               // Drop all Linux capabilities
+			CapAdd:         []string{"NET_BIND_SERVICE"},  // Add back only what's needed
 			// Health check configuration
 			HealthCheck: &types.HealthCheckConfig{
 				Test:        []string{"CMD", "wget", "--spider", "-q", "http://localhost:8080/health"},
@@ -445,9 +456,9 @@ func (m *LLMGatewayManager) createGatewayContainer(ctx context.Context) (string,
 				Retries:     3,
 			},
 		},
-		Name:      "baaaht-llm-gateway",
-		SessionID: types.GenerateID(), // LLM Gateway has its own session
-		AutoPull:  true,
+		Name:        "baaaht-llm-gateway",
+		SessionID:   types.GenerateID(), // LLM Gateway has its own session
+		AutoPull:    true,
 		PullTimeout: 5 * time.Minute,
 	}
 
@@ -524,8 +535,8 @@ func (m *LLMGatewayManager) cleanupContainer(ctx context.Context) error {
 
 	destroyCfg := container.DestroyConfig{
 		ContainerID:   m.containerID,
-		Name:         "baaaht-llm-gateway",
-		Force:        true,
+		Name:          "baaaht-llm-gateway",
+		Force:         true,
 		RemoveVolumes: false,
 	}
 

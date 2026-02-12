@@ -8,9 +8,11 @@ import (
 
 	"github.com/billm/baaaht/orchestrator/internal/config"
 	"github.com/billm/baaaht/orchestrator/internal/logger"
+	"github.com/billm/baaaht/orchestrator/pkg/container"
 	"github.com/billm/baaaht/orchestrator/pkg/events"
 	"github.com/billm/baaaht/orchestrator/pkg/ipc"
 	"github.com/billm/baaaht/orchestrator/pkg/session"
+	"github.com/billm/baaaht/orchestrator/pkg/tools"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 	"github.com/billm/baaaht/orchestrator/proto"
 	"google.golang.org/grpc"
@@ -41,6 +43,7 @@ type BootstrapConfig struct {
 	SessionManager      *session.Manager
 	EventBus            *events.Bus
 	IPCBroker           *ipc.Broker
+	ContainerRuntime    container.Runtime
 	Version             string
 	ShutdownTimeout     time.Duration
 	EnableHealthCheck   bool
@@ -73,7 +76,7 @@ func NewDefaultBootstrapConfig(cfg config.GRPCConfig, log *logger.Logger) Bootst
 // It performs the following steps:
 // 1. Creates the gRPC server with UDS transport
 // 2. Creates the health check server
-// 3. Creates and registers all gRPC services (Orchestrator, Agent, Gateway)
+// 3. Creates and registers all gRPC services (Orchestrator, Agent, Gateway, LLM, Tool)
 // 4. Starts the gRPC server
 // 5. Performs health checks (if enabled)
 // 6. Returns the initialized gRPC server
@@ -140,6 +143,26 @@ func Bootstrap(ctx context.Context, cfg BootstrapConfig) (*BootstrapResult, erro
 		ipcBroker:      cfg.IPCBroker,
 	}
 
+	// Create tool registry and executor
+	toolRegistry := tools.GetGlobalRegistry()
+	_ = tools.RegisterBuiltinTools()
+
+	// Create executor (requires container runtime)
+	if cfg.ContainerRuntime != nil {
+		executor, err := tools.NewExecutorFromRegistry(cfg.ContainerRuntime, log)
+		if err != nil {
+			result.Error = types.WrapError(types.ErrCodeInternal, "failed to create tool executor", err)
+			// Cleanup on failure
+			_ = server.Stop()
+			_ = health.Shutdown()
+			return result, result.Error
+		}
+		deps.executor = executor
+		log.Info("Tool executor created", "runtime", cfg.ContainerRuntime.String())
+	} else {
+		log.Warn("Container runtime not provided, tool service will not execute tools")
+	}
+
 	// Create and register OrchestratorService
 	orchSvc := NewOrchestratorService(deps, log)
 	if err := server.RegisterService(&proto.OrchestratorService_ServiceDesc, orchSvc); err != nil {
@@ -187,6 +210,18 @@ func Bootstrap(ctx context.Context, cfg BootstrapConfig) (*BootstrapResult, erro
 
 	// Set health status for LLM service
 	health.SetServingStatus("llm", grpc_health.HealthCheckResponse_SERVING)
+
+	// Create and register ToolService
+	toolSvc := NewToolService(deps, log)
+	if err := server.RegisterService(&proto.ToolService_ServiceDesc, toolSvc); err != nil {
+		result.Error = types.WrapError(types.ErrCodeInternal, "failed to register tool service", err)
+		// Cleanup on failure
+		_ = server.Stop()
+		return result, result.Error
+	}
+
+	// Set health status for tool service
+	health.SetServingStatus("tool", grpc_health.HealthCheckResponse_SERVING)
 
 	// Start the gRPC server
 	if err := server.Start(ctx); err != nil {
@@ -425,6 +460,7 @@ type serviceDependencies struct {
 	sessionManager *session.Manager
 	eventBus       *events.Bus
 	ipcBroker      *ipc.Broker
+	executor       *tools.Executor
 }
 
 func (d *serviceDependencies) SessionManager() *session.Manager {
@@ -437,6 +473,10 @@ func (d *serviceDependencies) EventBus() *events.Bus {
 
 func (d *serviceDependencies) IPCBroker() *ipc.Broker {
 	return d.ipcBroker
+}
+
+func (d *serviceDependencies) Executor() *tools.Executor {
+	return d.executor
 }
 
 // validateDependencies validates that all required dependencies are provided

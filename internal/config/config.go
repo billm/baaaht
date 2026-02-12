@@ -170,12 +170,12 @@ type RuntimeConfig struct {
 
 // MemoryConfig contains memory storage configuration
 type MemoryConfig struct {
-	StoragePath        string `json:"storage_path" yaml:"storage_path"`                 // Base path for memory files
-	UserMemoryPath     string `json:"user_memory_path" yaml:"user_memory_path"`         // Path for user-specific memory
-	GroupMemoryPath    string `json:"group_memory_path" yaml:"group_memory_path"`       // Path for group-specific memory
-	Enabled            bool   `json:"enabled" yaml:"enabled"`                           // Enable memory storage
-	MaxFileSize        int    `json:"max_file_size" yaml:"max_file_size"`               // Maximum size of a memory file in KB
-	FileFormat         string `json:"file_format" yaml:"file_format"`                   // File format (markdown)
+	StoragePath     string `json:"storage_path" yaml:"storage_path"`           // Base path for memory files
+	UserMemoryPath  string `json:"user_memory_path" yaml:"user_memory_path"`   // Path for user-specific memory
+	GroupMemoryPath string `json:"group_memory_path" yaml:"group_memory_path"` // Path for group-specific memory
+	Enabled         bool   `json:"enabled" yaml:"enabled"`                     // Enable memory storage
+	MaxFileSize     int    `json:"max_file_size" yaml:"max_file_size"`         // Maximum size of a memory file in KB
+	FileFormat      string `json:"file_format" yaml:"file_format"`             // File format (markdown)
 }
 
 // GRPCConfig contains gRPC server configuration
@@ -189,59 +189,59 @@ type GRPCConfig struct {
 
 // LLMConfig contains LLM Gateway configuration
 type LLMConfig struct {
-	Enabled                bool                          `json:"enabled" yaml:"enabled"`
-	ContainerImage         string                        `json:"container_image" yaml:"container_image"`
-	Providers              map[string]LLMProviderConfig  `json:"providers" yaml:"providers"`
-	DefaultModel           string                        `json:"default_model" yaml:"default_model"`
-	DefaultProvider        string                        `json:"default_provider" yaml:"default_provider"`
-	Timeout                time.Duration                 `json:"timeout" yaml:"timeout"`
-	MaxConcurrentRequests  int                           `json:"max_concurrent_requests" yaml:"max_concurrent_requests"`
-	RateLimits             map[string]int                `json:"rate_limits" yaml:"rate_limits"` // provider -> requests per minute
-	FallbackChains         map[string][]string           `json:"fallback_chains" yaml:"fallback_chains"` // model -> []provider names
+	Enabled               bool                         `json:"enabled" yaml:"enabled"`
+	ContainerImage        string                       `json:"container_image" yaml:"container_image"`
+	Providers             map[string]LLMProviderConfig `json:"providers" yaml:"providers"`
+	DefaultModel          string                       `json:"default_model" yaml:"default_model"`
+	DefaultProvider       string                       `json:"default_provider" yaml:"default_provider"`
+	Timeout               time.Duration                `json:"timeout" yaml:"timeout"`
+	MaxConcurrentRequests int                          `json:"max_concurrent_requests" yaml:"max_concurrent_requests"`
+	RateLimits            map[string]int               `json:"rate_limits" yaml:"rate_limits"`         // provider -> requests per minute
+	FallbackChains        map[string][]string          `json:"fallback_chains" yaml:"fallback_chains"` // model -> []provider names
 }
 
 // LLMProviderConfig contains configuration for a specific LLM provider
 type LLMProviderConfig struct {
-	Name     string   `json:"name" yaml:"name"`
-	APIKey   string   `json:"api_key,omitempty" yaml:"api_key,omitempty"` // From environment variable
-	BaseURL  string   `json:"base_url,omitempty" yaml:"base_url,omitempty"`
-	Enabled  bool     `json:"enabled" yaml:"enabled"`
-	Models   []string `json:"models" yaml:"models"`
+	Name    string   `json:"name" yaml:"name"`
+	APIKey  string   `json:"api_key,omitempty" yaml:"api_key,omitempty"` // From environment variable
+	BaseURL string   `json:"base_url,omitempty" yaml:"base_url,omitempty"`
+	Enabled bool     `json:"enabled" yaml:"enabled"`
+	Models  []string `json:"models" yaml:"models"`
 }
 
 // ProviderConfig contains provider configuration
 type ProviderConfig struct {
-	DefaultProvider        string                       `json:"default_provider" yaml:"default_provider"`
-	FailoverEnabled        bool                         `json:"failover_enabled" yaml:"failover_enabled"`
-	FailoverThreshold      int                          `json:"failover_threshold" yaml:"failover_threshold"`
-	HealthCheckInterval    time.Duration                `json:"health_check_interval" yaml:"health_check_interval"`
-	CircuitBreakerTimeout  time.Duration                `json:"circuit_breaker_timeout" yaml:"circuit_breaker_timeout"`
-	Anthropic              ProviderSpecificConfig        `json:"anthropic" yaml:"anthropic"`
-	OpenAI                 ProviderSpecificConfig        `json:"openai" yaml:"openai"`
+	DefaultProvider       string                 `json:"default_provider" yaml:"default_provider"`
+	FailoverEnabled       bool                   `json:"failover_enabled" yaml:"failover_enabled"`
+	FailoverThreshold     int                    `json:"failover_threshold" yaml:"failover_threshold"`
+	HealthCheckInterval   time.Duration          `json:"health_check_interval" yaml:"health_check_interval"`
+	CircuitBreakerTimeout time.Duration          `json:"circuit_breaker_timeout" yaml:"circuit_breaker_timeout"`
+	Anthropic             ProviderSpecificConfig `json:"anthropic" yaml:"anthropic"`
+	OpenAI                ProviderSpecificConfig `json:"openai" yaml:"openai"`
 }
 
 // ProviderSpecificConfig contains configuration for a specific provider
 type ProviderSpecificConfig struct {
 	Enabled    bool   `json:"enabled" yaml:"enabled"`
 	BaseURL    string `json:"base_url,omitempty" yaml:"base_url,omitempty"`
-	Timeout    int    `json:"timeout,omitempty" yaml:"timeout,omitempty"`    // seconds
+	Timeout    int    `json:"timeout,omitempty" yaml:"timeout,omitempty"` // seconds
 	MaxRetries int    `json:"max_retries,omitempty" yaml:"max_retries,omitempty"`
 	Priority   int    `json:"priority,omitempty" yaml:"priority,omitempty"`
 }
 
 // ProviderOverrideOptions contains provider-specific override options
 type ProviderOverrideOptions struct {
-	DefaultProvider     string
-	FailoverEnabled     *bool
-	FailoverThreshold   *int
-	Providers           map[string]ProviderSpecificOverride
+	DefaultProvider   string
+	FailoverEnabled   *bool
+	FailoverThreshold *int
+	Providers         map[string]ProviderSpecificOverride
 }
 
 // ProviderSpecificOverride contains override options for a specific provider
 type ProviderSpecificOverride struct {
 	Enabled    *bool
 	BaseURL    string
-	Timeout    string  // duration string
+	Timeout    string // duration string
 	MaxRetries *int
 	APIKey     string
 }
@@ -291,13 +291,215 @@ type SkillsRetention struct {
 	PreserveVerified bool          `json:"preserve_verified" yaml:"preserve_verified"` // Don't delete verified skills
 }
 
-// applyDefaults fills in zero-valued NEW config fields with their defaults
+// applyDefaults fills in zero-valued config fields with their defaults
 // This is called after loading from YAML to ensure partial configs have sensible defaults
-// for newly added fields (Runtime, Memory, GRPC) that might not be in older YAML files.
-// We apply defaults field-by-field to handle partial configurations properly.
+// We apply defaults field-by-field to handle partial configurations properly
 func applyDefaults(cfg *Config) {
-	// Runtime defaults - NEW field, may not exist in older YAML files
-	// Apply field-by-field to handle partial configs
+	// Docker defaults - apply field-by-field to handle partial configs
+	defaultDocker := DefaultDockerConfig()
+	if cfg.Docker.Host == "" {
+		cfg.Docker.Host = defaultDocker.Host
+	}
+	if cfg.Docker.APIVersion == "" {
+		cfg.Docker.APIVersion = defaultDocker.APIVersion
+	}
+	if cfg.Docker.Timeout == 0 {
+		cfg.Docker.Timeout = defaultDocker.Timeout
+	}
+	if cfg.Docker.MaxRetries == 0 {
+		cfg.Docker.MaxRetries = defaultDocker.MaxRetries
+	}
+	if cfg.Docker.RetryDelay == 0 {
+		cfg.Docker.RetryDelay = defaultDocker.RetryDelay
+	}
+
+	// APIServer defaults - apply field-by-field to handle partial configs
+	defaultAPIServer := DefaultAPIServerConfig()
+	if cfg.APIServer.Host == "" {
+		cfg.APIServer.Host = defaultAPIServer.Host
+	}
+	if cfg.APIServer.Port == 0 {
+		cfg.APIServer.Port = defaultAPIServer.Port
+	}
+	if cfg.APIServer.ReadTimeout == 0 {
+		cfg.APIServer.ReadTimeout = defaultAPIServer.ReadTimeout
+	}
+	if cfg.APIServer.WriteTimeout == 0 {
+		cfg.APIServer.WriteTimeout = defaultAPIServer.WriteTimeout
+	}
+	if cfg.APIServer.IdleTimeout == 0 {
+		cfg.APIServer.IdleTimeout = defaultAPIServer.IdleTimeout
+	}
+	if cfg.APIServer.MaxConnections == 0 {
+		cfg.APIServer.MaxConnections = defaultAPIServer.MaxConnections
+	}
+
+	// Logging defaults - apply field-by-field to handle partial configs
+	defaultLogging := DefaultLoggingConfig()
+	if cfg.Logging.Level == "" {
+		cfg.Logging.Level = defaultLogging.Level
+	}
+	if cfg.Logging.Format == "" {
+		cfg.Logging.Format = defaultLogging.Format
+	}
+	if cfg.Logging.Output == "" {
+		cfg.Logging.Output = defaultLogging.Output
+	}
+	if cfg.Logging.SyslogFacility == "" {
+		cfg.Logging.SyslogFacility = defaultLogging.SyslogFacility
+	}
+	if cfg.Logging.MaxSize == 0 {
+		cfg.Logging.MaxSize = defaultLogging.MaxSize
+	}
+	if cfg.Logging.MaxBackups == 0 {
+		cfg.Logging.MaxBackups = defaultLogging.MaxBackups
+	}
+	if cfg.Logging.MaxAge == 0 {
+		cfg.Logging.MaxAge = defaultLogging.MaxAge
+	}
+
+	// Session defaults - apply field-by-field to handle partial configs
+	defaultSession := DefaultSessionConfig()
+	if cfg.Session.Timeout == 0 {
+		cfg.Session.Timeout = defaultSession.Timeout
+	}
+	if cfg.Session.MaxSessions == 0 {
+		cfg.Session.MaxSessions = defaultSession.MaxSessions
+	}
+	if cfg.Session.CleanupInterval == 0 {
+		cfg.Session.CleanupInterval = defaultSession.CleanupInterval
+	}
+	if cfg.Session.IdleTimeout == 0 {
+		cfg.Session.IdleTimeout = defaultSession.IdleTimeout
+	}
+	if cfg.Session.StoragePath == "" {
+		cfg.Session.StoragePath = defaultSession.StoragePath
+	}
+
+	// Event defaults - apply field-by-field to handle partial configs
+	defaultEvent := DefaultEventConfig()
+	if cfg.Event.QueueSize == 0 {
+		cfg.Event.QueueSize = defaultEvent.QueueSize
+	}
+	if cfg.Event.Workers == 0 {
+		cfg.Event.Workers = defaultEvent.Workers
+	}
+	if cfg.Event.BufferSize == 0 {
+		cfg.Event.BufferSize = defaultEvent.BufferSize
+	}
+	if cfg.Event.Timeout == 0 {
+		cfg.Event.Timeout = defaultEvent.Timeout
+	}
+	if cfg.Event.RetryAttempts == 0 {
+		cfg.Event.RetryAttempts = defaultEvent.RetryAttempts
+	}
+	if cfg.Event.RetryDelay == 0 {
+		cfg.Event.RetryDelay = defaultEvent.RetryDelay
+	}
+
+	// IPC defaults - apply field-by-field to handle partial configs
+	defaultIPC := DefaultIPCConfig()
+	if cfg.IPC.SocketPath == "" {
+		cfg.IPC.SocketPath = defaultIPC.SocketPath
+	}
+	if cfg.IPC.BufferSize == 0 {
+		cfg.IPC.BufferSize = defaultIPC.BufferSize
+	}
+	if cfg.IPC.Timeout == 0 {
+		cfg.IPC.Timeout = defaultIPC.Timeout
+	}
+	if cfg.IPC.MaxConnections == 0 {
+		cfg.IPC.MaxConnections = defaultIPC.MaxConnections
+	}
+
+	// Scheduler defaults - apply field-by-field to handle partial configs
+	defaultScheduler := DefaultSchedulerConfig()
+	if cfg.Scheduler.QueueSize == 0 {
+		cfg.Scheduler.QueueSize = defaultScheduler.QueueSize
+	}
+	if cfg.Scheduler.Workers == 0 {
+		cfg.Scheduler.Workers = defaultScheduler.Workers
+	}
+	if cfg.Scheduler.MaxRetries == 0 {
+		cfg.Scheduler.MaxRetries = defaultScheduler.MaxRetries
+	}
+	if cfg.Scheduler.RetryDelay == 0 {
+		cfg.Scheduler.RetryDelay = defaultScheduler.RetryDelay
+	}
+	if cfg.Scheduler.TaskTimeout == 0 {
+		cfg.Scheduler.TaskTimeout = defaultScheduler.TaskTimeout
+	}
+	if cfg.Scheduler.QueueTimeout == 0 {
+		cfg.Scheduler.QueueTimeout = defaultScheduler.QueueTimeout
+	}
+
+	// Credentials defaults - apply field-by-field to handle partial configs
+	defaultCredentials := DefaultCredentialsConfig()
+	if cfg.Credentials.StorePath == "" {
+		cfg.Credentials.StorePath = defaultCredentials.StorePath
+	}
+	if cfg.Credentials.KeyRotationDays == 0 {
+		cfg.Credentials.KeyRotationDays = defaultCredentials.KeyRotationDays
+	}
+	if cfg.Credentials.MaxCredentialAge == 0 {
+		cfg.Credentials.MaxCredentialAge = defaultCredentials.MaxCredentialAge
+	}
+
+	// Policy defaults - apply field-by-field to handle partial configs
+	defaultPolicy := DefaultPolicyConfig()
+	if cfg.Policy.ConfigPath == "" {
+		cfg.Policy.ConfigPath = defaultPolicy.ConfigPath
+	}
+	if cfg.Policy.ReloadInterval == 0 {
+		cfg.Policy.ReloadInterval = defaultPolicy.ReloadInterval
+	}
+	if cfg.Policy.EnforcementMode == "" {
+		cfg.Policy.EnforcementMode = defaultPolicy.EnforcementMode
+	}
+	if cfg.Policy.DefaultQuotaCPU == 0 {
+		cfg.Policy.DefaultQuotaCPU = defaultPolicy.DefaultQuotaCPU
+	}
+	if cfg.Policy.DefaultQuotaMemory == 0 {
+		cfg.Policy.DefaultQuotaMemory = defaultPolicy.DefaultQuotaMemory
+	}
+
+	// Metrics defaults - apply field-by-field to handle partial configs
+	defaultMetrics := DefaultMetricsConfig()
+	if cfg.Metrics.Port == 0 {
+		cfg.Metrics.Port = defaultMetrics.Port
+	}
+	if cfg.Metrics.Path == "" {
+		cfg.Metrics.Path = defaultMetrics.Path
+	}
+	if cfg.Metrics.ReportInterval == 0 {
+		cfg.Metrics.ReportInterval = defaultMetrics.ReportInterval
+	}
+
+	// Tracing defaults - apply field-by-field to handle partial configs
+	defaultTracing := DefaultTracingConfig()
+	if cfg.Tracing.SampleRate == 0 {
+		cfg.Tracing.SampleRate = defaultTracing.SampleRate
+	}
+	if cfg.Tracing.Exporter == "" {
+		cfg.Tracing.Exporter = defaultTracing.Exporter
+	}
+
+	// Orchestrator defaults - apply field-by-field to handle partial configs
+	defaultOrchestrator := DefaultOrchestratorConfig()
+	if cfg.Orchestrator.ShutdownTimeout == 0 {
+		cfg.Orchestrator.ShutdownTimeout = defaultOrchestrator.ShutdownTimeout
+	}
+	if cfg.Orchestrator.HealthCheckInterval == 0 {
+		cfg.Orchestrator.HealthCheckInterval = defaultOrchestrator.HealthCheckInterval
+	}
+	if cfg.Orchestrator.GracefulStopTimeout == 0 {
+		cfg.Orchestrator.GracefulStopTimeout = defaultOrchestrator.GracefulStopTimeout
+	}
+	if cfg.Orchestrator.ProfilingPort == 0 {
+		cfg.Orchestrator.ProfilingPort = defaultOrchestrator.ProfilingPort
+	}
+
+	// Runtime defaults - apply field-by-field to handle partial configs
 	defaultRuntime := DefaultRuntimeConfig()
 	if cfg.Runtime.Type == "" {
 		cfg.Runtime.Type = defaultRuntime.Type
@@ -324,7 +526,7 @@ func applyDefaults(cfg *Config) {
 		cfg.Runtime.TLSCAPath = defaultRuntime.TLSCAPath
 	}
 
-	// Memory defaults - NEW field, may not exist in older YAML files
+	// Memory defaults - apply field-by-field to handle partial configs
 	// If the entire memory section is absent (all zero values), use full defaults
 	// to preserve the default Enabled value. Otherwise, apply field-by-field to handle
 	// partial configs, preserving an explicit Enabled=false.
@@ -351,8 +553,7 @@ func applyDefaults(cfg *Config) {
 		}
 	}
 
-	// gRPC defaults - NEW field, may not exist in older YAML files
-	// Apply field-by-field to handle partial configs
+	// gRPC defaults - apply field-by-field to handle partial configs
 	defaultGRPC := DefaultGRPCConfig()
 	if cfg.GRPC.SocketPath == "" {
 		cfg.GRPC.SocketPath = defaultGRPC.SocketPath
@@ -370,7 +571,7 @@ func applyDefaults(cfg *Config) {
 		cfg.GRPC.MaxConnections = defaultGRPC.MaxConnections
 	}
 
-	// LLM defaults - NEW field, may not exist in older YAML files
+	// LLM defaults - apply field-by-field to handle partial configs
 	defaultLLM := DefaultLLMConfig()
 	if cfg.LLM.Providers == nil {
 		cfg.LLM.Providers = defaultLLM.Providers
@@ -397,8 +598,7 @@ func applyDefaults(cfg *Config) {
 		cfg.LLM.FallbackChains = defaultLLM.FallbackChains
 	}
 
-	// Provider defaults - NEW field, may not exist in older YAML files
-	// Apply field-by-field to handle partial configs
+	// Provider defaults - apply field-by-field to handle partial configs
 	defaultProvider := DefaultProviderConfig()
 	if cfg.Provider.DefaultProvider == "" {
 		cfg.Provider.DefaultProvider = defaultProvider.DefaultProvider
@@ -890,7 +1090,7 @@ func (c *Config) Validate() error {
 		return types.NewError(types.ErrCodeInvalidArgument,
 			fmt.Sprintf("invalid memory file format: %s (must be markdown or md)", c.Memory.FileFormat))
 	}
-  
+
 	// Validate gRPC configuration
 	if c.GRPC.SocketPath == "" {
 		return types.NewError(types.ErrCodeInvalidArgument, "grpc socket path cannot be empty")
