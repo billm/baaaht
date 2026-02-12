@@ -837,8 +837,9 @@ func (s *AgentService) StreamAgent(stream proto.AgentService_StreamAgentServer) 
 					}
 
 					// Route response back to TUI via message handler
+					handlerKey := fmt.Sprintf("%s:%s", agentID, sessionID)
 					s.mu.RLock()
-					handler, exists := s.messageHandlers[agentID]
+					handler, exists := s.messageHandlers[handlerKey]
 					s.mu.RUnlock()
 
 					if exists && handler != nil {
@@ -899,9 +900,10 @@ func (s *AgentService) SendMessage(ctx context.Context, req *proto.AgentSendMess
 func (s *AgentService) RouteMessageToAgent(ctx context.Context, agentID string, sessionID types.ID, message types.Message, handler MessageResponseHandler) error {
 	s.logger.Debug("RouteMessageToAgent called", "agent_id", agentID, "session_id", sessionID, "message_id", message.ID)
 
-	// Store the response handler for this agent
+	// Store the response handler for this agent+session combination
+	handlerKey := fmt.Sprintf("%s:%s", agentID, sessionID)
 	s.mu.Lock()
-	s.messageHandlers[agentID] = handler
+	s.messageHandlers[handlerKey] = handler
 	s.mu.Unlock()
 
 	// Get agent stream
