@@ -1,0 +1,58 @@
+{
+  "name": "@baaaht/assistant-agent",
+  "version": "0.1.0",
+  "description": "Assistant Agent - Primary conversational interface with delegation to specialized agents",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "prebuild": "npm run clean",
+    "test": "jest",
+    "test:unit": "jest --testPathPattern=tests/unit",
+    "test:integration": "jest --testPathPattern=tests/integration",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "typecheck": "tsc --noEmit",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "proto": "protoc --ts_out ./src/proto --proto_path ../.. ../../proto/agent.proto ../../proto/llm.proto ../../proto/common.proto"
+  },
+  "keywords": [
+    "agent",
+    "assistant",
+    "ai",
+    "llm",
+    "orchestrator"
+  ],
+  "author": "baaaht project",
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "@grpc/grpc-js": "^1.12.5",
+    "@protobuf-ts/plugin": "^2.9.4",
+    "google-auth-library": "^9.15.1",
+    "openai": "^4.83.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.13.5",
+    "@typescript-eslint/eslint-plugin": "^8.24.1",
+    "@typescript-eslint/parser": "^8.24.1",
+    "eslint": "^9.22.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.6",
+    "ts-node": "^10.9.2",
+    "ts-protoc-gen": "^0.12.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/billm/baaaht",
+    "directory": "agents/assistant"
+  }
+}

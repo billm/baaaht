@@ -1,0 +1,425 @@
+// tool.proto - gRPC service definitions for Tool execution and management
+//
+// This file defines the ToolService which provides tool registration,
+// execution, discovery, and lifecycle management for containerized tools.
+//
+// Copyright 2026 baaaht project
+
+syntax = "proto3";
+
+package tool.v1;
+
+option go_package = "github.com/billm/baaaht/orchestrator/proto";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+import "proto/common.proto";
+
+// =============================================================================
+// Tool Service
+// =============================================================================
+
+// ToolService provides core tool operations for execution and management
+service ToolService {
+  // Tool Registration and Lifecycle
+
+  // RegisterTool registers a new tool with the orchestrator
+  rpc RegisterTool(RegisterToolRequest) returns (RegisterToolResponse);
+
+  // UnregisterTool unregisters a tool from the orchestrator
+  rpc UnregisterTool(UnregisterToolRequest) returns (UnregisterToolResponse);
+
+  // UpdateTool updates an existing tool's definition
+  rpc UpdateTool(UpdateToolRequest) returns (UpdateToolResponse);
+
+  // EnableTool enables a tool for execution
+  rpc EnableTool(EnableToolRequest) returns (EnableToolResponse);
+
+  // DisableTool disables a tool from execution
+  rpc DisableTool(DisableToolRequest) returns (DisableToolResponse);
+
+  // Tool Discovery
+
+  // ListTools lists all tools matching the specified filter
+  rpc ListTools(ListToolsRequest) returns (ListToolsResponse);
+
+  // GetTool retrieves a tool by its name
+  rpc GetTool(GetToolRequest) returns (GetToolResponse);
+
+  // GetToolDefinition retrieves a tool's definition
+  rpc GetToolDefinition(GetToolDefinitionRequest) returns (GetToolDefinitionResponse);
+
+  // Tool Execution
+
+  // ExecuteTool executes a tool with the specified parameters
+  rpc ExecuteTool(ExecuteToolRequest) returns (ExecuteToolResponse);
+
+  // StreamTool establishes a bidirectional stream for tool execution with real-time output
+  rpc StreamTool(stream StreamToolRequest) returns (stream StreamToolResponse);
+
+  // CancelExecution cancels a running tool execution
+  rpc CancelExecution(CancelExecutionRequest) returns (CancelExecutionResponse);
+
+  // GetExecutionStatus retrieves the status of a tool execution
+  rpc GetExecutionStatus(GetExecutionStatusRequest) returns (GetExecutionStatusResponse);
+
+  // ListExecutions lists all tool executions matching the specified filter
+  rpc ListExecutions(ListExecutionsRequest) returns (ListExecutionsResponse);
+
+  // Health and Status
+
+  // HealthCheck returns the health status of the tool service
+  rpc HealthCheck(google.protobuf.Empty) returns (ToolHealthCheckResponse);
+
+  // GetServiceStatus returns the current status of the tool service
+  rpc GetServiceStatus(google.protobuf.Empty) returns (ToolServiceStatusResponse);
+
+  // GetStats returns statistics about tool usage
+  rpc GetStats(GetStatsRequest) returns (GetStatsResponse);
+}
+
+// =============================================================================
+// Tool Types
+// =============================================================================
+
+// ToolInstance represents a registered tool instance
+message ToolInstance {
+  string name = 1;
+  string display_name = 2;
+  common.v1.ToolType type = 3;
+  common.v1.ToolState state = 4;
+  common.v1.Status status = 5;
+  google.protobuf.Timestamp registered_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+  google.protobuf.Timestamp last_used_at = 8;  // Optional
+  common.v1.ToolDefinition definition = 9;
+  ToolUsageStats usage_stats = 10;
+  bool enabled = 11;
+  string version = 12;
+}
+
+// ToolUsageStats contains usage statistics for a tool
+message ToolUsageStats {
+  int64 total_executions = 1;
+  int64 successful_executions = 2;
+  int64 failed_executions = 3;
+  int64 timeout_executions = 4;
+  int64 cancelled_executions = 5;
+  int64 total_duration_ns = 6;
+  int64 avg_duration_ns = 7;
+  google.protobuf.Timestamp last_execution = 8;  // Optional
+}
+
+// =============================================================================
+// Execution Types
+// =============================================================================
+
+// ToolExecution represents a tool execution instance
+message ToolExecution {
+  string execution_id = 1;
+  string tool_name = 2;
+  string session_id = 3;  // Optional
+  common.v1.ToolExecutionStatus status = 4;
+  google.protobuf.Timestamp created_at = 5;
+  google.protobuf.Timestamp started_at = 6;    // Optional
+  google.protobuf.Timestamp completed_at = 7;  // Optional
+  google.protobuf.Timestamp expires_at = 8;    // Optional
+  map<string, string> parameters = 9;
+  common.v1.ToolExecutionResult result = 10;  // Optional
+  string container_id = 11;                    // Optional
+  int64 duration_ns = 12;
+  string error_message = 13;                   // Optional
+  string correlation_id = 14;                  // Optional
+}
+
+// =============================================================================
+// Request/Response Messages - Tool Registration
+// =============================================================================
+
+// RegisterToolRequest
+message RegisterToolRequest {
+  common.v1.ToolDefinition definition = 1;
+  bool force = 2;  // Overwrite if tool already exists
+}
+
+// RegisterToolResponse
+message RegisterToolResponse {
+  string name = 1;
+  ToolInstance tool = 2;
+}
+
+// UnregisterToolRequest
+message UnregisterToolRequest {
+  string name = 1;
+  bool force = 2;  // Remove even if there are active executions
+}
+
+// UnregisterToolResponse
+message UnregisterToolResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// UpdateToolRequest
+message UpdateToolRequest {
+  string name = 1;
+  common.v1.ToolDefinition definition = 2;
+}
+
+// UpdateToolResponse
+message UpdateToolResponse {
+  ToolInstance tool = 1;
+}
+
+// EnableToolRequest
+message EnableToolRequest {
+  string name = 1;
+}
+
+// EnableToolResponse
+message EnableToolResponse {
+  string name = 1;
+  bool enabled = 2;
+}
+
+// DisableToolRequest
+message DisableToolRequest {
+  string name = 1;
+  bool cancel_active_executions = 2;  // Cancel any running executions
+}
+
+// DisableToolResponse
+message DisableToolResponse {
+  string name = 1;
+  bool disabled = 2;
+  int32 cancelled_executions = 3;
+}
+
+// =============================================================================
+// Request/Response Messages - Tool Discovery
+// =============================================================================
+
+// ListToolsRequest
+message ListToolsRequest {
+  ToolFilter filter = 1;
+}
+
+// ToolFilter defines filters for querying tools
+message ToolFilter {
+  common.v1.ToolType type = 1;          // Optional
+  common.v1.ToolState state = 2;        // Optional
+  bool enabled = 3;                     // Optional, unset means both
+  string name_pattern = 4;              // Optional, substring match
+  map<string, string> labels = 5;       // Optional, match all if empty
+}
+
+// ListToolsResponse
+message ListToolsResponse {
+  repeated ToolInstance tools = 1;
+  int32 total_count = 2;
+}
+
+// GetToolRequest
+message GetToolRequest {
+  string name = 1;
+}
+
+// GetToolResponse
+message GetToolResponse {
+  ToolInstance tool = 1;
+}
+
+// GetToolDefinitionRequest
+message GetToolDefinitionRequest {
+  string name = 1;
+}
+
+// GetToolDefinitionResponse
+message GetToolDefinitionResponse {
+  common.v1.ToolDefinition definition = 1;
+}
+
+// =============================================================================
+// Request/Response Messages - Tool Execution
+// =============================================================================
+
+// ExecuteToolRequest
+message ExecuteToolRequest {
+  string tool_name = 1;
+  map<string, string> parameters = 2;
+  string session_id = 3;          // Optional
+  int64 timeout_ns = 4;           // Optional, override default timeout
+  string correlation_id = 5;      // Optional, for tracking
+  common.v1.ResourceLimits resource_limits = 6;  // Optional, override default limits
+}
+
+// ExecuteToolResponse
+message ExecuteToolResponse {
+  string execution_id = 1;
+  ToolExecution execution = 2;
+}
+
+// StreamToolRequest
+message StreamToolRequest {
+  string execution_id = 1;
+  oneof payload {
+    ToolInput input = 2;
+    google.protobuf.Empty heartbeat = 3;
+    CancelExecutionCommand cancel = 4;
+  }
+}
+
+// ToolInput contains input data for a streaming tool execution
+message ToolInput {
+  bytes data = 1;
+  map<string, string> metadata = 2;
+}
+
+// CancelExecutionCommand cancels a tool execution
+message CancelExecutionCommand {
+  string reason = 1;  // Optional
+  bool force = 2;
+}
+
+// StreamToolResponse
+message StreamToolResponse {
+  oneof payload {
+    ToolOutput output = 1;
+    ToolExecutionStatusUpdate status = 2;
+    ToolExecutionProgress progress = 3;
+    ToolExecutionComplete complete = 4;
+    ToolExecutionError error = 5;
+    google.protobuf.Empty heartbeat = 6;
+  }
+}
+
+// ToolOutput contains output data from a tool
+message ToolOutput {
+  bytes data = 1;
+  string text = 2;            // Optional, for text output
+  string stream_type = 3;     // stdout, stderr, data
+  google.protobuf.Timestamp timestamp = 4;
+}
+
+// ToolExecutionStatusUpdate contains status update for a tool execution
+message ToolExecutionStatusUpdate {
+  common.v1.ToolExecutionStatus status = 1;
+  string message = 2;
+  google.protobuf.Timestamp timestamp = 3;
+}
+
+// ToolExecutionProgress contains progress information for a tool execution
+message ToolExecutionProgress {
+  double percent = 1;         // 0.0 to 1.0
+  string message = 2;         // Optional
+  map<string, string> details = 3;
+  google.protobuf.Timestamp timestamp = 4;
+}
+
+// ToolExecutionComplete indicates tool execution completion
+message ToolExecutionComplete {
+  string execution_id = 1;
+  common.v1.ToolExecutionResult result = 2;
+  google.protobuf.Timestamp completed_at = 3;
+}
+
+// ToolExecutionError contains error information for a failed tool execution
+message ToolExecutionError {
+  string code = 1;
+  string message = 2;
+  repeated string details = 3;
+  google.protobuf.Timestamp occurred_at = 4;
+}
+
+// CancelExecutionRequest
+message CancelExecutionRequest {
+  string execution_id = 1;
+  string reason = 2;  // Optional
+  bool force = 3;
+}
+
+// CancelExecutionResponse
+message CancelExecutionResponse {
+  string execution_id = 1;
+  common.v1.ToolExecutionStatus status = 2;
+  bool cancelled = 3;
+}
+
+// GetExecutionStatusRequest
+message GetExecutionStatusRequest {
+  string execution_id = 1;
+}
+
+// GetExecutionStatusResponse
+message GetExecutionStatusResponse {
+  ToolExecution execution = 1;
+}
+
+// ListExecutionsRequest
+message ListExecutionsRequest {
+  ExecutionFilter filter = 1;
+}
+
+// ExecutionFilter defines filters for querying tool executions
+message ExecutionFilter {
+  string tool_name = 1;                      // Optional
+  common.v1.ToolExecutionStatus status = 2;  // Optional
+  string session_id = 3;                     // Optional
+  google.protobuf.Timestamp created_after = 4;   // Optional
+  google.protobuf.Timestamp created_before = 5;  // Optional
+}
+
+// ListExecutionsResponse
+message ListExecutionsResponse {
+  repeated ToolExecution executions = 1;
+  int32 total_count = 2;
+}
+
+// =============================================================================
+// Request/Response Messages - Health and Status
+// =============================================================================
+
+// ToolHealthCheckResponse
+message ToolHealthCheckResponse {
+  common.v1.Health health = 1;
+  string version = 2;
+  repeated string subsystems = 3;
+  int32 registered_tools = 4;
+  int32 active_executions = 5;
+}
+
+// ToolServiceStatusResponse
+message ToolServiceStatusResponse {
+  common.v1.Status status = 1;
+  int32 registered_tools = 2;
+  int32 enabled_tools = 3;
+  int32 active_executions = 4;
+  google.protobuf.Timestamp started_at = 5;
+  google.protobuf.Timestamp uptime = 6;
+}
+
+// GetStatsRequest
+message GetStatsRequest {
+  string tool_name = 1;  // Optional, get stats for specific tool
+}
+
+// GetStatsResponse
+message GetStatsResponse {
+  ToolServiceStats service_stats = 1;
+  repeated ToolStats tool_stats = 2;  // Per-tool stats
+}
+
+// ToolServiceStats contains overall service statistics
+message ToolServiceStats {
+  int64 total_executions = 1;
+  int64 successful_executions = 2;
+  int64 failed_executions = 3;
+  int64 active_executions = 4;
+  google.protobuf.Timestamp started_at = 5;
+}
+
+// ToolStats contains statistics for a specific tool
+message ToolStats {
+  string tool_name = 1;
+  ToolUsageStats usage_stats = 2;
+}
