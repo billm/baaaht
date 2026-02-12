@@ -770,7 +770,7 @@ func TestGroupMountSharing(t *testing.T) {
 	})
 }
 
-func TestWildcardPathMatching(t *testing.T) {
+func TestMountAllowlistWildcardPathMatching(t *testing.T) {
 	log, err := logger.NewDefault()
 	if err != nil {
 		t.Fatalf("failed to create logger: %v", err)

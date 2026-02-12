@@ -152,6 +152,7 @@ func (r *MountAllowlistResolver) ResolveMountAccess(ctx context.Context, path, u
 		// Take address of slice element directly to avoid loop variable capture issues.
 		// Using &entry in a range loop would capture the address of the loop variable,
 		// causing all pointers to point to the last element after the loop completes.
+		// See https://go.dev/wiki/CommonMistakes#using-reference-to-loop-iterator-variable
 		entry := &r.policy.Mounts.MountAllowlist[i]
 		
 		// Clean the entry path for consistent comparison
