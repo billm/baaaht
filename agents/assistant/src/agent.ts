@@ -10,7 +10,7 @@ import type { Client } from '@grpc/grpc-js';
 import type {
   AgentMessage,
 } from './proto/agent.js';
-import { AgentType, AgentState, MessageType } from './proto/agent.js';
+import { AgentState, MessageType } from './proto/agent.js';
 import { StreamAgentClient, StreamEventType } from './orchestrator/stream-client.js';
 import type {
   LLMRequest,
@@ -497,6 +497,18 @@ export class Agent extends EventEmitter {
 
   private async handleOrchestratorStreamMessage(message: AgentMessage): Promise<void> {
     if (!message || !message.payload || !('dataMessage' in message.payload)) {
+      return;
+    }
+
+    if (message.sourceId === this.agentId) {
+      return;
+    }
+
+    if (message.sourceId && message.sourceId !== 'orchestrator') {
+      return;
+    }
+
+    if (message.targetId && message.targetId !== this.agentId) {
       return;
     }
 

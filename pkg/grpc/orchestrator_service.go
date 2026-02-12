@@ -424,6 +424,16 @@ func (s *OrchestratorService) StreamMessages(stream proto.OrchestratorService_St
 		// Handle heartbeat
 		if req.GetHeartbeat() != nil {
 			// Send heartbeat response
+			if sessionID != "" {
+				if err := s.sendToSessionStream(sessionID, &proto.StreamMessageResponse{
+					Payload: &proto.StreamMessageResponse_Heartbeat{&emptypb.Empty{}},
+				}); err != nil {
+					s.logger.Error("Failed to send heartbeat response", "error", err)
+					return err
+				}
+				continue
+			}
+
 			if err := stream.Send(&proto.StreamMessageResponse{
 				Payload: &proto.StreamMessageResponse_Heartbeat{&emptypb.Empty{}},
 			}); err != nil {
@@ -450,13 +460,16 @@ func (s *OrchestratorService) StreamMessages(stream proto.OrchestratorService_St
 			}
 
 			// Register this stream for the session
+			streamState := &sessionStreamState{stream: stream}
 			s.mu.Lock()
-			s.sessionStreams[sessionID] = &sessionStreamState{stream: stream}
+			s.sessionStreams[sessionID] = streamState
 			s.mu.Unlock()
 
 			defer func() {
 				s.mu.Lock()
-				delete(s.sessionStreams, sessionID)
+				if current, ok := s.sessionStreams[sessionID]; ok && current == streamState {
+					delete(s.sessionStreams, sessionID)
+				}
 				s.mu.Unlock()
 			}()
 		}

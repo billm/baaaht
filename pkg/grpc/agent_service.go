@@ -3,6 +3,7 @@ package grpc
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -243,12 +244,15 @@ type AgentService struct {
 
 	// Track pending routed responses keyed by agentID:correlationID
 	pendingResponses map[string]pendingResponseRoute
+	pendingTimers    map[string]*time.Timer
 }
 
 type pendingResponseRoute struct {
 	sessionID types.ID
 	handler   MessageResponseHandler
 }
+
+const pendingResponseTimeout = 60 * time.Second
 
 // MessageResponseHandler handles responses from agents
 type MessageResponseHandler interface {
@@ -274,6 +278,7 @@ func NewAgentService(deps AgentServiceDependencies, log *logger.Logger, skillsLo
 		agentStreams:     make(map[string]proto.AgentService_StreamAgentServer),
 		agentSendLocks:   make(map[string]*sync.Mutex),
 		pendingResponses: make(map[string]pendingResponseRoute),
+		pendingTimers:    make(map[string]*time.Timer),
 	}
 
 	if skillsLoader != nil {
@@ -285,6 +290,110 @@ func NewAgentService(deps AgentServiceDependencies, log *logger.Logger, skillsLo
 
 func pendingResponseKey(agentID, correlationID string) string {
 	return fmt.Sprintf("%s:%s", agentID, correlationID)
+}
+
+func (s *AgentService) clearPendingResponseLocked(pendingKey string) {
+	delete(s.pendingResponses, pendingKey)
+	if timer, ok := s.pendingTimers[pendingKey]; ok {
+		timer.Stop()
+		delete(s.pendingTimers, pendingKey)
+	}
+}
+
+func (s *AgentService) processAgentResponse(ctx context.Context, agentID string, msg *proto.AgentMessage) {
+	if msg == nil || msg.Metadata == nil || msg.Metadata.CorrelationId == "" {
+		return
+	}
+
+	pendingKey := pendingResponseKey(agentID, msg.Metadata.CorrelationId)
+
+	s.mu.Lock()
+	pendingRoute, exists := s.pendingResponses[pendingKey]
+	if exists {
+		s.clearPendingResponseLocked(pendingKey)
+	}
+	s.mu.Unlock()
+
+	if !exists {
+		s.logger.Warn("Discarding unsolicited agent response",
+			"agent_id", agentID,
+			"correlation_id", msg.Metadata.CorrelationId)
+		return
+	}
+
+	sessionID := types.ID(msg.Metadata.SessionId)
+	if sessionID != pendingRoute.sessionID {
+		s.logger.Warn("Discarding agent response with mismatched session",
+			"agent_id", agentID,
+			"expected_session", pendingRoute.sessionID,
+			"actual_session", sessionID,
+			"correlation_id", msg.Metadata.CorrelationId)
+		return
+	}
+
+	dataMsg := msg.GetDataMessage()
+	if dataMsg == nil {
+		return
+	}
+
+	responseMsg := types.Message{
+		ID:        types.GenerateID(),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
+		Role:      types.MessageRoleAssistant,
+		Content:   string(dataMsg.Data),
+	}
+
+	if mgr := s.deps.SessionManager(); mgr != nil {
+		if err := mgr.AddMessage(ctx, sessionID, responseMsg); err != nil {
+			s.logger.Error("Failed to add assistant response to session", "session_id", sessionID, "error", err)
+		}
+	}
+
+	if pendingRoute.handler != nil {
+		if err := pendingRoute.handler.SendResponseToSession(sessionID, responseMsg); err != nil {
+			s.logger.Error("Failed to send response to TUI", "session_id", sessionID, "error", err)
+		}
+	}
+}
+
+func (s *AgentService) expirePendingResponse(agentID, pendingKey string) {
+	var pendingRoute pendingResponseRoute
+	var exists bool
+
+	s.mu.Lock()
+	pendingRoute, exists = s.pendingResponses[pendingKey]
+	if exists {
+		s.clearPendingResponseLocked(pendingKey)
+	}
+	s.mu.Unlock()
+
+	if !exists {
+		return
+	}
+
+	timeoutMsg := types.Message{
+		ID:        types.GenerateID(),
+		Timestamp: types.NewTimestampFromTime(time.Now()),
+		Role:      types.MessageRoleAssistant,
+		Content:   "Timed out waiting for assistant response.",
+	}
+
+	if mgr := s.deps.SessionManager(); mgr != nil {
+		if err := mgr.AddMessage(context.Background(), pendingRoute.sessionID, timeoutMsg); err != nil {
+			s.logger.Error("Failed to add timeout response to session", "session_id", pendingRoute.sessionID, "error", err)
+		}
+	}
+
+	if pendingRoute.handler != nil {
+		if err := pendingRoute.handler.SendResponseToSession(pendingRoute.sessionID, timeoutMsg); err != nil {
+			s.logger.Error("Failed to send timeout response to session", "session_id", pendingRoute.sessionID, "error", err)
+		}
+	}
+
+	s.logger.Warn("Pending agent response expired",
+		"agent_id", agentID,
+		"session_id", pendingRoute.sessionID,
+		"pending_key", pendingKey)
 }
 
 func (s *AgentService) sendToAgentStream(agentID string, resp *proto.StreamAgentResponse) error {
@@ -852,8 +961,8 @@ func (s *AgentService) StreamAgent(stream proto.AgentService_StreamAgentServer) 
 				delete(s.agentStreams, agentID)
 				delete(s.agentSendLocks, agentID)
 				for key := range s.pendingResponses {
-					if len(key) >= len(agentID)+1 && key[:len(agentID)+1] == agentID+":" {
-						delete(s.pendingResponses, key)
+					if strings.HasPrefix(key, agentID+":") {
+						s.clearPendingResponseLocked(key)
 					}
 				}
 				s.mu.Unlock()
@@ -869,63 +978,7 @@ func (s *AgentService) StreamAgent(stream proto.AgentService_StreamAgentServer) 
 				"message_id", msg.Id,
 				"type", msg.Type.String())
 
-			if msg.Metadata != nil && msg.Metadata.CorrelationId != "" {
-				pendingKey := pendingResponseKey(agentID, msg.Metadata.CorrelationId)
-
-				s.mu.Lock()
-				pendingRoute, exists := s.pendingResponses[pendingKey]
-				if exists {
-					delete(s.pendingResponses, pendingKey)
-				}
-				s.mu.Unlock()
-
-				if !exists {
-					s.logger.Warn("Discarding unsolicited agent response",
-						"agent_id", agentID,
-						"correlation_id", msg.Metadata.CorrelationId)
-				} else {
-					sessionID := types.ID(msg.Metadata.SessionId)
-					if sessionID != pendingRoute.sessionID {
-						s.logger.Warn("Discarding agent response with mismatched session",
-							"agent_id", agentID,
-							"expected_session", pendingRoute.sessionID,
-							"actual_session", sessionID,
-							"correlation_id", msg.Metadata.CorrelationId)
-					} else if dataMsg := msg.GetDataMessage(); dataMsg != nil {
-						content := string(dataMsg.Data)
-
-						responseMsg := types.Message{
-							ID:        types.GenerateID(),
-							Timestamp: types.NewTimestampFromTime(time.Now()),
-							Role:      types.MessageRoleAssistant,
-							Content:   content,
-						}
-
-						if mgr := s.deps.SessionManager(); mgr != nil {
-							if err := mgr.AddMessage(ctx, sessionID, responseMsg); err != nil {
-								s.logger.Error("Failed to add assistant response to session", "session_id", sessionID, "error", err)
-							}
-						}
-
-						if pendingRoute.handler != nil {
-							if err := pendingRoute.handler.SendResponseToSession(sessionID, responseMsg); err != nil {
-								s.logger.Error("Failed to send response to TUI", "session_id", sessionID, "error", err)
-							}
-						}
-					}
-				}
-			}
-
-			// Send acknowledgment
-			resp := &proto.StreamAgentResponse{
-				Payload: &proto.StreamAgentResponse_Message{
-					Message: msg,
-				},
-			}
-			if err := s.sendToAgentStream(agentID, resp); err != nil {
-				s.logger.Error("Failed to send message response", "agent_id", agentID, "error", err)
-				return err
-			}
+			s.processAgentResponse(ctx, agentID, msg)
 		}
 	}
 }
@@ -978,10 +1031,17 @@ func (s *AgentService) RouteMessageToAgent(ctx context.Context, agentID string, 
 	// Store the pending response route for this agent+correlation combination
 	pendingKey := pendingResponseKey(agentID, correlationID)
 	s.mu.Lock()
+	if existingTimer, ok := s.pendingTimers[pendingKey]; ok {
+		existingTimer.Stop()
+		delete(s.pendingTimers, pendingKey)
+	}
 	s.pendingResponses[pendingKey] = pendingResponseRoute{
 		sessionID: sessionID,
 		handler:   handler,
 	}
+	s.pendingTimers[pendingKey] = time.AfterFunc(pendingResponseTimeout, func() {
+		s.expirePendingResponse(agentID, pendingKey)
+	})
 	s.mu.Unlock()
 
 	// Create AgentMessage with DataMessage payload containing the user message
@@ -1012,7 +1072,7 @@ func (s *AgentService) RouteMessageToAgent(ctx context.Context, agentID string, 
 
 	if err := s.sendToAgentStream(agentID, resp); err != nil {
 		s.mu.Lock()
-		delete(s.pendingResponses, pendingKey)
+		s.clearPendingResponseLocked(pendingKey)
 		s.mu.Unlock()
 		s.logger.Error("Failed to send message to agent", "agent_id", agentID, "error", err)
 		return err

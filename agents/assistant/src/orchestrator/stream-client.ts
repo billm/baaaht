@@ -27,6 +27,19 @@ import type {
 } from '../proto/agent.js';
 import type { Client } from '@grpc/grpc-js';
 
+interface BidiStream<Req, Res> {
+  write(request: Req): void;
+  cancel(): void;
+  on(event: 'data', listener: (response: Res) => void): this;
+  on(event: 'error', listener: (err: Error) => void): this;
+  on(event: 'end', listener: () => void): this;
+}
+
+interface AgentStreamingClient extends Client {
+  streamAgent(): BidiStream<StreamAgentRequest, StreamAgentResponse>;
+  streamTask(): BidiStream<StreamTaskRequest, StreamTaskResponse>;
+}
+
 /**
  * StreamOptions holds configuration for streaming connections
  */
@@ -110,7 +123,7 @@ export class StreamAgentClient extends EventEmitter {
   private client: Client;
   private agentId: string;
   private options: Required<StreamOptions>;
-  private stream: any | null = null;
+  private stream: BidiStream<StreamAgentRequest, StreamAgentResponse> | null = null;
   private connected: boolean = false;
   private reconnectAttempts: number = 0;
   private reconnectTimeout: NodeJS.Timeout | null = null;
@@ -146,7 +159,7 @@ export class StreamAgentClient extends EventEmitter {
 
     try {
       // Create the stream using the gRPC client
-      const grpcClient = this.client as any;
+      const grpcClient = this.client as AgentStreamingClient;
       this.stream = grpcClient.streamAgent();
 
       // Set up event handlers for the stream
@@ -361,7 +374,7 @@ export class StreamTaskClient extends EventEmitter {
   private client: Client;
   private taskId: string;
   private options: Required<StreamOptions>;
-  private stream: any | null = null;
+  private stream: BidiStream<StreamTaskRequest, StreamTaskResponse> | null = null;
   private connected: boolean = false;
   private reconnectAttempts: number = 0;
   private reconnectTimeout: NodeJS.Timeout | null = null;
@@ -397,7 +410,7 @@ export class StreamTaskClient extends EventEmitter {
 
     try {
       // Create the stream using the gRPC client
-      const grpcClient = this.client as any;
+      const grpcClient = this.client as AgentStreamingClient;
       this.stream = grpcClient.streamTask();
 
       // Set up event handlers for the stream
