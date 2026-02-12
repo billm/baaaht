@@ -822,7 +822,7 @@ func TestAgentService_SkillsIntegration(t *testing.T) {
 	})
 
 	t.Run("get_active_skills_returns_empty_when_no_loader", func(t *testing.T) {
-		skills, err := service.GetActiveSkillsForAgent("test-agent")
+		skills, err := service.GetActiveSkillsForAgent(context.Background(), "test-agent")
 		if err != nil {
 			t.Fatalf("GetActiveSkillsForAgent failed: %v", err)
 		}

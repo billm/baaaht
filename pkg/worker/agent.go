@@ -468,6 +468,19 @@ func (a *Agent) String() string {
 		a.orchestratorAddr, stats.IsConnected, stats.ConnectTime)
 }
 
+func (a *Agent) incrementTotalRPCs() {
+	a.mu.Lock()
+	a.stats.TotalRPCs++
+	a.mu.Unlock()
+}
+
+func (a *Agent) recordRPCFailure(err error) {
+	a.mu.Lock()
+	a.stats.FailedRPCs++
+	a.stats.LastRPCError = err.Error()
+	a.mu.Unlock()
+}
+
 // OrchestratorAddr returns the orchestrator address the agent is connected to
 func (a *Agent) OrchestratorAddr() string {
 	a.mu.RLock()
@@ -601,13 +614,10 @@ func (a *Agent) Register(ctx context.Context, name string) error {
 	}
 
 	// Call Register RPC
-	a.stats.TotalRPCs++
+	a.incrementTotalRPCs()
 	resp, err := client.Register(rpcCtx, req)
 	if err != nil {
-		a.stats.FailedRPCs++
-		a.mu.Lock()
-		a.stats.LastRPCError = err.Error()
-		a.mu.Unlock()
+		a.recordRPCFailure(err)
 		a.logger.Error("Failed to register agent", "error", err)
 		return types.WrapError(types.ErrCodeUnavailable, "failed to register agent", err)
 	}
@@ -676,13 +686,10 @@ func (a *Agent) Unregister(ctx context.Context, reason string) error {
 	}
 
 	// Call Unregister RPC
-	a.stats.TotalRPCs++
+	a.incrementTotalRPCs()
 	resp, err := client.Unregister(rpcCtx, req)
 	if err != nil {
-		a.stats.FailedRPCs++
-		a.mu.Lock()
-		a.stats.LastRPCError = err.Error()
-		a.mu.Unlock()
+		a.recordRPCFailure(err)
 		a.logger.Error("Failed to unregister agent", "agent_id", agentID, "error", err)
 		return types.WrapError(types.ErrCodeUnavailable, "failed to unregister agent", err)
 	}
@@ -784,13 +791,10 @@ func (a *Agent) sendHeartbeat(ctx context.Context) {
 	}
 
 	// Call Heartbeat RPC
-	a.stats.TotalRPCs++
+	a.incrementTotalRPCs()
 	resp, err := client.Heartbeat(rpcCtx, req)
 	if err != nil {
-		a.stats.FailedRPCs++
-		a.mu.Lock()
-		a.stats.LastRPCError = err.Error()
-		a.mu.Unlock()
+		a.recordRPCFailure(err)
 		a.logger.Warn("Failed to send heartbeat", "agent_id", agentID, "error", err)
 		return
 	}
@@ -847,12 +851,9 @@ func (a *Agent) ListenForTasks(ctx context.Context, taskID string) (proto.AgentS
 		},
 	}
 
-	a.stats.TotalRPCs++
+	a.incrementTotalRPCs()
 	if err := stream.Send(req); err != nil {
-		a.stats.FailedRPCs++
-		a.mu.Lock()
-		a.stats.LastRPCError = err.Error()
-		a.mu.Unlock()
+		a.recordRPCFailure(err)
 		a.logger.Error("Failed to send initial stream message", "task_id", taskID, "error", err)
 		return nil, types.WrapError(types.ErrCodeInternal, "failed to send initial stream message", err)
 	}
@@ -1532,4 +1533,3 @@ func (a *Agent) SendCancelRequest(stream proto.AgentService_StreamTaskClient, ta
 	a.logger.Info("Cancel request sent", "task_id", taskID, "reason", reason, "force", force)
 	return nil
 }
-

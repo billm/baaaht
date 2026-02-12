@@ -24,17 +24,17 @@ type Executor struct {
 	closed         bool
 
 	// Task tracking for cancellation
-	runningTasks   map[string]*runningTask // taskID -> running task info
+	runningTasks map[string]*runningTask // taskID -> running task info
 }
 
 // runningTask holds information about a currently running task
 type runningTask struct {
-	TaskID      string
-	ContainerID string
+	TaskID        string
+	ContainerID   string
 	ContainerName string
-	Ctx         context.Context
-	CancelFunc  context.CancelFunc
-	StartTime   time.Time
+	Ctx           context.Context
+	CancelFunc    context.CancelFunc
+	StartTime     time.Time
 }
 
 // ExecutorConfig holds configuration for creating a new Executor
@@ -96,11 +96,6 @@ type TaskResult struct {
 
 // NewExecutor creates a new tool container executor
 func NewExecutor(cfg ExecutorConfig) (*Executor, error) {
-	// Validate required fields
-	if cfg.Runtime == nil {
-		return nil, types.NewError(types.ErrCodeInvalidArgument, "runtime cannot be nil")
-	}
-
 	// Create default logger if not provided
 	log := cfg.Logger
 	if log == nil {
@@ -126,8 +121,13 @@ func NewExecutor(cfg ExecutorConfig) (*Executor, error) {
 		runningTasks:   make(map[string]*runningTask),
 	}
 
+	runtimeType := "none"
+	if cfg.Runtime != nil {
+		runtimeType = cfg.Runtime.Type()
+	}
+
 	exec.logger.Info("Executor initialized",
-		"runtime_type", cfg.Runtime.Type(),
+		"runtime_type", runtimeType,
 		"policy_enforcer", cfg.PolicyEnforcer != nil)
 
 	return exec, nil
@@ -241,8 +241,13 @@ func (e *Executor) String() string {
 		enforcerStatus = "enabled"
 	}
 
+	runtimeType := "none"
+	if e.runtime != nil {
+		runtimeType = e.runtime.Type()
+	}
+
 	return fmt.Sprintf("Executor{Runtime: %s, PolicyEnforcer: %s, SessionID: %s, Closed: %v}",
-		e.runtime.Type(), enforcerStatus, e.sessionID, e.closed)
+		runtimeType, enforcerStatus, e.sessionID, e.closed)
 }
 
 // ValidateConfig validates a container configuration against the policy enforcer
@@ -334,12 +339,12 @@ func (e *Executor) ExecuteTask(ctx context.Context, cfg TaskConfig) *TaskResult 
 
 	// Track this running task
 	taskInfo := &runningTask{
-		TaskID:         taskID,
-		ContainerID:    "", // Will be set after container creation
-		ContainerName:  "", // Will be set after container creation
-		Ctx:            taskCtx,
-		CancelFunc:     cancelFunc,
-		StartTime:      startTime,
+		TaskID:        taskID,
+		ContainerID:   "", // Will be set after container creation
+		ContainerName: "", // Will be set after container creation
+		Ctx:           taskCtx,
+		CancelFunc:    cancelFunc,
+		StartTime:     startTime,
 	}
 
 	e.mu.Lock()
@@ -353,6 +358,13 @@ func (e *Executor) ExecuteTask(ctx context.Context, cfg TaskConfig) *TaskResult 
 	}
 	e.runningTasks[taskID] = taskInfo
 	e.mu.Unlock()
+
+	if e.runtime == nil {
+		result.Error = types.NewError(types.ErrCodeUnavailable, "runtime is not configured")
+		result.CompletedAt = time.Now()
+		result.Duration = result.CompletedAt.Sub(startTime)
+		return result
+	}
 
 	// Ensure cleanup: remove from tracking and cancel context
 	defer func() {
@@ -379,6 +391,8 @@ func (e *Executor) ExecuteTask(ctx context.Context, cfg TaskConfig) *TaskResult 
 
 	// Convert tool spec to container config
 	containerConfig := toolSpec.ToContainerConfig(e.sessionID, cfg.MountSource)
+	// Keep container available until we collect logs, then destroy explicitly.
+	containerConfig.RemoveOnStop = false
 
 	// Add runtime arguments
 	if len(cfg.Args) > 0 {
@@ -501,7 +515,7 @@ func (e *Executor) ExecuteTask(ctx context.Context, cfg TaskConfig) *TaskResult 
 	// Capture logs (use a fresh context with timeout since execCtx may be canceled)
 	logsCtx, logsCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer logsCancel()
-	
+
 	logsCfg := container.LogsConfig{
 		ContainerID: result.ContainerID,
 		Stdout:      true,
@@ -535,28 +549,28 @@ func (e *Executor) ExecuteTask(ctx context.Context, cfg TaskConfig) *TaskResult 
 					if i+8 > len(data) {
 						break
 					}
-					
+
 					// Parse header at current offset
 					streamType := data[i]
 					// Payload size is big-endian uint32 at bytes 4-7 of header
 					payloadSize := int(data[i+4])<<24 | int(data[i+5])<<16 | int(data[i+6])<<8 | int(data[i+7])
 					payloadStart := i + 8
 					payloadEnd := payloadStart + payloadSize
-					
+
 					// Check if we have the full payload
 					if payloadEnd > len(data) {
 						// Partial frame - break and get more data on next read
 						break
 					}
-					
+
 					payload := data[payloadStart:payloadEnd]
-					
+
 					if streamType == 1 {
 						stdoutBuf.Write(payload)
 					} else if streamType == 2 {
 						stderrBuf.Write(payload)
 					}
-					
+
 					// Advance to next frame
 					i = payloadEnd
 				}
