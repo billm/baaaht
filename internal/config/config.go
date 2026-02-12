@@ -886,6 +886,25 @@ func applyEnvOverrides(cfg *Config) error {
 		}
 	}
 
+	// Load Skills configuration
+	if v := os.Getenv(EnvSkillsEnabled); v != "" {
+		cfg.Skills.Enabled = strings.ToLower(v) == "true" || v == "1"
+	}
+	if v := os.Getenv(EnvSkillsStoragePath); v != "" {
+		cfg.Skills.StoragePath = v
+	}
+	if v := os.Getenv(EnvSkillsAutoLoad); v != "" {
+		cfg.Skills.AutoLoad = strings.ToLower(v) == "true" || v == "1"
+	}
+	if v := os.Getenv(EnvSkillsMaxPerOwner); v != "" {
+		if max, err := strconv.Atoi(v); err == nil {
+			cfg.Skills.MaxSkillsPerOwner = max
+		}
+	}
+	if v := os.Getenv(EnvSkillsGitHubToken); v != "" {
+		cfg.Skills.GitHubConfig.Token = v
+	}
+
 	return nil
 }
 

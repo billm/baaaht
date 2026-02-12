@@ -126,7 +126,13 @@ func (s *Store) Store(ctx context.Context, skill *types.Skill) error {
 
 		if skill.Capabilities != nil {
 			existing.Capabilities = make([]types.SkillCapability, len(skill.Capabilities))
-			copy(existing.Capabilities, skill.Capabilities)
+			for i, cap := range skill.Capabilities {
+				existing.Capabilities[i] = cap
+				// Deep copy the Config map (recursively handles nested structures)
+				if cap.Config != nil {
+					existing.Capabilities[i].Config = deepCopyConfigMap(cap.Config)
+				}
+			}
 		} else {
 			existing.Capabilities = nil
 		}
@@ -202,11 +208,8 @@ func (s *Store) Store(ctx context.Context, skill *types.Skill) error {
 		s.logger.Info("Skill stored", "id", skill.ID, "name", skill.Name, "scope", skill.Scope)
 	}
 
-	// Persist to disk using the canonical in-memory object
-	skillToPersist := skill
-	if exists {
-		skillToPersist = existing
-	}
+	// Persist to disk using the canonical in-memory object (with correct timestamps)
+	skillToPersist := s.skills[skill.ID]
 	if err := s.saveToDisk(skillToPersist); err != nil {
 		s.logger.Error("Failed to persist skill to disk", "error", err)
 		return err
@@ -482,11 +485,12 @@ func (s *Store) saveToDisk(skill *types.Skill) error {
 	}
 
 	// Enforce MaxSkillsPerOwner if configured
+	// Excludes current skill ID from count to allow updates when at limit
 	if s.cfg.MaxSkillsPerOwner > 0 {
-		// Count existing skills for this owner
+		// Count existing skills for this owner (excluding the current skill ID)
 		count := 0
-		for _, s := range s.skills {
-			if s.Scope == skill.Scope && s.OwnerID == skill.OwnerID {
+		for _, existingSkill := range s.skills {
+			if existingSkill.Scope == skill.Scope && existingSkill.OwnerID == skill.OwnerID && existingSkill.ID != skill.ID {
 				count++
 			}
 		}
@@ -675,10 +679,62 @@ func deepCopySkill(skill *types.Skill) *types.Skill {
 	// Deep copy the Capabilities slice
 	if skill.Capabilities != nil {
 		result.Capabilities = make([]types.SkillCapability, len(skill.Capabilities))
-		copy(result.Capabilities, skill.Capabilities)
+		for i, cap := range skill.Capabilities {
+			result.Capabilities[i] = cap
+			// Deep copy the Config map (recursively handles nested structures)
+			if cap.Config != nil {
+				result.Capabilities[i].Config = deepCopyConfigMap(cap.Config)
+			}
+		}
 	}
 
 	return &result
+}
+
+// deepCopyConfigMap creates a deep copy of a config map, handling nested structures
+func deepCopyConfigMap(m map[string]interface{}) map[string]interface{} {
+	if m == nil {
+		return nil
+	}
+	result := make(map[string]interface{}, len(m))
+	for k, v := range m {
+		result[k] = deepCopyValue(v)
+	}
+	return result
+}
+
+// deepCopyValue creates a deep copy of a value, handling common types
+func deepCopyValue(v interface{}) interface{} {
+	if v == nil {
+		return nil
+	}
+
+	switch val := v.(type) {
+	case map[string]interface{}:
+		return deepCopyConfigMap(val)
+	case []interface{}:
+		result := make([]interface{}, len(val))
+		for i, item := range val {
+			result[i] = deepCopyValue(item)
+		}
+		return result
+	case []string:
+		result := make([]string, len(val))
+		copy(result, val)
+		return result
+	case []int:
+		result := make([]int, len(val))
+		copy(result, val)
+		return result
+	case []float64:
+		result := make([]float64, len(val))
+		copy(result, val)
+		return result
+	default:
+		// For primitive types (string, int, float64, bool, etc.), return as-is
+		// These are immutable in Go, so no deep copy needed
+		return v
+	}
 }
 
 // serializeToMarkdown converts a skill to markdown format with frontmatter
@@ -695,6 +751,10 @@ func (s *Store) deserializeFromMarkdown(data []byte, scope types.SkillScope, own
 func sanitizeOwnerID(ownerID string) string {
 	// Remove any path components that could lead to directory traversal
 	ownerID = filepath.Base(ownerID)
+	// filepath.Base("") returns ".", handle this case
+	if ownerID == "." {
+		return ""
+	}
 	// Remove any non-alphanumeric characters (except dash, underscore, dot)
 	ownerID = strings.Map(func(r rune) rune {
 		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' {
