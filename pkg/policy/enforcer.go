@@ -378,6 +378,10 @@ func (e *Enforcer) validateMounts(ctx context.Context, policy *Policy, config ty
 					// Enforce read-only mounts immediately during validation so that
 					// callers cannot bypass enforcement by skipping EnforceContainerConfig.
 					if accessMode == MountAccessModeReadOnly && !mount.ReadOnly {
+						e.logger.Debug("Enforcing read-only mode for mount",
+							"path", mount.Source,
+							"target", mount.Target,
+							"user", username)
 						mount.ReadOnly = true
 					}
 				}

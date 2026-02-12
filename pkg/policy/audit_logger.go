@@ -59,11 +59,12 @@ type AuditEvent struct {
 
 // AuditLogger handles structured audit logging for security events
 type AuditLogger struct {
-	logger    *logger.Logger
-	mu        sync.RWMutex
-	auditFile *os.File
-	auditPath string
-	closed    bool
+	logger        *logger.Logger
+	mu            sync.RWMutex
+	auditFile     *os.File
+	auditPath     string
+	closed        bool
+	disableFsync  bool
 }
 
 // NewAuditLogger creates a new audit logger with the specified configuration
@@ -77,9 +78,10 @@ func NewAuditLogger(log *logger.Logger, auditPath string) (*AuditLogger, error) 
 	}
 
 	al := &AuditLogger{
-		logger:    log.With("component", "audit_logger"),
-		auditPath: auditPath,
-		closed:    false,
+		logger:       log.With("component", "audit_logger"),
+		auditPath:    auditPath,
+		closed:       false,
+		disableFsync: os.Getenv("AUDIT_FSYNC_DISABLED") == "true",
 	}
 
 	// Initialize audit file if path is provided
@@ -172,7 +174,7 @@ func (al *AuditLogger) LogEvent(event AuditEvent) error {
 		// Optionally sync to ensure data is written. By default, we sync every event
 		// to preserve durability guarantees. Set AUDIT_FSYNC_DISABLED=true to rely
 		// on OS buffering for better performance at the cost of potential data loss on crash.
-		if os.Getenv("AUDIT_FSYNC_DISABLED") != "true" {
+		if !al.disableFsync {
 			if err := al.auditFile.Sync(); err != nil {
 				al.logger.Error("Failed to sync audit file", "error", err)
 			}

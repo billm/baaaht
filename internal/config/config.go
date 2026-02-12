@@ -420,6 +420,9 @@ func applyDefaults(cfg *Config) {
 	}
 	// For completely missing audit sections in older configs, also apply
 	// boolean defaults so behavior matches DefaultAuditConfig().
+	// TODO: Consider using pointer bools for optional audit fields or adding an
+	// explicit flag to detect missing configs more robustly. This check will break
+	// if new non-boolean fields are added to the audit config.
 	if cfg.Audit.Output == "" &&
 		cfg.Audit.Format == "" &&
 		cfg.Audit.MaxSize == 0 &&

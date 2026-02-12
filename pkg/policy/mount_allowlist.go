@@ -149,6 +149,9 @@ func (r *MountAllowlistResolver) ResolveMountAccess(ctx context.Context, path, u
 	var bestMatchPriority int // 3 = user-specific, 2 = group-specific, 1 = default
 
 	for i := range r.policy.Mounts.MountAllowlist {
+		// Take address of slice element directly to avoid loop variable capture issues.
+		// Using &entry in a range loop would capture the address of the loop variable,
+		// causing all pointers to point to the last element after the loop completes.
 		entry := &r.policy.Mounts.MountAllowlist[i]
 		
 		// Clean the entry path for consistent comparison
