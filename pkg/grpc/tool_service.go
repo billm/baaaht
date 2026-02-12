@@ -800,12 +800,13 @@ func (s *ToolService) ExecuteTool(ctx context.Context, req *proto.ExecuteToolReq
 	}
 
 	// Update execution with result
+	status := toolExecutionStatusToProto(result.Status)
 	execution.mu.Lock()
-	execution.Status = proto.ToolExecutionStatus(result.Status)
+	execution.Status = status
 	execution.Result = &proto.ToolExecutionResult{
 		ExecutionId: result.ExecutionID,
 		ToolName:    result.ToolName,
-		Status:      proto.ToolExecutionStatus(result.Status),
+		Status:      status,
 		ExitCode:    result.ExitCode,
 		OutputData:  result.OutputData,
 		OutputText:  result.OutputText,
@@ -1181,6 +1182,25 @@ func (s *ToolService) GetStats(ctx context.Context, req *proto.GetStatsRequest) 
 // =============================================================================
 // Helper Functions
 // =============================================================================
+
+func toolExecutionStatusToProto(status tools.ToolExecutionStatus) proto.ToolExecutionStatus {
+	switch status {
+	case tools.ToolExecutionStatusPending:
+		return proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_PENDING
+	case tools.ToolExecutionStatusRunning:
+		return proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_RUNNING
+	case tools.ToolExecutionStatusCompleted:
+		return proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_COMPLETED
+	case tools.ToolExecutionStatusFailed:
+		return proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_FAILED
+	case tools.ToolExecutionStatusTimeout:
+		return proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_TIMEOUT
+	case tools.ToolExecutionStatusCancelled:
+		return proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_CANCELLED
+	default:
+		return proto.ToolExecutionStatus_TOOL_EXECUTION_STATUS_UNSPECIFIED
+	}
+}
 
 // toolInfoToProto converts ToolInfo to protobuf ToolInstance
 func (s *ToolService) toolInfoToProto(info *ToolInfo) *proto.ToolInstance {

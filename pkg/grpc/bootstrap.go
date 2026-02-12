@@ -147,7 +147,6 @@ func Bootstrap(ctx context.Context, cfg BootstrapConfig) (*BootstrapResult, erro
 	}
 
 	// Create tool registry and executor
-	toolRegistry := tools.GetGlobalRegistry()
 	_ = tools.RegisterBuiltinTools()
 
 	// Create executor (requires container runtime)
@@ -157,11 +156,11 @@ func Bootstrap(ctx context.Context, cfg BootstrapConfig) (*BootstrapResult, erro
 			result.Error = types.WrapError(types.ErrCodeInternal, "failed to create tool executor", err)
 			// Cleanup on failure
 			_ = server.Stop()
-			_ = health.Shutdown()
+			health.Shutdown()
 			return result, result.Error
 		}
 		deps.executor = executor
-		log.Info("Tool executor created", "runtime", cfg.ContainerRuntime.String())
+		log.Info("Tool executor created", "runtime", cfg.ContainerRuntime.Type())
 	} else {
 		log.Warn("Container runtime not provided, tool service will not execute tools")
 	}
