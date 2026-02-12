@@ -45,11 +45,11 @@ import type {
   ToolCallInfo,
   MessageProcessResult,
   AgentDependencies,
-  AgentEventType,
   ResponseMetadata,
   ToolExecutionResult,
   MessageMetadata,
 } from './agent/types.js';
+import { AgentEventType } from './agent/types.js';
 import { LLMGatewayClient } from './llm/gateway-client.js';
 import { SessionManager } from './session/manager.js';
 import { createDelegateToolDefinition } from './tools/delegate.js';
@@ -124,6 +124,27 @@ function createAgentError(
  */
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function extractDataMessage(message: AgentMessage): { data?: Uint8Array } | undefined {
+  const payload = (message as unknown as { payload?: unknown }).payload;
+
+  if (isRecord(payload) && 'dataMessage' in payload && isRecord(payload.dataMessage)) {
+    return payload.dataMessage as { data?: Uint8Array };
+  }
+
+  if (payload === 'dataMessage' && 'dataMessage' in (message as unknown as Record<string, unknown>)) {
+    const flattened = (message as unknown as { dataMessage?: unknown }).dataMessage;
+    if (isRecord(flattened)) {
+      return flattened as { data?: Uint8Array };
+    }
+  }
+
+  return undefined;
 }
 
 // =============================================================================
@@ -437,9 +458,7 @@ export class Agent extends EventEmitter {
     // Update activity timestamp
     this.lastActivityAt = new Date();
 
-    const dataMessage = message.payload && 'dataMessage' in message.payload
-      ? message.payload.dataMessage
-      : undefined;
+    const dataMessage = extractDataMessage(message);
     const content = dataMessage?.data ? new TextDecoder().decode(dataMessage.data) : '';
     const sessionId = message.metadata?.sessionId ?? '';
     const correlationId = message.metadata?.correlationId ?? message.id ?? generateMessageId();
@@ -491,7 +510,11 @@ export class Agent extends EventEmitter {
   }
 
   private async handleOrchestratorStreamMessage(message: AgentMessage): Promise<void> {
-    if (!message || !message.payload || !('dataMessage' in message.payload)) {
+    if (!message) {
+      return;
+    }
+
+    if (!extractDataMessage(message)) {
       return;
     }
 

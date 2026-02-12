@@ -107,6 +107,26 @@ docker build -t baaaht/orchestrator:latest .
 docker run -v /var/run/docker.sock:/var/run/docker.sock baaaht/orchestrator:latest
 ```
 
+By default, the orchestrator also auto-starts the Assistant backend in a container.
+It mounts `agents/assistant` into the container at `/app`, mounts repository `proto/` at `/proto`, uses a container-managed `node_modules` volume, and runs `npm install && npm run dev` there.
+For container-to-orchestrator connectivity, the orchestrator also starts a TCP gRPC listener (default `0.0.0.0:50051`) and the assistant uses `host.docker.internal:50051`.
+
+You can override assistant startup behavior with CLI flags:
+
+```bash
+# Disable assistant auto-start
+./bin/orchestrator --assistant-autostart=false
+
+# Use a custom assistant container image
+./bin/orchestrator --assistant-image node:22-alpine
+
+# Configure TCP gRPC bridge for containerized assistant
+./bin/orchestrator --grpc-tcp-enabled --grpc-tcp-listen-addr 0.0.0.0:50051 --assistant-orchestrator-addr host.docker.internal:50051
+
+# Use a custom assistant startup command in container
+./bin/orchestrator --assistant-command sh --assistant-args "-lc","npm ci && npm run build && npm start" --assistant-workdir agents/assistant
+```
+
 ## Development
 
 ### Running tests

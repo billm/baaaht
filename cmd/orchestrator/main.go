@@ -3,11 +3,16 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
+	"path/filepath"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/billm/baaaht/orchestrator/internal/config"
 	"github.com/billm/baaaht/orchestrator/internal/logger"
+	"github.com/billm/baaaht/orchestrator/pkg/container"
 	"github.com/billm/baaaht/orchestrator/pkg/grpc"
 	"github.com/billm/baaaht/orchestrator/pkg/orchestrator"
 	"github.com/billm/baaaht/orchestrator/pkg/provider"
@@ -28,22 +33,229 @@ var (
 	versionFlag bool
 
 	// gRPC CLI flags
-	grpcSocketPath     string
-	grpcMaxRecvMsgSize int
-	grpcMaxSendMsgSize int
-	grpcTimeout        string
-	grpcMaxConnections int
+	grpcSocketPath            string
+	grpcMaxRecvMsgSize        int
+	grpcMaxSendMsgSize        int
+	grpcTimeout               string
+	grpcMaxConnections        int
+	grpcTCPEnabled            bool
+	grpcTCPListenAddr         string
+	assistantAutoStart        bool
+	assistantImage            string
+	assistantCommand          string
+	assistantArgs             []string
+	assistantWorkDir          string
+	assistantOrchestratorAddr string
 
 	// Global variables
-	rootLog   *logger.Logger
-	orch      *orchestrator.Orchestrator
-	shutdown  *orchestrator.ShutdownManager
-	cfgReloader *config.Reloader
-	grpcResult *grpc.BootstrapResult
+	rootLog          *logger.Logger
+	orch             *orchestrator.Orchestrator
+	shutdown         *orchestrator.ShutdownManager
+	cfgReloader      *config.Reloader
+	grpcResult       *grpc.BootstrapResult
+	grpcTCPListener  net.Listener
 	providerRegistry *provider.Registry
-	skillsLoader *skills.Loader
-	skillsStore *skills.Store
+	skillsLoader     *skills.Loader
+	skillsStore      *skills.Store
+	assistantProcess *managedAssistantContainer
 )
+
+type managedAssistantContainer struct {
+	runtime   container.Runtime
+	creator   *container.Creator
+	lifecycle *container.LifecycleManager
+	log       *logger.Logger
+
+	containerID string
+	started     bool
+
+	mu      sync.Mutex
+	stopped bool
+}
+
+func startAssistantProcess(log *logger.Logger, cfg *config.Config, image string, command string, args []string, workingDir string, orchestratorAddr string) (*managedAssistantContainer, error) {
+	if log == nil {
+		return nil, fmt.Errorf("logger is required")
+	}
+	if cfg == nil {
+		return nil, fmt.Errorf("config is required")
+	}
+	if strings.TrimSpace(image) == "" {
+		return nil, fmt.Errorf("assistant image cannot be empty")
+	}
+	if strings.TrimSpace(command) == "" {
+		return nil, fmt.Errorf("assistant command cannot be empty")
+	}
+	if strings.TrimSpace(orchestratorAddr) == "" {
+		return nil, fmt.Errorf("assistant orchestrator address cannot be empty")
+	}
+
+	resolvedWorkDir := workingDir
+	if !filepath.IsAbs(resolvedWorkDir) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve current directory: %w", err)
+		}
+		resolvedWorkDir = filepath.Join(cwd, resolvedWorkDir)
+	}
+
+	if info, err := os.Stat(resolvedWorkDir); err != nil {
+		return nil, fmt.Errorf("assistant working directory is not accessible (%s): %w", resolvedWorkDir, err)
+	} else if !info.IsDir() {
+		return nil, fmt.Errorf("assistant working directory is not a directory: %s", resolvedWorkDir)
+	}
+
+	protoDir := filepath.Clean(filepath.Join(resolvedWorkDir, "..", "..", "proto"))
+	if info, err := os.Stat(protoDir); err != nil {
+		return nil, fmt.Errorf("assistant proto directory is not accessible (%s): %w", protoDir, err)
+	} else if !info.IsDir() {
+		return nil, fmt.Errorf("assistant proto directory is not a directory: %s", protoDir)
+	}
+
+	runtime, err := container.NewDockerRuntime(cfg.Docker, log)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create assistant runtime: %w", err)
+	}
+
+	creator, err := container.NewCreatorFromRuntime(runtime, log)
+	if err != nil {
+		_ = runtime.Close()
+		return nil, fmt.Errorf("failed to create assistant container creator: %w", err)
+	}
+
+	lifecycle, err := container.NewLifecycleManagerFromRuntime(runtime, log)
+	if err != nil {
+		_ = runtime.Close()
+		return nil, fmt.Errorf("failed to create assistant lifecycle manager: %w", err)
+	}
+
+	proc := &managedAssistantContainer{
+		runtime:   runtime,
+		creator:   creator,
+		lifecycle: lifecycle,
+		log:       log.With("component", "assistant_container_manager"),
+	}
+
+	createResult, err := proc.creator.Create(context.Background(), container.CreateConfig{
+		Config: types.ContainerConfig{
+			Image:      image,
+			Command:    []string{command},
+			Args:       args,
+			WorkingDir: "/app",
+			Env: map[string]string{
+				"ORCHESTRATOR_URL": orchestratorAddr,
+			},
+			Labels: map[string]string{
+				"baaaht.managed":   "true",
+				"baaaht.component": "assistant",
+			},
+			Mounts: []types.Mount{
+				{Type: types.MountTypeBind, Source: resolvedWorkDir, Target: "/app"},
+				{Type: types.MountTypeVolume, Source: "baaaht-assistant-node-modules", Target: "/app/node_modules"},
+				{Type: types.MountTypeBind, Source: protoDir, Target: "/proto", ReadOnly: true},
+			},
+			Networks: []string{"bridge"},
+			Resources: types.ResourceLimits{
+				NanoCPUs:    1_000_000_000,
+				MemoryBytes: 1_073_741_824,
+			},
+			RestartPolicy: types.RestartPolicy{Name: "no"},
+		},
+		Name:        "baaaht-assistant",
+		SessionID:   types.GenerateID(),
+		AutoPull:    true,
+		PullTimeout: 5 * time.Minute,
+	})
+	if err != nil {
+		_ = runtime.Close()
+		return nil, fmt.Errorf("failed to create assistant container: %w", err)
+	}
+
+	proc.containerID = createResult.ContainerID
+
+	if err := proc.lifecycle.Start(context.Background(), container.StartConfig{
+		ContainerID: proc.containerID,
+		Name:        "baaaht-assistant",
+	}); err != nil {
+		_ = proc.lifecycle.Destroy(context.Background(), container.DestroyConfig{
+			ContainerID:   proc.containerID,
+			Name:          "baaaht-assistant",
+			Force:         true,
+			RemoveVolumes: false,
+		})
+		_ = runtime.Close()
+		proc.containerID = ""
+		return nil, err
+	}
+
+	proc.started = true
+	proc.log.Info("Assistant container started",
+		"container_id", proc.containerID,
+		"image", image,
+		"command", command,
+		"args", args,
+		"host_working_dir", resolvedWorkDir,
+		"host_proto_dir", protoDir,
+		"orchestrator_url", orchestratorAddr)
+
+	return proc, nil
+}
+func (p *managedAssistantContainer) Stop(timeout time.Duration) error {
+	if p == nil {
+		return nil
+	}
+
+	p.mu.Lock()
+	if p.stopped {
+		p.mu.Unlock()
+		return nil
+	}
+	p.stopped = true
+	containerID := p.containerID
+	started := p.started
+	p.mu.Unlock()
+
+	if !started || containerID == "" {
+		if p.runtime != nil {
+			_ = p.runtime.Close()
+		}
+		return nil
+	}
+
+	p.log.Info("Stopping assistant container", "container_id", containerID)
+
+	stopCfg := container.StopConfig{
+		ContainerID: containerID,
+		Name:        "baaaht-assistant",
+		Timeout:     &timeout,
+	}
+	if err := p.lifecycle.Stop(context.Background(), stopCfg); err != nil {
+		p.log.Warn("Failed to stop assistant container cleanly", "container_id", containerID, "error", err)
+	}
+
+	destroyCfg := container.DestroyConfig{
+		ContainerID:   containerID,
+		Name:          "baaaht-assistant",
+		Force:         true,
+		RemoveVolumes: false,
+	}
+	if err := p.lifecycle.Destroy(context.Background(), destroyCfg); err != nil {
+		p.log.Warn("Failed to destroy assistant container", "container_id", containerID, "error", err)
+	}
+
+	p.mu.Lock()
+	p.started = false
+	p.containerID = ""
+	p.mu.Unlock()
+
+	if p.runtime != nil {
+		if err := p.runtime.Close(); err != nil {
+			return fmt.Errorf("failed to close assistant runtime: %w", err)
+		}
+	}
+
+	return nil
+}
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -182,14 +394,39 @@ func runOrchestrator(cmd *cobra.Command, args []string) error {
 		"socket_path", grpcResult.SocketPath,
 		"duration", grpcResult.Duration())
 
+	if grpcTCPEnabled {
+		listener, err := net.Listen("tcp", grpcTCPListenAddr)
+		if err != nil {
+			rootLog.Error("Failed to start gRPC TCP listener", "address", grpcTCPListenAddr, "error", err)
+			return fmt.Errorf("failed to start gRPC TCP listener: %w", err)
+		}
+		grpcTCPListener = listener
+
+		go func() {
+			if err := grpcResult.Server.GetServer().Serve(listener); err != nil {
+				rootLog.Warn("gRPC TCP serve ended", "address", grpcTCPListenAddr, "error", err)
+			}
+		}()
+
+		rootLog.Info("gRPC TCP listener started", "address", grpcTCPListenAddr)
+	}
+
+	if assistantAutoStart {
+		assistantProcess, err = startAssistantProcess(rootLog, cfg, assistantImage, assistantCommand, assistantArgs, assistantWorkDir, assistantOrchestratorAddr)
+		if err != nil {
+			rootLog.Error("Failed to auto-start assistant container", "error", err)
+			return err
+		}
+	}
+
 	// Initialize provider registry
 	rootLog.Info("Initializing provider registry...")
 	providerRegistryCfg := provider.RegistryConfig{
-		FailoverEnabled:        cfg.Provider.FailoverEnabled,
-		FailoverThreshold:      cfg.Provider.FailoverThreshold,
-		HealthCheckInterval:    cfg.Provider.HealthCheckInterval,
-		CircuitBreakerTimeout:  cfg.Provider.CircuitBreakerTimeout,
-		Providers:              make(map[provider.Provider]provider.ProviderConfig),
+		FailoverEnabled:       cfg.Provider.FailoverEnabled,
+		FailoverThreshold:     cfg.Provider.FailoverThreshold,
+		HealthCheckInterval:   cfg.Provider.HealthCheckInterval,
+		CircuitBreakerTimeout: cfg.Provider.CircuitBreakerTimeout,
+		Providers:             make(map[provider.Provider]provider.ProviderConfig),
 	}
 
 	// Convert default provider
@@ -215,11 +452,11 @@ func runOrchestrator(cmd *cobra.Command, args []string) error {
 			provider.ModelClaude3Haiku,
 		},
 		Metadata: map[string]interface{}{
-			"name":                         "Anthropic",
-			"description":                  "Anthropic Claude API",
-			"supports_prompt_caching":      true,
-			"supports_function_calling":    true,
-			"supports_vision":              true,
+			"name":                      "Anthropic",
+			"description":               "Anthropic Claude API",
+			"supports_prompt_caching":   true,
+			"supports_function_calling": true,
+			"supports_vision":           true,
 		},
 	}
 	if anthropicCfg.BaseURL == "" {
@@ -322,6 +559,20 @@ func runOrchestrator(cmd *cobra.Command, args []string) error {
 	// Add shutdown hook for graceful cleanup
 	shutdown.AddHook(func(ctx context.Context) error {
 		rootLog.Info("Executing shutdown hook")
+		if grpcTCPListener != nil {
+			if err := grpcTCPListener.Close(); err != nil {
+				rootLog.Warn("Failed to close gRPC TCP listener", "error", err)
+			} else {
+				rootLog.Info("gRPC TCP listener closed", "address", grpcTCPListenAddr)
+			}
+		}
+		if assistantProcess != nil {
+			if err := assistantProcess.Stop(cfg.Orchestrator.ShutdownTimeout); err != nil {
+				rootLog.Error("Failed to stop assistant container", "error", err)
+			} else {
+				rootLog.Info("Assistant container stopped")
+			}
+		}
 		// Stop gRPC server
 		if grpcResult != nil && grpcResult.Server != nil {
 			if grpcResult.Health != nil {
@@ -481,6 +732,23 @@ func main() {
 		"gRPC connection timeout (default: 30s)")
 	rootCmd.PersistentFlags().IntVar(&grpcMaxConnections, "grpc-max-connections", 0,
 		"gRPC max connections (default: 100)")
+	rootCmd.PersistentFlags().BoolVar(&grpcTCPEnabled, "grpc-tcp-enabled", true,
+		"Enable TCP gRPC listener for containerized agents")
+	rootCmd.PersistentFlags().StringVar(&grpcTCPListenAddr, "grpc-tcp-listen-addr", "0.0.0.0:50051",
+		"TCP address for gRPC listener used by containerized agents")
+
+	rootCmd.PersistentFlags().BoolVar(&assistantAutoStart, "assistant-autostart", true,
+		"Automatically start the assistant backend container")
+	rootCmd.PersistentFlags().StringVar(&assistantImage, "assistant-image", "node:22-alpine",
+		"Container image used for the assistant backend")
+	rootCmd.PersistentFlags().StringVar(&assistantCommand, "assistant-command", "sh",
+		"Container command used to start the assistant")
+	rootCmd.PersistentFlags().StringSliceVar(&assistantArgs, "assistant-args", []string{"-lc", "npm install && npm run dev"},
+		"Arguments for assistant container command")
+	rootCmd.PersistentFlags().StringVar(&assistantWorkDir, "assistant-workdir", "agents/assistant",
+		"Host working directory (mounted into assistant container at /app)")
+	rootCmd.PersistentFlags().StringVar(&assistantOrchestratorAddr, "assistant-orchestrator-addr", "host.docker.internal:50051",
+		"Orchestrator gRPC address used by assistant container")
 
 	// Version flag
 	rootCmd.Flags().BoolVar(&versionFlag, "version", false,

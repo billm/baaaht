@@ -58,11 +58,11 @@ type Server struct {
 
 // ServerStats represents server statistics
 type ServerStats struct {
-	StartTime    time.Time `json:"start_time"`
-	ActiveConns  int       `json:"active_connections"`
-	TotalConns   int64     `json:"total_connections"`
-	TotalRPCs    int64     `json:"total_rpcs"`
-	IsServing    bool      `json:"is_serving"`
+	StartTime   time.Time `json:"start_time"`
+	ActiveConns int       `json:"active_connections"`
+	TotalConns  int64     `json:"total_connections"`
+	TotalRPCs   int64     `json:"total_rpcs"`
+	IsServing   bool      `json:"is_serving"`
 }
 
 // ServerConfig contains server configuration
@@ -193,6 +193,16 @@ func (s *Server) Start(ctx context.Context) error {
 		s.started = false
 		s.mu.Unlock()
 		return types.WrapError(types.ErrCodeInternal, "failed to listen on socket", err)
+	}
+
+	// Ensure containerized agents can connect to the UDS.
+	// Unix socket connect requires write permission on the socket file.
+	if err := os.Chmod(s.path, 0o777); err != nil {
+		_ = listener.Close()
+		s.mu.Lock()
+		s.started = false
+		s.mu.Unlock()
+		return types.WrapError(types.ErrCodeInternal, "failed to set socket permissions", err)
 	}
 
 	s.mu.Lock()

@@ -681,9 +681,11 @@ export class SessionManager extends EventEmitter {
    */
   private startCleanupLoop(): void {
     this.cleanupTimer = setInterval(() => {
-      this.cleanup().catch((error) => {
+      try {
+        this.cleanup();
+      } catch (error) {
         this.emit('error', error);
-      });
+      }
     }, this.config.cleanupInterval);
   }
 

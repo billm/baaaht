@@ -183,14 +183,31 @@ function createDefaultBootstrapConfig(): Required<
   sessionManagerConfig: SessionManagerConfig;
   registrationInfo: AgentRegistrationInfo;
 } {
+  const rawOrchestratorAddress = process.env.ORCHESTRATOR_URL?.trim();
+  let orchestratorAddress = '/tmp/baaaht-grpc.sock';
+  let useUnixSocket = true;
+
+  if (rawOrchestratorAddress && rawOrchestratorAddress.length > 0) {
+    if (rawOrchestratorAddress.startsWith('unix://')) {
+      orchestratorAddress = rawOrchestratorAddress.slice('unix://'.length);
+      useUnixSocket = true;
+    } else if (rawOrchestratorAddress.startsWith('/')) {
+      orchestratorAddress = rawOrchestratorAddress;
+      useUnixSocket = true;
+    } else {
+      orchestratorAddress = rawOrchestratorAddress;
+      useUnixSocket = false;
+    }
+  }
+
   return {
     agentConfig: {
       name: 'assistant',
       description: 'Primary conversational agent with tool delegation',
     },
     orchestratorConfig: {
-      address: process.env.ORCHESTRATOR_URL ?? '/tmp/baaaht-grpc.sock',
-      useUnixSocket: process.env.ORCHESTRATOR_URL === undefined,
+      address: orchestratorAddress,
+      useUnixSocket,
     },
     sessionManagerConfig: {
       maxSessions: 100,

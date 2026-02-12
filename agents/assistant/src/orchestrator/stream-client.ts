@@ -40,6 +40,10 @@ interface AgentStreamingClient extends Client {
   streamTask(): BidiStream<StreamTaskRequest, StreamTaskResponse>;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
 /**
  * StreamOptions holds configuration for streaming connections
  */
@@ -266,23 +270,48 @@ export class StreamAgentClient extends EventEmitter {
    * @private
    */
   private handleResponse(response: StreamAgentResponse): void {
-    if (!response.payload) {
-      return;
+    const payload = (response as unknown as { payload?: unknown }).payload;
+    const wireMessage = (response as unknown as { message?: AgentMessage }).message;
+
+    // Handle nested object payload shape: { payload: { message | heartbeat } }
+    if (isRecord(payload)) {
+      if ('heartbeat' in payload) {
+        this.emit(StreamEventType.HEARTBEAT, {
+          type: StreamEventType.HEARTBEAT,
+        });
+        return;
+      }
+
+      if ('message' in payload && isRecord(payload.message)) {
+        this.emit(StreamEventType.MESSAGE, {
+          type: StreamEventType.MESSAGE,
+          data: payload.message as AgentMessage,
+        });
+        return;
+      }
     }
 
-    // Handle heartbeat response
-    if ('heartbeat' in response.payload) {
+    // Handle proto-loader oneof discriminator shape: { payload: "message", message: {...} }
+    if (payload === 'heartbeat') {
       this.emit(StreamEventType.HEARTBEAT, {
         type: StreamEventType.HEARTBEAT,
       });
       return;
     }
 
-    // Handle message response
-    if ('message' in response.payload && response.payload.message) {
+    if (payload === 'message' && wireMessage) {
       this.emit(StreamEventType.MESSAGE, {
         type: StreamEventType.MESSAGE,
-        data: response.payload.message,
+        data: wireMessage,
+      });
+      return;
+    }
+
+    // Fallback shape where fields are flattened without discriminator.
+    if (wireMessage) {
+      this.emit(StreamEventType.MESSAGE, {
+        type: StreamEventType.MESSAGE,
+        data: wireMessage,
       });
     }
   }
@@ -548,61 +577,95 @@ export class StreamTaskClient extends EventEmitter {
    * @private
    */
   private handleResponse(response: StreamTaskResponse): void {
-    if (!response.payload) {
-      return;
+    const payload = (response as unknown as { payload?: unknown }).payload;
+    const wire = response as unknown as {
+      output?: TaskOutput;
+      status?: TaskStatusUpdate;
+      progress?: TaskProgress;
+      complete?: TaskComplete;
+      error?: TaskError;
+    };
+
+    const emitTaskField = (event: StreamEventType, value: unknown): boolean => {
+      if (value !== undefined && value !== null) {
+        this.emit(event, {
+          type: event,
+          data: value,
+        });
+        return true;
+      }
+      return false;
+    };
+
+    // Handle nested object payload shape: { payload: { ... } }
+    if (isRecord(payload)) {
+      if ('heartbeat' in payload) {
+        this.emit(StreamEventType.HEARTBEAT, {
+          type: StreamEventType.HEARTBEAT,
+        });
+        return;
+      }
+
+      if (emitTaskField(StreamEventType.OUTPUT, payload.output)) {
+        return;
+      }
+      if (emitTaskField(StreamEventType.STATUS, payload.status)) {
+        return;
+      }
+      if (emitTaskField(StreamEventType.PROGRESS, payload.progress)) {
+        return;
+      }
+      if (emitTaskField(StreamEventType.COMPLETE, payload.complete)) {
+        this.connected = false;
+        return;
+      }
+      if (emitTaskField(StreamEventType.TASK_ERROR, payload.error)) {
+        return;
+      }
     }
 
-    // Handle heartbeat response
-    if ('heartbeat' in response.payload) {
+    // Handle oneof discriminator shape from proto-loader.
+    if (payload === 'heartbeat') {
       this.emit(StreamEventType.HEARTBEAT, {
         type: StreamEventType.HEARTBEAT,
       });
       return;
     }
 
-    // Handle output
-    if ('output' in response.payload && response.payload.output) {
-      this.emit(StreamEventType.OUTPUT, {
-        type: StreamEventType.OUTPUT,
-        data: response.payload.output,
-      });
+    if (payload === 'output' && emitTaskField(StreamEventType.OUTPUT, wire.output)) {
+      return;
+    }
+    if (payload === 'status' && emitTaskField(StreamEventType.STATUS, wire.status)) {
+      return;
+    }
+    if (payload === 'progress' && emitTaskField(StreamEventType.PROGRESS, wire.progress)) {
       return;
     }
 
-    // Handle status update
-    if ('status' in response.payload && response.payload.status) {
-      this.emit(StreamEventType.STATUS, {
-        type: StreamEventType.STATUS,
-        data: response.payload.status,
-      });
-      return;
-    }
-
-    // Handle progress update
-    if ('progress' in response.payload && response.payload.progress) {
-      this.emit(StreamEventType.PROGRESS, {
-        type: StreamEventType.PROGRESS,
-        data: response.payload.progress,
-      });
-      return;
-    }
-
-    // Handle task completion
-    if ('complete' in response.payload && response.payload.complete) {
-      this.emit(StreamEventType.COMPLETE, {
-        type: StreamEventType.COMPLETE,
-        data: response.payload.complete,
-      });
+    if (payload === 'complete' && emitTaskField(StreamEventType.COMPLETE, wire.complete)) {
       this.connected = false; // Stream ends on completion
       return;
     }
 
-    // Handle task error
-    if ('error' in response.payload && response.payload.error) {
-      this.emit(StreamEventType.TASK_ERROR, {
-        type: StreamEventType.TASK_ERROR,
-        data: response.payload.error,
-      });
+    if (payload === 'error' && emitTaskField(StreamEventType.TASK_ERROR, wire.error)) {
+      return;
+    }
+
+    // Fallback flattened fields without discriminator.
+    if (emitTaskField(StreamEventType.OUTPUT, wire.output)) {
+      return;
+    }
+    if (emitTaskField(StreamEventType.STATUS, wire.status)) {
+      return;
+    }
+    if (emitTaskField(StreamEventType.PROGRESS, wire.progress)) {
+      return;
+    }
+    if (emitTaskField(StreamEventType.COMPLETE, wire.complete)) {
+      this.connected = false;
+      return;
+    }
+    if (emitTaskField(StreamEventType.TASK_ERROR, wire.error)) {
       return;
     }
   }
