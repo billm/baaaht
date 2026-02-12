@@ -9,6 +9,7 @@ import { credentials, Client, ChannelCredentials, loadPackageDefinition } from '
 import { loadSync } from '@grpc/proto-loader';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import fs from 'fs';
 import type {
   RegisterRequest,
   RegisterResponse,
@@ -102,7 +103,7 @@ export class OrchestratorClient {
       }
 
       try {
-        const protoPath = fileURLToPath(new URL('../../../../proto/agent.proto', import.meta.url));
+        const protoPath = this.resolveProtoPath();
         const protoIncludeDir = path.dirname(protoPath);
 
         // Load the proto definition dynamically
@@ -288,6 +289,27 @@ export class OrchestratorClient {
     const deadline = new Date();
     deadline.setMilliseconds(deadline.getMilliseconds() + this.config.timeout);
     return deadline;
+  }
+
+  /**
+   * Resolves the path to proto/agent.proto across source/build/cwd layouts.
+   */
+  private resolveProtoPath(): string {
+    const candidates = [
+      fileURLToPath(new URL('../../../../proto/agent.proto', import.meta.url)),
+      fileURLToPath(new URL('../../../proto/agent.proto', import.meta.url)),
+      path.resolve(process.cwd(), '../../proto/agent.proto'),
+      path.resolve(process.cwd(), '../proto/agent.proto'),
+      path.resolve(process.cwd(), 'proto/agent.proto'),
+    ];
+
+    for (const candidate of candidates) {
+      if (fs.existsSync(candidate)) {
+        return candidate;
+      }
+    }
+
+    throw new Error(`agent.proto not found. Checked: ${candidates.join(', ')}`);
   }
 }
 

@@ -437,16 +437,11 @@ export class Agent extends EventEmitter {
     // Update activity timestamp
     this.lastActivityAt = new Date();
 
-    // Extract message content
-    let content = (message as AgentMessage & { content?: string }).content ?? '';
-    if (!content && message.payload && 'dataMessage' in message.payload && message.payload.dataMessage?.data) {
-      content = new TextDecoder().decode(message.payload.dataMessage.data);
-    }
-
-    const sessionId =
-      (message as AgentMessage & { sessionId?: string }).sessionId ??
-      message.metadata?.sessionId ??
-      '';
+    const dataMessage = message.payload && 'dataMessage' in message.payload
+      ? message.payload.dataMessage
+      : undefined;
+    const content = dataMessage?.data ? new TextDecoder().decode(dataMessage.data) : '';
+    const sessionId = message.metadata?.sessionId ?? '';
     const correlationId = message.metadata?.correlationId ?? message.id ?? generateMessageId();
 
     if (!content) {
