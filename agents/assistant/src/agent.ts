@@ -161,6 +161,9 @@ export class Agent extends EventEmitter {
   private totalMessagesProcessed: number;
   private totalToolCalls: number;
 
+  // Stream communication
+  private streamClient: any | null; // StreamAgentClient
+
   // Shutdown state
   private isShutdown: boolean;
   private shutdownPromise: Promise<void> | null;
@@ -210,6 +213,8 @@ export class Agent extends EventEmitter {
     this.activeMessageCount = 0;
     this.totalMessagesProcessed = 0;
     this.totalToolCalls = 0;
+
+    this.streamClient = null;
 
     this.isShutdown = false;
     this.shutdownPromise = null;
