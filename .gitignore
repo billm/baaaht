@@ -3,7 +3,6 @@
 
 # Auto Claude data directory
 .auto-claude/
-!.auto-claude/specs/010-assistant-agent/implementation_plan.json
 
 # Auto Claude generated files
 .auto-claude-allowlist
