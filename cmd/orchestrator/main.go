@@ -44,6 +44,8 @@ var (
 	assistantImage            string
 	assistantCommand          string
 	assistantArgs             []string
+	assistantDevMode          bool
+	assistantReadOnlyRootfs   bool
 	assistantWorkDir          string
 	assistantOrchestratorAddr string
 
@@ -73,7 +75,7 @@ type managedAssistantContainer struct {
 	stopped bool
 }
 
-func startAssistantProcess(log *logger.Logger, cfg *config.Config, image string, command string, args []string, workingDir string, orchestratorAddr string) (*managedAssistantContainer, error) {
+func startAssistantProcess(log *logger.Logger, cfg *config.Config, image string, command string, args []string, devMode bool, readOnlyRootfs bool, workingDir string, orchestratorAddr string) (*managedAssistantContainer, error) {
 	if log == nil {
 		return nil, fmt.Errorf("logger is required")
 	}
@@ -90,26 +92,39 @@ func startAssistantProcess(log *logger.Logger, cfg *config.Config, image string,
 		return nil, fmt.Errorf("assistant orchestrator address cannot be empty")
 	}
 
-	resolvedWorkDir := workingDir
-	if !filepath.IsAbs(resolvedWorkDir) {
-		cwd, err := os.Getwd()
-		if err != nil {
-			return nil, fmt.Errorf("failed to resolve current directory: %w", err)
+	resolvedWorkDir := ""
+	protoDir := ""
+	mounts := []types.Mount{
+		{Type: types.MountTypeTmpfs, Target: "/tmp"},
+	}
+	if devMode {
+		resolvedWorkDir = workingDir
+		if !filepath.IsAbs(resolvedWorkDir) {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return nil, fmt.Errorf("failed to resolve current directory: %w", err)
+			}
+			resolvedWorkDir = filepath.Join(cwd, resolvedWorkDir)
 		}
-		resolvedWorkDir = filepath.Join(cwd, resolvedWorkDir)
-	}
 
-	if info, err := os.Stat(resolvedWorkDir); err != nil {
-		return nil, fmt.Errorf("assistant working directory is not accessible (%s): %w", resolvedWorkDir, err)
-	} else if !info.IsDir() {
-		return nil, fmt.Errorf("assistant working directory is not a directory: %s", resolvedWorkDir)
-	}
+		if info, err := os.Stat(resolvedWorkDir); err != nil {
+			return nil, fmt.Errorf("assistant working directory is not accessible (%s): %w", resolvedWorkDir, err)
+		} else if !info.IsDir() {
+			return nil, fmt.Errorf("assistant working directory is not a directory: %s", resolvedWorkDir)
+		}
 
-	protoDir := filepath.Clean(filepath.Join(resolvedWorkDir, "..", "..", "proto"))
-	if info, err := os.Stat(protoDir); err != nil {
-		return nil, fmt.Errorf("assistant proto directory is not accessible (%s): %w", protoDir, err)
-	} else if !info.IsDir() {
-		return nil, fmt.Errorf("assistant proto directory is not a directory: %s", protoDir)
+		protoDir = filepath.Clean(filepath.Join(resolvedWorkDir, "..", "..", "proto"))
+		if info, err := os.Stat(protoDir); err != nil {
+			return nil, fmt.Errorf("assistant proto directory is not accessible (%s): %w", protoDir, err)
+		} else if !info.IsDir() {
+			return nil, fmt.Errorf("assistant proto directory is not a directory: %s", protoDir)
+		}
+
+		mounts = []types.Mount{
+			{Type: types.MountTypeBind, Source: resolvedWorkDir, Target: "/app"},
+			{Type: types.MountTypeVolume, Source: "baaaht-assistant-node-modules", Target: "/app/node_modules"},
+			{Type: types.MountTypeBind, Source: protoDir, Target: "/proto", ReadOnly: true},
+		}
 	}
 
 	runtime, err := container.NewDockerRuntime(cfg.Docker, log)
@@ -142,22 +157,26 @@ func startAssistantProcess(log *logger.Logger, cfg *config.Config, image string,
 			Command:    []string{command},
 			Args:       args,
 			WorkingDir: "/app",
+			User:       "1000:1000",
+			SecurityOpt: []string{
+				"no-new-privileges",
+			},
+			CapDrop:        []string{"ALL"},
+			ReadOnlyRootfs: readOnlyRootfs,
 			Env: map[string]string{
 				"ORCHESTRATOR_URL":           orchestratorAddr,
 				"LLM_DEFAULT_PROVIDER":       cfg.LLM.DefaultProvider,
 				"LLM_DEFAULT_MODEL":          cfg.LLM.DefaultModel,
 				"ASSISTANT_DEFAULT_PROVIDER": cfg.LLM.DefaultProvider,
 				"ASSISTANT_DEFAULT_MODEL":    cfg.LLM.DefaultModel,
+				"TMPDIR":                     "/tmp",
+				"TSX_DISABLE_CACHE":          "1",
 			},
 			Labels: map[string]string{
 				"baaaht.managed":   "true",
 				"baaaht.component": "assistant",
 			},
-			Mounts: []types.Mount{
-				{Type: types.MountTypeBind, Source: resolvedWorkDir, Target: "/app"},
-				{Type: types.MountTypeVolume, Source: "baaaht-assistant-node-modules", Target: "/app/node_modules"},
-				{Type: types.MountTypeBind, Source: protoDir, Target: "/proto", ReadOnly: true},
-			},
+			Mounts:   mounts,
 			Networks: []string{"bridge"},
 			Resources: types.ResourceLimits{
 				NanoCPUs:    1_000_000_000,
@@ -196,6 +215,8 @@ func startAssistantProcess(log *logger.Logger, cfg *config.Config, image string,
 	proc.log.Info("Assistant container started",
 		"container_id", proc.containerID,
 		"image", image,
+		"dev_mode", devMode,
+		"read_only_rootfs", readOnlyRootfs,
 		"command", command,
 		"args", args,
 		"host_working_dir", resolvedWorkDir,
@@ -434,7 +455,7 @@ func runOrchestrator(cmd *cobra.Command, args []string) error {
 	)
 
 	if assistantAutoStart {
-		assistantProcess, err = startAssistantProcess(rootLog, cfg, assistantImage, assistantCommand, assistantArgs, assistantWorkDir, assistantOrchestratorAddr)
+		assistantProcess, err = startAssistantProcess(rootLog, cfg, assistantImage, assistantCommand, assistantArgs, assistantDevMode, assistantReadOnlyRootfs, assistantWorkDir, assistantOrchestratorAddr)
 		if err != nil {
 			rootLog.Error("Failed to auto-start assistant container", "error", err)
 			return err
@@ -754,14 +775,18 @@ func main() {
 
 	rootCmd.PersistentFlags().BoolVar(&assistantAutoStart, "assistant-autostart", true,
 		"Automatically start the assistant backend container")
-	rootCmd.PersistentFlags().StringVar(&assistantImage, "assistant-image", "node:22-alpine",
+	rootCmd.PersistentFlags().StringVar(&assistantImage, "assistant-image", "ghcr.io/billm/baaaht/agent-assistant:latest",
 		"Container image used for the assistant backend")
-	rootCmd.PersistentFlags().StringVar(&assistantCommand, "assistant-command", "sh",
+	rootCmd.PersistentFlags().StringVar(&assistantCommand, "assistant-command", "node_modules/.bin/tsx",
 		"Container command used to start the assistant")
-	rootCmd.PersistentFlags().StringSliceVar(&assistantArgs, "assistant-args", []string{"-lc", "npm install && npm run dev"},
+	rootCmd.PersistentFlags().StringSliceVar(&assistantArgs, "assistant-args", []string{"src/index.ts"},
 		"Arguments for assistant container command")
+	rootCmd.PersistentFlags().BoolVar(&assistantDevMode, "assistant-dev-mode", false,
+		"Enable development mode for assistant container (bind mounts host source and proto directories)")
+	rootCmd.PersistentFlags().BoolVar(&assistantReadOnlyRootfs, "assistant-readonly-rootfs", true,
+		"Run assistant container with read-only root filesystem (disable only for documented development exceptions)")
 	rootCmd.PersistentFlags().StringVar(&assistantWorkDir, "assistant-workdir", "agents/assistant",
-		"Host working directory (mounted into assistant container at /app)")
+		"Host working directory mounted into assistant container at /app (only used with --assistant-dev-mode)")
 	rootCmd.PersistentFlags().StringVar(&assistantOrchestratorAddr, "assistant-orchestrator-addr", "host.docker.internal:50051",
 		"Orchestrator gRPC address used by assistant container")
 

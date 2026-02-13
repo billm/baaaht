@@ -107,8 +107,14 @@ docker build -t baaaht/orchestrator:latest .
 docker run -v /var/run/docker.sock:/var/run/docker.sock baaaht/orchestrator:latest
 ```
 
-By default, the orchestrator also auto-starts the Assistant backend in a container.
-It mounts `agents/assistant` into the container at `/app`, mounts repository `proto/` at `/proto`, uses a container-managed `node_modules` volume, and runs `npm install && npm run dev` there.
+By default, the orchestrator auto-starts the Assistant backend from a production image (`ghcr.io/billm/baaaht/agent-assistant:latest`) and runs it with hardened runtime defaults:
+
+- non-root user (`1000:1000`)
+- `no-new-privileges`
+- dropped Linux capabilities (`ALL`)
+- read-only root filesystem (enabled by default)
+
+Development mode is still supported explicitly via `--assistant-dev-mode`, which bind-mounts local source and `proto/` for fast iteration.
 For container-to-orchestrator connectivity, the orchestrator also starts a TCP gRPC listener (default `0.0.0.0:50051`) and the assistant uses `host.docker.internal:50051`.
 
 You can override assistant startup behavior with CLI flags:
@@ -118,13 +124,51 @@ You can override assistant startup behavior with CLI flags:
 ./bin/orchestrator --assistant-autostart=false
 
 # Use a custom assistant container image
-./bin/orchestrator --assistant-image node:22-alpine
+./bin/orchestrator --assistant-image ghcr.io/billm/baaaht/agent-assistant:sha-$(git rev-parse --short HEAD)
 
 # Configure TCP gRPC bridge for containerized assistant
 ./bin/orchestrator --grpc-tcp-enabled --grpc-tcp-listen-addr 0.0.0.0:50051 --assistant-orchestrator-addr host.docker.internal:50051
 
-# Use a custom assistant startup command in container
-./bin/orchestrator --assistant-command sh --assistant-args "-lc","npm ci && npm run build && npm start" --assistant-workdir agents/assistant
+# Enable assistant development mode (bind mounts + dev command)
+./bin/orchestrator --assistant-dev-mode --assistant-image node:22-alpine --assistant-command sh --assistant-args "-lc","npm install && npm run dev" --assistant-workdir agents/assistant
+
+# Documented development-only security exception (if needed)
+./bin/orchestrator --assistant-dev-mode --assistant-readonly-rootfs=false
+
+# Override production command/image explicitly
+./bin/orchestrator --assistant-image ghcr.io/billm/baaaht/agent-assistant:sha-$(git rev-parse --short HEAD) --assistant-command node_modules/.bin/tsx --assistant-args src/index.ts
+
+### Agent image strategy
+
+The repository now supports a shared image model for agent containers:
+
+- `agents/base/Dockerfile` defines a hardened Node.js base image.
+- `agents/assistant/Dockerfile` consumes that base image via `BASE_IMAGE`.
+- `make agent-images-build` builds both images with `sha-<short-git-sha>` (default 7 chars) and `latest` tags.
+- `.github/workflows/images.yml` publishes base first, then assistant using the same deterministic SHA tag while also publishing `latest`.
+
+Rollout path:
+
+1. Build and publish the shared base image.
+2. Build and publish the assistant image from that base.
+3. Run orchestrator with the published assistant SHA tag.
+4. Migrate additional agents to inherit from the same base image contract.
+
+### Assistant migration checklist
+
+1. Build and publish images with deterministic tags:
+    - `make agent-images-push`
+2. Update orchestrator startup to pinned assistant image tag:
+    - `./bin/orchestrator --assistant-image ghcr.io/billm/baaaht/agent-assistant:sha-$(git rev-parse --short HEAD)`
+3. Verify runtime hardening and startup:
+    - container runs as non-root, has `no-new-privileges`, `cap-drop=ALL`, and read-only rootfs unless explicitly disabled.
+4. Validate assistant connectivity and response path through orchestrator gRPC.
+
+Rollback:
+
+- Revert to the previous known-good assistant tag with `--assistant-image`.
+- If needed during local development, temporarily switch to dev mode:
+  - `./bin/orchestrator --assistant-dev-mode --assistant-image node:22-alpine --assistant-command sh --assistant-args "-lc","npm install && npm run dev" --assistant-readonly-rootfs=false`
 ```
 
 ## Development
