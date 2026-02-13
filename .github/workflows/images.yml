@@ -18,6 +18,7 @@ env:
   BASE_IMAGE_NAME: baaaht/agent-base
   ASSISTANT_IMAGE_NAME: baaaht/agent-assistant
   DOCKER_METADATA_SHORT_SHA_LENGTH: "7"
+  IMAGE_PLATFORMS: linux/amd64,linux/arm64
 
 jobs:
   build_base:
@@ -28,6 +29,9 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -56,6 +60,7 @@ jobs:
         with:
           context: .
           file: ./agents/base/Dockerfile
+          platforms: ${{ env.IMAGE_PLATFORMS }}
           push: true
           tags: ${{ steps.meta_base.outputs.tags }}
           labels: ${{ steps.meta_base.outputs.labels }}
@@ -69,6 +74,9 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -97,6 +105,7 @@ jobs:
         with:
           context: ./agents/assistant
           file: ./agents/assistant/Dockerfile
+          platforms: ${{ env.IMAGE_PLATFORMS }}
           build-args: |
             BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.BASE_IMAGE_NAME }}:${{ steps.vars.outputs.sha_tag }}
           push: true
