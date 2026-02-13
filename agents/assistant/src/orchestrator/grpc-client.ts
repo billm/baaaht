@@ -120,29 +120,39 @@ export class OrchestratorClient {
           }
         );
 
-        const protoDescriptor = loadPackageDefinition(packageDefinition);
-        const agentService = protoDescriptor.agent.v1.AgentService;
+        const protoDescriptor = loadPackageDefinition(packageDefinition) as any;
+        const agentService = protoDescriptor?.agent?.v1?.AgentService;
+
+        if (!agentService) {
+          throw new Error('AgentService not found in loaded proto descriptor');
+        }
 
         // Create the gRPC client
         const address = this.config.useUnixSocket
           ? `unix://${this.config.address}`
           : this.config.address;
 
-        this.client = new agentService(
+        const grpcClient = new agentService(
           address,
           this.config.credentials,
           {
             'grpc.max_receive_message_length': -1,
             'grpc.max_send_message_length': -1,
           }
-        );
+        ) as Client & {
+          register?: unknown;
+          unregister?: unknown;
+          heartbeat?: unknown;
+        };
+
+        this.client = grpcClient;
 
         // Get deadline for connection
         const deadline = new Date();
         deadline.setMilliseconds(deadline.getMilliseconds() + this.config.timeout);
 
         // Wait for channel to be ready
-        this.client.waitForReady(deadline, (err) => {
+        grpcClient.waitForReady(deadline, (err) => {
           if (err) {
             this.client = null;
             this.connected = false;
@@ -153,9 +163,9 @@ export class OrchestratorClient {
           this.connected = true;
 
           // Store method references for later use
-          this.registerMethod = this.client.register;
-          this.unregisterMethod = this.client.unregister;
-          this.heartbeatMethod = this.client.heartbeat;
+          this.registerMethod = grpcClient.register;
+          this.unregisterMethod = grpcClient.unregister;
+          this.heartbeatMethod = grpcClient.heartbeat;
 
           resolve();
         });

@@ -12,6 +12,7 @@ import type {
   Status,
   TokenUsage,
 } from './common.js';
+export type { TokenUsage } from './common.js';
 
 // =============================================================================
 // LLM Request/Response Types
@@ -209,6 +210,7 @@ export interface StreamError {
 export interface StreamComplete {
   requestId?: string;
   response?: LLMResponse;             // Final complete response
+  finishReason?: FinishReason;
 }
 
 // =============================================================================

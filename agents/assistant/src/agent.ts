@@ -6,32 +6,25 @@
 // Copyright 2026 baaaht project
 
 import { EventEmitter } from 'events';
-import type { Client } from '@grpc/grpc-js';
 import type {
   AgentMessage,
 } from './proto/agent.js';
 import { AgentState, MessageType } from './proto/agent.js';
 import { StreamAgentClient, StreamEventType } from './orchestrator/stream-client.js';
 import type {
-  LLMRequest,
   LLMMessage as LLMMsg,
-  LLMResponse,
   ToolCall,
   FinishReason,
 } from './proto/llm.js';
 import type {
-  Session,
   SessionMetadata,
-  Message as SessionMessage,
 } from './session/types.js';
 import { MessageRole } from './session/types.js';
 import type {
   CompletionParams,
   CompletionResult,
-  StreamingChunk,
 } from './llm/types.js';
 import type {
-  ToolDefinition,
   ToolResult,
   DelegateParams,
 } from './tools/types.js';
@@ -44,9 +37,6 @@ import type {
   ToolCallInfo,
   MessageProcessResult,
   AgentDependencies,
-  ResponseMetadata,
-  ToolExecutionResult,
-  MessageMetadata,
 } from './agent/types.js';
 import { AgentEventType, AgentErrorCode } from './agent/types.js';
 import { LLMGatewayClient } from './llm/gateway-client.js';
@@ -224,7 +214,6 @@ export class Agent extends EventEmitter {
 
   // Shutdown state
   private isShutdown: boolean;
-  private shutdownPromise: Promise<void> | null;
 
   /**
    * Creates a new Agent instance
@@ -256,7 +245,6 @@ export class Agent extends EventEmitter {
       maxSessions: 100,
       idleTimeout: this.config.sessionTimeout,
       timeout: this.config.sessionTimeout,
-      maxDuration: this.config.sessionTimeout,
     });
 
     // Initialize state
@@ -276,7 +264,6 @@ export class Agent extends EventEmitter {
     this.streamClient = null;
 
     this.isShutdown = false;
-    this.shutdownPromise = null;
 
     // Set up error handlers
     this.setupErrorHandlers();
@@ -826,11 +813,15 @@ export class Agent extends EventEmitter {
           role: MessageRole.ASSISTANT,
           content: result.content,
           metadata: {
-            toolCalls: result.toolCalls?.map((tc) => ({
-              id: tc.id,
-              name: tc.name,
-              success: tc.success,
-            })),
+            extra: {
+              toolCalls: JSON.stringify(
+                result.toolCalls?.map((tc) => ({
+                  id: tc.id,
+                  name: tc.name,
+                  success: tc.success,
+                })) ?? []
+              ),
+            },
           },
         });
       }
@@ -1009,7 +1000,7 @@ export class Agent extends EventEmitter {
 
             toolCalls.push(toolResult);
           } else if (chunk.type === 'usage') {
-            usage = chunk.data;
+            usage = chunk.data.usage;
           } else if (chunk.type === 'complete') {
             finishReason = chunk.data.finishReason;
             console.log('[Agent] processWithLLM: stream complete chunk received', {
@@ -1221,7 +1212,7 @@ export class Agent extends EventEmitter {
             data: delegateResult.data,
             error: delegateResult.error,
             output: delegateResult.output,
-            metadata: delegateResult.metadata,
+            metadata: delegateResult.metadata as unknown as Record<string, unknown> | undefined,
           };
           break;
         }
@@ -1233,7 +1224,7 @@ export class Agent extends EventEmitter {
             data: delegateResult.data,
             error: delegateResult.error,
             output: delegateResult.output,
-            metadata: delegateResult.metadata,
+            metadata: delegateResult.metadata as unknown as Record<string, unknown> | undefined,
           };
           break;
         }
@@ -1245,7 +1236,7 @@ export class Agent extends EventEmitter {
             data: delegateResult.data,
             error: delegateResult.error,
             output: delegateResult.output,
-            metadata: delegateResult.metadata,
+            metadata: delegateResult.metadata as unknown as Record<string, unknown> | undefined,
           };
           break;
         }

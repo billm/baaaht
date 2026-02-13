@@ -6,10 +6,7 @@
 // Copyright 2026 baaaht project
 
 import type {
-  LLMRequest,
-  LLMResponse,
   LLMMessage,
-  LLMParameters,
   Tool,
   ToolCall,
   TokenUsage,

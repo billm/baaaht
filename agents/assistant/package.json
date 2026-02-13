@@ -2,6 +2,7 @@
   "name": "@baaaht/assistant-agent",
   "version": "0.1.0",
   "description": "Assistant Agent - Primary conversational interface with delegation to specialized agents",
+  "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {

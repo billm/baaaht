@@ -5,9 +5,11 @@
 //
 // Copyright 2026 baaaht project
 
-import { AgentType, AgentState, AgentMetadata, AgentCapabilities, ResourceLimits } from '../proto/agent.js';
-import { ResourceUsage } from '../proto/common.js';
-import { OrchestratorClient, OrchestratorClientConfig, createOrchestratorClient } from './grpc-client.js';
+import { AgentType, AgentState } from '../proto/agent.js';
+import type { AgentMetadata, AgentCapabilities } from '../proto/agent.js';
+import type { ResourceUsage } from '../proto/common.js';
+import { OrchestratorClient, createOrchestratorClient } from './grpc-client.js';
+import type { OrchestratorClientConfig } from './grpc-client.js';
 
 /**
  * AgentRegistrationInfo holds information about the agent for registration
@@ -319,8 +321,7 @@ export class AgentRegistry {
 
       // Reset missed heartbeat counter on success
       agent.missedHeartbeats = 0;
-    } catch (err) {
-      const error = err as Error;
+    } catch {
       agent.missedHeartbeats++;
 
       // Log error (in production, use proper logging)
@@ -420,7 +421,6 @@ export class AgentRegistry {
    * @private
    */
   private getCurrentResourceUsage(): ResourceUsage {
-    const usage = process.cpuUsage();
     const memoryUsage = process.memoryUsage();
 
     return {

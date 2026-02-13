@@ -31,7 +31,6 @@ import type {
 // Constants
 // =============================================================================
 
-const SESSION_ID_PREFIX_LENGTH = 8;
 const DEFAULT_CLEANUP_INTERVAL = 60 * 1000; // 1 minute
 
 // =============================================================================
@@ -50,15 +49,6 @@ function generateSessionId(): string {
  */
 function generateMessageId(): string {
   return `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
-}
-
-/**
- * Get session ID prefix for display
- */
-function getSessionIdPrefix(sessionId: string): string {
-  return sessionId.length > SESSION_ID_PREFIX_LENGTH
-    ? sessionId.substring(0, SESSION_ID_PREFIX_LENGTH)
-    : sessionId;
 }
 
 /**
@@ -577,7 +567,7 @@ export class SessionManager extends EventEmitter {
   /**
    * GetStats returns statistics for a session
    */
-  async getStats(sessionId: string): Promise<SessionStats> {
+  async getSessionStats(sessionId: string): Promise<SessionStats> {
     if (this.closed) {
       throw new SessionError(
         'Session manager is closed',

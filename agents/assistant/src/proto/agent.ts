@@ -11,6 +11,7 @@ import type {
   ResourceUsage,
   Status,
 } from './common.js';
+export type { ResourceLimits, ResourceUsage } from './common.js';
 
 // =============================================================================
 // Agent Types

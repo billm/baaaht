@@ -15,11 +15,11 @@ import {
   TaskState,
   type TaskConfig,
 } from '../proto/agent.js';
+import { DelegateOperation } from './types.js';
 import type {
   DelegateParams,
   DelegateResult,
   DelegateMetadata,
-  DelegateOperation,
 } from './types.js';
 
 // =============================================================================
@@ -114,6 +114,7 @@ export class ResearcherDelegation {
    * NOTE: Stub implementation - will throw an error until Researcher agent is available
    */
   async delegate(params: DelegateParams, sessionId: string): Promise<DelegateResult> {
+    void sessionId;
     const startTime = Date.now();
     const metadata: DelegateMetadata = {
       target: params.target,
@@ -122,6 +123,9 @@ export class ResearcherDelegation {
     };
 
     try {
+      void this.grpcClient;
+      void this.createTaskConfig(params.operation, params.parameters);
+
       // STUB: Researcher agent not yet implemented
       // When implemented, this will:
       // 1. Create task configuration from delegation parameters
@@ -179,7 +183,7 @@ export class ResearcherDelegation {
    *
    * @private
    */
-  private buildCommand(operation: DelegateOperation, parameters: Record<string, unknown>): string {
+  private buildCommand(operation: DelegateOperation, _parameters: Record<string, unknown>): string {
     switch (operation) {
       case DelegateOperation.DEEP_RESEARCH:
         return 'deep_research';

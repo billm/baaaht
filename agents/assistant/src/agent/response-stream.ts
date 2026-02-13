@@ -18,6 +18,7 @@ import type {
   UsageEvent,
   ErrorEvent,
   CompleteEvent,
+  StreamingEventType,
 } from '../llm/stream-parser.js';
 
 // =============================================================================
@@ -286,6 +287,7 @@ export interface ResponseStreamHandle {
 export class ResponseStreamHandleImpl implements ResponseStreamHandle {
   private _active = true;
   private _controller?: ReadableStreamDefaultController<ParsedStreamEvent>;
+  public readonly chunks: ReadableStream<ParsedStreamEvent>;
 
   constructor(
     public id: string,
@@ -378,6 +380,7 @@ export interface ResponseStreamContext {
 export function createStreamContext(
   signal?: AbortSignal
 ): [AbortSignal, AbortController] {
+  void signal;
   const controller = new AbortController();
   return [controller.signal, controller];
 }
@@ -646,7 +649,7 @@ export class ResponseAggregator {
       }
 
       if (response.finishReason) {
-        this.finishReason = response.finishReason as FinishReason;
+        this.finishReason = response.finishReason as unknown as FinishReason;
       }
     }
 
@@ -756,9 +759,32 @@ export function createResponseStreamEvent(
   provider: string,
   model: string
 ): ResponseStreamEvent {
+  const mapEventType = (eventType: StreamingEventType): ResponseStreamEventType => {
+    switch (eventType) {
+      case 'stream.start':
+        return ResponseStreamEventType.StreamStart;
+      case 'stream.chunk':
+        return ResponseStreamEventType.StreamChunk;
+      case 'stream.end':
+        return ResponseStreamEventType.StreamEnd;
+      case 'stream.error':
+        return ResponseStreamEventType.StreamError;
+      case 'content.delta':
+        return ResponseStreamEventType.ContentDelta;
+      case 'tool_use.start':
+        return ResponseStreamEventType.ToolUseStart;
+      case 'tool_use.chunk':
+        return ResponseStreamEventType.ToolUseChunk;
+      case 'tool_use.end':
+        return ResponseStreamEventType.ToolUseEnd;
+      default:
+        return ResponseStreamEventType.StreamChunk;
+    }
+  };
+
   return {
     id: parsedEvent.id,
-    type: parsedEvent.type as ResponseStreamEventType,
+    type: mapEventType(parsedEvent.type),
     streamId: parsedEvent.streamId,
     provider,
     model,

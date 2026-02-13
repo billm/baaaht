@@ -20,15 +20,27 @@ import type {
   ToolCallInfo,
   ToolExecutionResult,
   ToolExecutionContext,
+  AgentError,
 } from './types.js';
 import {
   validateDelegateParams,
-  parseDelegateToolCall,
-  formatDelegateResult,
-  DelegateErrorCode,
-  DelegateError,
 } from '../tools/delegate.js';
-import { createAgentError, AgentErrorCode } from './types.js';
+import { DelegateError } from '../tools/types.js';
+import { AgentErrorCode } from './types.js';
+
+function createAgentError(
+  message: string,
+  code: AgentErrorCode,
+  retryable: boolean = false,
+  details?: Record<string, unknown>
+): AgentError {
+  const error = new Error(message) as AgentError;
+  error.code = code;
+  error.retryable = retryable;
+  error.details = details;
+  error.name = 'AgentError';
+  return error;
+}
 
 // =============================================================================
 // Tool Calling Configuration
@@ -82,7 +94,7 @@ const DEFAULT_TOOL_CALLING_CONFIG: Required<ToolCallingConfig> = {
 export class ToolCallAggregator {
   private pendingToolCalls = new Map<string, AggregatedToolCall>();
   private completedToolCalls: ToolCall[] = [];
-  private config: ToolCallingConfig;
+  private config: Required<ToolCallingConfig>;
 
   constructor(config: ToolCallingConfig = {}) {
     this.config = { ...DEFAULT_TOOL_CALLING_CONFIG, ...config };
@@ -328,6 +340,8 @@ export class ToolCallExecutor {
   ): Promise<ToolExecutionResult> {
     const startTime = Date.now();
     const { toolCall, sessionId, messageId } = context;
+    void sessionId;
+    void messageId;
 
     try {
       // Parse tool call
@@ -477,7 +491,7 @@ export class ToolResultFormatter {
    * @returns Formatted tool result message
    */
   static formatResult(result: ToolExecutionResult): LLMMessage {
-    const { toolName, toolCallId, result: toolResult } = result;
+    const { toolName, result: toolResult } = result;
 
     if (toolResult.success) {
       // Success response
@@ -603,7 +617,7 @@ export class ToolCallValidator {
     let params: Record<string, unknown>;
     try {
       params = JSON.parse(toolCall.arguments ?? '{}');
-    } catch (err) {
+    } catch {
       throw createAgentError(
         `Invalid JSON in tool arguments: ${toolCall.arguments}`,
         AgentErrorCode.MESSAGE_INVALID

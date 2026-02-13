@@ -18,11 +18,11 @@ import {
   type ExecuteTaskResponse,
   type Task,
 } from '../proto/agent.js';
+import { DelegateOperation } from './types.js';
 import type {
   DelegateParams,
   DelegateResult,
   DelegateMetadata,
-  DelegateOperation,
   ReadFileParams,
   WriteFileParams,
   DeleteFileParams,
@@ -214,7 +214,7 @@ export class WorkerDelegation {
    *
    * @private
    */
-  private buildCommand(operation: DelegateOperation, parameters: Record<string, unknown>): string {
+  private buildCommand(operation: DelegateOperation, _parameters: Record<string, unknown>): string {
     switch (operation) {
       case DelegateOperation.READ_FILE:
         return 'read_file';
@@ -376,8 +376,15 @@ export class WorkerDelegation {
   private executeTask(request: ExecuteTaskRequest): Promise<ExecuteTaskResponse> {
     return new Promise((resolve, reject) => {
       const deadline = this.getDeadline();
+      const taskClient = this.grpcClient as unknown as {
+        executeTask: (
+          request: ExecuteTaskRequest,
+          options: { deadline: Date },
+          callback: (err: Error | null, response: ExecuteTaskResponse) => void
+        ) => void;
+      };
 
-      this.grpcClient.executeTask(
+      taskClient.executeTask(
         request,
         { deadline },
         (err: Error | null, response: ExecuteTaskResponse) => {
@@ -477,8 +484,15 @@ export class WorkerDelegation {
   private getTaskStatus(taskId: string): Promise<{ task?: Task }> {
     return new Promise((resolve, reject) => {
       const deadline = this.getDeadline();
+      const taskClient = this.grpcClient as unknown as {
+        getTaskStatus: (
+          request: { taskId: string },
+          options: { deadline: Date },
+          callback: (err: Error | null, response: { task?: Task }) => void
+        ) => void;
+      };
 
-      this.grpcClient.getTaskStatus(
+      taskClient.getTaskStatus(
         { taskId },
         { deadline },
         (err: Error | null, response: { task?: Task }) => {
@@ -584,7 +598,7 @@ export function validateWorkerOperation(
 ): void {
   switch (operation) {
     case DelegateOperation.READ_FILE: {
-      const params = parameters as ReadFileParams;
+      const params = parameters as unknown as ReadFileParams;
       if (!params.path || typeof params.path !== 'string') {
         throw new Error('read_file requires a valid "path" parameter');
       }
@@ -592,7 +606,7 @@ export function validateWorkerOperation(
     }
 
     case DelegateOperation.WRITE_FILE: {
-      const params = parameters as WriteFileParams;
+      const params = parameters as unknown as WriteFileParams;
       if (!params.path || typeof params.path !== 'string') {
         throw new Error('write_file requires a valid "path" parameter');
       }
@@ -603,7 +617,7 @@ export function validateWorkerOperation(
     }
 
     case DelegateOperation.DELETE_FILE: {
-      const params = parameters as DeleteFileParams;
+      const params = parameters as unknown as DeleteFileParams;
       if (!params.path || typeof params.path !== 'string') {
         throw new Error('delete_file requires a valid "path" parameter');
       }
@@ -611,7 +625,7 @@ export function validateWorkerOperation(
     }
 
     case DelegateOperation.LIST_FILES: {
-      const params = parameters as ListFilesParams;
+      const params = parameters as unknown as ListFilesParams;
       if (!params.path || typeof params.path !== 'string') {
         throw new Error('list_files requires a valid "path" parameter');
       }
@@ -619,7 +633,7 @@ export function validateWorkerOperation(
     }
 
     case DelegateOperation.SEARCH_FILES: {
-      const params = parameters as SearchFilesParams;
+      const params = parameters as unknown as SearchFilesParams;
       if (!params.path || typeof params.path !== 'string') {
         throw new Error('search_files requires a valid "path" parameter');
       }
@@ -630,7 +644,7 @@ export function validateWorkerOperation(
     }
 
     case DelegateOperation.WEB_SEARCH: {
-      const params = parameters as WebSearchParams;
+      const params = parameters as unknown as WebSearchParams;
       if (!params.query || typeof params.query !== 'string') {
         throw new Error('web_search requires a valid "query" parameter');
       }
@@ -638,7 +652,7 @@ export function validateWorkerOperation(
     }
 
     case DelegateOperation.WEB_FETCH: {
-      const params = parameters as WebFetchParams;
+      const params = parameters as unknown as WebFetchParams;
       if (!params.url || typeof params.url !== 'string') {
         throw new Error('web_fetch requires a valid "url" parameter');
       }
