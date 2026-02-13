@@ -2,7 +2,7 @@
 //
 // Copyright 2026 baaaht project
 
-import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 import {
   SessionManager,
   SessionState,
