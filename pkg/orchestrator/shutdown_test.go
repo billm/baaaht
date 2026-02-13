@@ -213,26 +213,32 @@ func TestShutdownManagerHookError(t *testing.T) {
 	}
 }
 
-func TestShutdownManagerHookTimeout(t *testing.T) {
+func TestShutdownManagerSlowHookRunsToCompletion(t *testing.T) {
 	orch := createTestOrchestratorForShutdown(t)
 	defer orch.Close()
 
-	sm := NewShutdownManager(orch, 5*time.Second, orch.logger)
+	sm := NewShutdownManager(orch, 200*time.Millisecond, orch.logger)
 
 	slowHook := func(ctx context.Context) error {
 		// Sleep longer than the hook timeout
-		time.Sleep(10 * time.Second)
+		time.Sleep(500 * time.Millisecond)
 		return nil
 	}
 
 	sm.AddHook(slowHook)
 
+	start := time.Now()
 	ctx := context.Background()
 	err := sm.Shutdown(ctx, "test with slow hook")
+	elapsed := time.Since(start)
 
-	// Shutdown should complete despite slow hook (hooks have 5s timeout)
+	// Shutdown should complete despite a slow hook that ignores context.
 	if err != nil {
 		t.Logf("Shutdown with slow hook result: %v", err)
+	}
+
+	if elapsed < 450*time.Millisecond {
+		t.Errorf("expected slow hook to run close to full sleep, got %v", elapsed)
 	}
 }
 

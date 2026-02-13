@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 )
@@ -509,8 +510,13 @@ func TestFileWrite(t *testing.T) {
 	})
 
 	t.Run("creates parent directories if needed", func(t *testing.T) {
-		tmpDir := t.TempDir()
+		tmpDir, err := os.MkdirTemp("", "baaaht-filewrite-nested-*")
+		if err != nil {
+			t.Fatalf("Failed to create temp dir: %v", err)
+		}
+		defer func() { _ = os.RemoveAll(tmpDir) }()
 		testContent := "Nested file content"
+		targetPath := tmpDir + "/subdir/nested/file.txt"
 
 		exec, err := NewExecutorDefault(nil)
 		if err != nil {
@@ -525,14 +531,23 @@ func TestFileWrite(t *testing.T) {
 			t.Fatalf("FileWrite() to nested path failed: %v", err)
 		}
 
-		// Verify content
-		content, err := os.ReadFile(tmpDir + "/subdir/nested/file.txt")
-		if err != nil {
-			t.Fatalf("Failed to read written file: %v", err)
-		}
+		// Verify content (allow brief delay for CI filesystems)
+		deadline := time.Now().Add(2 * time.Second)
+		for {
+			content, err := os.ReadFile(targetPath)
+			if err == nil && string(content) == testContent {
+				break
+			}
 
-		if string(content) != testContent {
-			t.Errorf("FileWrite() content = %q, want %q", string(content), testContent)
+			if time.Now().After(deadline) {
+				if err != nil {
+					t.Fatalf("Failed to read written file: %v", err)
+				}
+				t.Errorf("FileWrite() content = %q, want %q", string(content), testContent)
+				break
+			}
+
+			time.Sleep(25 * time.Millisecond)
 		}
 	})
 
@@ -821,8 +836,8 @@ func TestGrepAndFind(t *testing.T) {
 
 		// Create test files with content
 		testFiles := map[string]string{
-			"file1.txt": "Hello World\nThis is a test\nAnother line",
-			"file2.txt": "Hello Universe\nTesting is fun\nHello again",
+			"file1.txt":        "Hello World\nThis is a test\nAnother line",
+			"file2.txt":        "Hello Universe\nTesting is fun\nHello again",
 			"subdir/file3.txt": "Hello Subdirectory\nNested content",
 		}
 

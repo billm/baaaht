@@ -2705,7 +2705,7 @@ func TestLLMValidation(t *testing.T) {
 			name: "valid LLM config when enabled with valid provider",
 			config: LLMConfig{
 				Enabled:               true,
-				ContainerImage:        "baaaht/llm-gateway:latest",
+				ContainerImage:        "ghcr.io/billm/baaaht/llm-gateway:latest",
 				DefaultProvider:       "anthropic",
 				DefaultModel:          "anthropic/claude-sonnet-4-20250514",
 				Timeout:               120 * time.Second,
@@ -2746,7 +2746,7 @@ func TestLLMValidation(t *testing.T) {
 			name: "enabled but missing default provider",
 			config: LLMConfig{
 				Enabled:               true,
-				ContainerImage:        "baaaht/llm-gateway:latest",
+				ContainerImage:        "ghcr.io/billm/baaaht/llm-gateway:latest",
 				DefaultProvider:       "",
 				DefaultModel:          "anthropic/claude-sonnet-4-20250514",
 				Timeout:               120 * time.Second,
@@ -2766,7 +2766,7 @@ func TestLLMValidation(t *testing.T) {
 			name: "enabled but missing default model",
 			config: LLMConfig{
 				Enabled:               true,
-				ContainerImage:        "baaaht/llm-gateway:latest",
+				ContainerImage:        "ghcr.io/billm/baaaht/llm-gateway:latest",
 				DefaultProvider:       "anthropic",
 				DefaultModel:          "",
 				Timeout:               120 * time.Second,
@@ -2786,7 +2786,7 @@ func TestLLMValidation(t *testing.T) {
 			name: "enabled but timeout is zero",
 			config: LLMConfig{
 				Enabled:               true,
-				ContainerImage:        "baaaht/llm-gateway:latest",
+				ContainerImage:        "ghcr.io/billm/baaaht/llm-gateway:latest",
 				DefaultProvider:       "anthropic",
 				DefaultModel:          "anthropic/claude-sonnet-4-20250514",
 				Timeout:               0,
@@ -2806,7 +2806,7 @@ func TestLLMValidation(t *testing.T) {
 			name: "enabled but max concurrent requests is zero",
 			config: LLMConfig{
 				Enabled:               true,
-				ContainerImage:        "baaaht/llm-gateway:latest",
+				ContainerImage:        "ghcr.io/billm/baaaht/llm-gateway:latest",
 				DefaultProvider:       "anthropic",
 				DefaultModel:          "anthropic/claude-sonnet-4-20250514",
 				Timeout:               120 * time.Second,
@@ -2826,7 +2826,7 @@ func TestLLMValidation(t *testing.T) {
 			name: "enabled but default provider not in providers",
 			config: LLMConfig{
 				Enabled:               true,
-				ContainerImage:        "baaaht/llm-gateway:latest",
+				ContainerImage:        "ghcr.io/billm/baaaht/llm-gateway:latest",
 				DefaultProvider:       "openai",
 				DefaultModel:          "openai/gpt-4o",
 				Timeout:               120 * time.Second,
@@ -2846,7 +2846,7 @@ func TestLLMValidation(t *testing.T) {
 			name: "enabled provider without API key",
 			config: LLMConfig{
 				Enabled:               true,
-				ContainerImage:        "baaaht/llm-gateway:latest",
+				ContainerImage:        "ghcr.io/billm/baaaht/llm-gateway:latest",
 				DefaultProvider:       "anthropic",
 				DefaultModel:          "anthropic/claude-sonnet-4-20250514",
 				Timeout:               120 * time.Second,
@@ -2866,7 +2866,7 @@ func TestLLMValidation(t *testing.T) {
 			name: "disabled provider without API key is valid",
 			config: LLMConfig{
 				Enabled:               true,
-				ContainerImage:        "baaaht/llm-gateway:latest",
+				ContainerImage:        "ghcr.io/billm/baaaht/llm-gateway:latest",
 				DefaultProvider:       "anthropic",
 				DefaultModel:          "anthropic/claude-sonnet-4-20250514",
 				Timeout:               120 * time.Second,
@@ -2890,7 +2890,7 @@ func TestLLMValidation(t *testing.T) {
 			name: "provider with empty name",
 			config: LLMConfig{
 				Enabled:               true,
-				ContainerImage:        "baaaht/llm-gateway:latest",
+				ContainerImage:        "ghcr.io/billm/baaaht/llm-gateway:latest",
 				DefaultProvider:       "emptyprovider",
 				DefaultModel:          "anthropic/claude-sonnet-4-20250514",
 				Timeout:               120 * time.Second,
@@ -2910,7 +2910,7 @@ func TestLLMValidation(t *testing.T) {
 			name: "valid LLM config with multiple providers",
 			config: LLMConfig{
 				Enabled:               true,
-				ContainerImage:        "baaaht/llm-gateway:latest",
+				ContainerImage:        "ghcr.io/billm/baaaht/llm-gateway:latest",
 				DefaultProvider:       "anthropic",
 				DefaultModel:          "anthropic/claude-sonnet-4-20250514",
 				Timeout:               120 * time.Second,

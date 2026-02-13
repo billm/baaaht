@@ -1709,7 +1709,7 @@ func TestMountAllowlistE2E(t *testing.T) {
 		// Create a mock group provider - expects username -> groups mapping
 		mockProvider := &MockGroupMembershipProvider{
 			groups: map[string][]string{
-				"alice": {"developers"},  // alice is in developers group
+				"alice": {"developers"}, // alice is in developers group
 				// bob is not in any group
 			},
 		}
@@ -1812,12 +1812,8 @@ func TestMountAllowlistE2E(t *testing.T) {
 	})
 }
 
-func TestCreateAppliesNetworkIsolationEnforcement(t *testing.T) {
+func TestEnforceContainerConfigAppliesNetworkIsolationPolicy(t *testing.T) {
 	log, err := logger.NewDefault()
-	require.NoError(t, err)
-
-	client := &Client{}
-	creator, err := NewCreator(client, log)
 	require.NoError(t, err)
 
 	enforcer, err := policy.New(config.DefaultPolicyConfig(), log)
@@ -1831,21 +1827,16 @@ func TestCreateAppliesNetworkIsolationEnforcement(t *testing.T) {
 	err = enforcer.SetPolicy(context.Background(), strictNoNetworkPolicy)
 	require.NoError(t, err)
 
-	creator.SetEnforcer(enforcer)
-
-	_, err = creator.Create(context.Background(), CreateConfig{
-		Config: types.ContainerConfig{
-			Image:       "alpine:3.18",
-			NetworkMode: "",
-			Networks:    []string{"bridge"},
-			Ports: []types.PortBinding{
-				{ContainerPort: 80, HostPort: 8080, Protocol: "tcp"},
-			},
+	enforced, err := enforcer.EnforceContainerConfig(context.Background(), types.NewID("test-session-network-enforcement"), types.ContainerConfig{
+		Image:       "alpine:3.18",
+		NetworkMode: "",
+		Networks:    []string{"bridge"},
+		Ports: []types.PortBinding{
+			{ContainerPort: 80, HostPort: 8080, Protocol: "tcp"},
 		},
-		Name:      "test-network-enforcement",
-		SessionID: types.NewID("test-session-network-enforcement"),
 	})
-
-	// EnforceContainerConfig should harden the config so that creation succeeds.
 	require.NoError(t, err)
+	assert.Equal(t, "none", enforced.NetworkMode)
+	assert.Empty(t, enforced.Networks)
+	assert.Empty(t, enforced.Ports)
 }
