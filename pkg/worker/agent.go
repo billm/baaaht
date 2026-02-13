@@ -944,8 +944,9 @@ func (a *Agent) SendTaskComplete(stream proto.AgentService_StreamTaskClient, tas
 		return types.NewError(types.ErrCodeInvalid, "stream is nil")
 	}
 
-	// Calculate execution duration from creation time
-	duration := time.Since(time.Now()) // Placeholder - actual duration would be tracked during execution
+	// Calculate execution duration - use zero if no start time available
+	// Note: Callers should track task start time and pass it for accurate duration
+	duration := time.Duration(0)
 
 	result := &proto.TaskResult{
 		ExitCode:           exitCode,

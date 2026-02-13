@@ -49,6 +49,14 @@ var (
 	assistantWorkDir          string
 	assistantOrchestratorAddr string
 
+	// Worker container flags
+	workerAutoStart        bool
+	workerImage            string
+	workerCommand          string
+	workerArgs             []string
+	workerReadOnlyRootfs   bool
+	workerOrchestratorAddr string
+
 	// Global variables
 	rootLog          *logger.Logger
 	orch             *orchestrator.Orchestrator
@@ -60,6 +68,7 @@ var (
 	skillsLoader     *skills.Loader
 	skillsStore      *skills.Store
 	assistantProcess *managedAssistantContainer
+	workerProcess    *managedWorkerContainer
 )
 
 type managedAssistantContainer struct {
@@ -284,6 +293,189 @@ func (p *managedAssistantContainer) Stop(timeout time.Duration) error {
 	return nil
 }
 
+type managedWorkerContainer struct {
+	runtime   container.Runtime
+	creator   *container.Creator
+	lifecycle *container.LifecycleManager
+	log       *logger.Logger
+
+	containerID string
+	started     bool
+
+	mu      sync.Mutex
+	stopped bool
+}
+
+func startWorkerProcess(log *logger.Logger, cfg *config.Config, image string, command string, args []string, readOnlyRootfs bool, orchestratorAddr string) (*managedWorkerContainer, error) {
+	if log == nil {
+		return nil, fmt.Errorf("logger is required")
+	}
+	if cfg == nil {
+		return nil, fmt.Errorf("config is required")
+	}
+	if strings.TrimSpace(image) == "" {
+		return nil, fmt.Errorf("worker image cannot be empty")
+	}
+	if strings.TrimSpace(command) == "" {
+		return nil, fmt.Errorf("worker command cannot be empty")
+	}
+	if strings.TrimSpace(orchestratorAddr) == "" {
+		return nil, fmt.Errorf("worker orchestrator address cannot be empty")
+	}
+
+	runtime, err := container.NewDockerRuntime(cfg.Docker, log)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create worker runtime: %w", err)
+	}
+
+	creator, err := container.NewCreatorFromRuntime(runtime, log)
+	if err != nil {
+		_ = runtime.Close()
+		return nil, fmt.Errorf("failed to create worker container creator: %w", err)
+	}
+
+	lifecycle, err := container.NewLifecycleManagerFromRuntime(runtime, log)
+	if err != nil {
+		_ = runtime.Close()
+		return nil, fmt.Errorf("failed to create worker lifecycle manager: %w", err)
+	}
+
+	proc := &managedWorkerContainer{
+		runtime:   runtime,
+		creator:   creator,
+		lifecycle: lifecycle,
+		log:       log.With("component", "worker_container_manager"),
+	}
+
+	// Worker has simpler mount configuration - just tmpfs for temp files
+	mounts := []types.Mount{
+		{Type: types.MountTypeTmpfs, Target: "/tmp"},
+	}
+
+	createResult, err := proc.creator.Create(context.Background(), container.CreateConfig{
+		Config: types.ContainerConfig{
+			Image:      image,
+			Command:    []string{command},
+			Args:       args,
+			WorkingDir: "/app",
+			User:       "1000:1000",
+			SecurityOpt: []string{
+				"no-new-privileges",
+			},
+			CapDrop:        []string{"ALL"},
+			ReadOnlyRootfs: readOnlyRootfs,
+			Env: map[string]string{
+				"ORCHESTRATOR_URL": orchestratorAddr,
+				"TMPDIR":           "/tmp",
+			},
+			Labels: map[string]string{
+				"baaaht.managed":   "true",
+				"baaaht.component": "worker",
+			},
+			Mounts:   mounts,
+			Networks: []string{"bridge"},
+			Resources: types.ResourceLimits{
+				NanoCPUs:    1_000_000_000,
+				MemoryBytes: 512_000_000, // 512MB for worker
+			},
+			RestartPolicy: types.RestartPolicy{Name: "no"},
+		},
+		Name:        "baaaht-worker",
+		SessionID:   types.GenerateID(),
+		AutoPull:    true,
+		PullTimeout: 5 * time.Minute,
+	})
+	if err != nil {
+		_ = runtime.Close()
+		return nil, fmt.Errorf("failed to create worker container: %w", err)
+	}
+
+	proc.containerID = createResult.ContainerID
+
+	if err := proc.lifecycle.Start(context.Background(), container.StartConfig{
+		ContainerID: proc.containerID,
+		Name:        "baaaht-worker",
+	}); err != nil {
+		_ = proc.lifecycle.Destroy(context.Background(), container.DestroyConfig{
+			ContainerID:   proc.containerID,
+			Name:          "baaaht-worker",
+			Force:         true,
+			RemoveVolumes: false,
+		})
+		_ = runtime.Close()
+		proc.containerID = ""
+		return nil, err
+	}
+
+	proc.started = true
+	proc.log.Info("Worker container started",
+		"container_id", proc.containerID,
+		"image", image,
+		"read_only_rootfs", readOnlyRootfs,
+		"command", command,
+		"args", args,
+		"orchestrator_url", orchestratorAddr)
+
+	return proc, nil
+}
+
+func (p *managedWorkerContainer) Stop(timeout time.Duration) error {
+	if p == nil {
+		return nil
+	}
+
+	p.mu.Lock()
+	if p.stopped {
+		p.mu.Unlock()
+		return nil
+	}
+	p.stopped = true
+	containerID := p.containerID
+	started := p.started
+	p.mu.Unlock()
+
+	if !started || containerID == "" {
+		if p.runtime != nil {
+			_ = p.runtime.Close()
+		}
+		return nil
+	}
+
+	p.log.Info("Stopping worker container", "container_id", containerID)
+
+	stopCfg := container.StopConfig{
+		ContainerID: containerID,
+		Name:        "baaaht-worker",
+		Timeout:     &timeout,
+	}
+	if err := p.lifecycle.Stop(context.Background(), stopCfg); err != nil {
+		p.log.Warn("Failed to stop worker container cleanly", "container_id", containerID, "error", err)
+	}
+
+	destroyCfg := container.DestroyConfig{
+		ContainerID:   containerID,
+		Name:          "baaaht-worker",
+		Force:         true,
+		RemoveVolumes: false,
+	}
+	if err := p.lifecycle.Destroy(context.Background(), destroyCfg); err != nil {
+		p.log.Warn("Failed to destroy worker container", "container_id", containerID, "error", err)
+	}
+
+	p.mu.Lock()
+	p.started = false
+	p.containerID = ""
+	p.mu.Unlock()
+
+	if p.runtime != nil {
+		if err := p.runtime.Close(); err != nil {
+			return fmt.Errorf("failed to close worker runtime: %w", err)
+		}
+	}
+
+	return nil
+}
+
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "orchestrator",
@@ -331,6 +523,11 @@ func runOrchestrator(cmd *cobra.Command, args []string) error {
 		if assistantProcess != nil {
 			if err := assistantProcess.Stop(shutdownTimeout); err != nil {
 				rootLog.Error("Failed to stop assistant container on early exit", "error", err)
+			}
+		}
+		if workerProcess != nil {
+			if err := workerProcess.Stop(shutdownTimeout); err != nil {
+				rootLog.Error("Failed to stop worker container on early exit", "error", err)
 			}
 		}
 	}()
@@ -458,6 +655,14 @@ func runOrchestrator(cmd *cobra.Command, args []string) error {
 		assistantProcess, err = startAssistantProcess(rootLog, cfg, assistantImage, assistantCommand, assistantArgs, assistantDevMode, assistantReadOnlyRootfs, assistantWorkDir, assistantOrchestratorAddr)
 		if err != nil {
 			rootLog.Error("Failed to auto-start assistant container", "error", err)
+			return err
+		}
+	}
+
+	if workerAutoStart {
+		workerProcess, err = startWorkerProcess(rootLog, cfg, workerImage, workerCommand, workerArgs, workerReadOnlyRootfs, workerOrchestratorAddr)
+		if err != nil {
+			rootLog.Error("Failed to auto-start worker container", "error", err)
 			return err
 		}
 	}
@@ -607,6 +812,13 @@ func runOrchestrator(cmd *cobra.Command, args []string) error {
 				rootLog.Error("Failed to stop assistant container", "error", err)
 			} else {
 				rootLog.Info("Assistant container stopped")
+			}
+		}
+		if workerProcess != nil {
+			if err := workerProcess.Stop(cfg.Orchestrator.ShutdownTimeout); err != nil {
+				rootLog.Error("Failed to stop worker container", "error", err)
+			} else {
+				rootLog.Info("Worker container stopped")
 			}
 		}
 		// Stop gRPC server
@@ -789,6 +1001,20 @@ func main() {
 		"Host working directory mounted into assistant container at /app (only used with --assistant-dev-mode)")
 	rootCmd.PersistentFlags().StringVar(&assistantOrchestratorAddr, "assistant-orchestrator-addr", "host.docker.internal:50051",
 		"Orchestrator gRPC address used by assistant container")
+
+	// Worker container flags
+	rootCmd.PersistentFlags().BoolVar(&workerAutoStart, "worker-autostart", true,
+		"Automatically start the worker agent container")
+	rootCmd.PersistentFlags().StringVar(&workerImage, "worker-image", "ghcr.io/billm/baaaht/agent-worker:latest",
+		"Container image used for the worker agent")
+	rootCmd.PersistentFlags().StringVar(&workerCommand, "worker-command", "/app/worker",
+		"Container command used to start the worker")
+	rootCmd.PersistentFlags().StringSliceVar(&workerArgs, "worker-args", []string{},
+		"Arguments for worker container command")
+	rootCmd.PersistentFlags().BoolVar(&workerReadOnlyRootfs, "worker-readonly-rootfs", true,
+		"Run worker container with read-only root filesystem")
+	rootCmd.PersistentFlags().StringVar(&workerOrchestratorAddr, "worker-orchestrator-addr", "host.docker.internal:50051",
+		"Orchestrator gRPC address used by worker container")
 
 	// Version flag
 	rootCmd.Flags().BoolVar(&versionFlag, "version", false,

@@ -700,8 +700,18 @@ func (s *AgentService) Heartbeat(ctx context.Context, req *proto.HeartbeatReques
 		return nil, grpcErrorFromTypesError(err)
 	}
 
-	// TODO: Return pending tasks for the agent
+	// Return pending tasks for the agent
+	// Mark tasks as "started" when returned so they're not returned again
 	var pendingTasks []string
+	tasks := s.registry.ListTasks(req.AgentId)
+	for _, task := range tasks {
+		task.mu.Lock()
+		if task.State == "pending" {
+			pendingTasks = append(pendingTasks, task.ID)
+			task.State = "started"
+		}
+		task.mu.Unlock()
+	}
 
 	return &proto.HeartbeatResponse{
 		Timestamp:    timestamppb.Now(),
@@ -744,6 +754,17 @@ func (s *AgentService) ExecuteTask(ctx context.Context, req *proto.ExecuteTaskRe
 	}
 
 	s.logger.Info("Task created", "task_id", task.ID, "agent_id", req.AgentId)
+
+	// Forward task to a worker agent if the target agent is a worker or unspecified
+	if req.AgentId != "" {
+		agent, err := s.registry.Get(req.AgentId)
+		if err == nil && agent.Type == "worker" {
+			// Forward task to worker via stream
+			if err := s.forwardTaskToWorker(ctx, req.AgentId, task); err != nil {
+				s.logger.Warn("Failed to forward task to worker", "task_id", task.ID, "agent_id", req.AgentId, "error", err)
+			}
+		}
+	}
 
 	// Publish event to event bus
 	if s.deps != nil {
@@ -1261,6 +1282,22 @@ func (s *AgentService) GetCapabilities(ctx context.Context, req *emptypb.Empty) 
 // =============================================================================
 // Helper Functions
 // =============================================================================
+
+// forwardTaskToWorker logs task assignment for a worker agent.
+// Workers receive pending task IDs via Heartbeat and then call StreamTask to execute.
+// Note: Workers don't currently have a StreamAgent client, so we rely on Heartbeat polling
+// for task discovery. This function is kept for future use when StreamAgent is implemented.
+func (s *AgentService) forwardTaskToWorker(ctx context.Context, workerID string, task *TaskInfo) error {
+	// Workers discover pending tasks via Heartbeat.PendingTasks and then call StreamTask.
+	// This logging helps with debugging the task assignment flow.
+	s.logger.Info("Task assigned to worker (will be picked up via Heartbeat)",
+		"task_id", task.ID,
+		"session_id", task.SessionID,
+		"worker_id", workerID,
+		"type", task.Type)
+
+	return nil
+}
 
 // agentInfoToProto converts AgentInfo to protobuf Agent
 func (s *AgentService) agentInfoToProto(info *AgentInfo) *proto.Agent {
