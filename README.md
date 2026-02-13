@@ -142,7 +142,7 @@ You can override assistant startup behavior with CLI flags:
 
 The repository now supports a shared image model for agent containers:
 
-- `agents/base/Dockerfile` defines a hardened Node.js base image.
+- `agents/base/Dockerfile` defines a hardened Node.js base image and bundles shared protobuf definitions at `/proto` for agent runtime gRPC loading.
 - `agents/assistant/Dockerfile` consumes that base image via `BASE_IMAGE`.
 - `make agent-images-build` builds both images with `sha-<short-git-sha>` (default 7 chars) and `latest` tags.
 - `.github/workflows/images.yml` publishes base first, then assistant using the same deterministic SHA tag while also publishing `latest`.

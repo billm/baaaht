@@ -61,6 +61,7 @@ The assistant production container image inherits from the shared hardened base 
 
 - Shared base: `agents/base/Dockerfile`
 - Assistant image: `agents/assistant/Dockerfile`
+- Runtime protobufs: provided by the base image at `/proto` so gRPC dynamic proto loading works across agents.
 
 Build locally with deterministic tags:
 
