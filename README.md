@@ -144,8 +144,8 @@ The repository now supports a shared image model for agent containers:
 
 - `agents/base/Dockerfile` defines a hardened Node.js base image.
 - `agents/assistant/Dockerfile` consumes that base image via `BASE_IMAGE`.
-- `make agent-images-build` builds both images with deterministic tags (`sha-<12-char-git-sha>`).
-- `.github/workflows/images.yml` publishes base first, then assistant using the same deterministic SHA tag.
+- `make agent-images-build` builds both images with `sha-<12-char-git-sha>` and `latest` tags.
+- `.github/workflows/images.yml` publishes base first, then assistant using the same deterministic SHA tag while also publishing `latest`.
 
 Rollout path:
 

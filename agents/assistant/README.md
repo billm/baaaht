@@ -70,9 +70,11 @@ make agent-images-build
 
 # Or build directly
 docker build -f agents/base/Dockerfile -t ghcr.io/billm/baaaht/agent-base:sha-$(git rev-parse --short=12 HEAD) .
+docker tag ghcr.io/billm/baaaht/agent-base:sha-$(git rev-parse --short=12 HEAD) ghcr.io/billm/baaaht/agent-base:latest
 docker build -f agents/assistant/Dockerfile \
 	--build-arg BASE_IMAGE=ghcr.io/billm/baaaht/agent-base:sha-$(git rev-parse --short=12 HEAD) \
 	-t ghcr.io/billm/baaaht/agent-assistant:sha-$(git rev-parse --short=12 HEAD) agents/assistant
+docker tag ghcr.io/billm/baaaht/agent-assistant:sha-$(git rev-parse --short=12 HEAD) ghcr.io/billm/baaaht/agent-assistant:latest
 ```
 
 ## Dev vs Prod parity

@@ -14,6 +14,7 @@ LLM_GATEWAY_DIR=llm-gateway
 AGENT_BASE_IMAGE?=ghcr.io/billm/baaaht/agent-base
 ASSISTANT_IMAGE?=ghcr.io/billm/baaaht/agent-assistant
 AGENT_IMAGE_TAG?=sha-$(shell git rev-parse --short=12 HEAD)
+AGENT_IMAGE_LATEST_TAG?=latest
 
 # Proto variables
 PROTO_DIR=proto
@@ -123,14 +124,17 @@ llm-gateway-docker:
 ## base-image-build: Build the shared hardened agent base image
 base-image-build:
 	@echo "Building shared agent base image..."
-	docker build -f agents/base/Dockerfile -t $(AGENT_BASE_IMAGE):$(AGENT_IMAGE_TAG) .
+	docker build -f agents/base/Dockerfile \
+		-t $(AGENT_BASE_IMAGE):$(AGENT_IMAGE_TAG) \
+		-t $(AGENT_BASE_IMAGE):$(AGENT_IMAGE_LATEST_TAG) .
 
 ## assistant-image-build: Build assistant image from the shared base image
 assistant-image-build: base-image-build
 	@echo "Building assistant image..."
 	docker build -f agents/assistant/Dockerfile \
 		--build-arg BASE_IMAGE=$(AGENT_BASE_IMAGE):$(AGENT_IMAGE_TAG) \
-		-t $(ASSISTANT_IMAGE):$(AGENT_IMAGE_TAG) agents/assistant
+		-t $(ASSISTANT_IMAGE):$(AGENT_IMAGE_TAG) \
+		-t $(ASSISTANT_IMAGE):$(AGENT_IMAGE_LATEST_TAG) agents/assistant
 
 ## agent-images-build: Build base and assistant images with deterministic tags
 agent-images-build: assistant-image-build
@@ -139,11 +143,13 @@ agent-images-build: assistant-image-build
 base-image-push: base-image-build
 	@echo "Pushing shared agent base image..."
 	docker push $(AGENT_BASE_IMAGE):$(AGENT_IMAGE_TAG)
+	docker push $(AGENT_BASE_IMAGE):$(AGENT_IMAGE_LATEST_TAG)
 
 ## assistant-image-push: Push assistant image
 assistant-image-push: assistant-image-build
 	@echo "Pushing assistant image..."
 	docker push $(ASSISTANT_IMAGE):$(AGENT_IMAGE_TAG)
+	docker push $(ASSISTANT_IMAGE):$(AGENT_IMAGE_LATEST_TAG)
 
 ## agent-images-push: Push base and assistant images
 agent-images-push: base-image-push assistant-image-push
