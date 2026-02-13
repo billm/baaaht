@@ -113,7 +113,8 @@ function createDelegateInputSchema(): ToolInputSchema {
       },
       parameters: {
         type: 'object',
-        description: 'Operation-specific parameters. The structure depends on the operation being performed.',
+        description:
+          'Operation-specific parameters. Common keys: path, content, pattern, recursive, offset, limit, maxDepth, url, query, method (GET/POST/PUT/DELETE/PATCH), headers, body.',
       },
       timeout: {
         type: 'number',

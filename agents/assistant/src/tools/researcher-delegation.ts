@@ -124,7 +124,7 @@ export class ResearcherDelegation {
 
     try {
       void this.grpcClient;
-      void this.createTaskConfig(params.operation, params.parameters);
+      void this.createTaskConfig;
 
       // STUB: Researcher agent not yet implemented
       // When implemented, this will:

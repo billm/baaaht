@@ -123,7 +123,7 @@ export class CoderDelegation {
 
     try {
       void this.grpcClient;
-      void this.createTaskConfig(params.operation, params.parameters);
+      void this.createTaskConfig;
 
       // STUB: Coder agent not yet implemented
       // When implemented, this will:

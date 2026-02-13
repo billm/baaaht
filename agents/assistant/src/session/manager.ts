@@ -600,13 +600,25 @@ export class SessionManager extends EventEmitter {
   /**
    * Stats returns manager statistics
    */
+  getStats(sessionId: string): Promise<SessionStats>;
   getStats(): {
     active: number;
     idle: number;
     closing: number;
     closed: number;
     total: number;
+  };
+  getStats(sessionId?: string): Promise<SessionStats> | {
+    active: number;
+    idle: number;
+    closing: number;
+    closed: number;
+    total: number;
   } {
+    if (typeof sessionId === 'string') {
+      return this.getSessionStats(sessionId);
+    }
+
     let active = 0;
     let idle = 0;
     let closing = 0;
