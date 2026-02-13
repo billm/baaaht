@@ -55,6 +55,48 @@ npm run build
 npm start
 ```
 
+## Container Images
+
+The assistant production container image inherits from the shared hardened base image.
+
+- Shared base: `agents/base/Dockerfile`
+- Assistant image: `agents/assistant/Dockerfile`
+
+Build locally with deterministic tags:
+
+```bash
+# From repository root
+make agent-images-build
+
+# Or build directly
+docker build -f agents/base/Dockerfile -t ghcr.io/billm/baaaht/agent-base:sha-$(git rev-parse --short=12 HEAD) .
+docker build -f agents/assistant/Dockerfile \
+	--build-arg BASE_IMAGE=ghcr.io/billm/baaaht/agent-base:sha-$(git rev-parse --short=12 HEAD) \
+	-t ghcr.io/billm/baaaht/agent-assistant:sha-$(git rev-parse --short=12 HEAD) agents/assistant
+```
+
+## Dev vs Prod parity
+
+- Production mode: run immutable assistant image (default orchestrator behavior).
+- Development mode: use `--assistant-dev-mode` to bind-mount `agents/assistant` and `/proto` for live iteration.
+- Current image runtime entrypoint is `tsx src/index.ts` to avoid coupling image builds to TypeScript compile stabilization.
+- Security baseline: non-root, no-new-privileges, cap-drop all, read-only rootfs by default.
+- Documented exception: only disable read-only rootfs in development when required via `--assistant-readonly-rootfs=false`.
+
+## Migration checklist
+
+1. Publish deterministic base and assistant tags:
+	- `make agent-images-push`
+2. Run orchestrator with pinned assistant image:
+	- `./bin/orchestrator --assistant-image ghcr.io/billm/baaaht/agent-assistant:sha-$(git rev-parse --short=12 HEAD)`
+3. Verify assistant startup and orchestrator connectivity.
+4. Confirm security baseline is active (non-root, no-new-privileges, cap-drop all, read-only rootfs by default).
+
+Rollback:
+
+- Use the previous known-good assistant SHA tag via `--assistant-image`.
+- For short-term local troubleshooting, enable dev mode with documented read-only-rootfs exception.
+
 ### Testing
 
 ```bash

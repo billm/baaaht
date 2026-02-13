@@ -1,15 +1,19 @@
 # Baaaht Monorepo Makefile
 
 .PHONY: all build test clean lint docker-build docker-run help build-orchestrator proto-gen proto-clean orchestrator tui \
-       worker llm-gateway llm-gateway-build llm-gateway-docker llm-gateway-clean
+	worker llm-gateway llm-gateway-build llm-gateway-docker llm-gateway-clean \
+	agent-images-build agent-images-push assistant-image-build assistant-image-push base-image-build base-image-push
 
 # Variables
 BUILD_DIR=bin
 DOCKER_IMAGE=baaaht/orchestrator
-DOCKER_TAG=latest
+DOCKER_TAG?=sha-$(shell git rev-parse --short=12 HEAD)
 LLM_GATEWAY_IMAGE=baaaht/llm-gateway
-LLM_GATEWAY_TAG=latest
+LLM_GATEWAY_TAG?=sha-$(shell git rev-parse --short=12 HEAD)
 LLM_GATEWAY_DIR=llm-gateway
+AGENT_BASE_IMAGE?=ghcr.io/billm/baaaht/agent-base
+ASSISTANT_IMAGE?=ghcr.io/billm/baaaht/agent-assistant
+AGENT_IMAGE_TAG?=sha-$(shell git rev-parse --short=12 HEAD)
 
 # Proto variables
 PROTO_DIR=proto
@@ -115,6 +119,34 @@ llm-gateway-build:
 llm-gateway-docker:
 	@echo "Building LLM Gateway Docker image..."
 	docker build -t $(LLM_GATEWAY_IMAGE):$(LLM_GATEWAY_TAG) $(LLM_GATEWAY_DIR)
+
+## base-image-build: Build the shared hardened agent base image
+base-image-build:
+	@echo "Building shared agent base image..."
+	docker build -f agents/base/Dockerfile -t $(AGENT_BASE_IMAGE):$(AGENT_IMAGE_TAG) .
+
+## assistant-image-build: Build assistant image from the shared base image
+assistant-image-build: base-image-build
+	@echo "Building assistant image..."
+	docker build -f agents/assistant/Dockerfile \
+		--build-arg BASE_IMAGE=$(AGENT_BASE_IMAGE):$(AGENT_IMAGE_TAG) \
+		-t $(ASSISTANT_IMAGE):$(AGENT_IMAGE_TAG) agents/assistant
+
+## agent-images-build: Build base and assistant images with deterministic tags
+agent-images-build: assistant-image-build
+
+## base-image-push: Push shared agent base image
+base-image-push: base-image-build
+	@echo "Pushing shared agent base image..."
+	docker push $(AGENT_BASE_IMAGE):$(AGENT_IMAGE_TAG)
+
+## assistant-image-push: Push assistant image
+assistant-image-push: assistant-image-build
+	@echo "Pushing assistant image..."
+	docker push $(ASSISTANT_IMAGE):$(AGENT_IMAGE_TAG)
+
+## agent-images-push: Push base and assistant images
+agent-images-push: base-image-push assistant-image-push
 
 ## llm-gateway-clean: Remove LLM Gateway build artifacts
 llm-gateway-clean:
