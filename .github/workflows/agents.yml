@@ -1,11 +1,13 @@
-name: publish-images
+name: agents
 
 on:
   push:
     branches:
       - main
-    tags:
-      - "v*"
+    paths:
+      - agents/**
+      - proto/**
+      - .github/workflows/agents.yml
   workflow_dispatch:
 
 permissions:
@@ -14,9 +16,9 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_OWNER: ${{ github.repository_owner }}
-  BASE_IMAGE_NAME: baaaht/agent-base
-  ASSISTANT_IMAGE_NAME: baaaht/agent-assistant
+  IMAGE_REPO: ${{ github.repository }}
+  BASE_IMAGE_NAME: agent-base
+  ASSISTANT_IMAGE_NAME: agent-assistant
   DOCKER_METADATA_SHORT_SHA_LENGTH: "7"
   IMAGE_PLATFORMS: linux/amd64,linux/arm64
 
@@ -48,12 +50,11 @@ jobs:
         id: meta_base
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.BASE_IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}/${{ env.BASE_IMAGE_NAME }}
           tags: |
             type=sha,prefix=sha-
-            type=raw,value=latest
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=ref,event=branch
+            type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push base image
         uses: docker/build-push-action@v6
@@ -93,12 +94,11 @@ jobs:
         id: meta_assistant
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.ASSISTANT_IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}/${{ env.ASSISTANT_IMAGE_NAME }}
           tags: |
             type=sha,prefix=sha-
-            type=raw,value=latest
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=ref,event=branch
+            type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push assistant image
         uses: docker/build-push-action@v6
@@ -107,7 +107,7 @@ jobs:
           file: ./agents/assistant/Dockerfile
           platforms: ${{ env.IMAGE_PLATFORMS }}
           build-args: |
-            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.BASE_IMAGE_NAME }}:${{ steps.vars.outputs.sha_tag }}
+            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}/${{ env.BASE_IMAGE_NAME }}:${{ steps.vars.outputs.sha_tag }}
           push: true
           tags: ${{ steps.meta_assistant.outputs.tags }}
           labels: ${{ steps.meta_assistant.outputs.labels }}
