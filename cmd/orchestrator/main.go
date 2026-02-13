@@ -161,7 +161,7 @@ func startAssistantProcess(log *logger.Logger, cfg *config.Config, image string,
 			SecurityOpt: []string{
 				"no-new-privileges",
 			},
-			CapDrop: []string{"ALL"},
+			CapDrop:        []string{"ALL"},
 			ReadOnlyRootfs: readOnlyRootfs,
 			Env: map[string]string{
 				"ORCHESTRATOR_URL":           orchestratorAddr,
