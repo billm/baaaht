@@ -1,5 +1,6 @@
 # Binaries
 bin/
+!bin/worker-linux-*
 *.exe
 *.dll
 *.so

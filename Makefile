@@ -2,7 +2,8 @@
 
 .PHONY: all build test clean lint docker-build docker-run help build-orchestrator proto-gen proto-clean orchestrator tui \
 	worker llm-gateway llm-gateway-build llm-gateway-docker llm-gateway-clean \
-	agent-images-build agent-images-push assistant-image-build assistant-image-push base-image-build base-image-push
+	agent-images-build agent-images-push assistant-image-build assistant-image-push base-image-build base-image-push \
+	worker-image-build worker-image-push
 
 # Variables
 BUILD_DIR=bin
@@ -14,6 +15,7 @@ LLM_GATEWAY_TAG?=sha-$(shell git rev-parse --short HEAD)
 LLM_GATEWAY_DIR=llm-gateway
 AGENT_BASE_IMAGE?=ghcr.io/$(OWNER)/baaaht/agent-base
 ASSISTANT_IMAGE?=ghcr.io/$(OWNER)/baaaht/agent-assistant
+WORKER_IMAGE?=ghcr.io/$(OWNER)/baaaht/agent-worker
 AGENT_IMAGE_TAG?=sha-$(shell git rev-parse --short HEAD)
 AGENT_IMAGE_LATEST_TAG?=latest
 
@@ -151,6 +153,20 @@ assistant-image-push: assistant-image-build
 	@echo "Pushing assistant image..."
 	docker push $(ASSISTANT_IMAGE):$(AGENT_IMAGE_TAG)
 	docker push $(ASSISTANT_IMAGE):$(AGENT_IMAGE_LATEST_TAG)
+
+## worker-image-build: Build worker image (multi-stage build)
+worker-image-build:
+	@echo "Building worker image..."
+	docker build -f agents/worker/Dockerfile \
+		-t $(WORKER_IMAGE):$(AGENT_IMAGE_TAG) \
+		-t $(WORKER_IMAGE):$(AGENT_IMAGE_LATEST_TAG) \
+		.
+
+## worker-image-push: Push worker image
+worker-image-push: worker-image-build
+	@echo "Pushing worker image..."
+	docker push $(WORKER_IMAGE):$(AGENT_IMAGE_TAG)
+	docker push $(WORKER_IMAGE):$(AGENT_IMAGE_LATEST_TAG)
 
 ## agent-images-push: Push base and assistant images
 agent-images-push: base-image-push assistant-image-push

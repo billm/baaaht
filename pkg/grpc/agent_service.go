@@ -700,8 +700,16 @@ func (s *AgentService) Heartbeat(ctx context.Context, req *proto.HeartbeatReques
 		return nil, grpcErrorFromTypesError(err)
 	}
 
-	// TODO: Return pending tasks for the agent
+	// Return pending tasks for the agent
 	var pendingTasks []string
+	tasks := s.registry.ListTasks(req.AgentId)
+	for _, task := range tasks {
+		task.mu.RLock()
+		if task.State == "pending" {
+			pendingTasks = append(pendingTasks, task.ID)
+		}
+		task.mu.RUnlock()
+	}
 
 	return &proto.HeartbeatResponse{
 		Timestamp:    timestamppb.Now(),
@@ -744,6 +752,17 @@ func (s *AgentService) ExecuteTask(ctx context.Context, req *proto.ExecuteTaskRe
 	}
 
 	s.logger.Info("Task created", "task_id", task.ID, "agent_id", req.AgentId)
+
+	// Forward task to a worker agent if the target agent is a worker or unspecified
+	if req.AgentId != "" {
+		agent, err := s.registry.Get(req.AgentId)
+		if err == nil && agent.Type == "worker" {
+			// Forward task to worker via stream
+			if err := s.forwardTaskToWorker(ctx, req.AgentId, task); err != nil {
+				s.logger.Warn("Failed to forward task to worker", "task_id", task.ID, "agent_id", req.AgentId, "error", err)
+			}
+		}
+	}
 
 	// Publish event to event bus
 	if s.deps != nil {
@@ -1261,6 +1280,42 @@ func (s *AgentService) GetCapabilities(ctx context.Context, req *emptypb.Empty) 
 // =============================================================================
 // Helper Functions
 // =============================================================================
+
+// forwardTaskToWorker sends a task notification to a worker agent via StreamAgent
+// The worker will then call StreamTask to execute the task
+func (s *AgentService) forwardTaskToWorker(ctx context.Context, workerID string, task *TaskInfo) error {
+	// Create a DataMessage with task notification
+	// Workers receive pending task IDs via Heartbeat and then call StreamTask to execute
+	taskNotif := fmt.Sprintf(`{"task_id":"%s","session_id":"%s","type":"%s"}`, task.ID, task.SessionID, task.Type)
+
+	taskMsg := &proto.StreamAgentResponse{
+		Payload: &proto.StreamAgentResponse_Message{
+			Message: &proto.AgentMessage{
+				Id:        string(types.GenerateID()),
+				Type:      proto.MessageType_MESSAGE_TYPE_TASK_REQUEST,
+				Timestamp: timestamppb.Now(),
+				SourceId:  "orchestrator",
+				TargetId:  workerID,
+				Payload: &proto.AgentMessage_DataMessage{
+					DataMessage: &proto.DataMessage{
+						ContentType: "application/json",
+						Data:        []byte(taskNotif),
+					},
+				},
+				Metadata: &proto.AgentMessageMetadata{
+					SessionId: task.SessionID,
+				},
+			},
+		},
+	}
+
+	if err := s.sendToAgentStream(workerID, taskMsg); err != nil {
+		return fmt.Errorf("failed to send task notification to worker stream: %w", err)
+	}
+
+	s.logger.Info("Sent task notification to worker", "task_id", task.ID, "worker_id", workerID)
+	return nil
+}
 
 // agentInfoToProto converts AgentInfo to protobuf Agent
 func (s *AgentService) agentInfoToProto(info *AgentInfo) *proto.Agent {
