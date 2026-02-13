@@ -25,5 +25,8 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Compile all Go packages
+        run: go test -run ^$ ./...
+
       - name: Run unit tests (short, bounded)
         run: go test -v -short -timeout=12m ./pkg/...

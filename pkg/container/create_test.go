@@ -1812,12 +1812,8 @@ func TestMountAllowlistE2E(t *testing.T) {
 	})
 }
 
-func TestCreateAppliesNetworkIsolationEnforcement(t *testing.T) {
+func TestEnforceContainerConfigAppliesNetworkIsolationPolicy(t *testing.T) {
 	log, err := logger.NewDefault()
-	require.NoError(t, err)
-
-	client := &Client{}
-	_, err = NewCreator(client, log)
 	require.NoError(t, err)
 
 	enforcer, err := policy.New(config.DefaultPolicyConfig(), log)
