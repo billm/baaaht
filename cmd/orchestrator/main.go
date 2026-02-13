@@ -143,9 +143,9 @@ func startAssistantProcess(log *logger.Logger, cfg *config.Config, image string,
 			Args:       args,
 			WorkingDir: "/app",
 			Env: map[string]string{
-				"ORCHESTRATOR_URL":         orchestratorAddr,
-				"LLM_DEFAULT_PROVIDER":     cfg.LLM.DefaultProvider,
-				"LLM_DEFAULT_MODEL":        cfg.LLM.DefaultModel,
+				"ORCHESTRATOR_URL":           orchestratorAddr,
+				"LLM_DEFAULT_PROVIDER":       cfg.LLM.DefaultProvider,
+				"LLM_DEFAULT_MODEL":          cfg.LLM.DefaultModel,
 				"ASSISTANT_DEFAULT_PROVIDER": cfg.LLM.DefaultProvider,
 				"ASSISTANT_DEFAULT_MODEL":    cfg.LLM.DefaultModel,
 			},
@@ -305,6 +305,15 @@ func runOrchestrator(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid configuration: %w", err)
 	}
 
+	shutdownTimeout := cfg.Orchestrator.ShutdownTimeout
+	defer func() {
+		if assistantProcess != nil {
+			if err := assistantProcess.Stop(shutdownTimeout); err != nil {
+				rootLog.Error("Failed to stop assistant container on early exit", "error", err)
+			}
+		}
+	}()
+
 	// Create bootstrap config
 	bootstrapCfg := orchestrator.BootstrapConfig{
 		Config:              *cfg,
@@ -416,6 +425,13 @@ func runOrchestrator(cmd *cobra.Command, args []string) error {
 
 		rootLog.Info("gRPC TCP listener started", "address", grpcTCPListenAddr)
 	}
+
+	// Create shutdown manager before starting long-lived components
+	shutdown = orchestrator.NewShutdownManager(
+		orch,
+		cfg.Orchestrator.ShutdownTimeout,
+		rootLog,
+	)
 
 	if assistantAutoStart {
 		assistantProcess, err = startAssistantProcess(rootLog, cfg, assistantImage, assistantCommand, assistantArgs, assistantWorkDir, assistantOrchestratorAddr)
@@ -533,13 +549,6 @@ func runOrchestrator(cmd *cobra.Command, args []string) error {
 		"total_providers", len(listedProviders),
 		"available_providers", len(availableProviders),
 		"default_provider", providerRegistryCfg.DefaultProvider)
-
-	// Create shutdown manager
-	shutdown = orchestrator.NewShutdownManager(
-		orch,
-		cfg.Orchestrator.ShutdownTimeout,
-		rootLog,
-	)
 
 	// Get config path for reloader
 	configPath := cfgFile
