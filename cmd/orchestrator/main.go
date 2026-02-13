@@ -777,9 +777,9 @@ func main() {
 		"Automatically start the assistant backend container")
 	rootCmd.PersistentFlags().StringVar(&assistantImage, "assistant-image", "ghcr.io/billm/baaaht/agent-assistant:latest",
 		"Container image used for the assistant backend")
-	rootCmd.PersistentFlags().StringVar(&assistantCommand, "assistant-command", "node_modules/.bin/tsx",
+	rootCmd.PersistentFlags().StringVar(&assistantCommand, "assistant-command", "node",
 		"Container command used to start the assistant")
-	rootCmd.PersistentFlags().StringSliceVar(&assistantArgs, "assistant-args", []string{"src/index.ts"},
+	rootCmd.PersistentFlags().StringSliceVar(&assistantArgs, "assistant-args", []string{"dist/index.js"},
 		"Arguments for assistant container command")
 	rootCmd.PersistentFlags().BoolVar(&assistantDevMode, "assistant-dev-mode", false,
 		"Enable development mode for assistant container (bind mounts host source and proto directories)")
