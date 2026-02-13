@@ -6,13 +6,14 @@
 
 # Variables
 BUILD_DIR=bin
-DOCKER_IMAGE=baaaht/orchestrator
+OWNER?=billm
+DOCKER_IMAGE?=ghcr.io/$(OWNER)/baaaht/orchestrator
 DOCKER_TAG?=sha-$(shell git rev-parse --short HEAD)
-LLM_GATEWAY_IMAGE=baaaht/llm-gateway
+LLM_GATEWAY_IMAGE?=ghcr.io/$(OWNER)/baaaht/llm-gateway
 LLM_GATEWAY_TAG?=sha-$(shell git rev-parse --short HEAD)
 LLM_GATEWAY_DIR=llm-gateway
-AGENT_BASE_IMAGE?=ghcr.io/billm/baaaht/agent-base
-ASSISTANT_IMAGE?=ghcr.io/billm/baaaht/agent-assistant
+AGENT_BASE_IMAGE?=ghcr.io/$(OWNER)/baaaht/agent-base
+ASSISTANT_IMAGE?=ghcr.io/$(OWNER)/baaaht/agent-assistant
 AGENT_IMAGE_TAG?=sha-$(shell git rev-parse --short HEAD)
 AGENT_IMAGE_LATEST_TAG?=latest
 
@@ -66,7 +67,7 @@ test:
 ## test-unit: Run unit tests only
 test-unit:
 	@echo "Running unit tests..."
-	go test -v ./pkg/...
+	go test -v -short -timeout=12m ./pkg/...
 
 ## test-integration: Run integration tests
 test-integration:

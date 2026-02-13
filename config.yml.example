@@ -419,7 +419,8 @@ llm:
   
   # Container image for LLM Gateway
   # Environment variable: LLM_CONTAINER_IMAGE
-  container_image: baaaht/llm-gateway:latest
+  # Template-friendly format (if rendered by your deployment tooling): ghcr.io/${OWNER}/baaaht/llm-gateway:latest
+  container_image: ghcr.io/billm/baaaht/llm-gateway:latest
   
   # Default LLM provider to use
   # Environment variable: LLM_DEFAULT_PROVIDER

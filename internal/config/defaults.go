@@ -42,70 +42,70 @@ func GetDefaultConfigPath() (string, error) {
 
 const (
 	// Environment variable names
-	EnvDockerHost        = "DOCKER_HOST"
-	EnvDockerTLSCert     = "DOCKER_TLS_CERT"
-	EnvDockerTLSKey      = "DOCKER_TLS_KEY"
-	EnvDockerTLSCACert   = "DOCKER_TLS_CA_CERT"
-	EnvDockerTLSVerify   = "DOCKER_TLS_VERIFY"
-	EnvAPIServerHost     = "API_SERVER_HOST"
-	EnvAPIServerPort     = "API_SERVER_PORT"
-	EnvLogLevel          = "LOG_LEVEL"
-	EnvLogFormat         = "LOG_FORMAT"
-	EnvSessionTimeout    = "SESSION_TIMEOUT"
-	EnvMaxSessions       = "MAX_SESSIONS"
-	EnvEventQueueSize    = "EVENT_QUEUE_SIZE"
-	EnvEventWorkers      = "EVENT_WORKERS"
-	EnvIPCSocketPath     = "IPC_SOCKET_PATH"
-	EnvSchedulerQueue    = "SCHEDULER_QUEUE_SIZE"
-	EnvSchedulerWorkers  = "SCHEDULER_WORKERS"
-	EnvCredStorePath     = "CREDENTIAL_STORE_PATH"
-	EnvPolicyConfigPath  = "POLICY_CONFIG_PATH"
-	EnvMetricsEnabled    = "METRICS_ENABLED"
-	EnvMetricsPort       = "METRICS_PORT"
-	EnvTraceEnabled      = "TRACE_ENABLED"
-	EnvShutdownTimeout   = "SHUTDOWN_TIMEOUT"
-	EnvRuntimeType       = "CONTAINER_RUNTIME"
-	EnvRuntimeSocketPath = "CONTAINER_RUNTIME_SOCKET"
-	EnvRuntimeTimeout    = "CONTAINER_RUNTIME_TIMEOUT"
-	EnvRuntimeTLSCert    = "CONTAINER_RUNTIME_TLS_CERT"
-	EnvRuntimeTLSKey     = "CONTAINER_RUNTIME_TLS_KEY"
-	EnvRuntimeTLSCA      = "CONTAINER_RUNTIME_TLS_CA"
-	EnvRuntimeTLSEnabled = "CONTAINER_RUNTIME_TLS_ENABLED"
-	EnvMemoryStoragePath = "MEMORY_STORAGE_PATH"
-	EnvMemoryEnabled     = "MEMORY_ENABLED"
-	EnvMemoryMaxFileSize = "MEMORY_MAX_FILE_SIZE"
-	EnvMemoryFileFormat  = "MEMORY_FILE_FORMAT"
-	EnvSessionPersistence = "SESSION_PERSISTENCE"
-	EnvSessionStoragePath = "SESSION_STORAGE_PATH"
-	EnvGRPCSocketPath    = "GRPC_SOCKET_PATH"
-	EnvGRPCMaxRecvMsgSize = "GRPC_MAX_RECV_MSG_SIZE"
-	EnvGRPCMaxSendMsgSize = "GRPC_MAX_SEND_MSG_SIZE"
-	EnvGRPCTimeout       = "GRPC_TIMEOUT"
-	EnvGRPCMaxConnections = "GRPC_MAX_CONNECTIONS"
-	EnvLLMEnabled        = "LLM_ENABLED"
-	EnvLLMContainerImage = "LLM_CONTAINER_IMAGE"
-	EnvLLMDefaultModel   = "LLM_DEFAULT_MODEL"
-	EnvLLMDefaultProvider = "LLM_DEFAULT_PROVIDER"
-	EnvLLMTimeout        = "LLM_TIMEOUT"
-	EnvLLMMaxConcurrent  = "LLM_MAX_CONCURRENT_REQUESTS"
-	EnvProviderDefaultProvider = "PROVIDER_DEFAULT"
-	EnvProviderFailoverEnabled = "PROVIDER_FAILOVER_ENABLED"
+	EnvDockerHost                = "DOCKER_HOST"
+	EnvDockerTLSCert             = "DOCKER_TLS_CERT"
+	EnvDockerTLSKey              = "DOCKER_TLS_KEY"
+	EnvDockerTLSCACert           = "DOCKER_TLS_CA_CERT"
+	EnvDockerTLSVerify           = "DOCKER_TLS_VERIFY"
+	EnvAPIServerHost             = "API_SERVER_HOST"
+	EnvAPIServerPort             = "API_SERVER_PORT"
+	EnvLogLevel                  = "LOG_LEVEL"
+	EnvLogFormat                 = "LOG_FORMAT"
+	EnvSessionTimeout            = "SESSION_TIMEOUT"
+	EnvMaxSessions               = "MAX_SESSIONS"
+	EnvEventQueueSize            = "EVENT_QUEUE_SIZE"
+	EnvEventWorkers              = "EVENT_WORKERS"
+	EnvIPCSocketPath             = "IPC_SOCKET_PATH"
+	EnvSchedulerQueue            = "SCHEDULER_QUEUE_SIZE"
+	EnvSchedulerWorkers          = "SCHEDULER_WORKERS"
+	EnvCredStorePath             = "CREDENTIAL_STORE_PATH"
+	EnvPolicyConfigPath          = "POLICY_CONFIG_PATH"
+	EnvMetricsEnabled            = "METRICS_ENABLED"
+	EnvMetricsPort               = "METRICS_PORT"
+	EnvTraceEnabled              = "TRACE_ENABLED"
+	EnvShutdownTimeout           = "SHUTDOWN_TIMEOUT"
+	EnvRuntimeType               = "CONTAINER_RUNTIME"
+	EnvRuntimeSocketPath         = "CONTAINER_RUNTIME_SOCKET"
+	EnvRuntimeTimeout            = "CONTAINER_RUNTIME_TIMEOUT"
+	EnvRuntimeTLSCert            = "CONTAINER_RUNTIME_TLS_CERT"
+	EnvRuntimeTLSKey             = "CONTAINER_RUNTIME_TLS_KEY"
+	EnvRuntimeTLSCA              = "CONTAINER_RUNTIME_TLS_CA"
+	EnvRuntimeTLSEnabled         = "CONTAINER_RUNTIME_TLS_ENABLED"
+	EnvMemoryStoragePath         = "MEMORY_STORAGE_PATH"
+	EnvMemoryEnabled             = "MEMORY_ENABLED"
+	EnvMemoryMaxFileSize         = "MEMORY_MAX_FILE_SIZE"
+	EnvMemoryFileFormat          = "MEMORY_FILE_FORMAT"
+	EnvSessionPersistence        = "SESSION_PERSISTENCE"
+	EnvSessionStoragePath        = "SESSION_STORAGE_PATH"
+	EnvGRPCSocketPath            = "GRPC_SOCKET_PATH"
+	EnvGRPCMaxRecvMsgSize        = "GRPC_MAX_RECV_MSG_SIZE"
+	EnvGRPCMaxSendMsgSize        = "GRPC_MAX_SEND_MSG_SIZE"
+	EnvGRPCTimeout               = "GRPC_TIMEOUT"
+	EnvGRPCMaxConnections        = "GRPC_MAX_CONNECTIONS"
+	EnvLLMEnabled                = "LLM_ENABLED"
+	EnvLLMContainerImage         = "LLM_CONTAINER_IMAGE"
+	EnvLLMDefaultModel           = "LLM_DEFAULT_MODEL"
+	EnvLLMDefaultProvider        = "LLM_DEFAULT_PROVIDER"
+	EnvLLMTimeout                = "LLM_TIMEOUT"
+	EnvLLMMaxConcurrent          = "LLM_MAX_CONCURRENT_REQUESTS"
+	EnvProviderDefaultProvider   = "PROVIDER_DEFAULT"
+	EnvProviderFailoverEnabled   = "PROVIDER_FAILOVER_ENABLED"
 	EnvProviderFailoverThreshold = "PROVIDER_FAILOVER_THRESHOLD"
-	EnvAnthropicAPIKey    = "ANTHROPIC_API_KEY"
-	EnvAnthropicBaseURL   = "ANTHROPIC_BASE_URL"
-	EnvAnthropicTimeout   = "ANTHROPIC_TIMEOUT"
-	EnvAnthropicMaxRetries = "ANTHROPIC_MAX_RETRIES"
-	EnvAnthropicEnabled   = "ANTHROPIC_ENABLED"
-	EnvOpenAIAPIKey       = "OPENAI_API_KEY"
-	EnvOpenAIBaseURL      = "OPENAI_BASE_URL"
-	EnvOpenAITimeout      = "OPENAI_TIMEOUT"
-	EnvOpenAIMaxRetries   = "OPENAI_MAX_RETRIES"
-	EnvOpenAIEnabled      = "OPENAI_ENABLED"
-	EnvSkillsEnabled      = "SKILLS_ENABLED"
-	EnvSkillsStoragePath  = "SKILLS_STORAGE_PATH"
-	EnvSkillsAutoLoad     = "SKILLS_AUTO_LOAD"
-	EnvSkillsMaxPerOwner  = "SKILLS_MAX_PER_OWNER"
-	EnvSkillsGitHubToken  = "SKILLS_GITHUB_TOKEN"
+	EnvAnthropicAPIKey           = "ANTHROPIC_API_KEY"
+	EnvAnthropicBaseURL          = "ANTHROPIC_BASE_URL"
+	EnvAnthropicTimeout          = "ANTHROPIC_TIMEOUT"
+	EnvAnthropicMaxRetries       = "ANTHROPIC_MAX_RETRIES"
+	EnvAnthropicEnabled          = "ANTHROPIC_ENABLED"
+	EnvOpenAIAPIKey              = "OPENAI_API_KEY"
+	EnvOpenAIBaseURL             = "OPENAI_BASE_URL"
+	EnvOpenAITimeout             = "OPENAI_TIMEOUT"
+	EnvOpenAIMaxRetries          = "OPENAI_MAX_RETRIES"
+	EnvOpenAIEnabled             = "OPENAI_ENABLED"
+	EnvSkillsEnabled             = "SKILLS_ENABLED"
+	EnvSkillsStoragePath         = "SKILLS_STORAGE_PATH"
+	EnvSkillsAutoLoad            = "SKILLS_AUTO_LOAD"
+	EnvSkillsMaxPerOwner         = "SKILLS_MAX_PER_OWNER"
+	EnvSkillsGitHubToken         = "SKILLS_GITHUB_TOKEN"
 )
 
 const (
@@ -156,9 +156,9 @@ const (
 	DefaultRuntimeTimeout = 30 * time.Second
 
 	// Default Memory settings
-	DefaultMemoryEnabled    = true
+	DefaultMemoryEnabled     = true
 	DefaultMemoryMaxFileSize = 100 // KB
-	DefaultMemoryFileFormat = "markdown"
+	DefaultMemoryFileFormat  = "markdown"
 
 	// Default gRPC settings
 	DefaultGRPCSocketPath     = "/tmp/baaaht-grpc.sock"
@@ -168,54 +168,54 @@ const (
 	DefaultGRPCMaxConnections = 100
 
 	// Default LLM settings
-	DefaultLLMEnabled            = false
-	DefaultLLMContainerImage     = "baaaht/llm-gateway:latest"
-	DefaultLLMDefaultProvider    = "anthropic"
-	DefaultLLMDefaultModel       = "anthropic/claude-sonnet-4-20250514"
-	DefaultLLMTimeout            = 120 * time.Second
-	DefaultLLMMaxConcurrent      = 10
+	DefaultLLMEnabled         = false
+	DefaultLLMContainerImage  = "ghcr.io/billm/baaaht/llm-gateway:latest"
+	DefaultLLMDefaultProvider = "anthropic"
+	DefaultLLMDefaultModel    = "anthropic/claude-sonnet-4-20250514"
+	DefaultLLMTimeout         = 120 * time.Second
+	DefaultLLMMaxConcurrent   = 10
 	// Default Provider settings
-	DefaultProviderDefaultProvider = "anthropic"
-	DefaultProviderFailoverEnabled = true
-	DefaultProviderFailoverThreshold = 3
-	DefaultProviderHealthCheckInterval = 30 * time.Second
+	DefaultProviderDefaultProvider       = "anthropic"
+	DefaultProviderFailoverEnabled       = true
+	DefaultProviderFailoverThreshold     = 3
+	DefaultProviderHealthCheckInterval   = 30 * time.Second
 	DefaultProviderCircuitBreakerTimeout = 60 * time.Second
 
 	// Default Anthropic settings
-	DefaultAnthropicBaseURL   = "https://api.anthropic.com"
-	DefaultAnthropicTimeout   = 60 // seconds
+	DefaultAnthropicBaseURL    = "https://api.anthropic.com"
+	DefaultAnthropicTimeout    = 60 // seconds
 	DefaultAnthropicMaxRetries = 3
-	DefaultAnthropicEnabled   = true
-	DefaultAnthropicPriority  = 10
+	DefaultAnthropicEnabled    = true
+	DefaultAnthropicPriority   = 10
 
 	// Default OpenAI settings
-	DefaultOpenAIBaseURL      = "https://api.openai.com"
-	DefaultOpenAITimeout      = 60 // seconds
-	DefaultOpenAIMaxRetries   = 3
-	DefaultOpenAIEnabled      = true
-	DefaultOpenAIPriority     = 20
+	DefaultOpenAIBaseURL    = "https://api.openai.com"
+	DefaultOpenAITimeout    = 60 // seconds
+	DefaultOpenAIMaxRetries = 3
+	DefaultOpenAIEnabled    = true
+	DefaultOpenAIPriority   = 20
 
 	// Default Skills settings
-	DefaultSkillsEnabled      = true
-	DefaultSkillsMaxPerOwner  = 100
-	DefaultSkillsAutoLoad     = true
-	DefaultSkillsMaxLoadErrors = 10
-	DefaultSkillsReloadInterval = 5 * time.Minute
-	DefaultSkillsGitHubAPIEndpoint = "https://api.github.com"
-	DefaultSkillsGitHubMaxRepoSkills = 50
-	DefaultSkillsGitHubUpdateInterval = 24 * time.Hour
-	DefaultSkillsRetentionMaxAge = 90 * 24 * time.Hour // 90 days
+	DefaultSkillsEnabled               = true
+	DefaultSkillsMaxPerOwner           = 100
+	DefaultSkillsAutoLoad              = true
+	DefaultSkillsMaxLoadErrors         = 10
+	DefaultSkillsReloadInterval        = 5 * time.Minute
+	DefaultSkillsGitHubAPIEndpoint     = "https://api.github.com"
+	DefaultSkillsGitHubMaxRepoSkills   = 50
+	DefaultSkillsGitHubUpdateInterval  = 24 * time.Hour
+	DefaultSkillsRetentionMaxAge       = 90 * 24 * time.Hour // 90 days
 	DefaultSkillsRetentionUnusedMaxAge = 30 * 24 * time.Hour // 30 days
-	DefaultSkillsRetentionErrorMaxAge = 7 * 24 * time.Hour // 7 days
+	DefaultSkillsRetentionErrorMaxAge  = 7 * 24 * time.Hour  // 7 days
 	DefaultSkillsRetentionMinLoadCount = 0
 
-  // Default Audit settings
-	DefaultAuditEnabled        = false
-	DefaultAuditOutput         = "stdout"
-	DefaultAuditFormat         = "json"
-	DefaultAuditMaxSize        = 100 // MB
-	DefaultAuditMaxBackups     = 10
-	DefaultAuditMaxAge         = 30  // days
+	// Default Audit settings
+	DefaultAuditEnabled    = false
+	DefaultAuditOutput     = "stdout"
+	DefaultAuditFormat     = "json"
+	DefaultAuditMaxSize    = 100 // MB
+	DefaultAuditMaxBackups = 10
+	DefaultAuditMaxAge     = 30 // days
 )
 
 // DefaultDockerConfig returns the default Docker configuration
@@ -421,11 +421,11 @@ func DefaultGRPCConfig() GRPCConfig {
 // DefaultProviderConfig returns the default provider configuration
 func DefaultProviderConfig() ProviderConfig {
 	return ProviderConfig{
-		DefaultProvider:        DefaultProviderDefaultProvider,
-		FailoverEnabled:        DefaultProviderFailoverEnabled,
-		FailoverThreshold:      DefaultProviderFailoverThreshold,
-		HealthCheckInterval:    DefaultProviderHealthCheckInterval,
-		CircuitBreakerTimeout:  DefaultProviderCircuitBreakerTimeout,
+		DefaultProvider:       DefaultProviderDefaultProvider,
+		FailoverEnabled:       DefaultProviderFailoverEnabled,
+		FailoverThreshold:     DefaultProviderFailoverThreshold,
+		HealthCheckInterval:   DefaultProviderHealthCheckInterval,
+		CircuitBreakerTimeout: DefaultProviderCircuitBreakerTimeout,
 		Anthropic: ProviderSpecificConfig{
 			Enabled:    DefaultAnthropicEnabled,
 			BaseURL:    DefaultAnthropicBaseURL,
@@ -446,8 +446,8 @@ func DefaultProviderConfig() ProviderConfig {
 // DefaultLLMConfig returns the default LLM Gateway configuration
 func DefaultLLMConfig() LLMConfig {
 	return LLMConfig{
-		Enabled:               DefaultLLMEnabled,
-		ContainerImage:        DefaultLLMContainerImage,
+		Enabled:        DefaultLLMEnabled,
+		ContainerImage: DefaultLLMContainerImage,
 		Providers: map[string]LLMProviderConfig{
 			"anthropic": {
 				Name:    "anthropic",
@@ -469,8 +469,8 @@ func DefaultLLMConfig() LLMConfig {
 		Timeout:               DefaultLLMTimeout,
 		MaxConcurrentRequests: DefaultLLMMaxConcurrent,
 		RateLimits: map[string]int{
-			"anthropic": 60,  // 60 requests per minute
-			"openai":    60,  // 60 requests per minute
+			"anthropic": 60, // 60 requests per minute
+			"openai":    60, // 60 requests per minute
 		},
 		FallbackChains: map[string][]string{
 			"anthropic/*": {"openai"},
@@ -519,17 +519,18 @@ func DefaultSkillsConfig() SkillsConfig {
 		},
 	}
 }
+
 // DefaultAuditConfig returns the default audit logging configuration
 func DefaultAuditConfig() AuditConfig {
 	return AuditConfig{
-		Enabled:             DefaultAuditEnabled,
-		Output:              DefaultAuditOutput,
-		Format:              DefaultAuditFormat,
-		RotationEnabled:     true,
-		MaxSize:             DefaultAuditMaxSize,
-		MaxBackups:          DefaultAuditMaxBackups,
-		MaxAge:              DefaultAuditMaxAge,
-		Compress:            true,
+		Enabled:              DefaultAuditEnabled,
+		Output:               DefaultAuditOutput,
+		Format:               DefaultAuditFormat,
+		RotationEnabled:      true,
+		MaxSize:              DefaultAuditMaxSize,
+		MaxBackups:           DefaultAuditMaxBackups,
+		MaxAge:               DefaultAuditMaxAge,
+		Compress:             true,
 		IncludeSensitiveData: false,
 	}
 }
