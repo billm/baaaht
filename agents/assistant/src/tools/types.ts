@@ -6,13 +6,8 @@
 // Copyright 2026 baaaht project
 
 import type {
-  Task,
-  TaskConfig,
   TaskState,
-  TaskType,
   TaskPriority,
-  TaskResult,
-  AgentType,
 } from '../proto/agent.js';
 
 // =============================================================================

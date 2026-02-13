@@ -8,11 +8,6 @@
 
 import type {
   StreamLLMResponse,
-  StreamChunk,
-  StreamToolCall,
-  StreamUsage,
-  StreamError,
-  StreamComplete,
 } from '../proto/llm.js';
 
 // =============================================================================
@@ -95,11 +90,11 @@ export interface UsageEvent extends StreamingEvent {
     /** Current usage totals */
     usage?: {
       /** Input tokens used */
-      inputTokens?: bigint;
+        inputTokens?: number;
       /** Output tokens generated */
-      outputTokens?: bigint;
+        outputTokens?: number;
       /** Total tokens used */
-      totalTokens?: bigint;
+        totalTokens?: number;
     };
   };
 }
@@ -145,12 +140,12 @@ export interface CompleteEvent extends StreamingEvent {
       }>;
       /** Token usage information */
       usage?: {
-        inputTokens?: bigint;
-        outputTokens?: bigint;
-        totalTokens?: bigint;
+        inputTokens?: number;
+        outputTokens?: number;
+        totalTokens?: number;
       };
       /** Reason generation stopped */
-      finishReason?: string;
+      finishReason?: number;
       /** Provider that handled the request */
       provider?: string;
       /** Model that handled the request */

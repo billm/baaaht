@@ -9,6 +9,18 @@
 //
 // Copyright 2026 baaaht project
 
+import type { Client } from '@grpc/grpc-js';
+import {
+  TaskState,
+  type TaskConfig,
+} from '../proto/agent.js';
+import { DelegateOperation } from './types.js';
+import type {
+  DelegateParams,
+  DelegateResult,
+  DelegateMetadata,
+} from './types.js';
+
 // =============================================================================
 // Configuration
 // =============================================================================
@@ -101,6 +113,7 @@ export class CoderDelegation {
    * NOTE: Stub implementation - will throw an error until Coder agent is available
    */
   async delegate(params: DelegateParams, sessionId: string): Promise<DelegateResult> {
+    void sessionId;
     const startTime = Date.now();
     const metadata: DelegateMetadata = {
       target: params.target,
@@ -109,6 +122,9 @@ export class CoderDelegation {
     };
 
     try {
+      void this.grpcClient;
+      void this.createTaskConfig;
+
       // STUB: Coder agent not yet implemented
       // When implemented, this will:
       // 1. Create task configuration from delegation parameters
@@ -168,7 +184,7 @@ export class CoderDelegation {
    *
    * @private
    */
-  private buildCommand(operation: DelegateOperation, parameters: Record<string, unknown>): string {
+  private buildCommand(operation: DelegateOperation, _parameters: Record<string, unknown>): string {
     switch (operation) {
       case DelegateOperation.ANALYZE_CODE:
         return 'analyze_code';

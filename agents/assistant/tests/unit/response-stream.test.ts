@@ -2,7 +2,7 @@
 //
 // Copyright 2026 baaaht project
 
-import { describe, it, expect, beforeEach } from '@jest/globals';
+import { describe, it, expect, beforeEach, jest } from '@jest/globals';
 import {
   ResponseStreamEventType,
   type ResponseStreamEvent,
@@ -609,7 +609,7 @@ describe('ResponseAggregator', () => {
         data: { content: 'X' },
       }) as AggregatedResponse;
 
-      expect(result.complete).toBe(true);
+      expect(result.complete).toBe(false);
       expect(result.error).toBeDefined();
       expect(result.error?.message).toContain('Maximum content length exceeded');
     });
@@ -641,7 +641,7 @@ describe('ResponseAggregator', () => {
         data: { toolCallId: 'tc_3', name: 'tool3', argumentsDelta: '{}' },
       }) as AggregatedResponse;
 
-      expect(result.complete).toBe(true);
+      expect(result.complete).toBe(false);
       expect(result.error).toBeDefined();
       expect(result.error?.message).toContain('Maximum tool calls limit exceeded');
     });

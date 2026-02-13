@@ -11,7 +11,6 @@ import type { OrchestratorClientConfig } from './orchestrator/grpc-client.js';
 import type {
   AgentConfig,
   AgentDependencies,
-  AgentStatus,
 } from './agent/types.js';
 import type { SessionManagerConfig } from './session/types.js';
 import { Agent, createAgent } from './agent.js';
@@ -668,7 +667,7 @@ export function isGlobalInitialized(): boolean {
  * CloseGlobal closes and clears the global agent instance
  */
 export async function closeGlobal(): Promise<void> {
-  if (globalBootstrapResult?.agent !== null) {
+  if (globalBootstrapResult?.agent) {
     try {
       await globalBootstrapResult.agent.shutdown();
     } catch {

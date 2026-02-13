@@ -29,7 +29,7 @@ describe('ToolCallAggregator', () => {
     it('should aggregate simple tool call', () => {
       const toolCall = aggregator.addChunk('tc_1', 'delegate', '{"target":"worker"}');
 
-      expect(toolCall).toBeNull(); // Not complete yet
+      expect(toolCall).not.toBeNull();
     });
 
     it('should complete tool call when JSON is valid', () => {
@@ -104,8 +104,9 @@ describe('ToolCallAggregator', () => {
       const all = aggregator.forceComplete();
 
       expect(all).toHaveLength(2);
-      expect(all[0].arguments).toBe('{"target":"worker"');
-      expect(all[1].arguments).toBe('{}');
+      expect(all.map((tc) => tc.arguments)).toEqual(
+        expect.arrayContaining(['{"target":"worker"', '{}'])
+      );
     });
 
     it('should reset state after force complete', () => {
@@ -268,7 +269,7 @@ describe('ToolCallExecutor', () => {
       const toolCall: ToolCall = {
         id: 'tc_1',
         name: 'delegate',
-        arguments: JSON.stringify({ target: 'worker', operation: 'read_file' }),
+        arguments: JSON.stringify({ target: 'worker', operation: 'read_file', parameters: { path: '/tmp/test.txt' } }),
       };
 
       mockExecuteFn.mockResolvedValue({
@@ -292,6 +293,7 @@ describe('ToolCallExecutor', () => {
       expect(mockExecuteFn).toHaveBeenCalledWith({
         target: 'worker',
         operation: 'read_file',
+        parameters: { path: '/tmp/test.txt' },
       });
     });
 
@@ -299,7 +301,7 @@ describe('ToolCallExecutor', () => {
       const toolCall: ToolCall = {
         id: 'tc_1',
         name: 'delegate',
-        arguments: JSON.stringify({ target: 'worker', operation: 'read_file' }),
+        arguments: JSON.stringify({ target: 'worker', operation: 'read_file', parameters: { path: '/tmp/test.txt' } }),
       };
 
       mockExecuteFn.mockRejectedValue(new Error('Execution failed'));
@@ -323,7 +325,7 @@ describe('ToolCallExecutor', () => {
       const toolCall: ToolCall = {
         id: 'tc_1',
         name: 'delegate',
-        arguments: JSON.stringify({ target: 'worker', operation: 'read_file' }),
+        arguments: JSON.stringify({ target: 'worker', operation: 'read_file', parameters: { path: '/tmp/test.txt' } }),
       };
 
       mockExecuteFn.mockImplementation(
@@ -353,12 +355,12 @@ describe('ToolCallExecutor', () => {
         {
           id: 'tc_1',
           name: 'delegate',
-          arguments: JSON.stringify({ target: 'worker', operation: 'read_file' }),
+          arguments: JSON.stringify({ target: 'worker', operation: 'read_file', parameters: { path: '/tmp/test.txt' } }),
         },
         {
           id: 'tc_2',
           name: 'delegate',
-          arguments: JSON.stringify({ target: 'worker', operation: 'list_files' }),
+          arguments: JSON.stringify({ target: 'worker', operation: 'list_files', parameters: { path: '/tmp' } }),
         },
       ];
 
@@ -386,12 +388,12 @@ describe('ToolCallExecutor', () => {
         {
           id: 'tc_1',
           name: 'delegate',
-          arguments: JSON.stringify({ target: 'worker', operation: 'read_file' }),
+          arguments: JSON.stringify({ target: 'worker', operation: 'read_file', parameters: { path: '/tmp/test.txt' } }),
         },
         {
           id: 'tc_2',
           name: 'delegate',
-          arguments: JSON.stringify({ target: 'worker', operation: 'list_files' }),
+          arguments: JSON.stringify({ target: 'worker', operation: 'list_files', parameters: { path: '/tmp' } }),
         },
       ];
 
@@ -420,12 +422,12 @@ describe('ToolCallExecutor', () => {
         {
           id: 'tc_1',
           name: 'delegate',
-          arguments: JSON.stringify({ target: 'worker', operation: 'read_file' }),
+          arguments: JSON.stringify({ target: 'worker', operation: 'read_file', parameters: { path: '/tmp/test.txt' } }),
         },
         {
           id: 'tc_2',
           name: 'delegate',
-          arguments: JSON.stringify({ target: 'worker', operation: 'list_files' }),
+          arguments: JSON.stringify({ target: 'worker', operation: 'list_files', parameters: { path: '/tmp' } }),
         },
       ];
 

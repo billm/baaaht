@@ -8,20 +8,14 @@
 
 import type { Tool, ToolInputSchema } from '../proto/llm.js';
 import { TaskPriority, AgentType } from '../proto/agent.js';
-import type {
-  ToolDefinition,
+import {
   DelegateTarget,
   DelegateOperation,
+} from './types.js';
+import type {
   DelegateParams,
   DelegateResult,
   DelegateToolConfig,
-  ReadFileParams,
-  WriteFileParams,
-  DeleteFileParams,
-  ListFilesParams,
-  SearchFilesParams,
-  WebSearchParams,
-  WebFetchParams,
 } from './types.js';
 
 // =============================================================================
@@ -59,7 +53,7 @@ export const DEFAULT_DELEGATE_CONFIG: Required<DelegateToolConfig> = {
  * @returns The tool definition for registration with the LLM
  */
 export function createDelegateToolDefinition(config?: DelegateToolConfig): Tool {
-  const effectiveConfig = { ...DEFAULT_DELEGATE_CONFIG, ...config };
+  void config;
 
   return {
     name: 'delegate',
@@ -119,60 +113,8 @@ function createDelegateInputSchema(): ToolInputSchema {
       },
       parameters: {
         type: 'object',
-        description: 'Operation-specific parameters. The structure depends on the operation being performed.',
-        properties: {
-          // File operation parameters
-          path: {
-            type: 'string',
-            description: 'File path (for file operations)',
-          },
-          content: {
-            type: 'string',
-            description: 'File content to write (for write_file)',
-          },
-          pattern: {
-            type: 'string',
-            description: 'Search pattern or glob pattern (for search_files, list_files)',
-          },
-          recursive: {
-            type: 'boolean',
-            description: 'Whether to perform recursive operations (for delete_file, search_files, list_files)',
-          },
-          offset: {
-            type: 'number',
-            description: 'Byte offset to start reading from (for read_file)',
-          },
-          limit: {
-            type: 'number',
-            description: 'Maximum number of bytes or items to return (for read_file, list_files, web_search)',
-          },
-          maxDepth: {
-            type: 'number',
-            description: 'Maximum depth for recursive listing (for list_files)',
-          },
-          // Web operation parameters
-          url: {
-            type: 'string',
-            description: 'URL to fetch (for web_fetch)',
-          },
-          query: {
-            type: 'string',
-            description: 'Search query (for web_search)',
-          },
-          method: {
-            type: 'string',
-            description: 'HTTP method (for web_fetch)',
-            enum: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-          },
-          headers: {
-            type: 'object',
-            description: 'HTTP headers (for web_fetch)',
-          },
-          body: {
-            type: 'string',
-            description: 'Request body (for web_fetch POST requests)',
-          },
-        },
+        description:
+          'Operation-specific parameters. Common keys: path, content, pattern, recursive, offset, limit, maxDepth, url, query, method (GET/POST/PUT/DELETE/PATCH), headers, body.',
       },
       timeout: {
         type: 'number',
@@ -182,7 +124,6 @@ function createDelegateInputSchema(): ToolInputSchema {
         type: 'number',
         description:
           'Optional task priority as a numeric level. Supported values: 1 (low), 2 (normal), 3 (high), 4 (critical). Defaults to 2 (normal).',
-        enum: [1, 2, 3, 4],
       },
     },
     required: ['target', 'operation', 'parameters'],

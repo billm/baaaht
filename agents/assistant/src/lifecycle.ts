@@ -6,7 +6,8 @@
 // Copyright 2026 baaaht project
 
 import { EventEmitter } from 'events';
-import { Agent, AgentState, type AgentStatus } from './agent.js';
+import { Agent } from './agent.js';
+import { AgentState } from './proto/agent.js';
 import type { SessionManager } from './session/manager.js';
 import type { AgentRegistry } from './orchestrator/registration.js';
 
@@ -513,7 +514,6 @@ export class LifecycleManager extends EventEmitter {
     reason?: string,
     force: boolean = false
   ): Promise<void> {
-    const previousState = this.state;
     this.transitionTo(LifecycleState.SHUTTING_DOWN);
 
     this.emit(
@@ -580,7 +580,6 @@ export class LifecycleManager extends EventEmitter {
     // Step 1: Wait for active messages to complete or timeout
     if (this.agent) {
       const agentStatus = this.agent.getStatus();
-      const timeout = Math.min(5000, deadline - Date.now());
 
       while (agentStatus.processingMessages > 0 && Date.now() < deadline) {
         await this.sleep(100);
@@ -742,7 +741,7 @@ export class LifecycleManager extends EventEmitter {
       // Check agent health
       if (this.agent) {
         const agentStatus = this.agent.getStatus();
-        details.agent = agentStatus.state === 'AGENT_STATE_IDLE';
+        details.agent = agentStatus.state === AgentState.AGENT_STATE_IDLE;
         healthy = healthy && details.agent;
       } else {
         details.agent = false;

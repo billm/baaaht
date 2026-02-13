@@ -168,7 +168,7 @@ export class LLMGatewayClient {
       const response = await this.callComplete(body, timeout, options.signal);
 
       if (!response.response) {
-        throw this.createError('No response data received', 'UNKNOWN');
+        throw this.createError('No response data received', LLMGatewayErrorCode.UNKNOWN);
       }
 
       const result = this.toCompletionResult(requestId, response.response);
@@ -263,7 +263,12 @@ export class LLMGatewayClient {
       return {
         status: String(response.status ?? 'UNKNOWN'),
         startedAt: response.startedAt,
-        uptime: response.uptime,
+        uptime: response.uptime
+          ? {
+              seconds: BigInt(response.uptime.seconds),
+              nanos: response.uptime.nanos,
+            }
+          : undefined,
         activeRequests: response.activeRequests,
         totalRequests: response.totalRequests !== undefined ? BigInt(response.totalRequests) : undefined,
         totalTokensUsed: response.totalTokensUsed !== undefined ? BigInt(response.totalTokensUsed) : undefined,
@@ -973,7 +978,9 @@ export class LLMGatewayClient {
     if (err instanceof Error) {
       if (err.name === 'AbortError' || err.name === 'TypeError') {
         const error = new Error(err.message) as LLMGatewayError;
-        error.code = err.name === 'AbortError' ? 'TIMEOUT' : 'NETWORK_ERROR';
+        error.code = err.name === 'AbortError'
+          ? LLMGatewayErrorCode.TIMEOUT
+          : LLMGatewayErrorCode.NETWORK_ERROR;
         error.name = 'LLMGatewayError';
         error.retryable = err.name === 'AbortError';
         return error;
@@ -983,7 +990,7 @@ export class LLMGatewayClient {
     const error = new Error(
       err instanceof Error ? err.message : 'Unknown error occurred'
     ) as LLMGatewayError;
-    error.code = 'UNKNOWN';
+    error.code = LLMGatewayErrorCode.UNKNOWN;
     error.name = 'LLMGatewayError';
     return error;
   }

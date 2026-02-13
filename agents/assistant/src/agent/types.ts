@@ -8,30 +8,18 @@
 import { EventEmitter } from 'events';
 import type { Client } from '@grpc/grpc-js';
 import type {
-  Session,
-  SessionMetadata,
-  Message as SessionMessage,
-  SessionState,
 } from '../session/types.js';
 import type {
   AgentMessage,
-  Task,
-  TaskConfig,
-  TaskResult,
-  TaskState,
   AgentState,
-  AgentType,
 } from '../proto/agent.js';
 import type {
-  LLMRequest,
-  LLMResponse,
-  LLMMessage,
   ToolCall,
   TokenUsage,
   FinishReason,
 } from '../proto/llm.js';
-import type { CompletionParams, CompletionStream, CompletionResult, StreamingChunk } from '../llm/types.js';
-import type { ToolDefinition, ToolResult, DelegateParams, DelegateResult } from '../tools/types.js';
+import type { CompletionParams } from '../llm/types.js';
+import type { ToolDefinition, ToolResult } from '../tools/types.js';
 
 // =============================================================================
 // Agent Configuration
@@ -484,7 +472,7 @@ export interface ToolExecutionResult {
 /**
  * Request parameters for LLM completion
  */
-export interface LLMCompletionRequest extends CompletionParams {
+export interface LLMCompletionRequest extends Omit<CompletionParams, 'tools'> {
   /**
    * Session ID for context
    */
@@ -650,6 +638,11 @@ export interface MessageProcessResult {
   content: string;
 
   /**
+    * Whether response used streaming mode
+    */
+    streamed?: boolean;
+
+    /**
    * Tool calls made
    */
   toolCalls: ToolCallInfo[];

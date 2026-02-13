@@ -16,7 +16,6 @@ import type { Message } from './types.js';
  * These are rough estimates for common scenarios
  */
 const DEFAULT_TOKENS_PER_CHAR = 0.25; // ~4 characters per token
-const DEFAULT_TOKENS_PER_WORD = 0.75; // ~1.33 words per token
 const MIN_TOKENS_PER_MESSAGE = 10; // Minimum tokens for any message (metadata overhead)
 
 /**
@@ -533,8 +532,8 @@ export class ContextWindow {
   private pruneByImportance(messages: Message[]): Message[] {
     // Sort messages by importance (metadata.importance if present)
     const sorted = [...messages].sort((a, b) => {
-      const aImportance = a.metadata?.extra?.importance ?? 0;
-      const bImportance = b.metadata?.extra?.importance ?? 0;
+      const aImportance = Number(a.metadata?.extra?.importance ?? 0);
+      const bImportance = Number(b.metadata?.extra?.importance ?? 0);
       return bImportance - aImportance; // Descending order
     });
 
