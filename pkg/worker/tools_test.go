@@ -836,8 +836,8 @@ func TestGrepAndFind(t *testing.T) {
 
 		// Create test files with content
 		testFiles := map[string]string{
-			"file1.txt": "Hello World\nThis is a test\nAnother line",
-			"file2.txt": "Hello Universe\nTesting is fun\nHello again",
+			"file1.txt":        "Hello World\nThis is a test\nAnother line",
+			"file2.txt":        "Hello Universe\nTesting is fun\nHello again",
 			"subdir/file3.txt": "Hello Subdirectory\nNested content",
 		}
 
