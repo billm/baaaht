@@ -510,7 +510,11 @@ func TestFileWrite(t *testing.T) {
 	})
 
 	t.Run("creates parent directories if needed", func(t *testing.T) {
-		tmpDir := t.TempDir()
+		tmpDir, err := os.MkdirTemp("", "baaaht-filewrite-nested-*")
+		if err != nil {
+			t.Fatalf("Failed to create temp dir: %v", err)
+		}
+		defer func() { _ = os.RemoveAll(tmpDir) }()
 		testContent := "Nested file content"
 		targetPath := tmpDir + "/subdir/nested/file.txt"
 
