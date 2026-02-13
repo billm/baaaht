@@ -82,7 +82,7 @@ docker tag ghcr.io/billm/baaaht/agent-assistant:sha-$(git rev-parse --short HEAD
 
 - Production mode: run immutable assistant image (default orchestrator behavior).
 - Development mode: use `--assistant-dev-mode` to bind-mount `agents/assistant` and `/proto` for live iteration.
-- Current image runtime entrypoint is `tsx src/index.ts` to avoid coupling image builds to TypeScript compile stabilization.
+- Current image runtime entrypoint is compiled JavaScript via `node dist/index.js`.
 - Security baseline: non-root, no-new-privileges, cap-drop all, read-only rootfs by default.
 - Documented exception: only disable read-only rootfs in development when required via `--assistant-readonly-rootfs=false`.
 

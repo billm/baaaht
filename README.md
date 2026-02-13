@@ -136,7 +136,7 @@ You can override assistant startup behavior with CLI flags:
 ./bin/orchestrator --assistant-dev-mode --assistant-readonly-rootfs=false
 
 # Override production command/image explicitly
-./bin/orchestrator --assistant-image ghcr.io/billm/baaaht/agent-assistant:sha-$(git rev-parse --short HEAD) --assistant-command node_modules/.bin/tsx --assistant-args src/index.ts
+./bin/orchestrator --assistant-image ghcr.io/billm/baaaht/agent-assistant:sha-$(git rev-parse --short HEAD) --assistant-command node --assistant-args dist/index.js
 
 ### Agent image strategy
 
