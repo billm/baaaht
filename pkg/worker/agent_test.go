@@ -16,8 +16,9 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/billm/baaaht/orchestrator/internal/logger"
-	grpcpkg "github.com/billm/baaaht/orchestrator/pkg/grpc"
 	"github.com/billm/baaaht/orchestrator/pkg/events"
+	grpcpkg "github.com/billm/baaaht/orchestrator/pkg/grpc"
+	"github.com/billm/baaaht/orchestrator/pkg/session"
 	"github.com/billm/baaaht/orchestrator/pkg/types"
 	"github.com/billm/baaaht/orchestrator/proto"
 )
@@ -38,11 +39,16 @@ func isStreamClosedErr(err error) bool {
 
 // mockAgentServiceDependencies implements AgentServiceDependencies for testing
 type mockAgentServiceDependencies struct {
-	eventBus *events.Bus
+	eventBus       *events.Bus
+	sessionManager *session.Manager
 }
 
 func (m *mockAgentServiceDependencies) EventBus() *events.Bus {
 	return m.eventBus
+}
+
+func (m *mockAgentServiceDependencies) SessionManager() *session.Manager {
+	return m.sessionManager
 }
 
 // TestWorkerRegister tests that a worker agent can successfully register with the orchestrator
@@ -113,8 +119,8 @@ func TestWorkerRegister(t *testing.T) {
 
 	// Create worker agent
 	cfg := AgentConfig{
-		DialTimeout:   5 * time.Second,
-		RPCTimeout:    5 * time.Second,
+		DialTimeout: 5 * time.Second,
+		RPCTimeout:  5 * time.Second,
 	}
 	agent, err := NewAgent(addr, cfg, log)
 	if err != nil {
@@ -434,8 +440,8 @@ func TestWorkerShutdown(t *testing.T) {
 
 	// Create worker agent
 	cfg := AgentConfig{
-		DialTimeout:   5 * time.Second,
-		RPCTimeout:    5 * time.Second,
+		DialTimeout: 5 * time.Second,
+		RPCTimeout:  5 * time.Second,
 	}
 	agent, err := NewAgent(addr, cfg, log)
 	if err != nil {
@@ -762,7 +768,7 @@ func TestTaskRouting(t *testing.T) {
 	// Test file operation routing
 	t.Run("FileOperationRead", func(t *testing.T) {
 		config := &proto.TaskConfig{
-			Command: "read",
+			Command:   "read",
 			Arguments: []string{"test.txt"},
 		}
 
@@ -779,7 +785,7 @@ func TestTaskRouting(t *testing.T) {
 	// Test file write operation routing
 	t.Run("FileOperationWrite", func(t *testing.T) {
 		config := &proto.TaskConfig{
-			Command: "write",
+			Command:   "write",
 			Arguments: []string{"output.txt"},
 			Parameters: map[string]string{
 				"content": "test content",
