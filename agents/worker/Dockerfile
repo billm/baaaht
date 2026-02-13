@@ -22,8 +22,8 @@ COPY proto/ ./proto/
 COPY internal/ ./internal/
 
 # Build the worker binary
-ARG TARGETOS
-ARG TARGETARCH
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
     go build -ldflags="-s -w" -o /worker ./cmd/worker
 
