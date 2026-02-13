@@ -777,7 +777,7 @@ func main() {
 	rootCmd.PersistentFlags().BoolVar(&assistantReadOnlyRootfs, "assistant-readonly-rootfs", true,
 		"Run assistant container with read-only root filesystem (disable only for documented development exceptions)")
 	rootCmd.PersistentFlags().StringVar(&assistantWorkDir, "assistant-workdir", "agents/assistant",
-		"Host working directory (mounted into assistant container at /app)")
+		"Host working directory mounted into assistant container at /app (only used with --assistant-dev-mode)")
 	rootCmd.PersistentFlags().StringVar(&assistantOrchestratorAddr, "assistant-orchestrator-addr", "host.docker.internal:50051",
 		"Orchestrator gRPC address used by assistant container")
 
