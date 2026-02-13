@@ -75,8 +75,11 @@ func runWorker(cmd *cobra.Command, args []string) error {
 	shutdownCtx, shutdownCancel = context.WithCancel(ctx)
 	defer shutdownCancel()
 
-	// Get orchestrator address
+	// Get orchestrator address (priority: CLI flag > ORCHESTRATOR_URL env > default)
 	addr := orchestratorAddr
+	if addr == "" {
+		addr = os.Getenv("ORCHESTRATOR_URL")
+	}
 	if addr == "" {
 		addr = "unix:///tmp/baaaht-grpc.sock"
 	}
