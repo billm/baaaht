@@ -17,7 +17,7 @@ env:
   IMAGE_OWNER: ${{ github.repository_owner }}
   BASE_IMAGE_NAME: baaaht/agent-base
   ASSISTANT_IMAGE_NAME: baaaht/agent-assistant
-  DOCKER_METADATA_SHORT_SHA_LENGTH: "12"
+  DOCKER_METADATA_SHORT_SHA_LENGTH: "7"
 
 jobs:
   build_base:
@@ -38,7 +38,7 @@ jobs:
 
       - name: Compute deterministic tag
         id: vars
-        run: echo "sha12_tag=sha-${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+        run: echo "sha_tag=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
       - name: Docker metadata (base)
         id: meta_base
@@ -79,7 +79,7 @@ jobs:
 
       - name: Compute deterministic tag
         id: vars
-        run: echo "sha12_tag=sha-${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+        run: echo "sha_tag=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
       - name: Docker metadata (assistant)
         id: meta_assistant
@@ -98,7 +98,7 @@ jobs:
           context: ./agents/assistant
           file: ./agents/assistant/Dockerfile
           build-args: |
-            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.BASE_IMAGE_NAME }}:${{ steps.vars.outputs.sha12_tag }}
+            BASE_IMAGE=${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/${{ env.BASE_IMAGE_NAME }}:${{ steps.vars.outputs.sha_tag }}
           push: true
           tags: ${{ steps.meta_assistant.outputs.tags }}
           labels: ${{ steps.meta_assistant.outputs.labels }}

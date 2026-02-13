@@ -7,13 +7,13 @@
 # Variables
 BUILD_DIR=bin
 DOCKER_IMAGE=baaaht/orchestrator
-DOCKER_TAG?=sha-$(shell git rev-parse --short=12 HEAD)
+DOCKER_TAG?=sha-$(shell git rev-parse --short HEAD)
 LLM_GATEWAY_IMAGE=baaaht/llm-gateway
-LLM_GATEWAY_TAG?=sha-$(shell git rev-parse --short=12 HEAD)
+LLM_GATEWAY_TAG?=sha-$(shell git rev-parse --short HEAD)
 LLM_GATEWAY_DIR=llm-gateway
 AGENT_BASE_IMAGE?=ghcr.io/billm/baaaht/agent-base
 ASSISTANT_IMAGE?=ghcr.io/billm/baaaht/agent-assistant
-AGENT_IMAGE_TAG?=sha-$(shell git rev-parse --short=12 HEAD)
+AGENT_IMAGE_TAG?=sha-$(shell git rev-parse --short HEAD)
 AGENT_IMAGE_LATEST_TAG?=latest
 
 # Proto variables

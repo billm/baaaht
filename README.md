@@ -124,7 +124,7 @@ You can override assistant startup behavior with CLI flags:
 ./bin/orchestrator --assistant-autostart=false
 
 # Use a custom assistant container image
-./bin/orchestrator --assistant-image ghcr.io/billm/baaaht/agent-assistant:sha-$(git rev-parse --short=12 HEAD)
+./bin/orchestrator --assistant-image ghcr.io/billm/baaaht/agent-assistant:sha-$(git rev-parse --short HEAD)
 
 # Configure TCP gRPC bridge for containerized assistant
 ./bin/orchestrator --grpc-tcp-enabled --grpc-tcp-listen-addr 0.0.0.0:50051 --assistant-orchestrator-addr host.docker.internal:50051
@@ -136,7 +136,7 @@ You can override assistant startup behavior with CLI flags:
 ./bin/orchestrator --assistant-dev-mode --assistant-readonly-rootfs=false
 
 # Override production command/image explicitly
-./bin/orchestrator --assistant-image ghcr.io/billm/baaaht/agent-assistant:sha-$(git rev-parse --short=12 HEAD) --assistant-command node_modules/.bin/tsx --assistant-args src/index.ts
+./bin/orchestrator --assistant-image ghcr.io/billm/baaaht/agent-assistant:sha-$(git rev-parse --short HEAD) --assistant-command node_modules/.bin/tsx --assistant-args src/index.ts
 
 ### Agent image strategy
 
@@ -144,7 +144,7 @@ The repository now supports a shared image model for agent containers:
 
 - `agents/base/Dockerfile` defines a hardened Node.js base image.
 - `agents/assistant/Dockerfile` consumes that base image via `BASE_IMAGE`.
-- `make agent-images-build` builds both images with `sha-<12-char-git-sha>` and `latest` tags.
+- `make agent-images-build` builds both images with `sha-<short-git-sha>` (default 7 chars) and `latest` tags.
 - `.github/workflows/images.yml` publishes base first, then assistant using the same deterministic SHA tag while also publishing `latest`.
 
 Rollout path:
@@ -159,7 +159,7 @@ Rollout path:
 1. Build and publish images with deterministic tags:
     - `make agent-images-push`
 2. Update orchestrator startup to pinned assistant image tag:
-    - `./bin/orchestrator --assistant-image ghcr.io/billm/baaaht/agent-assistant:sha-$(git rev-parse --short=12 HEAD)`
+    - `./bin/orchestrator --assistant-image ghcr.io/billm/baaaht/agent-assistant:sha-$(git rev-parse --short HEAD)`
 3. Verify runtime hardening and startup:
     - container runs as non-root, has `no-new-privileges`, `cap-drop=ALL`, and read-only rootfs unless explicitly disabled.
 4. Validate assistant connectivity and response path through orchestrator gRPC.

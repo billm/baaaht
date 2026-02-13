@@ -69,12 +69,12 @@ Build locally with deterministic tags:
 make agent-images-build
 
 # Or build directly
-docker build -f agents/base/Dockerfile -t ghcr.io/billm/baaaht/agent-base:sha-$(git rev-parse --short=12 HEAD) .
-docker tag ghcr.io/billm/baaaht/agent-base:sha-$(git rev-parse --short=12 HEAD) ghcr.io/billm/baaaht/agent-base:latest
+docker build -f agents/base/Dockerfile -t ghcr.io/billm/baaaht/agent-base:sha-$(git rev-parse --short HEAD) .
+docker tag ghcr.io/billm/baaaht/agent-base:sha-$(git rev-parse --short HEAD) ghcr.io/billm/baaaht/agent-base:latest
 docker build -f agents/assistant/Dockerfile \
-	--build-arg BASE_IMAGE=ghcr.io/billm/baaaht/agent-base:sha-$(git rev-parse --short=12 HEAD) \
-	-t ghcr.io/billm/baaaht/agent-assistant:sha-$(git rev-parse --short=12 HEAD) agents/assistant
-docker tag ghcr.io/billm/baaaht/agent-assistant:sha-$(git rev-parse --short=12 HEAD) ghcr.io/billm/baaaht/agent-assistant:latest
+	--build-arg BASE_IMAGE=ghcr.io/billm/baaaht/agent-base:sha-$(git rev-parse --short HEAD) \
+	-t ghcr.io/billm/baaaht/agent-assistant:sha-$(git rev-parse --short HEAD) agents/assistant
+docker tag ghcr.io/billm/baaaht/agent-assistant:sha-$(git rev-parse --short HEAD) ghcr.io/billm/baaaht/agent-assistant:latest
 ```
 
 ## Dev vs Prod parity
@@ -90,7 +90,7 @@ docker tag ghcr.io/billm/baaaht/agent-assistant:sha-$(git rev-parse --short=12 H
 1. Publish deterministic base and assistant tags:
 	- `make agent-images-push`
 2. Run orchestrator with pinned assistant image:
-	- `./bin/orchestrator --assistant-image ghcr.io/billm/baaaht/agent-assistant:sha-$(git rev-parse --short=12 HEAD)`
+	- `./bin/orchestrator --assistant-image ghcr.io/billm/baaaht/agent-assistant:sha-$(git rev-parse --short HEAD)`
 3. Verify assistant startup and orchestrator connectivity.
 4. Confirm security baseline is active (non-root, no-new-privileges, cap-drop all, read-only rootfs by default).
 
