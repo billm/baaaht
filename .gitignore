@@ -4,6 +4,9 @@
 # Auto Claude data directory
 .auto-claude/
 
+# Claude Files
+.mcp.json
+
 # Auto Claude generated files
 .auto-claude-allowlist
 .auto-claude-security.json
