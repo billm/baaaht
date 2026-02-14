@@ -2,6 +2,20 @@
 
 baaaht is a security-first, container-native agentic AI assistant platform. The orchestrator (Go) manages container lifecycles, while specialized agents (TypeScript) handle user interactions and workloads.
 
+## Quick Start
+
+```bash
+# Build and run orchestrator
+make build
+./bin/orchestrator --help
+
+# Run tests
+make test
+
+# Build all Docker images
+make agent-images-build
+```
+
 ## Build, Test, and Lint
 
 ### Go (Orchestrator)
@@ -68,6 +82,22 @@ make llm-gateway-build  # Build LLM Gateway
 make llm-gateway-docker # Build Docker image
 ```
 
+### Docker Images
+
+```bash
+# Build all agent images
+make agent-images-build
+
+# Build individual images
+make base-image-build        # Base agent image
+make assistant-image-build   # Assistant agent
+make worker-image-build      # Worker agent
+make llm-gateway-docker      # LLM Gateway
+
+# Push to registry
+make agent-images-push
+```
+
 ### Protocol Buffers
 
 ```bash
@@ -95,10 +125,10 @@ baaaht uses **OS-level container isolation** as the primary security boundary. E
 └──────────────────────────────────────────────────────────┘
                            ↕ gRPC
 ┌──────────────────────────────────────────────────────────┐
-│               Agent Containers (TypeScript)              │
-│  • Assistant: Primary conversational interface           │
-│  • Worker: Tool execution (file ops, web, shell)         │
-│  • LLM Gateway: API credential isolation & proxying      │
+│               Agent Containers                           │
+│  • Assistant (TypeScript): Primary conversational iface  │
+│  • Worker (Go): Tool execution (file ops, web, shell)    │
+│  • LLM Gateway (TypeScript): API credential isolation    │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -114,7 +144,7 @@ baaaht uses **OS-level container isolation** as the primary security boundary. E
 ```
 cmd/                    # Binaries (one per tool)
 ├── orchestrator/       # Main orchestrator entry point
-├── worker/             # Worker agent
+├── worker/             # Worker agent (Go)
 └── tui/                # Terminal UI
 
 pkg/                    # Public Go packages (shared across tools)
@@ -123,18 +153,29 @@ pkg/                    # Public Go packages (shared across tools)
 ├── session/            # Session state management
 ├── policy/             # Security policy enforcement
 ├── credentials/        # Credential storage and injection
+├── provider/           # LLM provider abstractions
+├── scheduler/          # Task scheduling
 ├── grpc/               # gRPC services
 ├── orchestrator/       # Main orchestration logic
 ├── worker/             # Worker agent implementation
+├── skills/             # Skills system
+├── tools/              # Tool execution
+├── tui/                # Terminal UI components
+├── memory/             # Memory/context management
+├── ipc/                # Inter-process communication
 └── types/              # Shared data types
 
-agents/assistant/       # TypeScript assistant agent
-├── src/
-│   ├── agent.ts             # Main Agent class
-│   ├── orchestrator/        # gRPC client for orchestrator
-│   ├── llm/                 # LLM Gateway client with streaming
-│   ├── tools/               # Tool implementations (delegate only)
-│   └── proto/               # Generated protobuf types
+agents/
+├── base/               # Base Docker image for agents
+├── assistant/          # TypeScript assistant agent
+│   ├── src/
+│   │   ├── agent.ts             # Main Agent class
+│   │   ├── orchestrator/        # gRPC client for orchestrator
+│   │   ├── llm/                 # LLM Gateway client with streaming
+│   │   ├── tools/               # Tool implementations (delegate only)
+│   │   └── proto/               # Generated protobuf types
+│   └── package.json
+└── worker/             # Worker Dockerfile (Go binary)
 
 llm-gateway/            # TypeScript LLM gateway service
 proto/                  # Protocol Buffer definitions
@@ -290,6 +331,13 @@ go test -tags integration -v ./tests/integration/...
 - Integration tests: `tests/integration/`
 - Use `testify` for assertions: `require.NoError(t, err)`, `assert.Equal(t, expected, actual)`
 - Mock implementations often in same file as test (e.g., `ExecutorMockRuntime` in `pkg/tools/executor_test.go`)
+
+## CI/CD
+
+GitHub Actions workflows in `.github/workflows/`:
+- `unit-tests.yml`: Runs on every push to main
+- `agents.yml`: Builds and tests agent containers
+- `non-agents.yml`: Builds orchestrator, worker, TUI
 
 ## gRPC Communication
 
